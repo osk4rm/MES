@@ -1,0 +1,6 @@
+@AsistOff.MES.Gateway_HostAddress = http://localhost:5243
+
+GET {{AsistOff.MES.Gateway_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
