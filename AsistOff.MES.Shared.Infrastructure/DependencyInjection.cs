@@ -1,4 +1,5 @@
 ﻿using AsistOff.MES.Shared.Abstractions.Providers;
+using AsistOff.MES.Shared.Infrastructure.Auth;
 using AsistOff.MES.Shared.Infrastructure.Behaviors;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Providers;
@@ -21,6 +22,7 @@ namespace AsistOff.MES.Shared.Infrastructure
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
             services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
             services.AddSingleton<IGuidProvider, GuidProvider>();
+            services.AddAuth();
             
             services.AddPersistence(configuration);
 

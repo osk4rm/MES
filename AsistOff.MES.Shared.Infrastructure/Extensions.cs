@@ -6,6 +6,8 @@ namespace AsistOff.MES.Shared.Infrastructure;
 
 public static class Extensions
 {
+    
+    
     public static T GetOptions<T>(this IServiceCollection services,
         string sectionName) where T : new()
     {
