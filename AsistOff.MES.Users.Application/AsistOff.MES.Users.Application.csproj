@@ -6,4 +6,20 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <PackageReference Include="ErrorOr" Version="2.0.1" />
+      <PackageReference Include="FluentValidation" Version="11.10.0" />
+      <PackageReference Include="MediatR.Contracts" Version="2.0.1" />
+      <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="8.0.17" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\AsistOff.MES.Shared.Abstractions\AsistOff.MES.Shared.Abstractions.csproj" />
+      <ProjectReference Include="..\AsistOff.MES.Users.Core\AsistOff.MES.Users.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Features\Authentication\" />
+    </ItemGroup>
+
 </Project>

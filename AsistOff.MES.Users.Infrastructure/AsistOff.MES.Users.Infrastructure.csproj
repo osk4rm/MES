@@ -6,4 +6,18 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <Folder Include="DAL\Migrations\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\AsistOff.MES.Multitenancy\AsistOff.MES.Multitenancy.csproj" />
+      <ProjectReference Include="..\AsistOff.MES.Shared.Infrastructure\AsistOff.MES.Shared.Infrastructure.csproj" />
+      <ProjectReference Include="..\AsistOff.MES.Users.Core\AsistOff.MES.Users.Core.csproj" />
+    </ItemGroup>
+
 </Project>

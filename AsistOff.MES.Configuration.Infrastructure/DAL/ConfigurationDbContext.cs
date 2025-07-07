@@ -1,6 +1,4 @@
 ﻿using AsistOff.MES.Configuration.Domain.Entities;
-using AsistOff.MES.Multitenancy;
-using AsistOff.MES.Multitenancy.Entity;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -12,5 +10,10 @@ public class ConfigurationDbContext(
     PublishDomainEventsInterceptor publishDomainEventsInterceptor) : DefaultContext(options, publishDomainEventsInterceptor)
 {
     public DbSet<Warehouse> Warehouses { get; set; }
-    public DbSet<Tenant> Tenants { get; set; }
+    
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema("config");
+        modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly);
+    }
 }
