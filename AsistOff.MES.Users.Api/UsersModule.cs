@@ -1,6 +1,9 @@
 ﻿using AsistOff.MES.Shared.Abstractions.Modules;
+using AsistOff.MES.Users.Application;
+using AsistOff.MES.Users.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 namespace AsistOff.MES.Users.Api;
 
@@ -15,7 +18,9 @@ internal class UsersModule : IModule
     {
     }
 
-    public void Register(IServiceCollection services)
+    public void Register(IServiceCollection services, IConfiguration configuration)
     {
+        services.AddApplication();
+        services.AddInfrastructure(configuration);
     }
 }

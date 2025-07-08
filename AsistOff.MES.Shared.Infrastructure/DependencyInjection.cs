@@ -35,6 +35,7 @@ namespace AsistOff.MES.Shared.Infrastructure
             var connectionString = configuration.GetConnectionString("Default");
 
             services.AddScoped<PublishDomainEventsInterceptor>();
+            services.AddSingleton<AuditableEntityInterceptor>();
 
             return services;
         }

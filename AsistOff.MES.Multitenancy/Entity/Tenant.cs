@@ -10,4 +10,8 @@ public class Tenant
     
     [Column(TypeName = "jsonb")]
     public string Settings { get; set; }
+    public string? DisplayName { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public string? ContactEmail { get; set; }
 }

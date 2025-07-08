@@ -6,8 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AsistOff.MES.Configuration.Infrastructure.DAL;
 
 public class ConfigurationDbContext(
-    DbContextOptions<DefaultContext> options,
-    PublishDomainEventsInterceptor publishDomainEventsInterceptor) : DefaultContext(options, publishDomainEventsInterceptor)
+    DbContextOptions<ConfigurationDbContext> options,
+    PublishDomainEventsInterceptor publishDomainEventsInterceptor) : DefaultContext<ConfigurationDbContext>(options, publishDomainEventsInterceptor)
 {
     public DbSet<Warehouse> Warehouses { get; set; }
     

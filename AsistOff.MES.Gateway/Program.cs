@@ -10,6 +10,7 @@ builder.Host.ConfigureModules();
 builder.Configuration.AddUserSecrets<Program>();
 
 var modules = ModuleLoader.LoadModules();
+var assemblies = ModuleLoader.LoadAssemblies();
 
 // TEMP - TODO: przeniesc do konfiguracji 
 builder.Services.AddCors(options =>
@@ -28,7 +29,12 @@ builder.Services
     .AddPresentation()
     .AddInfra(builder.Configuration);
 
-builder.Services.AddMultitenancy();
+builder.Services.AddMultitenancy(builder.Configuration);
+
+foreach (var module in modules)
+{
+    module.Register(builder.Services, builder.Configuration);
+}
 
 var app = builder.Build();
 
@@ -41,16 +47,19 @@ if (app.Environment.IsDevelopment())
 
 foreach (var module in modules)
 {
-    module.Register(builder.Services);
     module.Use(app);
 }
 
-using var scope = app.Services.CreateScope();
-var seeders = scope.ServiceProvider.GetServices(typeof(ISeeder));
-
-foreach (var seeder in seeders)
+using (var scope = app.Services.CreateScope())
 {
-    await ((ISeeder)seeder!).Seed();
+    scope.ServiceProvider.ApplyAllPendingMigrations(assemblies);
+
+    var seeders = scope.ServiceProvider.GetServices(typeof(ISeeder));
+
+    foreach (var seeder in seeders)
+    {
+        await ((ISeeder)seeder!).Seed();
+    }
 }
 
 // TEMP

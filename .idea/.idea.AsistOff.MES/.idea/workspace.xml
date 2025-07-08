@@ -10,12 +10,50 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ee6fa4d9-888b-4e63-8d65-7d46e1f34d92" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Configuration.Application/DependencyInjection.cs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Context/MultitenancyDbContext.cs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Controllers/TenantsController.cs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Commands/Create/CreateTenantCommand.cs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Commands/Create/CreateTenantCommandHandler.cs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Queries/GetTenantQuery.cs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/MigrationExtensions.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/.idea.AsistOff.MES/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.AsistOff.MES/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Configuration.Api/ConfigurationModule.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Configuration.Api/ConfigurationModule.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Configuration.Core/Entities/Warehouse.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Configuration.Core/Entities/Warehouse.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Configuration.Infrastructure/AsistOff.MES.Configuration.Infrastructure.csproj" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Configuration.Infrastructure/AsistOff.MES.Configuration.Infrastructure.csproj" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Configuration.Infrastructure/DAL/ConfigurationDbContext.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Configuration.Infrastructure/DAL/ConfigurationDbContext.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Configuration.Infrastructure/DependencyInjection.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Configuration.Infrastructure/DependencyInjection.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Gateway/AsistOff.MES.Gateway.csproj" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Gateway/AsistOff.MES.Gateway.csproj" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Gateway/ModuleLoader.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Gateway/ModuleLoader.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Gateway/Program.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Gateway/Program.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Gateway/appsettings.json" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Gateway/appsettings.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/AsistOff.MES.Multitenancy.csproj" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/AsistOff.MES.Multitenancy.csproj" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Configurations/TenantConfiguration.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Configurations/TenantConfiguration.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/DependencyInjection.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/DependencyInjection.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Entity/Tenant.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Entity/Tenant.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Interfaces/ISaasy.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Interfaces/ISaasy.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Shared.Abstractions/AsistOff.MES.Shared.Abstractions.csproj" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Shared.Abstractions/AsistOff.MES.Shared.Abstractions.csproj" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Shared.Abstractions/Modules/IModule.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Shared.Abstractions/Modules/IModule.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/AsistOff.MES.Shared.Infrastructure.csproj" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/AsistOff.MES.Shared.Infrastructure.csproj" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/DependencyInjection.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/DependencyInjection.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/Persistence/DefaultContext.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/Persistence/DefaultContext.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Api/AsistOff.MES.Users.Api.csproj" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Api/AsistOff.MES.Users.Api.csproj" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Api/Controllers/AccountController.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Api/Controllers/AccountController.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Api/UsersModule.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Api/UsersModule.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Core/Entities/User.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Core/Entities/User.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/AsistOff.MES.Users.Infrastructure.csproj" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/AsistOff.MES.Users.Infrastructure.csproj" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/DAL/Configurations/UsersConfiguration.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/DAL/Configurations/UsersConfiguration.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/DAL/UsersDbContext.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/DAL/UsersDbContext.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/Extensions.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/Extensions.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.sln.DotSettings.user" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.sln.DotSettings.user" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="DpaMonitoringSettings">
+    <option name="firstShow" value="false" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -26,9 +64,6 @@
     &quot;assignee&quot;: &quot;osk4rm&quot;
   }
 }</component>
-  <component name="GithubDefaultAccount">
-    <option name="defaultAccountId" value="321dc214-5250-49bb-a983-e94b728d58ed" />
-  </component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;https://github.com/osk4rm/MES&quot;,
@@ -36,9 +71,11 @@
   }
 }</component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/e5a20aed50c44b16b8d9a5fff97fe0c4b600/23/2feac999/Error.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/197852119cb5d81aae9df72c4565dd7540f2f483a16f97b174a246b0125392b7/SelectMany.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/595e4f2361fd31cb66c7e9303f46cf8f2fe77d96eea9d0e42c17cae783aa74/ServiceCollection.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/621526284d3e4868b98948aff942206525763e57e194a27623b66c384466/ServiceProviderServiceExtensions.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/7d81b2d4f22bee75e5438c707251ae43cb0974c207db91ffc159118c84b4eb9/ServiceProvider.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/Persistence/DefaultContext.cs" root0="FORCE_HIGHLIGHTING" />
-    <setting file="file://$PROJECT_DIR$/Tests/Class1.cs" root0="SKIP_HIGHLIGHTING" />
   </component>
   <component name="KubernetesApiPersistence">{}</component>
   <component name="KubernetesApiProvider">{
@@ -58,6 +95,7 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    ".NET Launch Settings Profile.AsistOff.MES.Gateway: https.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "develop",
@@ -200,6 +238,45 @@
           <properties exception="System.Threading.ThreadAbortException" breakIfHandledByOtherCode="false" displayValue="System.Threading.ThreadAbortException" />
           <option name="timeStamp" value="3" />
         </breakpoint>
+        <line-breakpoint enabled="true" type="DotNet Breakpoints">
+          <url>file://$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/MigrationExtensions.cs</url>
+          <line>22</line>
+          <properties documentPath="C:\projects\MES\AsistOff.MES.Shared.Infrastructure\MigrationExtensions.cs" containingFunctionPresentation="Method 'ApplyAllPendingMigrations'">
+            <startOffsets>
+              <option value="762" />
+            </startOffsets>
+            <endOffsets>
+              <option value="1079" />
+            </endOffsets>
+          </properties>
+          <option name="timeStamp" value="14" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DotNet Breakpoints">
+          <url>file://$PROJECT_DIR$/AsistOff.MES.Gateway/Program.cs</url>
+          <line>54</line>
+          <properties documentPath="C:\projects\MES\AsistOff.MES.Gateway\Program.cs" containingFunctionPresentation="">
+            <startOffsets>
+              <option value="1194" />
+            </startOffsets>
+            <endOffsets>
+              <option value="1254" />
+            </endOffsets>
+          </properties>
+          <option name="timeStamp" value="15" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DotNet Breakpoints">
+          <url>file://$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/MigrationExtensions.cs</url>
+          <line>11</line>
+          <properties documentPath="C:\projects\MES\AsistOff.MES.Shared.Infrastructure\MigrationExtensions.cs" containingFunctionPresentation="Method 'ApplyPendingMigrations'">
+            <startOffsets>
+              <option value="344" />
+            </startOffsets>
+            <endOffsets>
+              <option value="392" />
+            </endOffsets>
+          </properties>
+          <option name="timeStamp" value="16" />
+        </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>

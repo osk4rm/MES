@@ -1,5 +1,4 @@
-﻿using AsistOff.MES.Multitenancy.Entity;
-using AsistOff.MES.Multitenancy.Interfaces;
+﻿using AsistOff.MES.Multitenancy.Interfaces;
 using AsistOff.MES.Shared.Abstractions.DAL;
 
 namespace AsistOff.MES.Configuration.Domain.Entities;
@@ -9,6 +8,5 @@ public class Warehouse : IEntity, ISaasy, ISyncable
     public Guid Id { get; set; }
     public required string Name { get; set; }
     public required Guid TenantId { get; set; }
-    public virtual Tenant Tenant { get; set; }
     public string? SyncId { get; set; }
 }

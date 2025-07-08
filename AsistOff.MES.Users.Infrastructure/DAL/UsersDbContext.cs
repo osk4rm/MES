@@ -1,5 +1,4 @@
-﻿using AsistOff.MES.Multitenancy.Entity;
-using AsistOff.MES.Shared.Infrastructure.Interceptors;
+﻿using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using AsistOff.MES.Users.Core.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -7,12 +6,11 @@ using Microsoft.EntityFrameworkCore;
 namespace AsistOff.MES.Users.Infrastructure.DAL;
 
 public class UsersDbContext(
-    DbContextOptions<DefaultContext> options,
+    DbContextOptions<UsersDbContext> options,
     PublishDomainEventsInterceptor publishDomainEventsInterceptor,
     AuditableEntityInterceptor auditableEntityInterceptor)
-    : DefaultContext(options, publishDomainEventsInterceptor)
+    : DefaultContext<UsersDbContext>(options, publishDomainEventsInterceptor)
 {
-    public DbSet<Tenant> Tenants { get; set; }
     public DbSet<User> Users { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
