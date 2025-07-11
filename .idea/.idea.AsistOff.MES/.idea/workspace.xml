@@ -9,28 +9,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ee6fa4d9-888b-4e63-8d65-7d46e1f34d92" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Contracts/TenantResponse.cs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Contracts/TenantSettingsResponse.cs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Entity/TenantSettings.cs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Error/Errors.cs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Repositories/ITenantRepository.cs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Repositories/TenantRepository.cs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Queries/GetTenantQueryHandler.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.AsistOff.MES/.idea/aws.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.AsistOff.MES/.idea/aws.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.AsistOff.MES/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.AsistOff.MES/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Gateway/Program.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Gateway/Program.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Configurations/TenantConfiguration.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Configurations/TenantConfiguration.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Context/MultitenancyDbContext.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Context/MultitenancyDbContext.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Controllers/TenantsController.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Controllers/TenantsController.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/DependencyInjection.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/DependencyInjection.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Entity/Tenant.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Entity/Tenant.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Migrations/MultitenancyDbContextModelSnapshot.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Migrations/MultitenancyDbContextModelSnapshot.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Commands/Create/CreateTenantCommand.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Commands/Create/CreateTenantCommand.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Commands/Create/CreateTenantCommandHandler.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Commands/Create/CreateTenantCommandHandler.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Queries/GetTenantQuery.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Queries/GetTenantQuery.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AsistOff.MES.sln.DotSettings.user" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.sln.DotSettings.user" afterDir="false" />
-    </list>
+    <list default="true" id="ee6fa4d9-888b-4e63-8d65-7d46e1f34d92" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -61,6 +40,9 @@
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/621526284d3e4868b98948aff942206525763e57e194a27623b66c384466/ServiceProviderServiceExtensions.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/7d81b2d4f22bee75e5438c707251ae43cb0974c207db91ffc159118c84b4eb9/ServiceProvider.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/cdcc2e9f97a25b9b0657740318637f7e8c843518ff761875a115cc48454c32/EntityType.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="mock://C:/projects/MES/AsistOff.MES.Gateway/Program.cs" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://C:/projects/MES/AsistOff.MES.Multitenancy/DependencyInjection.cs" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://C:/projects/MES/AsistOff.MES.Multitenancy/Requests/Commands/Create/CreateTenantCommand.cs" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/Persistence/DefaultContext.cs" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="KubernetesApiPersistence">{}</component>
@@ -168,7 +150,7 @@
       <workItem from="1751895103962" duration="2804000" />
       <workItem from="1751917658434" duration="22000" />
       <workItem from="1751917700116" duration="32000" />
-      <workItem from="1752262916074" duration="3389000" />
+      <workItem from="1752262916074" duration="3724000" />
     </task>
     <task id="LOCAL-00001" summary="init and some infra">
       <option name="closed" value="true" />
@@ -194,7 +176,15 @@
       <option name="project" value="LOCAL" />
       <updated>1752010165864</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="some tweaks about tenants">
+      <option name="closed" value="true" />
+      <created>1752266453485</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1752266453485</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -218,7 +208,8 @@
     <MESSAGE value="init and some infra" />
     <MESSAGE value="auth" />
     <MESSAGE value="init migrations for config, users and tenants. some tweaks and registrations in overall infrastructure" />
-    <option name="LAST_COMMIT_MESSAGE" value="init migrations for config, users and tenants. some tweaks and registrations in overall infrastructure" />
+    <MESSAGE value="some tweaks about tenants" />
+    <option name="LAST_COMMIT_MESSAGE" value="some tweaks about tenants" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -235,32 +226,6 @@
           <properties exception="System.Threading.ThreadAbortException" breakIfHandledByOtherCode="false" displayValue="System.Threading.ThreadAbortException" />
           <option name="timeStamp" value="3" />
         </breakpoint>
-        <line-breakpoint enabled="true" type="DotNet Breakpoints">
-          <url>file://$PROJECT_DIR$/AsistOff.MES.Multitenancy/Requests/Queries/GetTenantQueryHandler.cs</url>
-          <line>18</line>
-          <properties documentPath="C:\projects\MES\AsistOff.MES.Multitenancy\Requests\Queries\GetTenantQueryHandler.cs" containingFunctionPresentation="Method 'Handle'">
-            <startOffsets>
-              <option value="627" />
-            </startOffsets>
-            <endOffsets>
-              <option value="708" />
-            </endOffsets>
-          </properties>
-          <option name="timeStamp" value="23" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="DotNet Breakpoints">
-          <url>file://$PROJECT_DIR$/AsistOff.MES.Multitenancy/Repositories/TenantRepository.cs</url>
-          <line>10</line>
-          <properties documentPath="C:\projects\MES\AsistOff.MES.Multitenancy\Repositories\TenantRepository.cs" containingFunctionPresentation="Method 'GetByIdAsync'">
-            <startOffsets>
-              <option value="371" />
-            </startOffsets>
-            <endOffsets>
-              <option value="451" />
-            </endOffsets>
-          </properties>
-          <option name="timeStamp" value="24" />
-        </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
