@@ -12,6 +12,12 @@ builder.Configuration.AddUserSecrets<Program>();
 var modules = ModuleLoader.LoadModules();
 var assemblies = ModuleLoader.LoadAssemblies();
 
+builder.Services.AddMediatR(cfg =>
+{
+    foreach (var assembly in assemblies)
+        cfg.RegisterServicesFromAssembly(assembly);
+});
+
 // TEMP - TODO: przeniesc do konfiguracji 
 builder.Services.AddCors(options =>
 {
@@ -29,6 +35,7 @@ builder.Services
     .AddPresentation()
     .AddInfra(builder.Configuration);
 
+// Remove individual AddMediatR registrations from other projects to avoid duplicates
 builder.Services.AddMultitenancy(builder.Configuration);
 
 foreach (var module in modules)
@@ -68,7 +75,7 @@ app.UseCors("AllowAll");
 app.UseExceptionHandler("/error");
 app.UseHttpsRedirection();
 app.UseAuthentication();
-app.UseAuthorization();
+//app.UseAuthorization(); // TODO TEMP FOR TESTING - remove later
 app.MapControllers();
 
 app.Run();

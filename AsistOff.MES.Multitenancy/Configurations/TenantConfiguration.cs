@@ -16,6 +16,10 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(x => x.IsActive).IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
-        builder.Property(x => x.Settings).HasColumnType("jsonb");
+        
+        builder.OwnsOne(x => x.Settings, s =>
+        {
+            s.ToJson();
+        });
     }
 }

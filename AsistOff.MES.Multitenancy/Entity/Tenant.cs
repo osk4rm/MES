@@ -9,7 +9,7 @@ public class Tenant
     public bool IsActive { get; set; }
     
     [Column(TypeName = "jsonb")]
-    public string Settings { get; set; }
+    public TenantSettings Settings { get; set; } = new();
     public string? DisplayName { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

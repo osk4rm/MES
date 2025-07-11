@@ -1,5 +1,8 @@
 ﻿using AsistOff.MES.Multitenancy.Behaviors;
 using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Multitenancy.Entity;
+using AsistOff.MES.Multitenancy.Interfaces;
+using AsistOff.MES.Multitenancy.Repositories;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using MediatR;
@@ -15,6 +18,7 @@ public static class DependencyInjection
     {
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TenantValidationBehavior<,>));
         services.AddScoped<ITenantContext, TenantContext>();
+        services.AddScoped<ITenantRepository, TenantRepository>();
 
         services.AddDbContext<MultitenancyDbContext>((sp, options) =>
         {

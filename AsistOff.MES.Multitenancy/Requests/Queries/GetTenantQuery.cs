@@ -1,11 +1,8 @@
-﻿using AsistOff.MES.Multitenancy.Entity;
+﻿using AsistOff.MES.Multitenancy.Contracts;
+using ErrorOr;
 using MediatR;
 
 namespace AsistOff.MES.Multitenancy.Requests.Queries;
 
-public class GetTenantQuery : IRequest<Tenant?>
-{
-    public Guid Id { get; }
-    public GetTenantQuery(Guid id) => Id = id;
-}
+public record GetTenantQuery(Guid Id) : IRequest<ErrorOr<TenantResponse?>>;
 

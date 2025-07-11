@@ -18,23 +18,13 @@ public class MultitenancyDbContext : DefaultContext<MultitenancyDbContext>
 
     private readonly AuditableEntityInterceptor _auditableEntityInterceptor;
 
-    public DbSet<Tenant> Tenants { get; set; } = null!;
+    public DbSet<Tenant> Tenants { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("multitenancy");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MultitenancyDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
-        modelBuilder.Entity<Tenant>(entity =>
-        {
-            entity.HasKey(t => t.Id);
-            entity.HasIndex(t => t.Name).IsUnique();
-            entity.Property(t => t.Name).IsRequired();
-            entity.Property(t => t.CreatedAt).IsRequired();
-            entity.Property(t => t.UpdatedAt).IsRequired();
-            entity.Property(t => t.IsActive).IsRequired();
-            entity.Property(t => t.Settings).HasColumnType("jsonb");
-        });
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

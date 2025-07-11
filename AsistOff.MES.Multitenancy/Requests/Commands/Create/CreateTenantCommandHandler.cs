@@ -1,34 +1,45 @@
-﻿using AsistOff.MES.Multitenancy.Context;
+﻿using System.Text.Json;
 using AsistOff.MES.Multitenancy.Entity;
+using AsistOff.MES.Multitenancy.Error;
+using AsistOff.MES.Multitenancy.Repositories;
+using AsistOff.MES.Shared.Abstractions.Providers;
+using ErrorOr;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace AsistOff.MES.Multitenancy.Requests.Commands.Create;
 
-public class CreateTenantCommandHandler : IRequestHandler<CreateTenantCommand, Tenant>
+public class CreateTenantCommandHandler(
+    ITenantRepository repo, 
+    IGuidProvider guidProvider,
+    ILogger<CreateTenantCommandHandler> logger)
+    : IRequestHandler<CreateTenantCommand, ErrorOr<Guid>>
 {
-    private readonly MultitenancyDbContext _db;
-    public CreateTenantCommandHandler(MultitenancyDbContext db)
-    {
-        _db = db;
-    }
-
-    public async Task<Tenant> Handle(CreateTenantCommand request, CancellationToken cancellationToken)
+    public async Task<ErrorOr<Guid>> Handle(CreateTenantCommand request, CancellationToken cancellationToken)
     {
         var tenant = new Tenant
         {
-            Id = Guid.NewGuid(),
+            Id = guidProvider.NewGuid(),
             Name = request.Name,
             DisplayName = request.DisplayName,
             ContactEmail = request.ContactEmail,
-            Settings = request.Settings ?? "{}",
+            Settings = string.IsNullOrWhiteSpace(request.Settings)
+                ? new TenantSettings()
+                : JsonSerializer.Deserialize<TenantSettings>(request.Settings) ?? new TenantSettings(),
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        
-        _db.Tenants.Add(tenant);
-        await _db.SaveChangesAsync(cancellationToken);
-        return tenant;
+
+        try
+        {
+            await repo.CreateAsync(tenant, cancellationToken);
+            return tenant.Id;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error creating tenant with name {TenantName}", request.Name);
+            return Errors.Tenants.CreateFailed;
+        }
     }
 }
-
