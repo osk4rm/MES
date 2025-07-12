@@ -9,7 +9,7 @@
         <div class="login-field">
           <CustomInput
             id="username"
-            label="Username"
+            :label="$t('login.username')"
             v-model="username"
             required
           />
@@ -17,14 +17,14 @@
         <div class="login-field">
           <CustomInput
             id="password"
-            label="Password"
+            :label="$t('login.password')"
             type="password"
             v-model="password"
             required
           />
         </div>
-        <button type="submit" class="p-button p-component login-btn">Login</button>
-        <button type="button" class="register-link" @click="goRegister">Register</button>
+        <button type="submit" class="p-button p-component login-btn">{{ $t('login.submit') }}</button>
+        <button type="button" class="register-link" @click="goRegister">{{ $t('login.register') }}</button>
       </form>
     </div>
   </div>

@@ -3,13 +3,13 @@
     <div class="login-container">
       <div class="login-header">
         <i class="pi pi-cog login-cog"></i>
-        <span class="login-title">AsistOff MES</span>
+        <span class="login-title">{{ $t('register.title') }}</span>
       </div>
       <form class="login-form" @submit.prevent="onRegister">
         <div class="login-field">
           <CustomInput
             id="reg-username"
-            label="Username"
+            :label="$t('register.username')"
             v-model="regUsername"
             required
           />
@@ -17,7 +17,7 @@
         <div class="login-field">
           <CustomInput
             id="reg-password"
-            label="Password"
+            :label="$t('register.password')"
             type="password"
             v-model="regPassword"
             required
@@ -26,14 +26,14 @@
         <div class="login-field">
           <CustomInput
             id="reg-confirm"
-            label="Confirm Password"
+            :label="$t('register.confirmPassword')"
             type="password"
             v-model="regConfirm"
             required
           />
         </div>
-        <button type="submit" class="p-button p-component login-btn">Register</button>
-        <button type="button" class="register-link" @click="goLogin">Back to Login</button>
+        <button type="submit" class="p-button p-component login-btn">{{ $t('register.submit') }}</button>
+        <button type="button" class="register-link" @click="goLogin">{{ $t('register.login') }}</button>
       </form>
     </div>
   </div>

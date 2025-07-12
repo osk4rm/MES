@@ -1,5 +1,4 @@
-﻿using AsistOff.MES.Multitenancy.Entity;
-using AsistOff.MES.Multitenancy.Interfaces;
+﻿using AsistOff.MES.Multitenancy.Interfaces;
 using AsistOff.MES.Shared.Abstractions.DAL;
 
 namespace AsistOff.MES.Users.Core.Entities;
@@ -14,4 +13,5 @@ public class User : ISaasy, IEntity, IAuditable
     public string? LastName { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public bool IsTenantAdmin { get; set; }
 }

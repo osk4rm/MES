@@ -9,7 +9,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ee6fa4d9-888b-4e63-8d65-7d46e1f34d92" name="Changes" comment="" />
+    <list default="true" id="ee6fa4d9-888b-4e63-8d65-7d46e1f34d92" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/Behaviors/ITransaction.cs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/Behaviors/TransactionBehavior.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.AsistOff.MES/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.AsistOff.MES/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Core/Entities/User.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Core/Entities/User.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/DAL/Configurations/UsersConfiguration.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/DAL/Configurations/UsersConfiguration.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/Migrations/UsersDbContextModelSnapshot.cs" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Users.Infrastructure/Migrations/UsersDbContextModelSnapshot.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Web/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Web/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Web/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Web/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Web/src/main.ts" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Web/src/main.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Web/src/views/LoginView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Web/src/views/LoginView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AsistOff.MES.Web/src/views/RegisterView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/AsistOff.MES.Web/src/views/RegisterView.vue" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -27,12 +39,12 @@
     &quot;assignee&quot;: &quot;osk4rm&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/osk4rm/MES.git",
-    "accountId": "e3c04494-1995-4491-89ab-93925bf28f37"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/osk4rm/MES.git&quot;,
+    &quot;accountId&quot;: &quot;e3c04494-1995-4491-89ab-93925bf28f37&quot;
   }
-}]]></component>
+}</component>
   <component name="HighlightingSettingsPerFile">
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/197852119cb5d81aae9df72c4565dd7540f2f483a16f97b174a246b0125392b7/SelectMany.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/4560d03e6d9e38d085a2e52db3c67a89bb4e785d2a652d6ea24d72990a931/InternalEntityTypeBuilder.cs" root0="FORCE_HIGHLIGHTING" />
@@ -150,7 +162,8 @@
       <workItem from="1751895103962" duration="2804000" />
       <workItem from="1751917658434" duration="22000" />
       <workItem from="1751917700116" duration="32000" />
-      <workItem from="1752262916074" duration="3724000" />
+      <workItem from="1752262916074" duration="5032000" />
+      <workItem from="1752355106956" duration="762000" />
     </task>
     <task id="LOCAL-00001" summary="init and some infra">
       <option name="closed" value="true" />
@@ -226,6 +239,19 @@
           <properties exception="System.Threading.ThreadAbortException" breakIfHandledByOtherCode="false" displayValue="System.Threading.ThreadAbortException" />
           <option name="timeStamp" value="3" />
         </breakpoint>
+        <line-breakpoint enabled="true" type="DotNet Breakpoints">
+          <url>file://$PROJECT_DIR$/AsistOff.MES.Shared.Infrastructure/MigrationExtensions.cs</url>
+          <line>14</line>
+          <properties documentPath="C:\projects\MES\AsistOff.MES.Shared.Infrastructure\MigrationExtensions.cs" containingFunctionPresentation="Method 'ApplyPendingMigrations'">
+            <startOffsets>
+              <option value="540" />
+            </startOffsets>
+            <endOffsets>
+              <option value="558" />
+            </endOffsets>
+          </properties>
+          <option name="timeStamp" value="4" />
+        </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>

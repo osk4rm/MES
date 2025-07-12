@@ -13,5 +13,6 @@ internal class UsersConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.Password).IsRequired();
         builder.Property(x => x.FirstName).HasMaxLength(100);
         builder.Property(x => x.LastName).HasMaxLength(100);
+        builder.Property(x => x.IsTenantAdmin).HasDefaultValue(false);
     }
 }
