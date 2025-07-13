@@ -17,4 +17,8 @@
       <ProjectReference Include="..\AsistOff.MES.Shared.Infrastructure\AsistOff.MES.Shared.Infrastructure.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Events\" />
+    </ItemGroup>
+
 </Project>
