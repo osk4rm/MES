@@ -37,7 +37,7 @@ public class CreateTenantCommandHandler(
         try
         {
             await repo.CreateAsync(tenant, cancellationToken);
-            await eventDispatcher.PublishAsync(new TenantCreated(tenant.Id, tenant.ContactEmail));
+            await eventDispatcher.PublishAsync(new TenantCreatedEvent(tenant.Id, tenant.ContactEmail, request.Password));
             
             return tenant.Id;
         }

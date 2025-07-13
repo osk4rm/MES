@@ -34,7 +34,7 @@ public class TenantsController : ApiController
     {
         var result = await _mediator.Send(new GetTenantQuery(id));
         return result.Match(
-            onValue: x => Ok(x),
+            onValue: Ok,
             onError: Problem);
     }
 }

@@ -26,7 +26,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Behaviors
                 .ConvertAll(failure => Error.Validation(failure.PropertyName, failure.ErrorMessage));
 
             return (dynamic)errors;
-
         }
     }
 }

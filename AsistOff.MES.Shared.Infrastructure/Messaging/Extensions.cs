@@ -1,4 +1,6 @@
-﻿using AsistOff.MES.Shared.Abstractions.Messaging;
+﻿using AsistOff.MES.Shared.Abstractions.Events;
+using AsistOff.MES.Shared.Abstractions.Messaging;
+using AsistOff.MES.Shared.Infrastructure.Events;
 using AsistOff.MES.Shared.Infrastructure.Messaging.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 
