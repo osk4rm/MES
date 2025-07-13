@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AsistOff.MES.Shared.Infrastructure.Events;
 
+// todo add sendasync method for sync processing and change publishasync to handle background processing
 internal sealed class EventDispatcher : IEventDispatcher
 {
     private readonly IServiceProvider _serviceProvider;

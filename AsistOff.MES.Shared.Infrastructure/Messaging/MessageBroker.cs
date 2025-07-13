@@ -37,9 +37,12 @@ internal sealed class MessageBroker : IMessageBroker
                 continue;
             }
 
-            await _messageDispatcher.PublishAsync(message);
+            tasks.Add(_messageDispatcher.PublishAsync(message));
         }
 
-        await Task.WhenAll(tasks);
+        if (tasks.Count != 0)
+        {
+            await Task.WhenAll(tasks);
+        }
     }
 }
