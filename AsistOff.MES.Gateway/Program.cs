@@ -51,7 +51,10 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c => {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "AsistOff.MES.Gateway API V1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
 foreach (var module in modules)
@@ -77,7 +80,7 @@ app.UseCors("AllowAll");
 app.UseExceptionHandler("/error");
 app.UseHttpsRedirection();
 app.UseAuthentication();
-//app.UseAuthorization(); // TODO TEMP FOR TESTING - remove later
+app.UseAuthorization();
 app.MapControllers();
 
 app.Run();

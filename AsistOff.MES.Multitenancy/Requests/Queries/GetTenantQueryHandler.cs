@@ -1,13 +1,13 @@
 ﻿using AsistOff.MES.Multitenancy.Contracts;
 using AsistOff.MES.Multitenancy.Error;
 using AsistOff.MES.Multitenancy.Repositories;
+using AsistOff.MES.Shared.Abstractions.Jbl;
 using ErrorOr;
-using MediatR;
 
 namespace AsistOff.MES.Multitenancy.Requests.Queries;
 
 public class GetTenantQueryHandler(ITenantRepository tenantRepository)
-    : IRequestHandler<GetTenantQuery, ErrorOr<TenantResponse?>>
+    : IJblHandler<GetTenantQuery, ErrorOr<TenantResponse?>>
 {
     public async Task<ErrorOr<TenantResponse?>> Handle(GetTenantQuery request, CancellationToken cancellationToken)
     {

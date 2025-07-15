@@ -4,5 +4,5 @@ namespace AsistOff.MES.Multitenancy.Interfaces;
 
 public interface ISaasy
 {
-    Guid TenantId { get; }
+    Guid TenantId { get; set; }
 }
