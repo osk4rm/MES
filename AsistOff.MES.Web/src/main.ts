@@ -9,8 +9,8 @@ import FloatLabel from 'primevue/floatlabel';
 import Toast from 'vue-toastification';
 import 'vue-toastification/dist/index.css';
 import router from './router';
-
 import i18n from './i18n';
+import { createPinia } from 'pinia';
 
 const app = createApp(App)
 app.use(router)
@@ -30,4 +30,5 @@ app.use(Toast, {
   rtl: false
 })
 app.use(i18n)
+app.use(createPinia())
 app.mount('#app')

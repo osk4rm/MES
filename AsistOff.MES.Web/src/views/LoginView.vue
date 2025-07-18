@@ -34,15 +34,24 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CustomInput from '../components/CustomInput.vue';
-import { showInfoToast } from '../toast';
+import { showSuccessToast, showErrorToast } from '../toast';
+import { signIn } from '../services/authService';
+import { useAuthStore } from '../stores/authStore';
 
 const username = ref('')
 const password = ref('')
 const router = useRouter()
+const authStore = useAuthStore()
 
-function onLogin() {
-  // TODO: Replace with real authentication
-  showInfoToast(`Logging in as ${username.value}`)
+async function onLogin() {
+  try {
+    const response = await signIn({ username: username.value, password: password.value });
+    authStore.setAuth(response.accessToken, null);
+    showSuccessToast('Login successful!');
+    // TODO: Redirect, etc.
+  } catch (error: any) {
+    showErrorToast(error?.response?.data?.message || 'Login failed');
+  }
 }
 
 function goRegister() {
