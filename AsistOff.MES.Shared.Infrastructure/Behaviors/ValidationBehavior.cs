@@ -1,10 +1,10 @@
-﻿using ErrorOr;
-using FluentValidation;
+﻿using AsistOff.MES.Shared.Abstractions.Validation;
+using ErrorOr;
 using MediatR;
 
 namespace AsistOff.MES.Shared.Infrastructure.Behaviors
 {
-    public class ValidationBehavior<TRequest, TResponse>(IValidator<TRequest>? validator = null) 
+    public class ValidationBehavior<TRequest, TResponse>(IRequestValidator<TRequest>? validator = null) 
         : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
         where TResponse : IErrorOr

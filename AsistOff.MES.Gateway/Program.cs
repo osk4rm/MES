@@ -2,7 +2,6 @@ using AsistOff.MES.Gateway;
 using AsistOff.MES.Multitenancy;
 using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure;
-using FluentValidation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +32,6 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services
-    .AddValidatorsFromAssemblies(assemblies)
     .AddPresentation()
     .AddInfra(builder.Configuration, assemblies);
 

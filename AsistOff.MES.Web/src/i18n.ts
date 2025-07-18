@@ -4,7 +4,7 @@ const messages = {
   en: {
     login: {
       title: 'Login',
-      username: 'Username',
+      email: 'Email',
       password: 'Password',
       submit: 'Sign In',
       register: 'Register',
@@ -22,7 +22,7 @@ const messages = {
   pl: {
     login: {
       title: 'Logowanie',
-      username: 'Nazwa użytkownika',
+      email: 'Email',
       password: 'Hasło',
       submit: 'Zaloguj się',
       register: 'Rejestracja',

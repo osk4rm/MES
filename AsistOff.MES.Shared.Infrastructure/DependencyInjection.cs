@@ -6,6 +6,7 @@ using AsistOff.MES.Shared.Infrastructure.Events;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Messaging;
 using AsistOff.MES.Shared.Infrastructure.Providers;
+using AsistOff.MES.Shared.Infrastructure.Validation;
 using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,7 @@ namespace AsistOff.MES.Shared.Infrastructure
             services.AddSingleton<IGuidProvider, GuidProvider>();
             services.AddAuth();
             services.AddMessaging();
+            services.AddValidation(assemblies);
             services.AddPersistence(configuration);
             services.AddEvents(assemblies);
 

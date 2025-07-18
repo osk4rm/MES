@@ -1,18 +1,22 @@
 using AsistOff.MES.Shared.Abstractions.Contracts.Sorting;
+using AsistOff.MES.Shared.Abstractions.Validation;
 using FluentValidation;
 
 namespace AsistOff.MES.Shared.Abstractions.Contracts.Validators;
 
-public class RawSortFieldValidator : AbstractValidator<string>
+public class RawSortFieldValidator : RequestValidator<string>
 {
     private const int FieldNameIndex = 0;
     private const int SortingOrderIndex = 1;
 
-    public RawSortFieldValidator(IReadOnlyCollection<string> supportedSortFields)
+    public RawSortFieldValidator(IReadOnlyCollection<string>? supportedSortFields = null)
     {
         RuleFor(x => x)
             .Custom((rawSort, context) =>
             {
+                if (supportedSortFields is null)
+                    return;
+                
                 var sortPhraseParts = rawSort.Split(",");
 
                 if (sortPhraseParts.Length != 2)

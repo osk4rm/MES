@@ -1,8 +1,9 @@
-﻿using FluentValidation;
+﻿using AsistOff.MES.Shared.Abstractions.Validation;
+using FluentValidation;
 
 namespace AsistOff.MES.Users.Application.Features.Authentication.SignIn;
 
-public class SignInRequestValidator : AbstractValidator<SignInRequest>
+public class SignInRequestValidator : RequestValidator<SignInRequest>
 {
     public SignInRequestValidator()
     {

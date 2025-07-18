@@ -1,9 +1,10 @@
 using AsistOff.MES.Shared.Abstractions.Contracts.Sorting;
+using AsistOff.MES.Shared.Abstractions.Validation;
 using FluentValidation;
 
 namespace AsistOff.MES.Shared.Abstractions.Contracts.Validators;
 
-public class SortableValidator : AbstractValidator<ISortable>
+public class SortableValidator : RequestValidator<ISortable>
 {
     public SortableValidator()
     {

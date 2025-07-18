@@ -1,9 +1,10 @@
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
+using AsistOff.MES.Shared.Abstractions.Validation;
 using FluentValidation;
 
 namespace AsistOff.MES.Shared.Abstractions.Contracts.Validators;
 
-public class PagedRequestValidator : AbstractValidator<IPagedRequest>
+public class PagedRequestValidator : RequestValidator<IPagedRequest>
 {
     public PagedRequestValidator()
     {

@@ -1,8 +1,9 @@
-﻿using FluentValidation;
+﻿using AsistOff.MES.Shared.Abstractions.Validation;
+using FluentValidation;
 
 namespace AsistOff.MES.Multitenancy.Requests.Commands.Create;
 
-public class CreateTenantCommandValidator : AbstractValidator<CreateTenantCommand>
+public class CreateTenantCommandValidator : RequestValidator<CreateTenantCommand>
 {
     public CreateTenantCommandValidator()
     {

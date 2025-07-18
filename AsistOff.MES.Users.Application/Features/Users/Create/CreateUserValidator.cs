@@ -1,8 +1,9 @@
+using AsistOff.MES.Shared.Abstractions.Validation;
 using FluentValidation;
 
 namespace AsistOff.MES.Users.Application.Features.Users.Create;
 
-public class CreateUserValidator : AbstractValidator<CreateUserRequest>
+public class CreateUserValidator : RequestValidator<CreateUserRequest>
 {
     public CreateUserValidator()
     {

@@ -8,9 +8,9 @@
       <form class="login-form" @submit.prevent="onLogin">
         <div class="login-field">
           <CustomInput
-            id="username"
-            :label="$t('login.username')"
-            v-model="username"
+            id="email"
+            :label="$t('login.email')"
+            v-model="email"
             required
           />
         </div>
@@ -38,14 +38,14 @@ import { showSuccessToast, showErrorToast } from '../toast';
 import { signIn } from '../services/authService';
 import { useAuthStore } from '../stores/authStore';
 
-const username = ref('')
+const email = ref('')
 const password = ref('')
 const router = useRouter()
 const authStore = useAuthStore()
 
 async function onLogin() {
   try {
-    const response = await signIn({ username: username.value, password: password.value });
+    const response = await signIn({ email: email.value, password: password.value });
     authStore.setAuth(response.accessToken, null);
     showSuccessToast('Login successful!');
     // TODO: Redirect, etc.
