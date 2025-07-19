@@ -48,7 +48,7 @@ async function onLogin() {
     const response = await signIn({ email: email.value, password: password.value });
     authStore.setAuth(response.accessToken, null);
     showSuccessToast('Login successful!');
-    // TODO: Redirect, etc.
+    router.push('/dashboard');
   } catch (error: any) {
     showErrorToast(error?.response?.data?.message || 'Login failed');
   }

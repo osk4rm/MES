@@ -18,20 +18,21 @@ public static class MigrationExtensions
         }
     }
 
-    public static void ApplyAllPendingMigrations(this IServiceProvider serviceProvider, IEnumerable<Assembly> assemblies)
+    public static void ApplyAllPendingMigrations(this IServiceProvider serviceProvider,
+        IEnumerable<Assembly> assemblies)
     {
         var dbContextTypes = assemblies
             .SelectMany(a => a.GetTypes())
             .Where(t => typeof(DbContext).IsAssignableFrom(t)
-                && !t.IsAbstract
-                && !t.IsGenericType
-                && t != typeof(DbContext)
-                && t.Name.EndsWith("Context"))
+                        && t is { IsAbstract: false, IsGenericType: false }
+                        && t != typeof(DbContext)
+                        && t.Name.EndsWith("Context"))
             .ToList();
-        
+
         foreach (var dbContextType in dbContextTypes)
         {
-            var method = typeof(MigrationExtensions).GetMethod(nameof(ApplyPendingMigrations))!.MakeGenericMethod(dbContextType);
+            var method =
+                typeof(MigrationExtensions).GetMethod(nameof(ApplyPendingMigrations))!.MakeGenericMethod(dbContextType);
             method.Invoke(null, new object[] { serviceProvider });
         }
     }

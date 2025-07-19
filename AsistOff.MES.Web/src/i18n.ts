@@ -17,7 +17,6 @@ const messages = {
       submit: 'Sign Up',
       login: 'Back to Login',
     },
-    // Add more translations as needed
   },
   pl: {
     login: {
@@ -35,7 +34,6 @@ const messages = {
       submit: 'Zarejestruj się',
       login: 'Powrót do logowania',
     },
-    // Add more translations as needed
   },
 };
 

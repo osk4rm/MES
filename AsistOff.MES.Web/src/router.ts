@@ -3,9 +3,32 @@ import type { RouteRecordRaw } from 'vue-router';
 import LoginView from './views/LoginView.vue';
 import RegisterView from './views/RegisterView.vue';
 
+import DashboardView from './views/DashboardView.vue';
+import ProductionView from './views/ProductionView.vue';
+import ReportsView from './views/ReportsView.vue';
+import WarehousesView from './views/WarehousesView.vue';
+
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'Login', component: LoginView },
-  { path: '/register', name: 'Register', component: RegisterView }
+  { path: '/register', name: 'Register', component: RegisterView },
+  {
+    path: '/',
+    component: () => import('./components/MainLayout.vue'),
+    children: [
+      { path: 'dashboard', name: 'Dashboard', component: DashboardView },
+      { path: 'production-orders', name: 'ProductionOrders', component: ProductionView },
+      { path: 'production-recipes', name: 'ProductionRecipes', component: () => import('./views/ProductionView.vue') },
+      { path: 'report', name: 'Report', component: ReportsView },
+      {
+        path: 'configuration',
+        name: 'Configuration',
+        redirect: '/warehouses',
+        children: [
+          { path: '/warehouses', name: 'Warehouses', component: WarehousesView },
+        ]
+      },
+    ]
+  },
 ];
 
 const router = createRouter({
