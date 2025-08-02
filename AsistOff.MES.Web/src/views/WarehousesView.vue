@@ -1,7 +1,466 @@
 <template>
-  <div class="dummy-view">Warehouses View</div>
+  <div class="warehouses-view">
+    <div class="view-header">
+      <h1 class="page-title">
+        <i class="pi pi-building"></i>
+        Warehouses
+      </h1>
+      <div class="header-actions">
+        <button class="btn-primary" @click="refreshData">
+          <i class="pi pi-refresh"></i>
+          Refresh
+        </button>
+        <button class="btn-primary" @click="addWarehouse">
+          <i class="pi pi-plus"></i>
+          Add Warehouse
+        </button>
+      </div>
+    </div>
+
+    <DataGrid
+      :data="filteredWarehouses"
+      :columns="columns"
+      :loading="loading"
+      :show-filters="true"
+      row-key="id"
+    >
+      <template #filters>
+        <div class="warehouse-filters">
+          <input
+            v-model="nameFilter"
+            type="text"
+            placeholder="Filter by name..."
+            class="filter-input"
+          />
+          <input
+            v-model="externalIdFilter"
+            type="text"
+            placeholder="Filter by external ID..."
+            class="filter-input"
+          />
+          <button class="btn-secondary" @click="clearFilters">
+            <i class="pi pi-times"></i>
+            Clear
+          </button>
+        </div>
+      </template>
+
+      <template #cell-name="{ value }">
+        <div class="name-cell">
+          <strong>{{ value }}</strong>
+        </div>
+      </template>
+
+      <template #cell-externalId="{ value }">
+        <span class="external-id-cell">
+          {{ value || '-' }}
+        </span>
+      </template>
+
+      <template #cell-actions="{ item }">
+        <div class="action-buttons">
+          <button 
+            class="action-btn edit" 
+            @click.stop="editWarehouse(item)"
+            title="Edit warehouse"
+          >
+            <i class="pi pi-pencil"></i>
+          </button>
+          <button 
+            class="action-btn delete" 
+            @click.stop="confirmDelete(item)"
+            title="Delete warehouse"
+            :disabled="deletingId === item.id"
+          >
+            <i v-if="deletingId === item.id" class="pi pi-spin pi-spinner"></i>
+            <i v-else class="pi pi-trash"></i>
+          </button>
+        </div>
+      </template>
+    </DataGrid>
+
+    <!-- Add/Edit Warehouse Modal -->
+    <WarehouseModal
+      :is-visible="showModal"
+      :warehouse="selectedWarehouse"
+      :loading="modalLoading"
+      @close="closeModal"
+      @save="saveWarehouse"
+    />
+
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      :is-visible="showConfirmDialog"
+      :loading="confirmDialogLoading"
+      title="Delete Warehouse"
+      :message="`Are you sure you want to delete '${warehouseToDelete?.name}'?`"
+      details="This action cannot be undone."
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      @confirm="handleDeleteConfirm"
+      @cancel="handleDeleteCancel"
+    />
+  </div>
 </template>
-<script setup lang="ts"></script>
+
+<script setup lang="ts">
+import { ref, onMounted, computed } from 'vue';
+import DataGrid, { type GridColumn } from '../components/DataGrid.vue';
+import WarehouseModal, { type WarehouseFormData } from '../components/WarehouseModal.vue';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
+import { WarehouseService, type WarehouseResponse, type CreateWarehouseRequest, type UpdateWarehouseRequest } from '../services/warehouseService';
+import { useToast } from 'vue-toastification';
+
+const toast = useToast();
+
+const warehouses = ref<WarehouseResponse[]>([]);
+const loading = ref(false);
+const nameFilter = ref('');
+const externalIdFilter = ref('');
+
+// Modal state
+const showModal = ref(false);
+const modalLoading = ref(false);
+const selectedWarehouse = ref<WarehouseResponse | null>(null);
+const deletingId = ref<string | null>(null);
+
+// Confirmation dialog state
+const showConfirmDialog = ref(false);
+const confirmDialogLoading = ref(false);
+const warehouseToDelete = ref<WarehouseResponse | null>(null);
+
+const columns: GridColumn[] = [
+  {
+    key: 'name',
+    label: 'Name',
+    sortable: true,
+    type: 'text'
+  },
+  {
+    key: 'externalId',
+    label: 'External ID',
+    sortable: true,
+    type: 'text'
+  },
+  {
+    key: 'actions',
+    label: 'Actions',
+    sortable: false,
+    type: 'actions'
+  }
+];
+
+const filteredWarehouses = computed(() => {
+  let result = [...warehouses.value];
+
+  if (nameFilter.value) {
+    const nameQuery = nameFilter.value.toLowerCase();
+    result = result.filter(warehouse =>
+      warehouse.name.toLowerCase().includes(nameQuery)
+    );
+  }
+
+  if (externalIdFilter.value) {
+    const externalIdQuery = externalIdFilter.value.toLowerCase();
+    result = result.filter(warehouse =>
+      warehouse.externalId?.toLowerCase().includes(externalIdQuery)
+    );
+  }
+
+  return result;
+});
+
+const loadWarehouses = async () => {
+  loading.value = true;
+  try {
+    warehouses.value = await WarehouseService.getWarehouses();
+  } catch (error: any) {
+    const errorMessage = error.message || 'Failed to load warehouses';
+    toast.error(errorMessage);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const refreshData = () => {
+  loadWarehouses();
+};
+
+const addWarehouse = () => {
+  selectedWarehouse.value = null;
+  showModal.value = true;
+};
+
+const editWarehouse = (warehouse: WarehouseResponse) => {
+  selectedWarehouse.value = warehouse;
+  showModal.value = true;
+};
+
+const closeModal = () => {
+  showModal.value = false;
+  selectedWarehouse.value = null;
+  modalLoading.value = false;
+};
+
+const saveWarehouse = async (formData: WarehouseFormData) => {
+  modalLoading.value = true;
+  try {
+    if (selectedWarehouse.value) {
+      // Update existing warehouse
+      const updateRequest: UpdateWarehouseRequest = {
+        id: selectedWarehouse.value.id,
+        name: formData.name
+      };
+      await WarehouseService.updateWarehouse(updateRequest);
+      toast.success('Warehouse updated successfully');
+    } else {
+      // Create new warehouse
+      const createRequest: CreateWarehouseRequest = {
+        name: formData.name,
+        syncId: formData.externalId || undefined
+      };
+      await WarehouseService.createWarehouse(createRequest);
+      toast.success('Warehouse created successfully');
+    }
+    
+    closeModal();
+    await loadWarehouses();
+  } catch (error: any) {
+    const errorMessage = error.message || 'Failed to save warehouse';
+    toast.error(errorMessage);
+  } finally {
+    modalLoading.value = false;
+  }
+};
+
+const confirmDelete = (warehouse: WarehouseResponse) => {
+  warehouseToDelete.value = warehouse;
+  showConfirmDialog.value = true;
+};
+
+const handleDeleteConfirm = async () => {
+  if (!warehouseToDelete.value) return;
+
+  confirmDialogLoading.value = true;
+  deletingId.value = warehouseToDelete.value.id;
+  
+  try {
+    await WarehouseService.deleteWarehouse(warehouseToDelete.value.id);
+    toast.success('Warehouse deleted successfully');
+    await loadWarehouses();
+    handleDeleteCancel();
+  } catch (error: any) {
+    const errorMessage = error.message || 'Failed to delete warehouse';
+    toast.error(errorMessage);
+  } finally {
+    confirmDialogLoading.value = false;
+    deletingId.value = null;
+  }
+};
+
+const handleDeleteCancel = () => {
+  showConfirmDialog.value = false;
+  warehouseToDelete.value = null;
+  confirmDialogLoading.value = false;
+};
+
+const clearFilters = () => {
+  nameFilter.value = '';
+  externalIdFilter.value = '';
+};
+
+onMounted(() => {
+  loadWarehouses();
+});
+</script>
+
 <style scoped>
-.dummy-view { font-size: 2rem; color: #ffe066; padding: 2rem; }
+.warehouses-view {
+  padding: 2rem;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #23272b 0%, #232526 100%);
+}
+
+.view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid rgba(252, 145, 58, 0.2);
+}
+
+.page-title {
+  font-size: 2rem;
+  color: #ffe066;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page-title i {
+  color: #fc913a;
+}
+
+.header-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #fc913a 0%, #f9d423 100%);
+  color: #23272b;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(252, 145, 58, 0.4);
+}
+
+.btn-secondary {
+  background: rgba(35, 39, 43, 0.8);
+  color: #ffe066;
+  border: 1px solid rgba(252, 145, 58, 0.3);
+}
+
+.btn-secondary:hover {
+  background: rgba(252, 145, 58, 0.1);
+  border-color: #fc913a;
+}
+
+.warehouse-filters {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(252, 145, 58, 0.3);
+  border-radius: 6px;
+  background: rgba(35, 39, 43, 0.7);
+  color: #ffe066;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  min-width: 200px;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: #fc913a;
+  box-shadow: 0 0 0 2px rgba(252, 145, 58, 0.2);
+}
+
+.filter-input::placeholder {
+  color: rgba(255, 224, 102, 0.6);
+}
+
+.name-cell {
+  font-weight: 600;
+}
+
+.external-id-cell {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: rgba(255, 224, 102, 0.8);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .warehouses-view {
+    padding: 1rem;
+  }
+
+  .view-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .warehouse-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-input {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
+  }
+}
+
+/* Action buttons for warehouse grid */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.action-btn {
+  padding: 0.4rem 0.6rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.action-btn.edit {
+  background: rgba(52, 152, 219, 0.2);
+  color: #3498db;
+  border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.action-btn.edit:hover:not(:disabled) {
+  background: rgba(52, 152, 219, 0.3);
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.action-btn.delete {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.action-btn.delete:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.3);
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+}
 </style>

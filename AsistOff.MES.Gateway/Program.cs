@@ -6,7 +6,6 @@ using AsistOff.MES.Shared.Infrastructure;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.ConfigureModules();
-
 builder.Configuration.AddUserSecrets<Program>();
 
 var modules = ModuleLoader.LoadModules();
@@ -18,7 +17,7 @@ builder.Services.AddMediatR(cfg =>
         cfg.RegisterServicesFromAssembly(assembly);
 });
 
-// TEMP - TODO: przeniesc do konfiguracji 
+// TEMP - TODO: przeniesc do konfiguracji
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll",
@@ -63,9 +62,7 @@ foreach (var module in modules)
 using (var scope = app.Services.CreateScope())
 {
     scope.ServiceProvider.ApplyAllPendingMigrations(assemblies);
-
     var seeders = scope.ServiceProvider.GetServices(typeof(ISeeder));
-
     foreach (var seeder in seeders)
     {
         await ((ISeeder)seeder!).Seed();
@@ -74,7 +71,6 @@ using (var scope = app.Services.CreateScope())
 
 // TEMP
 app.UseCors("AllowAll");
-
 app.UseExceptionHandler("/error");
 app.UseHttpsRedirection();
 app.UseAuthentication();

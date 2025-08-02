@@ -22,9 +22,9 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'configuration',
         name: 'Configuration',
-        redirect: '/warehouses',
+        redirect: '/configuration/warehouses',
         children: [
-          { path: '/warehouses', name: 'Warehouses', component: WarehousesView },
+          { path: 'warehouses', name: 'Warehouses', component: WarehousesView },
         ]
       },
     ]

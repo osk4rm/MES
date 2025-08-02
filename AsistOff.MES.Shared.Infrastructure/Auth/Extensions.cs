@@ -4,6 +4,7 @@ using AsistOff.MES.Shared.Abstractions.Modules;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 namespace AsistOff.MES.Shared.Infrastructure.Auth;
@@ -83,6 +84,29 @@ public static class Extensions
                 {
                     o.Challenge = options.Challenge;
                 }
+
+                // Add event to debug token validation
+                o.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<JwtBearerEvents>>();
+                        logger.LogInformation("=== JWT TOKEN VALIDATED ===");
+                        logger.LogInformation("Claims in token:");
+                        foreach (var claim in context.Principal.Claims)
+                        {
+                            logger.LogInformation("  {Type} = {Value}", claim.Type, claim.Value);
+                        }
+                        return Task.CompletedTask;
+                    },
+                    OnAuthenticationFailed = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<JwtBearerEvents>>();
+                        logger.LogError("=== JWT AUTHENTICATION FAILED ===");
+                        logger.LogError("Exception: {Exception}", context.Exception.Message);
+                        return Task.CompletedTask;
+                    }
+                };
 
                 optionsFactory?.Invoke(o);
             });

@@ -1,6 +1,6 @@
 <template>
   <aside class="mes-sidemap">
-    <MesLogo icon="pi pi-cog" label="MES Platform" />
+    <MesLogo icon="pi pi-cog" label="AsistOff MES" />
     <nav class="mes-nav">
       <ul>
         <li v-for="item in sitemap" :key="item.label">
@@ -73,7 +73,7 @@ function toggleConfig() {
   background: rgba(35, 39, 43, 0.6);
   transition: all 0.2s ease-in-out;
 }
-/* cleaned up stray comment */
+
 .nav-parent:hover, .nav-parent.router-link-active {
   background: linear-gradient(90deg, rgba(252, 145, 58, 0.15) 0%, rgba(249, 212, 35, 0.15) 100%);
   color: #fc913a;
@@ -112,7 +112,6 @@ function toggleConfig() {
   margin-bottom: 0;
 }
 
-
 .nav-sub .nav-parent:hover,
 .nav-sub .nav-parent.router-link-active {
   background: linear-gradient(90deg, rgba(252, 145, 58, 0.15) 0%, rgba(249, 212, 35, 0.15) 100%);
@@ -121,7 +120,6 @@ function toggleConfig() {
   transform: translateY(-1px);
 }
 
-/* Fade transition for submenu */
 .fade-enter-active, .fade-leave-active {
   transition: opacity 0.18s;
 }

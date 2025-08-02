@@ -30,5 +30,12 @@ app.use(Toast, {
   rtl: false
 })
 app.use(i18n)
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
+
+// Initialize auth store to load token from localStorage
+import { useAuthStore } from './stores/authStore'
+const authStore = useAuthStore(pinia)
+authStore.loadAuth()
+
 app.mount('#app')

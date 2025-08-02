@@ -1,4 +1,4 @@
-﻿using AsistOff.MES.Shared.Abstractions.Auth;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Users.Core.Entities;
 using AsistOff.MES.Users.Core.Repositories;
 using ErrorOr;
@@ -13,7 +13,7 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, ErrorOr<JsonW
     private readonly IPasswordHasher<User> _hasher;
     private readonly IAuthManager _authManager;
 
-    public SignInRequestHandler(IUsersRepository usersRepository, IPasswordHasher<User> hasher, IAuthManager authManager)
+    public SignInRequestHandler(IUsersRepository usersRepository, IPasswordHasher<User> hasher, IAuthManager authManager)      
     {
         _usersRepository = usersRepository;
         _hasher = hasher;
@@ -23,14 +23,12 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, ErrorOr<JsonW
     public async Task<ErrorOr<JsonWebToken>> Handle(SignInRequest request, CancellationToken cancellationToken)
     {
         var user = await _usersRepository.GetAsync(request.Email);
-
         if (user is null)
         {
             return Error.NotFound("User not found");
         }
 
         var verificationResult = _hasher.VerifyHashedPassword(user, user.Password, request.Password);
-
         if (verificationResult == PasswordVerificationResult.Failed)
         {
             return Error.Unauthorized("Invalid credentials");
@@ -38,11 +36,19 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, ErrorOr<JsonW
 
         var claims = new Dictionary<string, IEnumerable<string>>
         {
-            ["permissions"] = ["users", "users.read"],
-            ["tenantId"] = [user.TenantId.ToString()]
+            ["permissions"] = ["users", "users.read", "configuration"],
+            ["tenant_id"] = [user.TenantId.ToString()],
+            ["tenant_name"] = ["Default Tenant"],
+            ["tenant_active"] = ["true"]
         };
 
-        var token = _authManager.CreateToken(user.Id.ToString(), user.Email, claims: claims);
+        var token = _authManager.CreateToken(
+            userId: user.Id.ToString(), 
+            role: user.Email, 
+            audience: "AsistOff.MES.Users",
+            claims: claims
+        );
+
         return token;
     }
 }
