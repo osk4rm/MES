@@ -9,7 +9,7 @@ public class DepartmentsConfiguration : IEntityTypeConfiguration<Department>
     public void Configure(EntityTypeBuilder<Department> builder)
     {
         builder.HasKey(x => x.Id);
-        
+
         builder.Property(x => x.Code)
             .IsRequired()
             .HasMaxLength(50);
@@ -20,6 +20,8 @@ public class DepartmentsConfiguration : IEntityTypeConfiguration<Department>
 
         builder.HasIndex(x => new { x.TenantId, x.Code }, "IX_Departments_TenantId_Code")
             .IsUnique();
+        builder.HasIndex(x => x.Code,"IX_Departments_Code");
+        builder.HasIndex(x => x.TenantId, "IX_Departments_TenantId");
 
         builder.HasMany(x => x.Employees)
             .WithOne(x => x.Department)

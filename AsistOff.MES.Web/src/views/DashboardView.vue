@@ -1,53 +1,245 @@
 <template>
   <div class="mes-dashboard">
-    <h1>MES Dashboard</h1>
-    <div class="mes-welcome">
-      <div class="welcome-content">
-        <h2>Welcome to <span class="brand-highlight">AsistOff MES</span></h2>
-        <p>Monitor, control, and optimize your manufacturing operations in real time.</p>
-        <div class="welcome-features">
-          <div class="feature">
-            <i class="pi pi-check-circle"></i>
-            <span>Real-time monitoring</span>
+    <PageHeader 
+      title="MES Dashboard" 
+      icon="pi pi-chart-line"
+      subtitle="Monitor, control, and optimize your manufacturing operations in real time"
+    />
+    
+    <div class="dashboard-content">
+      <div class="mes-welcome">
+        <div class="welcome-content">
+          <h2>Welcome to <span class="brand-highlight">AsistOff MES</span></h2>
+          <div class="welcome-features">
+            <div class="feature">
+              <i class="pi pi-check-circle"></i>
+              <span>Real-time monitoring</span>
+            </div>
+            <div class="feature">
+              <i class="pi pi-check-circle"></i>
+              <span>Advanced analytics</span>
+            </div>
+            <div class="feature">
+              <i class="pi pi-check-circle"></i>
+              <span>Production optimization</span>
+            </div>
           </div>
-          <div class="feature">
-            <i class="pi pi-check-circle"></i>
-            <span>Advanced analytics</span>
-          </div>
-          <div class="feature">
-            <i class="pi pi-check-circle"></i>
-            <span>Production optimization</span>
+        </div>
+        <div class="welcome-visual">
+          <div class="floating-icon">
+            <i class="pi pi-cog"></i>
           </div>
         </div>
       </div>
-      <div class="welcome-visual">
-        <div class="floating-icon">
-          <i class="pi pi-cog"></i>
-        </div>
-      </div>
-    </div>
-    <div class="mes-widgets">
-      <div class="mes-widget">
-        <i class="pi pi-box"></i>
-        <span>Production Status</span>
-      </div>
-      <div class="mes-widget">
-        <i class="pi pi-users"></i>
-        <span>Operator Overview</span>
-      </div>
-      <div class="mes-widget">
-        <i class="pi pi-chart-bar"></i>
-        <span>Performance Metrics</span>
+      
+      <div class="mes-widgets">
+        <WidgetCard
+          title="Production Status"
+          icon="pi pi-play"
+          :value="85"
+          unit="%"
+          variant="success"
+          :status="{ variant: 'success', label: 'Active', pulse: true }"
+          clickable
+          @click="handleProductionClick"
+        />
+        
+        <WidgetCard
+          title="Active Operators"
+          icon="pi pi-users"
+          :value="12"
+          unit="online"
+          variant="primary"
+          :status="{ variant: 'active', label: 'Online' }"
+          clickable
+          @click="handleOperatorsClick"
+        />
+        
+        <WidgetCard
+          title="Performance"
+          icon="pi pi-chart-bar"
+          :value="92.5"
+          unit="OEE"
+          variant="warning"
+          :status="{ variant: 'warning', label: 'Monitor' }"
+          clickable
+          @click="handlePerformanceClick"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import PageHeader from '../components/PageHeader.vue';
+import WidgetCard from '../components/WidgetCard.vue';
+
+const handleProductionClick = () => {
+  console.log('Navigate to production view');
+};
+
+const handleOperatorsClick = () => {
+  console.log('Navigate to operators view');
+};
+
+const handlePerformanceClick = () => {
+  console.log('Navigate to reports view');
+};
 </script>
 
 <style scoped>
-  .mes-dashboard {
+.mes-dashboard {
+  min-height: 100vh;
+  color: #f1f5f9;
+}
+
+.dashboard-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.mes-welcome {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  padding: 32px;
+  border-radius: 16px;
+  border: 1px solid #475569;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.mes-welcome::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 16px 16px 0 0;
+}
+
+.welcome-content {
+  flex: 1;
+  z-index: 1;
+}
+
+.welcome-content h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 24px 0;
+  color: #f1f5f9;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.brand-highlight {
+  background: linear-gradient(135deg, #fc913a 0%, #f9d423 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+}
+
+.welcome-features {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  color: #cbd5e1;
+}
+
+.feature i {
+  color: #10b981;
+  font-size: 20px;
+  filter: drop-shadow(0 2px 4px rgba(16, 185, 129, 0.3));
+}
+
+.welcome-visual {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.floating-icon {
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(135deg, #fc913a 0%, #f9d423 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: float 3s ease-in-out infinite;
+  box-shadow: 0 12px 32px rgba(252, 145, 58, 0.4);
+}
+
+.floating-icon i {
+  font-size: 48px;
+  color: white;
+  animation: spin 20s linear infinite;
+}
+
+.mes-widgets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(180deg);
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .mes-welcome {
+    flex-direction: column;
+    text-align: center;
+    gap: 24px;
+    padding: 24px;
+  }
+
+  .welcome-content h2 {
+    font-size: 24px;
+  }
+
+  .floating-icon {
+    width: 80px;
+    height: 80px;
+  }
+
+  .floating-icon i {
+    font-size: 32px;
+  }
+
+  .mes-widgets {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+</style>
     padding: 2.5rem 2rem;
     color: #ffe066;
     min-height: 100vh;
@@ -365,19 +557,4 @@
   padding: 2.2rem 2rem;
   min-width: 200px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.2rem;
-  font-size: 1.13rem;
-  font-family: 'Roboto Mono', monospace;
-  font-weight: 500;
-  letter-spacing: 1px;
-  border: 1px solid #444;
-  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
-}
-.mes-widget:hover {
-  background: linear-gradient(90deg, #fc913a22 0%, #f9d42322 100%);
-  color: #fc913a;
-  box-shadow: 0 4px 32px #000a;
-}
-</style>
+

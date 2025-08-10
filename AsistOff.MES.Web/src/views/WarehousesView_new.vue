@@ -296,6 +296,7 @@ onMounted(() => {
 <style scoped>
 .warehouses-view {
   padding: 0;
+  min-height: 100vh;
   color: #f1f5f9;
 }
 

@@ -9,6 +9,7 @@ export const sitemap: NavItem[] = [
   { label: 'Dashboard', icon: 'pi pi-home', route: '/dashboard' },
   { label: 'Production Orders', icon: 'pi pi-box', route: '/production-orders' },
   { label: 'Production Recipes', icon: 'pi pi-book', route: '/production-recipes' },
+  { label: 'Schedule', icon: 'pi pi-calendar', route: '/schedule' },
   { label: 'Report', icon: 'pi pi-chart-bar', route: '/report' },
   {
     label: 'Configuration',

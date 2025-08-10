@@ -83,7 +83,7 @@
 }
 
 .cog3 {
-  color: #6366f1;
+  color: #fc913a;
   animation-delay: 0.6s;
   font-size: 3rem;
 }
@@ -138,7 +138,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #fc913a 0%, #f9d423 100%);
   border-radius: 2px;
   animation: progressFill 3s ease-in-out infinite;
   box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);

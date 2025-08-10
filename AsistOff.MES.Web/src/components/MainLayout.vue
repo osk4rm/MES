@@ -18,13 +18,13 @@ import SideNav from '../components/SideNav.vue';
   width: 100vw;
   background: radial-gradient(ellipse at 60% 40%, #2c3136 60%, #232526 100%);
   font-family: 'Orbitron', 'Roboto Mono', monospace;
+  position: fixed;
+  top: 0;
+  left: 0;
 }
 .mes-main {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  height: 100vh;
+  padding: 24px;
   overflow: auto;
 }
 </style>

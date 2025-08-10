@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace AsistOff.MES.Configuration.Infrastructure.DAL.Configurations;
 
-public class EmployeesConfiguration : IEntityTypeConfiguration<Employee>
+public class OperatorsConfiguration : IEntityTypeConfiguration<Operator>
 {
-    public void Configure(EntityTypeBuilder<Employee> builder)
+    public void Configure(EntityTypeBuilder<Operator> builder)
     {
         builder.HasKey(x => x.Id);
         
@@ -29,5 +29,9 @@ public class EmployeesConfiguration : IEntityTypeConfiguration<Employee>
             .IsRequired();
         
         builder.HasIndex(x => new { x.TenantId, x.Identifier }, "IX_Employees_TenantId_Identifier").IsUnique();
+        builder.HasIndex(x => x.DepartmentId, "IX_Employees_DepartmentId");
+        builder.HasIndex(x => x.UserId, "IX_Employees_UserId");
+        builder.HasIndex(x => x.Identifier, "IX_Employees_Identifier");
+        builder.HasIndex(x => x.TenantId, "IX_Employees_TenantId");
     }
 }

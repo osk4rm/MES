@@ -10,6 +10,7 @@ public class ConfigurationDbContext(
     PublishDomainEventsInterceptor publishDomainEventsInterceptor) : DefaultContext<ConfigurationDbContext>(options, publishDomainEventsInterceptor)
 {
     public DbSet<Warehouse> Warehouses { get; set; }
+    public DbSet<Operator> Operators { get; set; }
     
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

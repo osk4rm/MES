@@ -7,6 +7,7 @@ import DashboardView from './views/DashboardView.vue';
 import ProductionView from './views/ProductionView.vue';
 import ReportsView from './views/ReportsView.vue';
 import WarehousesView from './views/WarehousesView.vue';
+import ScheduleView from './views/ScheduleView.vue';
 
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'Login', component: LoginView },
@@ -18,6 +19,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'dashboard', name: 'Dashboard', component: DashboardView },
       { path: 'production-orders', name: 'ProductionOrders', component: ProductionView },
       { path: 'production-recipes', name: 'ProductionRecipes', component: () => import('./views/ProductionView.vue') },
+      { path: 'schedule', name: 'Schedule', component: ScheduleView },
       { path: 'report', name: 'Report', component: ReportsView },
       {
         path: 'configuration',

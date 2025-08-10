@@ -76,7 +76,7 @@
       @save="saveWarehouse"
     />
 
-    <!-- Confirmation Dialog -->
+    <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
       :is-visible="showConfirmDialog"
       :loading="confirmDialogLoading"
@@ -144,21 +144,23 @@ const columns: GridColumn[] = [
 ];
 
 const filteredWarehouses = computed(() => {
-  let filtered = warehouses.value;
-  
-  if (nameFilter.value.trim()) {
-    filtered = filtered.filter(w => 
-      w.name.toLowerCase().includes(nameFilter.value.toLowerCase())
+  let result = [...warehouses.value];
+
+  if (nameFilter.value) {
+    const nameQuery = nameFilter.value.toLowerCase();
+    result = result.filter(warehouse =>
+      warehouse.name.toLowerCase().includes(nameQuery)
     );
   }
-  
-  if (externalIdFilter.value.trim()) {
-    filtered = filtered.filter(w => 
-      w.externalId?.toLowerCase().includes(externalIdFilter.value.toLowerCase())
+
+  if (externalIdFilter.value) {
+    const externalIdQuery = externalIdFilter.value.toLowerCase();
+    result = result.filter(warehouse =>
+      warehouse.externalId?.toLowerCase().includes(externalIdQuery)
     );
   }
-  
-  return filtered;
+
+  return result;
 });
 
 const loadWarehouses = async () => {
@@ -259,21 +261,21 @@ const confirmDelete = (warehouse: WarehouseResponse) => {
 
 const handleDeleteConfirm = async () => {
   if (!warehouseToDelete.value) return;
-  
+
   confirmDialogLoading.value = true;
-  const warehouse = warehouseToDelete.value;
+  deletingId.value = warehouseToDelete.value.id;
   
   try {
-    await WarehouseService.deleteWarehouse(warehouse.id);
+    await WarehouseService.deleteWarehouse(warehouseToDelete.value.id);
     toast.success('Warehouse deleted successfully');
     await loadWarehouses();
-    showConfirmDialog.value = false;
-    warehouseToDelete.value = null;
+    handleDeleteCancel();
   } catch (error: any) {
     const errorMessage = error.message || 'Failed to delete warehouse';
     toast.error(errorMessage);
   } finally {
     confirmDialogLoading.value = false;
+    deletingId.value = null;
   }
 };
 
@@ -296,6 +298,7 @@ onMounted(() => {
 <style scoped>
 .warehouses-view {
   padding: 0;
+  min-height: 100vh;
   color: #f1f5f9;
 }
 
@@ -307,5 +310,211 @@ onMounted(() => {
 .external-id-cell {
   color: #94a3b8;
   font-style: italic;
+}
+</style>
+</script>
+
+<style scoped>
+.warehouses-view {
+  padding: 0;
+  min-height: 100vh;
+  color: #f1f5f9;
+}
+
+.name-cell strong {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.external-id-cell {
+  color: #94a3b8;
+  font-style: italic;
+}
+</style>
+  min-height: 100vh;
+  background: linear-gradient(135deg, #23272b 0%, #232526 100%);
+}
+
+.view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid rgba(252, 145, 58, 0.2);
+}
+
+.page-title {
+  font-size: 2rem;
+  color: #ffe066;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page-title i {
+  color: #fc913a;
+}
+
+.header-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #fc913a 0%, #f9d423 100%);
+  color: #23272b;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(252, 145, 58, 0.4);
+}
+
+.btn-secondary {
+  background: rgba(35, 39, 43, 0.8);
+  color: #ffe066;
+  border: 1px solid rgba(252, 145, 58, 0.3);
+}
+
+.btn-secondary:hover {
+  background: rgba(252, 145, 58, 0.1);
+  border-color: #fc913a;
+}
+
+.warehouse-filters {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(252, 145, 58, 0.3);
+  border-radius: 6px;
+  background: rgba(35, 39, 43, 0.7);
+  color: #ffe066;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  min-width: 200px;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: #fc913a;
+  box-shadow: 0 0 0 2px rgba(252, 145, 58, 0.2);
+}
+
+.filter-input::placeholder {
+  color: rgba(255, 224, 102, 0.6);
+}
+
+.name-cell {
+  font-weight: 600;
+}
+
+.external-id-cell {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: rgba(255, 224, 102, 0.8);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .warehouses-view {
+    padding: 1rem;
+  }
+
+  .view-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .warehouse-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-input {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
+  }
+}
+
+/* Action buttons for warehouse grid */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.action-btn {
+  padding: 0.4rem 0.6rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.action-btn.edit {
+  background: rgba(52, 152, 219, 0.2);
+  color: #3498db;
+  border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.action-btn.edit:hover:not(:disabled) {
+  background: rgba(52, 152, 219, 0.3);
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.action-btn.delete {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.action-btn.delete:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.3);
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
 }
 </style>

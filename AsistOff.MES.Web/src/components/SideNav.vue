@@ -128,8 +128,7 @@ function toggleConfig() {
 }
 
 .mes-sidemap {
-  width: 260px;
-  min-height: 96vh;
+  width: 280px;
   background: linear-gradient(135deg, #23272b 70%, #232526 100%);
   color: #ffe066;
   box-shadow: 
@@ -140,10 +139,7 @@ function toggleConfig() {
   flex-direction: column;
   align-items: center;
   padding: 2.5rem 1.2rem 2rem 1.2rem;
-  border-radius: 18px;
   border: 2px solid #fc913a;
-  margin: 1.2rem 1.2rem 1.2rem 0.8rem;
   backdrop-filter: blur(8px);
-  position: relative;
 }
 </style>
