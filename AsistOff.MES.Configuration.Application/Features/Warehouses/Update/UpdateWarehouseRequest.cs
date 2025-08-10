@@ -1,4 +1,4 @@
-﻿using AsistOff.MES.Multitenancy.Requests;
+﻿using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using MediatR;
 
 namespace AsistOff.MES.Configuration.Application.Features.Warehouses.Update;

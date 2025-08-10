@@ -1,27 +1,21 @@
 ﻿using AsistOff.MES.Configuration.Domain.Repositories;
-using AsistOff.MES.Configuration.Infrastructure.DAL;
+using AsistOff.MES.Configuration.Infrastructure.Configurations;
 using AsistOff.MES.Configuration.Infrastructure.Repositories;
-using AsistOff.MES.Shared.Infrastructure.Interceptors;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AsistOff.MES.Configuration.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddConfigurationInfrastructure(this IServiceCollection services)
     {
         services.AddScoped<IWarehousesRepository, WarehousesRepository>();
         services.AddScoped<IOperatorsRepository, OperatorsRepository>();
+        services.AddScoped<IDepartmentsRepository, DepartmentsRepository>();
         
-        services.AddDbContext<ConfigurationDbContext>((sp, options) =>
-        {
-            var connectionString = configuration["postgres:connectionString"];
-            var publishDomainEventsInterceptor = sp.GetRequiredService<PublishDomainEventsInterceptor>();
-            options.UseNpgsql(connectionString);
-            options.AddInterceptors(publishDomainEventsInterceptor);
-        });
+        services.AddScoped<IEntityConfigurator, ConfigurationEntityConfigurator>();
+        
         return services;
     }
 }

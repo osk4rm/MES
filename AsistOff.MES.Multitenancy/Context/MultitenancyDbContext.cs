@@ -1,17 +1,16 @@
 ﻿using AsistOff.MES.Multitenancy.Entity;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
-using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Multitenancy.Context;
 
-public class MultitenancyDbContext : DefaultContext<MultitenancyDbContext>
+public class MultitenancyDbContext : DbContext
 {
     public MultitenancyDbContext(
         DbContextOptions<MultitenancyDbContext> options,
         PublishDomainEventsInterceptor publishDomainEventsInterceptor,
         AuditableEntityInterceptor auditableEntityInterceptor)
-        : base(options, publishDomainEventsInterceptor)
+        : base(options)
     {
         _auditableEntityInterceptor = auditableEntityInterceptor;
     }

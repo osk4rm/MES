@@ -1,5 +1,5 @@
 using AsistOff.MES.Configuration.Application.Features.Operators.Responses;
-using AsistOff.MES.Multitenancy.Requests;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 
 namespace AsistOff.MES.Configuration.Application.Features.Operators.Browse;

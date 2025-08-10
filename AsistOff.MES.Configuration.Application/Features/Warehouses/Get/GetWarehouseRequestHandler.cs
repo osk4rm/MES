@@ -1,6 +1,6 @@
 ﻿using AsistOff.MES.Configuration.Application.Features.Warehouses.Common;
-using AsistOff.MES.Configuration.Domain.Errors;
 using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using MediatR;
 
 namespace AsistOff.MES.Configuration.Application.Features.Warehouses.Get;
@@ -15,7 +15,7 @@ internal sealed class GetWarehouseRequestHandler(
 
         if (warehouse is null)
         {
-            Errors.Warehouses.ThrowNotFound();
+            throw new NotFoundException("Warehouse", request.WarehouseId);
         }
 
         return new WarehouseResult(warehouse!.Id, warehouse.Name, warehouse.SyncId);

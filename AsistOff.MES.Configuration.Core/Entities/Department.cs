@@ -1,4 +1,4 @@
-﻿using AsistOff.MES.Multitenancy.Interfaces;
+﻿using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.DAL;
 
 namespace AsistOff.MES.Configuration.Domain.Entities;
@@ -10,5 +10,5 @@ public class Department : IEntity, ISaasy
     public required string Code { get; set; }
     public required string Name { get; set; }
     
-    public virtual ICollection<Operator> Employees { get; set; } = new List<Operator>();
+    public virtual ICollection<Operator> Operators { get; set; } = new List<Operator>();
 }

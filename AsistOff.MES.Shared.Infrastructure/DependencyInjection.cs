@@ -5,9 +5,11 @@ using AsistOff.MES.Shared.Infrastructure.Behaviors;
 using AsistOff.MES.Shared.Infrastructure.Events;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Messaging;
+using AsistOff.MES.Shared.Infrastructure.Persistence;
 using AsistOff.MES.Shared.Infrastructure.Providers;
 using AsistOff.MES.Shared.Infrastructure.Validation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using FluentValidation;
@@ -32,6 +34,13 @@ namespace AsistOff.MES.Shared.Infrastructure
             services.AddValidation(assemblies);
             services.AddPersistence(configuration);
             services.AddEvents(assemblies);
+
+            services.AddDbContext<DefaultContext>(options =>
+            {
+                var connectionString = configuration.GetConnectionString("DefaultConnection") 
+                    ?? configuration["postgres:connectionString"];
+                options.UseNpgsql(connectionString);
+            });
 
             return services;
         }

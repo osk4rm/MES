@@ -1,4 +1,4 @@
-﻿using AsistOff.MES.Multitenancy.Interfaces;
+﻿using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.DAL;
 
 namespace AsistOff.MES.Configuration.Domain.Entities;

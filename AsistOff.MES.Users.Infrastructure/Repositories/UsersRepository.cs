@@ -1,16 +1,16 @@
 ﻿using AsistOff.MES.Users.Core.Entities;
 using AsistOff.MES.Users.Core.Repositories;
-using AsistOff.MES.Users.Infrastructure.DAL;
+using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Users.Infrastructure.Repositories;
 
 public class UsersRepository : IUsersRepository
 {
-    private readonly UsersDbContext _context;
+    private readonly DefaultContext _context;
     private readonly DbSet<User> _users;
 
-    public UsersRepository(UsersDbContext context)
+    public UsersRepository(DefaultContext context)
     {
         _context = context;
         _users = context.Users;

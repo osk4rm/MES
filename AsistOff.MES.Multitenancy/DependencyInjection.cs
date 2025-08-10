@@ -1,7 +1,7 @@
 ﻿using AsistOff.MES.Multitenancy.Behaviors;
 using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Multitenancy.Entity;
-using AsistOff.MES.Multitenancy.Interfaces;
 using AsistOff.MES.Multitenancy.Repositories;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Persistence;

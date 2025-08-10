@@ -1,6 +1,6 @@
 ﻿using AsistOff.MES.Configuration.Application.Features.Warehouses.Common;
-using MediatR;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 
 namespace AsistOff.MES.Configuration.Application.Features.Warehouses.Browse;
 
-public record BrowseWarehousesRequest : IRequest<IReadOnlyCollection<WarehouseResult>>;
+public record BrowseWarehousesRequest : ITenantRequest<IReadOnlyCollection<WarehouseResult>>;

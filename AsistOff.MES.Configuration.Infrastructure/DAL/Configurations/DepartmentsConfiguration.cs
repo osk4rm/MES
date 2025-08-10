@@ -23,7 +23,7 @@ public class DepartmentsConfiguration : IEntityTypeConfiguration<Department>
         builder.HasIndex(x => x.Code,"IX_Departments_Code");
         builder.HasIndex(x => x.TenantId, "IX_Departments_TenantId");
 
-        builder.HasMany(x => x.Employees)
+        builder.HasMany(x => x.Operators)
             .WithOne(x => x.Department)
             .HasForeignKey(x => x.DepartmentId)
             .OnDelete(DeleteBehavior.NoAction);

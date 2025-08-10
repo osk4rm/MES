@@ -17,9 +17,7 @@ internal sealed class ConfigurationModule : IModule
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
         services.AddApplication();
-        services.AddInfrastructure(configuration);
-        // If you have a domain layer with registration, add it here:
-        // services.AddDomain();
+        services.AddConfigurationInfrastructure();
     }
 
     public void Use(IApplicationBuilder app)

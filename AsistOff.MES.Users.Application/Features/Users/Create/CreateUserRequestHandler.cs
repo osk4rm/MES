@@ -1,4 +1,5 @@
 using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Users.Core.Entities;

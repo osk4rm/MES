@@ -24,7 +24,7 @@ public class OperatorsConfiguration : IEntityTypeConfiguration<Operator>
             .HasColumnType("decimal(18,5)")
             .HasDefaultValue(0M);
         builder.HasOne(x => x.Department)
-            .WithMany(x => x.Employees)
+            .WithMany(x => x.Operators)
             .HasForeignKey(x => x.DepartmentId)
             .IsRequired();
         

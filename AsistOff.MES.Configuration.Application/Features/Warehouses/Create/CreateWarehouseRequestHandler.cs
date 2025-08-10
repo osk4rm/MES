@@ -1,7 +1,7 @@
 ﻿using AsistOff.MES.Configuration.Application.Features.Warehouses.Common;
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
-using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using MediatR;
 using Microsoft.Extensions.Logging;

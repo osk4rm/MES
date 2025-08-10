@@ -1,5 +1,5 @@
-﻿using AsistOff.MES.Configuration.Domain.Errors;
-using AsistOff.MES.Configuration.Domain.Repositories;
+﻿using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using MediatR;
 
 namespace AsistOff.MES.Configuration.Application.Features.Warehouses.Update;
@@ -14,7 +14,7 @@ internal sealed class UpdateWarehouseRequestHandler(
 
         if (warehouse is null)
         {
-            Errors.Warehouses.ThrowNotFound();
+            throw new NotFoundException("Warehouse", request.Id);
         }
         
         warehouse!.Name = request.Name;
