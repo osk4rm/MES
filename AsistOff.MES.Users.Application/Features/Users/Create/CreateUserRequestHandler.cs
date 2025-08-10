@@ -1,15 +1,15 @@
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Shared.Abstractions.Providers;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Users.Core.Entities;
 using AsistOff.MES.Users.Core.Repositories;
-using ErrorOr;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 
 namespace AsistOff.MES.Users.Application.Features.Users.Create;
 
-internal sealed class CreateUserRequestHandler : IRequestHandler<CreateUserRequest, ErrorOr<Unit>>
+internal sealed class CreateUserRequestHandler : IRequestHandler<CreateUserRequest, Unit>
 {
     private readonly IUsersRepository _usersRepository;
     private readonly ITenantContext _tenantContext;
@@ -31,13 +31,13 @@ internal sealed class CreateUserRequestHandler : IRequestHandler<CreateUserReque
         _passwordHasher = passwordHasher;
     }
 
-    public async Task<ErrorOr<Unit>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
+    public async Task<Unit> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
         var existingUser = await _usersRepository.GetAsync(request.Email);
         if (existingUser is not null)
         {
             _logger.LogWarning("Attempted to create user with email {Email} that already exists", request.Email);
-            return Error.Conflict(description: "User with this email already exists");
+            throw new ConflictException("User with this email already exists");
         }
 
         var tenantId = _tenantContext.TenantId;

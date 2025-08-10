@@ -1,14 +1,16 @@
-﻿namespace AsistOff.MES.Multitenancy.Error;
+﻿using AsistOff.MES.Shared.Abstractions.Exceptions;
 
-public static class Errors
+namespace AsistOff.MES.Multitenancy.Error
 {
-    public static class Tenants
+    public static class Errors
     {
-        public static ErrorOr.Error NotFound =>
-            ErrorOr.Error.NotFound(code: "Tenant.RepositoryGet", description: "Tenant not found");
+        public static class Tenants
+        {
+            public static void ThrowNotFound() =>
+                throw new NotFoundException("Tenant not found");
 
-        public static ErrorOr.Error CreateFailed =>
-            ErrorOr.Error.Validation(code: "Common.RepositoryCreate", description: "Error creating an entity");
-
+            public static void ThrowCreateFailed() =>
+                throw new RepositoryException("Error creating an entity");
+        }
     }
 }

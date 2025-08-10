@@ -15,9 +15,7 @@ public class AuthenticationController(ISender sender) : ApiController
     public async Task<IActionResult> Login([FromBody] SignInRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(request, cancellationToken);
-        
-        return result.Match(
-            onValue: Ok,
-            onError: Problem);
+
+        return Ok(result);
     }
 }

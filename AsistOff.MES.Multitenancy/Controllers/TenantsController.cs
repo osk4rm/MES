@@ -1,4 +1,5 @@
-﻿using AsistOff.MES.Multitenancy.Requests.Commands.Create;
+﻿using AsistOff.MES.Multitenancy.Contracts;
+using AsistOff.MES.Multitenancy.Requests.Commands.Create;
 using AsistOff.MES.Multitenancy.Requests.Queries;
 using AsistOff.MES.Shared.Infrastructure.Controllers;
 using MediatR;
@@ -19,23 +20,19 @@ public class TenantsController : ApiController
 
     [HttpPost]
     [AllowAnonymous]
-    public async Task<IActionResult> CreateTenant([FromBody] CreateTenantCommand command)
+    public async Task<ActionResult<Guid>> CreateTenant([FromBody] CreateTenantCommand command)
     {
         var result = await _mediator.Send(command);
 
-        return result.Match(
-            onValue: x => CreatedAtAction(nameof(GetTenant), new { id = x }, x),
-            onError: Problem);
+        return result;
     }
 
     [HttpGet("{id}")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetTenant(Guid id)
+    public async Task<ActionResult<TenantResponse>> GetTenant(Guid id)
     {
         var result = await _mediator.Send(new GetTenantQuery(id));
-        return result.Match(
-            onValue: Ok,
-            onError: Problem);
+        return result;
     }
 }
 

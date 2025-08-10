@@ -1,5 +1,4 @@
 ﻿using AsistOff.MES.Configuration.Domain.Entities;
-using ErrorOr;
 
 namespace AsistOff.MES.Configuration.Domain.Repositories;
 

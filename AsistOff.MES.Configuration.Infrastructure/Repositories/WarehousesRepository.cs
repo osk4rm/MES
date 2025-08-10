@@ -3,7 +3,6 @@ using AsistOff.MES.Configuration.Domain.Errors;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Configuration.Infrastructure.DAL;
 using Microsoft.EntityFrameworkCore;
-using ErrorOr;
 
 namespace AsistOff.MES.Configuration.Infrastructure.Repositories;
 

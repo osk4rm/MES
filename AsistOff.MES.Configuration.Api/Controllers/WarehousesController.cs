@@ -20,23 +20,19 @@ public class WarehousesController : ApiController
     }
 
     [HttpGet]
-    public async Task<IActionResult> Browse(CancellationToken cancellationToken)
+    public async Task<ActionResult<WarehousesResponse>> Browse(CancellationToken cancellationToken)
     {
         var result = await _mediator.Send(new BrowseWarehousesRequest(), cancellationToken);
-
-        return result.Match(
-            onValue: x => Ok(new WarehousesResponse(x.ToResponse())),
-            onError: Problem);
+        var response = new WarehousesResponse(result.Select(x => x.ToResponse()).ToList());
+        return response;
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<WarehouseResponse>> Get(Guid id, CancellationToken cancellationToken)
     {
         var result = await _mediator.Send(new GetWarehouseRequest(id), cancellationToken);
         
-        return result.Match(
-            onValue: x => Ok(x.ToResponse()),
-            onError: Problem);
+        return new WarehouseResponse(result.Id, result.Name, result.SyncId);
     }
 
     [HttpPost]
@@ -44,18 +40,14 @@ public class WarehousesController : ApiController
     {
         var result = await _mediator.Send(request, cancellationToken);
         
-        return result.Match(
-            onValue: x => CreatedAtAction(nameof(Get), new { id = x.Id }, x.ToResponse()),
-            onError: Problem);
+        return CreatedAtAction(nameof(Get), new { id = result.Id },
+            result.ToResponse());
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(UpdateWarehouseRequest request, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(request, cancellationToken);
-        
-        return result.Match(
-            onValue: x => NoContent(),
-            onError: Problem);
+        await _mediator.Send(request, cancellationToken);
+        return NoContent();
     }
 }

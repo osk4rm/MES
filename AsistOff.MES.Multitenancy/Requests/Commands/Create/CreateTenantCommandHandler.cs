@@ -1,11 +1,10 @@
 ﻿using System.Text.Json;
 using AsistOff.MES.Multitenancy.Contracts.Events;
 using AsistOff.MES.Multitenancy.Entity;
-using AsistOff.MES.Multitenancy.Error;
 using AsistOff.MES.Multitenancy.Repositories;
 using AsistOff.MES.Shared.Abstractions.Events;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
-using ErrorOr;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -16,9 +15,9 @@ public class CreateTenantCommandHandler(
     IGuidProvider guidProvider,
     ILogger<CreateTenantCommandHandler> logger,
     IEventDispatcher eventDispatcher)
-    : IRequestHandler<CreateTenantCommand, ErrorOr<Guid>>
+    : IRequestHandler<CreateTenantCommand, Guid>
 {
-    public async Task<ErrorOr<Guid>> Handle(CreateTenantCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> Handle(CreateTenantCommand request, CancellationToken cancellationToken)
     {
         var tenant = new Tenant
         {
@@ -44,7 +43,7 @@ public class CreateTenantCommandHandler(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error creating tenant with name {TenantName}", request.Name);
-            return Errors.Tenants.CreateFailed;
+            throw new RepositoryException("Error creating tenant", ex);
         }
     }
 }

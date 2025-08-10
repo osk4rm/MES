@@ -1,13 +1,13 @@
 using AsistOff.MES.Shared.Abstractions.Auth;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Users.Core.Entities;
 using AsistOff.MES.Users.Core.Repositories;
-using ErrorOr;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 
 namespace AsistOff.MES.Users.Application.Features.Authentication.SignIn;
 
-public class SignInRequestHandler : IRequestHandler<SignInRequest, ErrorOr<JsonWebToken>>
+public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
 {
     private readonly IUsersRepository _usersRepository;
     private readonly IPasswordHasher<User> _hasher;
@@ -20,18 +20,18 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, ErrorOr<JsonW
         _authManager = authManager;
     }
 
-    public async Task<ErrorOr<JsonWebToken>> Handle(SignInRequest request, CancellationToken cancellationToken)
+    public async Task<JsonWebToken> Handle(SignInRequest request, CancellationToken cancellationToken)
     {
         var user = await _usersRepository.GetAsync(request.Email);
         if (user is null)
         {
-            return Error.NotFound("User not found");
+            throw new NotFoundException("User not found");
         }
 
         var verificationResult = _hasher.VerifyHashedPassword(user, user.Password, request.Password);
         if (verificationResult == PasswordVerificationResult.Failed)
         {
-            return Error.Unauthorized("Invalid credentials");
+            throw new ValidationException("Invalid credentials");
         }
 
         var claims = new Dictionary<string, IEnumerable<string>>

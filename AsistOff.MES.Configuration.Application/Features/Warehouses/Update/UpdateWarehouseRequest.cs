@@ -1,7 +1,6 @@
 ﻿using AsistOff.MES.Multitenancy.Requests;
-using ErrorOr;
 using MediatR;
 
 namespace AsistOff.MES.Configuration.Application.Features.Warehouses.Update;
 
-public record UpdateWarehouseRequest(Guid Id, string Name) : ITenantRequest<ErrorOr<Unit>>;
+public record UpdateWarehouseRequest(Guid Id, string Name) : ITenantRequest<Unit>;

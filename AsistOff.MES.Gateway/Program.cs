@@ -2,6 +2,7 @@ using AsistOff.MES.Gateway;
 using AsistOff.MES.Multitenancy;
 using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure;
+using AsistOff.MES.Shared.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,9 @@ builder.Services.AddMediatR(cfg =>
     foreach (var assembly in assemblies)
         cfg.RegisterServicesFromAssembly(assembly);
 });
+
+// Add global exception handling (replaces ErrorOr)
+builder.Services.AddExceptionHandling();
 
 // TEMP - TODO: przeniesc do konfiguracji
 builder.Services.AddCors(options =>
@@ -54,6 +58,9 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+// Add global exception handling middleware (MUST be early in pipeline)
+app.UseExceptionHandler();
+
 foreach (var module in modules)
 {
     module.Use(app);
@@ -71,7 +78,6 @@ using (var scope = app.Services.CreateScope())
 
 // TEMP
 app.UseCors("AllowAll");
-app.UseExceptionHandler("/error");
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();

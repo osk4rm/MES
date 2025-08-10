@@ -1,4 +1,4 @@
-﻿using ErrorOr;
+﻿using AsistOff.MES.Shared.Abstractions.Exceptions;
 
 namespace AsistOff.MES.Shared.Abstractions.Errors
 {
@@ -6,12 +6,11 @@ namespace AsistOff.MES.Shared.Abstractions.Errors
     {
         public static class Common
         {
-            public static Error RepositoryDelete =>
-                Error.Validation(code: "Common.RepositoryDelete", description: "Error deleting an entity");
+            public static void ThrowRepositoryDeleteError()
+                => throw new RepositoryException("Error deleting an entity");
 
-            public static Error RepositoryUpdate =>
-                Error.Validation(code: "Common.RepositoryDelete", description: "Error updating an entity");
-
+            public static void ThrowRepositoryUpdateError()
+                => throw new RepositoryException("Error updating an entity");
         }
     }
 }

@@ -1,21 +1,20 @@
 ﻿using AsistOff.MES.Multitenancy.Contracts;
-using AsistOff.MES.Multitenancy.Error;
 using AsistOff.MES.Multitenancy.Repositories;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Jbl;
-using ErrorOr;
 
 namespace AsistOff.MES.Multitenancy.Requests.Queries;
 
 public class GetTenantQueryHandler(ITenantRepository tenantRepository)
-    : IJblHandler<GetTenantQuery, ErrorOr<TenantResponse?>>
+    : IJblHandler<GetTenantQuery, TenantResponse?>
 {
-    public async Task<ErrorOr<TenantResponse?>> Handle(GetTenantQuery request, CancellationToken cancellationToken)
+    public async Task<TenantResponse?> Handle(GetTenantQuery request, CancellationToken cancellationToken)
     {
         var tenant = await tenantRepository.GetByIdAsync(request.Id, cancellationToken);
 
         if (tenant is null)
         {
-            return Errors.Tenants.NotFound;
+            throw new NotFoundException("Tenant", request.Id);
         }
 
         return new TenantResponse

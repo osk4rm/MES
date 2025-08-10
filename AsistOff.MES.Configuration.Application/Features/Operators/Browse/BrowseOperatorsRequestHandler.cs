@@ -3,28 +3,21 @@ using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Abstractions.Pagination;
-using ErrorOr;
-using MediatR;
 using LinqKit;
-using Microsoft.EntityFrameworkCore;
+using MediatR;
 
 namespace AsistOff.MES.Configuration.Application.Features.Operators.Browse;
 
-public class BrowseOperatorsRequestHandler : IRequestHandler<BrowseOperatorsRequest, ErrorOr<PagedResponse<OperatorResponse>>>
+public sealed class BrowseOperatorsRequestHandler(
+    IOperatorsRepository operatorsRepository)
+    : IRequestHandler<BrowseOperatorsRequest, PagedResponse<OperatorResponse>>
 {
-    private readonly IOperatorsRepository _operatorsRepository;
-
-    public BrowseOperatorsRequestHandler(IOperatorsRepository operatorsRepository)
-    {
-        _operatorsRepository = operatorsRepository;
-    }
-
-    public async Task<ErrorOr<PagedResponse<OperatorResponse>>> Handle(BrowseOperatorsRequest request,
+    public async Task<PagedResponse<OperatorResponse>> Handle(BrowseOperatorsRequest request,
         CancellationToken cancellationToken)
     {
         var predicate = BuildPredicate(request);
         var operators =
-            await _operatorsRepository.BrowseAsync(new Paginator<Operator>(predicate, request), cancellationToken);
+            await operatorsRepository.BrowseAsync(new Paginator<Operator>(predicate, request), cancellationToken);
 
         var items = operators.Select(x => new OperatorResponse()
         {
@@ -36,8 +29,7 @@ public class BrowseOperatorsRequestHandler : IRequestHandler<BrowseOperatorsRequ
             Department = x.Department?.Name
         }).ToList();
 
-        var totalCount = items.Count;
-        return new PagedOperatorsResponse(items, totalCount, request.PageSize);
+        return new PagedOperatorsResponse(items, 969, request.PageSize);
     }
 
     private ExpressionStarter<Operator> BuildPredicate(BrowseOperatorsRequest request)

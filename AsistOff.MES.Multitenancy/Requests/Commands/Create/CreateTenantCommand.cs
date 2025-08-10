@@ -1,13 +1,12 @@
-﻿using ErrorOr;
-using MediatR;
+﻿using MediatR;
 
 namespace AsistOff.MES.Multitenancy.Requests.Commands.Create;
 
 public record CreateTenantCommand(
     string Name,
-    string? DisplayName,
+    string DisplayName,
     string ContactEmail,
-    string? Settings,
+    string Settings,
     string Password,
     string ConfirmPassword
-    ) : IRequest<ErrorOr<Guid>>;
+    ) : IRequest<Guid>;
