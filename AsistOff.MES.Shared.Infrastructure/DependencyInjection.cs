@@ -12,13 +12,12 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using FluentValidation;
 
 namespace AsistOff.MES.Shared.Infrastructure
 {
     public static class DependencyInjection
     {
-        public static IServiceCollection AddInfra(this IServiceCollection services,
+        public static IServiceCollection AddInfrastructure(this IServiceCollection services,
             IConfiguration configuration, IList<Assembly> assemblies)
         {
             services.AddMediatR(cfg =>

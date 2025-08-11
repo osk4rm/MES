@@ -23,17 +23,21 @@ public class AuditableEntityInterceptor(IDateTimeProvider dateTimeProvider) : Sa
 
     private void UpdateAuditableEntities(DbContext? context)
     {
-        if (context == null) return;
+        if (context == null)
+        {
+            return;
+        }
 
         foreach (var entry in context.ChangeTracker.Entries<IAuditable>())
         {
-            if (entry.State == EntityState.Added)
+            switch (entry.State)
             {
-                entry.Property(x => x.CreatedAt).CurrentValue = dateTimeProvider.UtcNow;
-            }
-            else if (entry.State == EntityState.Modified)
-            {
-                entry.Property(x => x.UpdatedAt).CurrentValue = dateTimeProvider.UtcNow;
+                case EntityState.Added:
+                    entry.Property(x => x.CreatedAt).CurrentValue = dateTimeProvider.UtcNow;
+                    break;
+                case EntityState.Modified:
+                    entry.Property(x => x.UpdatedAt).CurrentValue = dateTimeProvider.UtcNow;
+                    break;
             }
         }
     }

@@ -5,16 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Users.Infrastructure.Repositories;
 
-public class UsersRepository : IUsersRepository
+public class UsersRepository(DefaultContext context) : IUsersRepository
 {
-    private readonly DefaultContext _context;
-    private readonly DbSet<User> _users;
-
-    public UsersRepository(DefaultContext context)
-    {
-        _context = context;
-        _users = context.Users;
-    }
+    private readonly DbSet<User> _users = context.Users;
 
     public Task<User?> GetAsync(Guid id)
         => _users.SingleOrDefaultAsync(x => x.Id == id);
@@ -25,12 +18,12 @@ public class UsersRepository : IUsersRepository
     public async Task AddAsync(User user)
     {
         await _users.AddAsync(user);
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
     }
 
     public async Task UpdateAsync(User user)
     {
         _users.Update(user);
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
     }
 }

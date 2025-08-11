@@ -8,5 +8,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Controllers
     public class ApiController : ControllerBase
     {
         // Controller is now simplified - exceptions are handled globally
+        // I'm leaving this empty for now, but you can add common methods or properties here if needed.
     }
 }

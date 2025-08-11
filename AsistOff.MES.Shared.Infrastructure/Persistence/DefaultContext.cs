@@ -46,4 +46,3 @@ public class DefaultContext : DbContext
         base.OnConfiguring(optionsBuilder);
     }
 }
-

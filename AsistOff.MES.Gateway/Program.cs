@@ -18,7 +18,6 @@ builder.Services.AddMediatR(cfg =>
         cfg.RegisterServicesFromAssembly(assembly);
 });
 
-// Add global exception handling (replaces ErrorOr)
 builder.Services.AddExceptionHandling();
 
 // TEMP - TODO: przeniesc do konfiguracji
@@ -36,7 +35,7 @@ builder.Services.AddCors(options =>
 
 builder.Services
     .AddPresentation()
-    .AddInfra(builder.Configuration, assemblies);
+    .AddInfrastructure(builder.Configuration, assemblies);
 
 // Remove individual AddMediatR registrations from other projects to avoid duplicates
 builder.Services.AddMultitenancy(builder.Configuration);
