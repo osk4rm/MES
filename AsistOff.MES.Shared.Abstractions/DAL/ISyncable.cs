@@ -2,5 +2,5 @@
 
 public interface ISyncable
 {
-    string SyncId { get; }
+    string? SyncId { get; set; }
 }

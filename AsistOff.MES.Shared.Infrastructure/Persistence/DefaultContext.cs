@@ -16,6 +16,7 @@ public class DefaultContext : DbContext
     public DbSet<Warehouse> Warehouses { get; set; }
     public DbSet<Operator> Operators { get; set; }
     public DbSet<Department> Departments { get; set; }
+    public DbSet<MeasureUnit> MeasureUnits { get; set; }
 
     public DefaultContext(
         DbContextOptions<DefaultContext> options,
