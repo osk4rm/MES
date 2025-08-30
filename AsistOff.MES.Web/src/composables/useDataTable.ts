@@ -42,7 +42,6 @@ export function useDataTable<T, F extends FilterState = FilterState>(
       currentPage.value,
       pageSize.value,
       sort.value,
-      tableConfig.supportedSortFields,
       filters
     ) as IPagedRequest & F;
   });

@@ -29,6 +29,7 @@
       :loading="table.loading.value"
       :show-filters="true"
       row-key="id"
+      @sort-change="handleSortChange"
     >
       <template #filters>
         <FilterBar @clear="clearFilters">
@@ -190,6 +191,17 @@ function handleRowAction(action: ActionItem, item: Department) {
     openEditModal(item)
   } else if (action.key === 'delete') {
     handleDelete(item)
+  }
+}
+
+// Sorting functionality
+function handleSortChange(sortKey: string | null, sortOrder: 'asc' | 'desc' | null) {
+  if (sortKey && sortOrder) {
+    // Convert to backend format: rawSort=field,direction
+    table.setSort(sortKey, sortOrder)
+  } else {
+    // Clear sorting
+    table.clearSort()
   }
 }
 

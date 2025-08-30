@@ -6,7 +6,6 @@ export interface IPagedRequest extends ISortable {
 
 export interface ISortable {
   rawSort?: string[];
-  supportedSortFields?: string[];
 }
 
 export interface IPagedResponse<T> {
@@ -35,14 +34,12 @@ export interface DataTableConfig {
   pageSize: number;
   pageSizeOptions: number[];
   defaultSort?: SortField;
-  supportedSortFields: string[];
 }
 
 // Default configuration
 export const DEFAULT_TABLE_CONFIG: DataTableConfig = {
   pageSize: 10,
   pageSizeOptions: [5, 10, 25, 50, 100],
-  supportedSortFields: [],
 };
 
 // Helper functions
@@ -50,16 +47,14 @@ export function createPagedRequest(
   page: number = 1,
   pageSize: number = 10,
   sort: SortField[] = [],
-  supportedSortFields: string[] = [],
   filters: FilterState = {}
 ): IPagedRequest & FilterState {
-  const rawSort = sort.map(s => `${s.field} ${s.direction}`);
+  const rawSort = sort.map(s => `${s.field},${s.direction}`);
   
   return {
     pageNumber: page,
     pageSize,
     rawSort,
-    supportedSortFields,
     ...filters
   };
 }
