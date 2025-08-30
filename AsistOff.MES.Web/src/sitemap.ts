@@ -15,7 +15,8 @@ export const sitemap: NavItem[] = [
     label: 'Configuration',
     icon: 'pi pi-cog',
     children: [
-      { label: 'Warehouses', icon: 'pi pi-sliders-h', route: '/configuration/warehouses' }
+      { label: 'Warehouses', icon: 'pi pi-building', route: '/configuration/warehouses' },
+      { label: 'Departments', icon: 'pi pi-sitemap', route: '/configuration/departments' }
     ]
   }
 ];

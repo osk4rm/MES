@@ -15,6 +15,7 @@ public static class DependencyInjection
         services.AddScoped<IDepartmentsRepository, DepartmentsRepository>();
         services.AddScoped<IMeasureUnitsRepository, MeasureUnitsRepository>();
         services.AddScoped<IProductGroupsRepository, ProductGroupsRepository>();
+        services.AddScoped<IProductsRepository, ProductsRepository>();
         
         services.AddScoped<IEntityConfigurator, ConfigurationEntityConfigurator>();
         

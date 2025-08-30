@@ -13,7 +13,7 @@ public record BrowseOperatorsRequest(
     Guid DepartmentId
 ) : IPagedRequest, ITenantRequest<PagedResponse<OperatorResponse>>
 {
-    public IReadOnlyCollection<string> RawSort { get; } = [];
+    public List<string> RawSort { get; set; } = new();
     public IReadOnlyCollection<string> SupportedSortFields { get; } = ["Identifier", "FirstName", "LastName", "RatePerHour"];
     public int? PageNumber { get; }
     public int? PageSize { get; }

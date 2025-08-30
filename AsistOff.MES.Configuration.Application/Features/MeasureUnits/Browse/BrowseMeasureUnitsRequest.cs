@@ -11,7 +11,7 @@ public record BrowseMeasureUnitsRequest(
     bool? IsActive = null
 ) : ITenantRequest<PagedResponse<MeasureUnitResponse>>, IPagedRequest
 {
-    public IReadOnlyCollection<string> RawSort { get; } = [];
+    public List<string> RawSort { get; set; } = new();
 
     public IReadOnlyCollection<string> SupportedSortFields { get; } =
         ["Name", "Symbol", "Type", "ConversionFactor", "BaseUnitId", "IsActive", "Description"];

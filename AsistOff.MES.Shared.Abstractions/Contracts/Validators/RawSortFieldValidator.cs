@@ -17,11 +17,12 @@ public class RawSortFieldValidator : RequestValidator<string>
                 if (supportedSortFields is null)
                     return;
                 
-                var sortPhraseParts = rawSort.Split(",");
+                var sortPhraseParts = rawSort.Split(",", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-                if (sortPhraseParts.Length != 2)
+                if (sortPhraseParts.Length < 1)
                 {
-                    context.AddFailure("RawSort", "Sort parameter must have both name and sort order");
+                    context.AddFailure("RawSort", "Sort parameter must include a field name");
+                    return;
                 }
 
                 if (sortPhraseParts.Any(string.IsNullOrWhiteSpace))
@@ -29,17 +30,19 @@ public class RawSortFieldValidator : RequestValidator<string>
                     context.AddFailure("RawSort", "Sort parameter cannot be empty");
                 }
 
-                foreach (var field in supportedSortFields)
+                // Validate field name is supported (case-insensitive)
+                if (!supportedSortFields.Any(s => s.Equals(sortPhraseParts[FieldNameIndex], StringComparison.OrdinalIgnoreCase)))
                 {
-                    if (!supportedSortFields.Any(s =>
-                            s.Equals(sortPhraseParts[FieldNameIndex], StringComparison.OrdinalIgnoreCase)))
-                    {
-                        context.AddFailure("RawSort",
-                            $"Sort field '{sortPhraseParts[FieldNameIndex]}' must be supported.");
-                    }
+                    context.AddFailure("RawSort", $"Sort field '{sortPhraseParts[FieldNameIndex]}' must be supported.");
+                }
 
-                    if (sortPhraseParts.Length > 1 && !Enum.TryParse(sortPhraseParts[SortingOrderIndex].Trim(), true,
-                            out SortOrder parsedOrder))
+                // If order provided, validate it (supports asc/desc shorthands)
+                if (sortPhraseParts.Length > 1)
+                {
+                    var token = sortPhraseParts[SortingOrderIndex];
+                    if (!(token.Equals("asc", StringComparison.OrdinalIgnoreCase)
+                          || token.Equals("desc", StringComparison.OrdinalIgnoreCase)
+                          || Enum.TryParse(token, true, out SortOrder _)))
                     {
                         context.AddFailure("RawSort", "Invalid sort order");
                     }

@@ -12,7 +12,7 @@ public class BrowseProductGroupsRequest
     public string? Code { get; set; }
     public bool? IsActive { get; set; }
     public Guid? ParentId { get; set; }
-    public IReadOnlyCollection<string> RawSort { get; } = [];
+    public List<string> RawSort { get; set; } = new();
     public IReadOnlyCollection<string> SupportedSortFields { get; } = ["Name", "Code", "IsActive"];
     public int? PageNumber => 1;
     public int? PageSize => 20;

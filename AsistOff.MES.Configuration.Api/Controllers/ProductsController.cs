@@ -1,9 +1,9 @@
-using AsistOff.MES.Configuration.Application.Features.Departments.Browse;
-using AsistOff.MES.Configuration.Application.Features.Departments.Create;
-using AsistOff.MES.Configuration.Application.Features.Departments.Delete;
-using AsistOff.MES.Configuration.Application.Features.Departments.Get;
-using AsistOff.MES.Configuration.Application.Features.Departments.Responses;
-using AsistOff.MES.Configuration.Application.Features.Departments.Update;
+using AsistOff.MES.Configuration.Application.Features.Products.Browse;
+using AsistOff.MES.Configuration.Application.Features.Products.Create;
+using AsistOff.MES.Configuration.Application.Features.Products.Delete;
+using AsistOff.MES.Configuration.Application.Features.Products.Get;
+using AsistOff.MES.Configuration.Application.Features.Products.Update;
+using AsistOff.MES.Configuration.Application.Features.Products.Common.Responses;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Infrastructure.Controllers;
 using MediatR;
@@ -11,12 +11,12 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AsistOff.MES.Configuration.Api.Controllers;
 
-[Route("api/departments")]
-public class DepartmentsController(ISender sender) : ApiController
+[Route("api/products")]
+public class ProductsController(ISender sender) : ApiController
 {
     [HttpGet]
-    public async Task<ActionResult<PagedResponse<DepartmentResponse>>> BrowseAsync(
-        [FromQuery] BrowseDepartmentsRequest request,
+    public async Task<ActionResult<PagedResponse<ProductResponse>>> BrowseAsync(
+        [FromQuery] BrowseProductsRequest request,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(request, cancellationToken);
@@ -24,28 +24,28 @@ public class DepartmentsController(ISender sender) : ApiController
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<DepartmentResponse>> Get(
+    public async Task<ActionResult<ProductResponse>> GetAsync(
         [FromRoute] Guid id,
         CancellationToken cancellationToken)
     {
-        var request = new GetDepartmentRequest(id);
+        var request = new GetProductRequest(id);
         var result = await sender.Send(request, cancellationToken);
         return Ok(result);
     }
 
     [HttpPost]
-    public async Task<ActionResult<DepartmentResponse>> CreateAsync(
-        [FromBody] CreateDepartmentRequest request,
+    public async Task<ActionResult<ProductResponse>> CreateAsync(
+        [FromBody] CreateProductRequest request,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(request, cancellationToken);
-        return CreatedAtAction(nameof(Get), new { id = result.Id }, result);
+        return CreatedAtAction(nameof(GetAsync), new { id = result.Id }, result);
     }
 
     [HttpPut("{id:guid}")]
     public async Task<ActionResult> UpdateAsync(
         [FromRoute] Guid id,
-        [FromBody] UpdateDepartmentRequest request,
+        [FromBody] UpdateProductRequest request,
         CancellationToken cancellationToken)
     {
         if (id != request.Id)
@@ -62,7 +62,7 @@ public class DepartmentsController(ISender sender) : ApiController
         [FromRoute] Guid id,
         CancellationToken cancellationToken)
     {
-        var request = new DeleteDepartmentRequest(id);
+        var request = new DeleteProductRequest(id);
         await sender.Send(request, cancellationToken);
         return NoContent();
     }

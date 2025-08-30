@@ -2,26 +2,27 @@ namespace AsistOff.MES.Shared.Abstractions.Contracts.Sorting;
 
 internal static class SortableResolver
 {
-    private const int FieldNameIndex = 0;
-    private const int SortingOrderIndex = 1;
-
     public static IReadOnlyCollection<SortField> ResolveSortFields(IReadOnlyCollection<string>? rawSort)
     {
+        if (rawSort == null)
+            return Array.Empty<SortField>();
+
         var sortFields = new List<SortField>();
 
-        if (rawSort == null)
-        {
-            return sortFields;
-        }
-        
         foreach (var raw in rawSort)
         {
-            var parts = raw.Split(',');
-            var field = parts[FieldNameIndex].Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+                continue;
 
-            var order = (SortOrder)Enum.Parse(typeof(SortOrder), parts[SortingOrderIndex].Trim(), true);
+            var parts = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length == 0 || string.IsNullOrWhiteSpace(parts[0]))
+                continue;
 
-            sortFields.Add(new SortField(field, order));
+            var order = parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase)
+                ? SortOrder.Descending
+                : SortOrder.Ascending;
+
+            sortFields.Add(new SortField(parts[0], order));
         }
 
         return sortFields;

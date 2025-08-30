@@ -2,6 +2,6 @@ namespace AsistOff.MES.Shared.Abstractions.Contracts.Sorting;
 
 public interface ISortable
 {
-    IReadOnlyCollection<string> RawSort { get; }
+    List<string> RawSort { get; set; }
     IReadOnlyCollection<string> SupportedSortFields { get; }
 }
