@@ -14,7 +14,7 @@ internal sealed class GetMeasureUnitRequestHandler(
     public async Task<MeasureUnitResponse> Handle(GetMeasureUnitRequest request,
         CancellationToken cancellationToken)
     {
-        var measureUnit = await measureUnitsRepository.GetByIdAsync(request.Id, cancellationToken);
+        var measureUnit = await measureUnitsRepository.GetAsync(request.Id, cancellationToken);
 
         if (measureUnit is null)
             throw new NotFoundException($"MeasureUnit with ID {request.Id} not found");

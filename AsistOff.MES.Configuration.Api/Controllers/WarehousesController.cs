@@ -10,19 +10,12 @@ using Microsoft.AspNetCore.Mvc;
 namespace AsistOff.MES.Configuration.Api.Controllers;
 
 [Route("api/warehouses")]
-public class WarehousesController : ApiController
+public class WarehousesController(ISender mediator) : ApiController
 {
-    private readonly ISender _mediator;
-
-    public WarehousesController(ISender mediator)
-    {
-        _mediator = mediator;
-    }
-
     [HttpGet]
     public async Task<ActionResult<WarehousesResponse>> Browse(CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new BrowseWarehousesRequest(), cancellationToken);
+        var result = await mediator.Send(new BrowseWarehousesRequest(), cancellationToken);
         var response = new WarehousesResponse(result.Select(x => x.ToResponse()).ToList());
         return response;
     }
@@ -30,7 +23,7 @@ public class WarehousesController : ApiController
     [HttpGet("{id}")]
     public async Task<ActionResult<WarehouseResponse>> Get(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetWarehouseRequest(id), cancellationToken);
+        var result = await mediator.Send(new GetWarehouseRequest(id), cancellationToken);
         
         return new WarehouseResponse(result.Id, result.Name, result.SyncId);
     }
@@ -38,7 +31,7 @@ public class WarehousesController : ApiController
     [HttpPost]
     public async Task<IActionResult> Create(CreateWarehouseRequest request, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(request, cancellationToken);
+        var result = await mediator.Send(request, cancellationToken);
         
         return CreatedAtAction(nameof(Get), new { id = result.Id },
             result.ToResponse());
@@ -47,7 +40,7 @@ public class WarehousesController : ApiController
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(UpdateWarehouseRequest request, CancellationToken cancellationToken)
     {
-        await _mediator.Send(request, cancellationToken);
+        await mediator.Send(request, cancellationToken);
         return NoContent();
     }
 }

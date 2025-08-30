@@ -13,6 +13,8 @@ public static class DependencyInjection
         services.AddScoped<IWarehousesRepository, WarehousesRepository>();
         services.AddScoped<IOperatorsRepository, OperatorsRepository>();
         services.AddScoped<IDepartmentsRepository, DepartmentsRepository>();
+        services.AddScoped<IMeasureUnitsRepository, MeasureUnitsRepository>();
+        services.AddScoped<IProductGroupsRepository, ProductGroupsRepository>();
         
         services.AddScoped<IEntityConfigurator, ConfigurationEntityConfigurator>();
         

@@ -12,7 +12,7 @@ internal sealed class DeleteMeasureUnitRequestHandler(
 {
     public async Task Handle(DeleteMeasureUnitRequest request, CancellationToken cancellationToken)
     {
-        var measureUnit = await measureUnitsRepository.GetByIdAsync(request.Id, cancellationToken);
+        var measureUnit = await measureUnitsRepository.GetAsync(request.Id, cancellationToken);
 
         if (measureUnit is null)
         {

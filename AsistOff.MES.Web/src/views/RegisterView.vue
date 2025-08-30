@@ -55,7 +55,6 @@ function onRegister() {
     showErrorToast('Passwords do not match!')
     return
   }
-  // TODO: Replace with real registration logic
   showSuccessToast(`Registered as ${regUsername.value}`)
   router.push('/')
 }

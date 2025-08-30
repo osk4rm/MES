@@ -17,6 +17,10 @@ public class DefaultContext : DbContext
     public DbSet<Operator> Operators { get; set; }
     public DbSet<Department> Departments { get; set; }
     public DbSet<MeasureUnit> MeasureUnits { get; set; }
+    public DbSet<ProductGroup> ProductGroups { get; set; }
+    public DbSet<ProductMeasureUnit> ProductMeasureUnits { get; set; }
+    public DbSet<Product> Products { get; set; }
+    public DbSet<ProductPrice> ProductPrices { get; set; }
 
     public DefaultContext(
         DbContextOptions<DefaultContext> options,

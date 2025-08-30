@@ -9,7 +9,7 @@ public interface IMeasureUnitsRepository
         Paginator<MeasureUnit> paginator,
         CancellationToken cancellationToken = default);
     
-    Task<MeasureUnit?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<MeasureUnit?> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<int> CountAsync(CancellationToken cancellationToken = default);
     Task<MeasureUnit> AddAsync(MeasureUnit entity, CancellationToken cancellationToken = default);
     Task UpdateAsync(MeasureUnit operatorEntity, CancellationToken cancellationToken = default);
