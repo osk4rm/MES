@@ -5,7 +5,7 @@
     </div>
     <div class="logo-text">
       <span class="brand-name">{{ label }}</span>
-      <div class="brand-tagline">Manufacturing Excellence</div>
+      <div class="brand-tagline">dojebany system somsiedzie szanowny</div>
     </div>
   </div>
 </template>

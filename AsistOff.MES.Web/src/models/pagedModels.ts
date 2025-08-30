@@ -36,13 +36,11 @@ export interface DataTableConfig {
   defaultSort?: SortField;
 }
 
-// Default configuration
 export const DEFAULT_TABLE_CONFIG: DataTableConfig = {
   pageSize: 10,
   pageSizeOptions: [5, 10, 25, 50, 100],
 };
 
-// Helper functions
 export function createPagedRequest(
   page: number = 1,
   pageSize: number = 10,

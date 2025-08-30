@@ -30,16 +30,13 @@ http.interceptors.response.use(
     if (error.response?.status === 401) {
       const errorMessage = error.response?.data?.detail || error.response?.data?.message || '';
       
-      // Check if this is a permission issue vs invalid token
       if (errorMessage.includes('permission') || errorMessage.includes('authorize')) {
         return Promise.reject(new Error('You do not have permission to access this resource'));
       }
       
-      // Clear localStorage
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       
-      // Only redirect if not already on login/register page
       const currentPath = window.location.pathname;
       if (!currentPath.includes('/login') && 
           !currentPath.includes('/register') && 

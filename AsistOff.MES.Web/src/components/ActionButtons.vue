@@ -60,7 +60,6 @@ const handleAction = (action: ActionItem) => {
   flex-shrink: 0;
 }
 
-/* Responsive design */
 @media (max-width: 480px) {
   .action-buttons {
     flex-direction: column;

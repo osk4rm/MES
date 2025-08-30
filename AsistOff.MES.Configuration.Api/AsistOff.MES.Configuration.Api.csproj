@@ -10,4 +10,8 @@
       <ProjectReference Include="..\AsistOff.MES.Configuration.Infrastructure\AsistOff.MES.Configuration.Infrastructure.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Contracts\Warehouses\" />
+    </ItemGroup>
+
 </Project>

@@ -12,9 +12,9 @@ namespace AsistOff.MES.Configuration.Application.Features.Warehouses.Browse;
 public sealed class BrowseWarehousesRequestHandler(
     IWarehousesRepository warehousesRepository,
     ITenantContext tenantContext)
-    : IRequestHandler<BrowseWarehousesRequest, PagedResponse<WarehouseResponse>>
+    : IRequestHandler<BrowseWarehousesRequest, PagedResponse<WarehouseItemResponse>>
 {
-    public async Task<PagedResponse<WarehouseResponse>> Handle(BrowseWarehousesRequest request,
+    public async Task<PagedResponse<WarehouseItemResponse>> Handle(BrowseWarehousesRequest request,
         CancellationToken cancellationToken)
     {
         var predicate = PredicateBuilder.New<Warehouse>(true)
@@ -29,7 +29,7 @@ public sealed class BrowseWarehousesRequestHandler(
         var warehouses = await warehousesRepository.BrowseAsync(paginator, cancellationToken);
 
         var items = warehouses
-            .Select(w => new WarehouseResponse(w.Id, w.Name, w.SyncId))
+            .Select(w => new WarehouseItemResponse(w.Id, w.Name, w.SyncId))
             .ToList();
 
         return new PagedWarehousesResponse(items, totalCount, request.PageSize);

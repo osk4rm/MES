@@ -92,12 +92,10 @@ const errors = ref<Partial<WarehouseFormData>>({});
 
 const isEdit = computed(() => !!props.warehouse);
 
-// Reset form when modal opens/closes or warehouse changes
 watch([() => props.isVisible, () => props.warehouse], async () => {
   if (props.isVisible) {
     resetForm();
     await nextTick();
-    // Focus on name input when modal opens
     const nameInput = document.getElementById('name') as HTMLInputElement;
     nameInput?.focus();
   }
@@ -107,7 +105,7 @@ const resetForm = () => {
   if (props.warehouse) {
     form.value = {
       name: props.warehouse.name,
-      externalId: props.warehouse.externalId || ''
+      externalId: props.warehouse.syncId || ''
     };
   } else {
     form.value = {
@@ -157,14 +155,12 @@ const closeModal = () => {
   }
 };
 
-// Handle escape key
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && props.isVisible && !props.loading) {
     closeModal();
   }
 };
 
-// Add/remove global keydown listener
 watch(() => props.isVisible, (visible) => {
   if (visible) {
     document.addEventListener('keydown', handleKeydown);
@@ -363,7 +359,6 @@ watch(() => props.isVisible, (visible) => {
   cursor: not-allowed;
 }
 
-/* Responsive design */
 @media (max-width: 576px) {
   .modal-container {
     width: 95%;

@@ -1,77 +1,80 @@
 <template>
-  <div class="pagination-container" v-if="totalPages > 1">
-    <div class="pagination-info">
-      <span class="text-sm text-gray-600">
-        Showing {{ startItem }} to {{ endItem }} of {{ totalCount }} entries
-      </span>
-    </div>
-    
-    <div class="pagination-controls">
-      <!-- Page size selector -->
-      <div class="page-size-selector">
-        <label class="text-sm text-gray-600 mr-2">Show:</label>
+  <div class="industrial-pagination">
+    <div class="pagination-info-section">
+      <div class="entries-info">
+        <span class="info-text">
+          Showing <strong>{{ startItem }}</strong> to <strong>{{ endItem }}</strong> of <strong>{{ totalCount }}</strong> entries
+        </span>
+      </div>
+      
+      <div class="page-size-control">
+        <label class="size-label">Show:</label>
         <select 
           v-model="selectedPageSize" 
           @change="handlePageSizeChange"
-          class="border border-gray-300 rounded px-2 py-1 text-sm"
+          class="industrial-select"
         >
           <option v-for="size in pageSizeOptions" :key="size" :value="size">
-            {{ size }}
+            {{ size }} per page
           </option>
         </select>
       </div>
+    </div>
 
-      <!-- Pagination buttons -->
-      <div class="pagination-buttons">
-        <button
-          @click="goToPage(1)"
-          :disabled="currentPage === 1"
-          class="pagination-btn"
-          :class="{ 'disabled': currentPage === 1 }"
-        >
-          First
-        </button>
-        
-        <button
-          @click="goToPage(currentPage - 1)"
-          :disabled="currentPage === 1"
-          class="pagination-btn"
-          :class="{ 'disabled': currentPage === 1 }"
-        >
-          Previous
-        </button>
+    <div class="pagination-navigation">
+      <button
+        @click="goToPage(1)"
+        :disabled="currentPage === 1"
+        class="industrial-nav-btn"
+        :class="{ 'disabled': currentPage === 1 }"
+        title="First page"
+      >
+        <i class="pi pi-angle-double-left"></i>
+      </button>
+      
+      <button
+        @click="goToPage(currentPage - 1)"
+        :disabled="currentPage === 1"
+        class="industrial-nav-btn"
+        :class="{ 'disabled': currentPage === 1 }"
+        title="Previous page"
+      >
+        <i class="pi pi-angle-left"></i>
+      </button>
 
-        <!-- Page numbers -->
+      <div class="page-numbers">
         <template v-for="page in visiblePages" :key="page">
           <button
             v-if="page !== '...'"
             @click="goToPage(page)"
-            class="pagination-btn"
+            class="industrial-page-btn"
             :class="{ 'active': page === currentPage }"
           >
             {{ page }}
           </button>
-          <span v-else class="pagination-ellipsis">...</span>
+          <span v-else class="page-ellipsis">...</span>
         </template>
-
-        <button
-          @click="goToPage(currentPage + 1)"
-          :disabled="currentPage === totalPages"
-          class="pagination-btn"
-          :class="{ 'disabled': currentPage === totalPages }"
-        >
-          Next
-        </button>
-        
-        <button
-          @click="goToPage(totalPages)"
-          :disabled="currentPage === totalPages"
-          class="pagination-btn"
-          :class="{ 'disabled': currentPage === totalPages }"
-        >
-          Last
-        </button>
       </div>
+
+      <button
+        @click="goToPage(currentPage + 1)"
+        :disabled="currentPage === totalPages"
+        class="industrial-nav-btn"
+        :class="{ 'disabled': currentPage === totalPages }"
+        title="Next page"
+      >
+        <i class="pi pi-angle-right"></i>
+      </button>
+      
+      <button
+        @click="goToPage(totalPages)"
+        :disabled="currentPage === totalPages"
+        class="industrial-nav-btn"
+        :class="{ 'disabled': currentPage === totalPages }"
+        title="Last page"
+      >
+        <i class="pi pi-angle-double-right"></i>
+      </button>
     </div>
   </div>
 </template>
@@ -120,43 +123,35 @@ const visiblePages = computed(() => {
   const halfVisible = Math.floor(maxVisiblePages / 2);
   
   if (props.totalPages <= maxVisiblePages) {
-    // Show all pages if total is less than max visible
     for (let i = 1; i <= props.totalPages; i++) {
       pages.push(i);
     }
   } else {
-    // Always show first page
     pages.push(1);
     
     let start = Math.max(2, props.currentPage - halfVisible);
     let end = Math.min(props.totalPages - 1, props.currentPage + halfVisible);
     
-    // Adjust if we're near the beginning
     if (props.currentPage <= halfVisible) {
       end = maxVisiblePages - 1;
     }
     
-    // Adjust if we're near the end
     if (props.currentPage > props.totalPages - halfVisible) {
       start = props.totalPages - maxVisiblePages + 2;
     }
     
-    // Add ellipsis if there's a gap after first page
     if (start > 2) {
       pages.push('...');
     }
     
-    // Add middle pages
     for (let i = start; i <= end; i++) {
       pages.push(i);
     }
     
-    // Add ellipsis if there's a gap before last page
     if (end < props.totalPages - 1) {
       pages.push('...');
     }
     
-    // Always show last page
     if (props.totalPages > 1) {
       pages.push(props.totalPages);
     }
@@ -177,81 +172,270 @@ function handlePageSizeChange() {
 </script>
 
 <style scoped>
-.pagination-container {
+.industrial-pagination {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background-color: white;
-  border-top: 1px solid #e5e7eb;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-radius: 12px;
+  border: 1px solid #475569;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(71, 85, 105, 0.3),
+    inset 0 1px 0 rgba(148, 163, 184, 0.1);
 }
 
-@media (min-width: 640px) {
-  .pagination-container {
+@media (min-width: 768px) {
+  .industrial-pagination {
     flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
   }
 }
 
-.pagination-info {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.pagination-controls {
+.pagination-info-section {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 1rem;
+  align-items: flex-start;
 }
 
-.page-size-selector {
+@media (min-width: 768px) {
+  .pagination-info-section {
+    flex-direction: row;
+    align-items: center;
+    gap: 2rem;
+  }
+}
+
+.entries-info {
   display: flex;
   align-items: center;
 }
 
-.pagination-buttons {
+.info-text {
+  font-size: 14px;
+  color: #cbd5e1;
+  font-weight: 400;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.info-text strong {
+  color: #fc913a;
+  font-weight: 600;
+}
+
+.page-size-control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.size-label {
+  font-size: 14px;
+  color: #cbd5e1;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.industrial-select {
+  padding: 8px 40px 8px 12px;
+  background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+  border: 1px solid #64748b;
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(148, 163, 184, 0.1);
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23cbd5e1' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  min-width: 160px;
+}
+
+.industrial-select option {
+  background: #475569;
+  color: #e2e8f0;
+  border: none;
+}
+
+.industrial-select:hover {
+  background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%);
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(148, 163, 184, 0.2);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23f1f5f9' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+}
+
+.industrial-select:focus {
+  outline: none;
+  border-color: #fc913a;
+  box-shadow: 
+    0 0 0 2px rgba(252, 145, 58, 0.3),
+    0 4px 8px rgba(0, 0, 0, 0.15);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23fc913a' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+}
+
+.pagination-navigation {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (min-width: 768px) {
+  .pagination-navigation {
+    justify-content: flex-end;
+  }
+}
+
+.industrial-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+  border: 1px solid #64748b;
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(148, 163, 184, 0.1);
+}
+
+.industrial-nav-btn:hover:not(.disabled) {
+  background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%);
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(148, 163, 184, 0.2);
+}
+
+.industrial-nav-btn:active:not(.disabled) {
+  transform: translateY(0);
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.15),
+    inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.industrial-nav-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+  border-color: #4b5563;
+  color: #9ca3af;
+}
+
+.page-numbers {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  margin: 0 0.5rem;
 }
 
-.pagination-btn {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.875rem;
-  border: 1px solid #d1d5db;
-  background-color: white;
-  color: #374151;
-  border-radius: 0.375rem;
-  transition: background-color 0.2s, color 0.2s;
+.industrial-page-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 12px;
+  background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+  border: 1px solid #64748b;
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(148, 163, 184, 0.1);
 }
 
-.pagination-btn:hover {
-  background-color: #f9fafb;
+.industrial-page-btn:hover {
+  background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%);
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(148, 163, 184, 0.2);
 }
 
-.pagination-btn.active {
-  background-color: #2563eb;
-  color: white;
-  border-color: #2563eb;
+.industrial-page-btn.active {
+  background: linear-gradient(135deg, #fc913a 0%, #f9d423 100%);
+  border-color: #e88b2f;
+  color: #fff;
+  box-shadow: 
+    0 4px 12px rgba(252, 145, 58, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
-.pagination-btn.active:hover {
-  background-color: #1d4ed8;
+.industrial-page-btn.active:hover {
+  background: linear-gradient(135deg, #e88b2f 0%, #f5c842 100%);
+  transform: translateY(-1px);
+  box-shadow: 
+    0 6px 16px rgba(252, 145, 58, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-.pagination-btn.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.page-ellipsis {
+  padding: 0 8px;
+  color: #94a3b8;
+  font-size: 16px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-.pagination-btn.disabled:hover {
-  background-color: white;
-}
-
-.pagination-ellipsis {
-  padding: 0.25rem 0.5rem;
-  color: #6b7280;
+@media (max-width: 640px) {
+  .industrial-pagination {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .pagination-info-section {
+    text-align: center;
+  }
+  
+  .pagination-navigation {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .industrial-nav-btn,
+  .industrial-page-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    font-size: 13px;
+  }
+  
+  .page-numbers {
+    margin: 0 0.25rem;
+    gap: 0.125rem;
+  }
 }
 </style>

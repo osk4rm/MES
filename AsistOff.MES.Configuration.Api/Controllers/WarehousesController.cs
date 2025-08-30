@@ -14,18 +14,18 @@ namespace AsistOff.MES.Configuration.Api.Controllers;
 public class WarehousesController(ISender mediator) : ApiController
 {
     [HttpGet]
-    public async Task<ActionResult<PagedResponse<WarehouseResponse>>> Browse([FromQuery] BrowseWarehousesRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResponse<WarehouseItemResponse>>> Browse([FromQuery] BrowseWarehousesRequest request, CancellationToken cancellationToken)
     {
         var result = await mediator.Send(request, cancellationToken);
         return result;
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<AsistOff.MES.Configuration.Api.Contracts.Warehouses.WarehouseResponse>> Get(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<WarehouseItemResponse>> Get(Guid id, CancellationToken cancellationToken)
     {
         var result = await mediator.Send(new GetWarehouseRequest(id), cancellationToken);
         
-        return new AsistOff.MES.Configuration.Api.Contracts.Warehouses.WarehouseResponse(result.Id, result.Name, result.SyncId);
+        return new WarehouseItemResponse(result.Id, result.Name, result.SyncId);
     }
 
     [HttpPost]
@@ -34,7 +34,7 @@ public class WarehousesController(ISender mediator) : ApiController
         var result = await mediator.Send(request, cancellationToken);
         
         return CreatedAtAction(nameof(Get), new { id = result.Id },
-            new AsistOff.MES.Configuration.Api.Contracts.Warehouses.WarehouseResponse(result.Id, result.Name, result.SyncId));
+            new WarehouseItemResponse(result.Id, result.Name, result.SyncId));
     }
 
     [HttpPut("{id}")]

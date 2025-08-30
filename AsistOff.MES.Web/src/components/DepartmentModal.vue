@@ -108,13 +108,11 @@ watch([() => props.isVisible, () => props.department], async () => {
 
 const resetForm = () => {
   if (props.department) {
-    // Edit mode - populate with existing data
     form.value = {
       code: props.department.code || '',
       name: props.department.name || ''
     };
   } else {
-    // Add mode - clear form
     form.value = {
       code: '',
       name: ''

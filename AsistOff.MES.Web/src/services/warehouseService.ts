@@ -1,9 +1,10 @@
 import http from './http';
+import type { IPagedRequest, IPagedResponse } from '../models/pagedModels';
 
 export interface WarehouseResponse {
   id: string;
   name: string;
-  externalId?: string;
+  syncId?: string;
 }
 
 export interface WarehousesResponse {
@@ -20,13 +21,27 @@ export interface UpdateWarehouseRequest {
   name: string;
 }
 
+export interface GetWarehousesRequest extends IPagedRequest {
+  name?: string;
+}
+
 export class WarehouseService {
   private static readonly BASE_PATH = '/api/warehouses';
 
-  static async getWarehouses(): Promise<WarehouseResponse[]> {
+  static async getWarehouses(request: GetWarehousesRequest): Promise<IPagedResponse<WarehouseResponse>> {
     try {
-      const response = await http.get<WarehousesResponse>(this.BASE_PATH);
-      return response.data.warehouses;
+      const params = new URLSearchParams();
+      
+      if (request.pageNumber) params.set('pageNumber', request.pageNumber.toString());
+      if (request.pageSize) params.set('pageSize', request.pageSize.toString());
+      if (request.rawSort && request.rawSort.length > 0) {
+        request.rawSort.forEach(sort => params.append('rawSort', sort));
+      }
+      if (request.name) params.set('name', request.name);
+      
+      const url = params.toString() ? `${WarehouseService.BASE_PATH}?${params}` : WarehouseService.BASE_PATH;
+      const response = await http.get<IPagedResponse<WarehouseResponse>>(url);
+      return response.data;
     } catch (error) {
       throw error;
     }
@@ -34,7 +49,7 @@ export class WarehouseService {
 
   static async getWarehouse(id: string): Promise<WarehouseResponse> {
     try {
-      const response = await http.get<WarehouseResponse>(`${this.BASE_PATH}/${id}`);
+      const response = await http.get<WarehouseResponse>(`${WarehouseService.BASE_PATH}/${id}`);
       return response.data;
     } catch (error) {
       throw error;
@@ -43,7 +58,7 @@ export class WarehouseService {
 
   static async createWarehouse(request: CreateWarehouseRequest): Promise<WarehouseResponse> {
     try {
-      const response = await http.post<WarehouseResponse>(this.BASE_PATH, request);
+      const response = await http.post<WarehouseResponse>(WarehouseService.BASE_PATH, request);
       return response.data;
     } catch (error) {
       throw error;
@@ -52,7 +67,7 @@ export class WarehouseService {
 
   static async updateWarehouse(request: UpdateWarehouseRequest): Promise<void> {
     try {
-      await http.put(`${this.BASE_PATH}/${request.id}`, request);
+      await http.put(`${WarehouseService.BASE_PATH}/${request.id}`, request);
     } catch (error) {
       throw error;
     }
@@ -60,7 +75,7 @@ export class WarehouseService {
 
   static async deleteWarehouse(id: string): Promise<void> {
     try {
-      await http.delete(`${this.BASE_PATH}/${id}`);
+      await http.delete(`${WarehouseService.BASE_PATH}/${id}`);
     } catch (error) {
       throw error;
     }

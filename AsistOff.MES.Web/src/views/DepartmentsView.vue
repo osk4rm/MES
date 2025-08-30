@@ -64,6 +64,17 @@
       </template>
     </DataGrid>
 
+    <!-- Pagination Controls -->
+    <PaginationControls
+      :current-page="table.currentPage.value"
+      :page-size="table.pageSize.value"
+      :total-count="table.totalCount.value"
+      :total-pages="table.totalPages.value"
+      :page-size-options="[5, 10, 25, 50, 100]"
+      @page-change="table.goToPage"
+      @page-size-change="table.changePageSize"
+    />
+
     <!-- Department Modal -->
     <DepartmentModal
       :is-visible="showModal"
@@ -98,20 +109,19 @@ import PageHeader from '../components/PageHeader.vue'
 import IndustrialButton from '../components/IndustrialButton.vue'
 import IndustrialInput from '../components/IndustrialInput.vue'
 import ActionButtons from '../components/ActionButtons.vue'
+import PaginationControls from '../components/PaginationControls.vue'
 import DepartmentModal, { type DepartmentFormData } from '../components/DepartmentModal.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { departmentService, type Department, type DepartmentFilter } from '../services/departmentService'
 
 const toast = useToast()
 
-// Define columns for DataGrid
 const columns: GridColumn[] = [
   { key: 'code', label: 'Code', sortable: true },
   { key: 'name', label: 'Name', sortable: true },
   { key: 'actions', label: 'Actions', sortable: false, type: 'actions' }
 ]
 
-// Table setup with backend pagination and filtering
 const table = useCrudTable<Department, any, any, DepartmentFilter>(
   {
     getAll: departmentService.getDepartments.bind(departmentService),
@@ -124,7 +134,6 @@ const table = useCrudTable<Department, any, any, DepartmentFilter>(
   }
 )
 
-// Local state for modals and filters
 const codeFilter = ref('')
 const nameFilter = ref('')
 const showModal = ref(false)
@@ -134,7 +143,6 @@ const showConfirmDialog = ref(false)
 const departmentToDelete = ref<Department | null>(null)
 const confirmDialogLoading = ref(false)
 
-// Filter functionality with debouncing
 let codeFilterTimeout: number
 let nameFilterTimeout: number
 
@@ -160,7 +168,6 @@ function handleNameFilter() {
   }, 300) as unknown as number
 }
 
-// DataGrid specific functions
 function clearFilters() {
   codeFilter.value = ''
   nameFilter.value = ''
@@ -194,18 +201,14 @@ function handleRowAction(action: ActionItem, item: Department) {
   }
 }
 
-// Sorting functionality
 function handleSortChange(sortKey: string | null, sortOrder: 'asc' | 'desc' | null) {
   if (sortKey && sortOrder) {
-    // Convert to backend format: rawSort=field,direction
     table.setSort(sortKey, sortOrder)
   } else {
-    // Clear sorting
     table.clearSort()
   }
 }
 
-// Modal functions
 function openCreateModal() {
   selectedDepartment.value = null
   showModal.value = true
@@ -225,11 +228,9 @@ async function handleSave(data: DepartmentFormData) {
   modalLoading.value = true
   try {
     if (selectedDepartment.value) {
-      // Edit existing department
       await table.update(selectedDepartment.value.id, data)
       toast.success('Department updated successfully')
     } else {
-      // Create new department
       await table.create(data)
       toast.success('Department created successfully')
     }
@@ -242,7 +243,6 @@ async function handleSave(data: DepartmentFormData) {
   }
 }
 
-// Delete functionality
 function handleDelete(department: Department) {
   departmentToDelete.value = department
   showConfirmDialog.value = true
@@ -277,10 +277,21 @@ onMounted(() => {
 
 <style scoped>
 .departments-view {
-  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  min-height: calc(100vh - 48px);
+}
+
+.departments-view > *:not(:last-child) {
+  margin-bottom: 1.5rem;
+}
+
+.departments-view > *:nth-last-child(2) {
+  margin-bottom: 1rem;
+}
+
+.departments-view > *:last-child {
+  margin-top: auto;
 }
 
 .name-cell {

@@ -1,6 +1,6 @@
 namespace AsistOff.MES.Configuration.Application.Features.Warehouses.Common.Responses;
 
-public record WarehouseResponse(
+public record WarehouseItemResponse(
     Guid Id,
     string Name,
     string? SyncId

@@ -1,6 +1,5 @@
 <template>
   <div class="data-grid">
-    <!-- Filter Row -->
     <div class="filter-row" v-if="showFilters">
       <slot name="filters">
         <div class="default-filters">
@@ -14,7 +13,6 @@
       </slot>
     </div>
 
-    <!-- Data Grid -->
     <div class="grid-container">
       <table class="grid-table">
         <thead>
@@ -106,7 +104,6 @@ const sortOrder = ref<'asc' | 'desc' | null>(null);
 const filteredData = computed(() => {
   let result = [...props.data];
 
-  // Apply search filter
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
     result = result.filter(item =>
@@ -116,7 +113,6 @@ const filteredData = computed(() => {
     );
   }
 
-  // Apply sorting
   if (sortKey.value && sortOrder.value) {
     result.sort((a, b) => {
       const aVal = a[sortKey.value!];
@@ -134,7 +130,6 @@ const filteredData = computed(() => {
 
 const handleSort = (key: string) => {
   if (sortKey.value === key) {
-    // Cycle through: asc -> desc -> null
     if (sortOrder.value === 'asc') {
       sortOrder.value = 'desc';
     } else if (sortOrder.value === 'desc') {
@@ -175,9 +170,7 @@ const formatCellValue = (value: any, column: GridColumn) => {
   }
 };
 
-// Watch for external search query changes
 watch(searchQuery, () => {
-  // Could emit search event if needed
 });
 </script>
 
@@ -235,7 +228,7 @@ watch(searchQuery, () => {
 .grid-table thead th {
   background: linear-gradient(135deg, rgba(252, 145, 58, 0.15) 0%, rgba(249, 212, 35, 0.15) 100%);
   color: #fc913a;
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   text-align: left;
   font-weight: 600;
   border-bottom: 2px solid rgba(252, 145, 58, 0.3);
@@ -285,7 +278,7 @@ watch(searchQuery, () => {
 }
 
 .grid-cell {
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 1rem;
   border-bottom: 1px solid rgba(255, 224, 102, 0.1);
   color: #ffe066;
   vertical-align: middle;
@@ -315,7 +308,6 @@ watch(searchQuery, () => {
   color: #fc913a;
 }
 
-/* Responsive design */
 @media (max-width: 768px) {
   .filter-row {
     padding: 0.75rem;
@@ -332,7 +324,6 @@ watch(searchQuery, () => {
   }
 }
 
-/* Action buttons styling */
 .action-buttons {
   display: flex;
   gap: 0.5rem;
