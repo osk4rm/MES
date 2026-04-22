@@ -1,4 +1,4 @@
-﻿using AsistOff.MES.Configuration.Application;
+using AsistOff.MES.Configuration.Application;
 using AsistOff.MES.Configuration.Infrastructure;
 using AsistOff.MES.Shared.Abstractions.Modules;
 using Microsoft.AspNetCore.Builder;
