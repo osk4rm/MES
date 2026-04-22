@@ -2,16 +2,25 @@ using AsistOff.MES.Gateway;
 using AsistOff.MES.Multitenancy;
 using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure;
+using AsistOff.MES.Shared.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.ConfigureModules();
-
 builder.Configuration.AddUserSecrets<Program>();
 
 var modules = ModuleLoader.LoadModules();
+var assemblies = ModuleLoader.LoadAssemblies();
 
-// TEMP - TODO: przeniesc do konfiguracji 
+builder.Services.AddMediatR(cfg =>
+{
+    foreach (var assembly in assemblies)
+        cfg.RegisterServicesFromAssembly(assembly);
+});
+
+builder.Services.AddExceptionHandling();
+
+// TEMP - TODO: przeniesc do konfiguracji
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll",
@@ -26,9 +35,15 @@ builder.Services.AddCors(options =>
 
 builder.Services
     .AddPresentation()
-    .AddInfra(builder.Configuration);
+    .AddInfrastructure(builder.Configuration, assemblies);
 
-builder.Services.AddMultitenancy();
+// Remove individual AddMediatR registrations from other projects to avoid duplicates
+builder.Services.AddMultitenancy(builder.Configuration);
+
+foreach (var module in modules)
+{
+    module.Register(builder.Services, builder.Configuration);
+}
 
 var app = builder.Build();
 
@@ -36,27 +51,32 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c => {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "AsistOff.MES.Gateway API V1");
+        c.RoutePrefix = "swagger";
+    });
 }
+
+// Add global exception handling middleware (MUST be early in pipeline)
+app.UseExceptionHandler();
 
 foreach (var module in modules)
 {
-    module.Register(builder.Services);
     module.Use(app);
 }
 
-using var scope = app.Services.CreateScope();
-var seeders = scope.ServiceProvider.GetServices(typeof(ISeeder));
-
-foreach (var seeder in seeders)
+using (var scope = app.Services.CreateScope())
 {
-    await ((ISeeder)seeder!).Seed();
+    scope.ServiceProvider.ApplyAllPendingMigrations(assemblies);
+    var seeders = scope.ServiceProvider.GetServices(typeof(ISeeder));
+    foreach (var seeder in seeders)
+    {
+        await ((ISeeder)seeder!).Seed();
+    }
 }
 
 // TEMP
 app.UseCors("AllowAll");
-
-app.UseExceptionHandler("/error");
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();

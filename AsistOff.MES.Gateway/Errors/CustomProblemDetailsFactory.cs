@@ -1,6 +1,4 @@
 ﻿using System.Diagnostics;
-using AsistOff.MES.Shared.Infrastructure.Http;
-using ErrorOr;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -86,11 +84,6 @@ namespace AsistOff.MES.Gateway.Errors
             if (traceId != null)
             {
                 problemDetails.Extensions["traceId"] = traceId;
-            }
-
-            if (httpContext?.Items[HttpContextItemKeys.Errors] is List<Error> errors)
-            {
-                problemDetails.Extensions.Add("errorCodes", errors.Select(e => e.Code));
             }
         }
     }

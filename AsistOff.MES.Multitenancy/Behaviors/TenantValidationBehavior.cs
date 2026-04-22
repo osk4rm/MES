@@ -1,4 +1,5 @@
 ﻿using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Multitenancy.Requests;
 using MediatR;
 using Microsoft.Extensions.Logging;

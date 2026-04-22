@@ -6,4 +6,20 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <PackageReference Include="FluentValidation" Version="12.0.0" />
+      <PackageReference Include="MediatR" Version="12.5.0" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.3" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\AsistOff.MES.Multitenancy\AsistOff.MES.Multitenancy.csproj" />
+      <ProjectReference Include="..\AsistOff.MES.Shared.Abstractions\AsistOff.MES.Shared.Abstractions.csproj" />
+      <ProjectReference Include="..\AsistOff.MES.Users.Core\AsistOff.MES.Users.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Features\Authentication\" />
+    </ItemGroup>
+
 </Project>

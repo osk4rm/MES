@@ -6,4 +6,10 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\AsistOff.MES.Shared.Abstractions\AsistOff.MES.Shared.Abstractions.csproj" />
+      <ProjectReference Include="..\AsistOff.MES.Shared.Infrastructure\AsistOff.MES.Shared.Infrastructure.csproj" />
+      <ProjectReference Include="..\AsistOff.MES.Users.Infrastructure\AsistOff.MES.Users.Infrastructure.csproj" />
+    </ItemGroup>
+
 </Project>

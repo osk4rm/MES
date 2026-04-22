@@ -1,4 +1,4 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using AsistOff.MES.Shared.Abstractions.Auth;
@@ -28,7 +28,7 @@ public class AuthManager : IAuthManager
         _signingCredentials =
             new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.IssuerSigningKey)),
                 SecurityAlgorithms.HmacSha256);
-        _issuer = options.Issuer;
+        _issuer = options.Issuer ?? "AsistOff.MES";
     }
 
     public JsonWebToken CreateToken(string userId, string? role = null, string? audience = null,
@@ -47,14 +47,16 @@ public class AuthManager : IAuthManager
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(JwtRegisteredClaimNames.Iat, new DateTimeOffset(now).ToUnixTimeMilliseconds().ToString())
         };
+
         if (!string.IsNullOrWhiteSpace(role))
         {
             jwtClaims.Add(new Claim(ClaimTypes.Role, role));
         }
 
-        if (!string.IsNullOrWhiteSpace(audience))
+        var tokenAudience = audience ?? _options.Audience;
+        if (!string.IsNullOrWhiteSpace(tokenAudience))
         {
-            jwtClaims.Add(new Claim(JwtRegisteredClaimNames.Aud, audience));
+            jwtClaims.Add(new Claim(JwtRegisteredClaimNames.Aud, tokenAudience));
         }
 
         if (claims?.Any() is true)
@@ -69,9 +71,9 @@ public class AuthManager : IAuthManager
         }
 
         var expires = now.Add(_options.Expiry);
-
         var jwt = new JwtSecurityToken(
-            _issuer,
+            issuer: _issuer,
+            audience: tokenAudience,
             claims: jwtClaims,
             notBefore: now,
             expires: expires,

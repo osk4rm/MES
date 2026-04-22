@@ -1,8 +1,9 @@
-﻿using AsistOff.MES.Configuration.Api.Contracts.Warehouses;
-using AsistOff.MES.Configuration.Application.Features.Warehouses.Browse;
+﻿using AsistOff.MES.Configuration.Application.Features.Warehouses.Browse;
 using AsistOff.MES.Configuration.Application.Features.Warehouses.Create;
 using AsistOff.MES.Configuration.Application.Features.Warehouses.Get;
 using AsistOff.MES.Configuration.Application.Features.Warehouses.Update;
+using AsistOff.MES.Configuration.Application.Features.Warehouses.Common.Responses;
+using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Infrastructure.Controllers;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -10,52 +11,36 @@ using Microsoft.AspNetCore.Mvc;
 namespace AsistOff.MES.Configuration.Api.Controllers;
 
 [Route("api/warehouses")]
-public class WarehousesController : ApiController
+public class WarehousesController(ISender mediator) : ApiController
 {
-    private readonly ISender _mediator;
-
-    public WarehousesController(ISender mediator)
-    {
-        _mediator = mediator;
-    }
-
     [HttpGet]
-    public async Task<IActionResult> Browse(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResponse<WarehouseItemResponse>>> Browse([FromQuery] BrowseWarehousesRequest request, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new BrowseWarehousesRequest(), cancellationToken);
-
-        return result.Match(
-            onValue: x => Ok(new WarehousesResponse(x.ToResponse())),
-            onError: Problem);
+        var result = await mediator.Send(request, cancellationToken);
+        return result;
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<WarehouseItemResponse>> Get(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetWarehouseRequest(id), cancellationToken);
+        var result = await mediator.Send(new GetWarehouseRequest(id), cancellationToken);
         
-        return result.Match(
-            onValue: x => Ok(x.ToResponse()),
-            onError: Problem);
+        return new WarehouseItemResponse(result.Id, result.Name, result.SyncId);
     }
 
     [HttpPost]
     public async Task<IActionResult> Create(CreateWarehouseRequest request, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(request, cancellationToken);
+        var result = await mediator.Send(request, cancellationToken);
         
-        return result.Match(
-            onValue: x => CreatedAtAction(nameof(Get), new { id = x.Id }, x.ToResponse()),
-            onError: Problem);
+        return CreatedAtAction(nameof(Get), new { id = result.Id },
+            new WarehouseItemResponse(result.Id, result.Name, result.SyncId));
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(UpdateWarehouseRequest request, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(request, cancellationToken);
-        
-        return result.Match(
-            onValue: x => NoContent(),
-            onError: Problem);
+        await mediator.Send(request, cancellationToken);
+        return NoContent();
     }
 }

@@ -1,5 +1,8 @@
-﻿using AsistOff.MES.Shared.Abstractions.Modules;
+﻿using AsistOff.MES.Configuration.Application;
+using AsistOff.MES.Configuration.Infrastructure;
+using AsistOff.MES.Shared.Abstractions.Modules;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AsistOff.MES.Configuration.Api;
@@ -11,8 +14,10 @@ internal sealed class ConfigurationModule : IModule
     public string Path => BasePath;
     public IEnumerable<string> Policies => ["configuration"];
 
-    public void Register(IServiceCollection services)
+    public void Register(IServiceCollection services, IConfiguration configuration)
     {
+        services.AddApplication();
+        services.AddConfigurationInfrastructure();
     }
 
     public void Use(IApplicationBuilder app)
