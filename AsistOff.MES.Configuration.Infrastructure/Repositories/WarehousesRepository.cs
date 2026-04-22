@@ -1,17 +1,29 @@
 ﻿using AsistOff.MES.Configuration.Domain.Entities;
-using AsistOff.MES.Configuration.Domain.Errors;
 using AsistOff.MES.Configuration.Domain.Repositories;
-using AsistOff.MES.Configuration.Infrastructure.DAL;
+using AsistOff.MES.Shared.Abstractions.Extensions;
+using AsistOff.MES.Shared.Abstractions.Pagination;
+using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using ErrorOr;
 
 namespace AsistOff.MES.Configuration.Infrastructure.Repositories;
 
-internal sealed class WarehousesRepository(ConfigurationDbContext context) : IWarehousesRepository
+internal sealed class WarehousesRepository(DefaultContext context) : IWarehousesRepository
 {
     public async Task<IReadOnlyCollection<Warehouse>> BrowseAsync(CancellationToken cancellationToken = default)
     {
         return await context.Warehouses.ToListAsync(cancellationToken: cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<Warehouse>> BrowseAsync(Paginator<Warehouse> paginator, CancellationToken cancellationToken = default)
+    {
+        return await context.Warehouses
+            .PageFilter(paginator)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> CountAsync(CancellationToken cancellationToken = default)
+    {
+        return await context.Warehouses.CountAsync(cancellationToken);
     }
 
     public async Task<Warehouse?> GetByIdAsync(Guid id,

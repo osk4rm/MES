@@ -16,4 +16,19 @@ internal static class ModuleLoader
             .Select(Activator.CreateInstance)
             .Cast<IModule>()
             .ToList();
+
+    public static IList<Assembly> LoadAssemblies()
+    {
+        var binPath = AppDomain.CurrentDomain.BaseDirectory;
+        var allDlls = Directory.GetFiles(binPath, "*.dll", SearchOption.AllDirectories);
+        foreach (var dll in allDlls)
+        {
+            try
+            {
+                Assembly.LoadFrom(dll);
+            }
+            catch { /* ignore load errors */ }
+        }
+        return AppDomain.CurrentDomain.GetAssemblies().ToList();
+    }
 }

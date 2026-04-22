@@ -1,23 +1,21 @@
 ﻿using AsistOff.MES.Configuration.Application.Features.Warehouses.Common;
 using AsistOff.MES.Configuration.Domain.Entities;
-using AsistOff.MES.Configuration.Domain.Errors;
 using AsistOff.MES.Configuration.Domain.Repositories;
-using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Providers;
-using ErrorOr;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace AsistOff.MES.Configuration.Application.Features.Warehouses.Create;
 
 internal sealed class CreateWarehouseRequestHandler(
-    ITenantContext tenantContext,
     IWarehousesRepository warehousesRepository,
     IGuidProvider guidProvider,
+    ITenantContext tenantContext,
     ILogger<CreateWarehouseRequestHandler> logger)
-    : IRequestHandler<CreateWarehouseRequest, ErrorOr<WarehouseResult>>
+    : IRequestHandler<CreateWarehouseRequest, WarehouseResult>
 {
-    public async Task<ErrorOr<WarehouseResult>> Handle(CreateWarehouseRequest request,
+    public async Task<WarehouseResult> Handle(CreateWarehouseRequest request,
         CancellationToken cancellationToken)
     {
         var warehouse = new Warehouse
@@ -36,7 +34,7 @@ internal sealed class CreateWarehouseRequestHandler(
         catch (Exception ex)
         {
             logger.LogError(ex, "Unable to create a warehouse with request {Request}.", request);
-            return Errors.Warehouses.CannotAddWarehouse;
+            throw;
         }
     }
 }

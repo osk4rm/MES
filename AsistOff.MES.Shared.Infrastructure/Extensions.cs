@@ -4,10 +4,8 @@ using Microsoft.Extensions.Hosting;
 
 namespace AsistOff.MES.Shared.Infrastructure;
 
-public static class Extensions
+public static class ConfigurationExtensions
 {
-    
-    
     public static T GetOptions<T>(this IServiceCollection services,
         string sectionName) where T : new()
     {

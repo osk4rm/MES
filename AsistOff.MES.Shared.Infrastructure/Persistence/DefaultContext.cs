@@ -1,27 +1,53 @@
-﻿using AsistOff.MES.Shared.Abstractions.Models.DomainEvents;
+using AsistOff.MES.Configuration.Domain.Entities;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
+using AsistOff.MES.Users.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace AsistOff.MES.Shared.Infrastructure.Persistence
+namespace AsistOff.MES.Shared.Infrastructure.Persistence;
+
+public class DefaultContext : DbContext
 {
-    public class DefaultContext(
-        DbContextOptions options,
-        PublishDomainEventsInterceptor publishDomainEventsInterceptor)
-        : DbContext(options)
+    private readonly IEnumerable<IEntityConfigurator> _entityConfigurators;
+    private readonly PublishDomainEventsInterceptor _publishDomainEventsInterceptor;
+    private readonly AuditableEntityInterceptor _auditableEntityInterceptor;
+
+    public DbSet<User> Users { get; set; }
+    public DbSet<Warehouse> Warehouses { get; set; }
+    public DbSet<Operator> Operators { get; set; }
+    public DbSet<Department> Departments { get; set; }
+    public DbSet<MeasureUnit> MeasureUnits { get; set; }
+    public DbSet<ProductGroup> ProductGroups { get; set; }
+    public DbSet<ProductMeasureUnit> ProductMeasureUnits { get; set; }
+    public DbSet<Product> Products { get; set; }
+    public DbSet<ProductPrice> ProductPrices { get; set; }
+
+    public DefaultContext(
+        DbContextOptions<DefaultContext> options,
+        IEnumerable<IEntityConfigurator> entityConfigurators,
+        PublishDomainEventsInterceptor publishDomainEventsInterceptor,
+        AuditableEntityInterceptor auditableEntityInterceptor)
+        : base(options)
     {
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder
-                .Ignore<List<IDomainEvent>>()
-                .ApplyConfigurationsFromAssembly(typeof(DefaultContext).Assembly);
+        _entityConfigurators = entityConfigurators;
+        _publishDomainEventsInterceptor = publishDomainEventsInterceptor;
+        _auditableEntityInterceptor = auditableEntityInterceptor;
+    }
 
-            base.OnModelCreating(modelBuilder);
-        }
-
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        foreach (var configurator in _entityConfigurators)
         {
-            optionsBuilder.AddInterceptors(publishDomainEventsInterceptor);
-            base.OnConfiguring(optionsBuilder);
+            configurator.ConfigureEntities(modelBuilder);
         }
+        
+        base.OnModelCreating(modelBuilder);
+    }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.AddInterceptors(_auditableEntityInterceptor);
+        optionsBuilder.AddInterceptors(_publishDomainEventsInterceptor);
+        base.OnConfiguring(optionsBuilder);
     }
 }

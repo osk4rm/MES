@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using Microsoft.AspNetCore.Http;
 
 namespace AsistOff.MES.Multitenancy.Context;

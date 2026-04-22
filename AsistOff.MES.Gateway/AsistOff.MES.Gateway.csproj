@@ -9,12 +9,18 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.14"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.18">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2"/>
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\AsistOff.MES.Configuration.Api\AsistOff.MES.Configuration.Api.csproj" />
       <ProjectReference Include="..\AsistOff.MES.Multitenancy\AsistOff.MES.Multitenancy.csproj" />
       <ProjectReference Include="..\AsistOff.MES.Shared.Infrastructure\AsistOff.MES.Shared.Infrastructure.csproj" />
+      <ProjectReference Include="..\AsistOff.MES.Users.Api\AsistOff.MES.Users.Api.csproj" />
     </ItemGroup>
 
 </Project>
