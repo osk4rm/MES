@@ -1,4 +1,5 @@
-﻿using AsistOff.MES.Shared.Abstractions.Modules;
+﻿using AsistOff.MES.Configuration.Infrastructure;
+using AsistOff.MES.Shared.Abstractions.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,6 +14,7 @@ internal sealed class ConfigurationModule : IModule
 
     public void Register(IServiceCollection services)
     {
+        services.AddInfrastructure();
     }
 
     public void Use(IApplicationBuilder app)

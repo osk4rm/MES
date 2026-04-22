@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AsistOff.MES.Shared.Infrastructure.Persistence
 {
     public class DefaultContext(
-        DbContextOptions<DefaultContext> options,
+        DbContextOptions options,
         PublishDomainEventsInterceptor publishDomainEventsInterceptor)
         : DbContext(options)
     {

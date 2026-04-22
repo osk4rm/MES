@@ -30,6 +30,11 @@ builder.Services
 
 builder.Services.AddMultitenancy();
 
+foreach (var module in modules)
+{
+    module.Register(builder.Services);
+}
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -41,7 +46,6 @@ if (app.Environment.IsDevelopment())
 
 foreach (var module in modules)
 {
-    module.Register(builder.Services);
     module.Use(app);
 }
 
