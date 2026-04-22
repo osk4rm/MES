@@ -1,4 +1,4 @@
-﻿using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Configuration.Infrastructure.Configurations;
 using AsistOff.MES.Configuration.Infrastructure.Repositories;
 using AsistOff.MES.Shared.Abstractions.DAL;

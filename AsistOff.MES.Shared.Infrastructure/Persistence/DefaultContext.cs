@@ -1,4 +1,4 @@
-﻿using AsistOff.MES.Configuration.Domain.Entities;
+using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Users.Core.Entities;
