@@ -18,6 +18,8 @@ builder.Services.AddMediatR(cfg =>
         cfg.RegisterServicesFromAssembly(assembly);
 });
 
+builder.Services.AddHealthChecks();
+
 builder.Services.AddExceptionHandling();
 
 var allowedOrigins = builder.Configuration.GetSection("cors:allowedOrigins").Get<string[]>() ?? [];
@@ -92,6 +94,7 @@ app.UseHttpsRedirection();
 app.UseCors("DefaultPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();
