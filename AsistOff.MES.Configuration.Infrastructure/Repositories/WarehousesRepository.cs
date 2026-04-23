@@ -3,6 +3,7 @@ using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Extensions;
 using AsistOff.MES.Shared.Abstractions.Pagination;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
+using LinqKit;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Configuration.Infrastructure.Repositories;
@@ -21,9 +22,9 @@ internal sealed class WarehousesRepository(DefaultContext context) : IWarehouses
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<int> CountAsync(CancellationToken cancellationToken = default)
+    public async Task<int> CountAsync(ExpressionStarter<Warehouse> predicate, CancellationToken cancellationToken = default)
     {
-        return await context.Warehouses.CountAsync(cancellationToken);
+        return await context.Warehouses.Where(predicate).CountAsync(cancellationToken);
     }
 
     public async Task<Warehouse?> GetByIdAsync(Guid id,
@@ -52,6 +53,10 @@ internal sealed class WarehousesRepository(DefaultContext context) : IWarehouses
         CancellationToken cancellationToken = default)
     {
         var warehouse = await GetByIdAsync(id, cancellationToken);
+        if (warehouse is null)
+        {
+            return;
+        }
 
         context.Remove(warehouse);
         await context.SaveChangesAsync(cancellationToken);

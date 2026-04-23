@@ -3,6 +3,7 @@ using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Extensions;
 using AsistOff.MES.Shared.Abstractions.Pagination;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
+using LinqKit;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Configuration.Infrastructure.Repositories;
@@ -16,9 +17,9 @@ internal sealed class DepartmentsRepository(DefaultContext context) : IDepartmen
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<int> CountAsync(CancellationToken cancellationToken = default)
+    public async Task<int> CountAsync(ExpressionStarter<Department> predicate, CancellationToken cancellationToken = default)
     {
-        return await context.Departments.CountAsync(cancellationToken);
+        return await context.Departments.Where(predicate).CountAsync(cancellationToken);
     }
 
     public async Task<Department?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

@@ -3,6 +3,7 @@ using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using AsistOff.MES.Shared.Abstractions.Extensions;
 using AsistOff.MES.Shared.Abstractions.Pagination;
+using LinqKit;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Configuration.Infrastructure.Repositories;
@@ -19,10 +20,16 @@ public class OperatorsRepository : IOperatorsRepository
     public async Task<IReadOnlyCollection<Operator>> BrowseAsync(Paginator<Operator> paginator, CancellationToken cancellationToken = default)
     {
         var operators = await _context.Operators
+            .Include(o => o.Department)
             .PageFilter(paginator)
             .ToListAsync(cancellationToken);
 
         return operators;
+    }
+
+    public async Task<int> CountAsync(ExpressionStarter<Operator> predicate, CancellationToken cancellationToken = default)
+    {
+        return await _context.Operators.Where(predicate).CountAsync(cancellationToken);
     }
 
     public async Task<Operator?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

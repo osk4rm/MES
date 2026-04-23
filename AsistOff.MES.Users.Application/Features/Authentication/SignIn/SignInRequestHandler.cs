@@ -23,13 +23,12 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
     public async Task<JsonWebToken> Handle(SignInRequest request, CancellationToken cancellationToken)
     {
         var user = await _usersRepository.GetAsync(request.Email);
-        if (user is null)
-        {
-            throw new NotFoundException("User not found");
-        }
 
-        var verificationResult = _hasher.VerifyHashedPassword(user, user.Password, request.Password);
-        if (verificationResult == PasswordVerificationResult.Failed)
+        var verificationResult = user is null
+            ? PasswordVerificationResult.Failed
+            : _hasher.VerifyHashedPassword(user, user.Password, request.Password);
+
+        if (user is null || verificationResult == PasswordVerificationResult.Failed)
         {
             throw new ValidationException("Invalid credentials");
         }
@@ -44,7 +43,7 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
 
         var token = _authManager.CreateToken(
             userId: user.Id.ToString(), 
-            role: user.Email, 
+            role: null, 
             audience: "AsistOff.MES.Users",
             claims: claims
         );

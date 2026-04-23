@@ -27,7 +27,7 @@ public class BackgroundDispatcher : BackgroundService
             }
             catch (Exception exception)
             {
-                _logger.LogError(exception, exception.Message);
+                _logger.LogError(exception, "Failed to dispatch message of type {MessageType}", message.GetType().Name);
             }
         }
     }

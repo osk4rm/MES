@@ -18,7 +18,7 @@ internal sealed class BrowseProductGroupsRequestHandler(
         CancellationToken cancellationToken)
     {
         var filter = BuildPredicate(request);
-        var totalCount = await productGroupsRepository.CountAsync(cancellationToken);
+        var totalCount = await productGroupsRepository.CountAsync(filter, cancellationToken);
         var paginator = new Paginator<ProductGroup>(filter, request);
 
         var productGroups = await productGroupsRepository.BrowseAsync(paginator, cancellationToken);
@@ -30,7 +30,7 @@ internal sealed class BrowseProductGroupsRequestHandler(
             x.Name,
             x.Description,
             x.IsActive,
-            x.ParentGroupId.HasValue ? new ParentGroupResponse(x.ParentGroupId.Value, x.ParentGroup!.Code) : null))
+            x.ParentGroupId.HasValue ? new ParentGroupResponse(x.ParentGroupId.Value, x.ParentGroup?.Code ?? string.Empty) : null))
             .ToList();
 
         return new PagedProductGroupsResponse(items, totalCount, request.PageSize);

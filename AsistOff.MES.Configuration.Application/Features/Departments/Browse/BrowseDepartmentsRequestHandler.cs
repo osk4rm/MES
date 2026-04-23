@@ -25,7 +25,7 @@ internal sealed class BrowseDepartmentsRequestHandler(
         if (!string.IsNullOrWhiteSpace(request.Code))
             predicate = predicate.And(x => x.Code.Contains(request.Code));
 
-        var totalCount = await departmentsRepository.CountAsync(cancellationToken);
+        var totalCount = await departmentsRepository.CountAsync(predicate, cancellationToken);
         var paginator = new Paginator<Department>(predicate, request);
 
         var departments = await departmentsRepository.BrowseAsync(paginator, cancellationToken);

@@ -1,21 +1,14 @@
 ﻿using AsistOff.MES.Multitenancy.Entity;
-using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Multitenancy.Context;
 
 public class MultitenancyDbContext : DbContext
 {
-    public MultitenancyDbContext(
-        DbContextOptions<MultitenancyDbContext> options,
-        PublishDomainEventsInterceptor publishDomainEventsInterceptor,
-        AuditableEntityInterceptor auditableEntityInterceptor)
+    public MultitenancyDbContext(DbContextOptions<MultitenancyDbContext> options)
         : base(options)
     {
-        _auditableEntityInterceptor = auditableEntityInterceptor;
     }
-
-    private readonly AuditableEntityInterceptor _auditableEntityInterceptor;
 
     public DbSet<Tenant> Tenants { get; set; }
 
@@ -24,11 +17,5 @@ public class MultitenancyDbContext : DbContext
         modelBuilder.HasDefaultSchema("multitenancy");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MultitenancyDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
-    }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder.AddInterceptors(_auditableEntityInterceptor);
-        base.OnConfiguring(optionsBuilder);
     }
 }

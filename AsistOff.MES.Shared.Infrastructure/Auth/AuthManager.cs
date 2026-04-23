@@ -26,7 +26,7 @@ public class AuthManager : IAuthManager
         _options = options;
         _dateTimeProvider = dateTimeProvider;
         _signingCredentials =
-            new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.IssuerSigningKey)),
+            new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(issuerSigningKey)),
                 SecurityAlgorithms.HmacSha256);
         _issuer = options.Issuer ?? "AsistOff.MES";
     }

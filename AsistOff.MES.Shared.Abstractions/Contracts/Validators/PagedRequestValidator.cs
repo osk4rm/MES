@@ -15,8 +15,8 @@ public class PagedRequestValidator : RequestValidator<IPagedRequest>
                 .WithMessage("Page number and page size must be provided");
 
             RuleFor(x => x.PageNumber)
-                .GreaterThanOrEqualTo(0)
-                .WithMessage("Page number must be greater or equal to 0");
+                .GreaterThan(0)
+                .WithMessage("Page number must be greater than 0");
 
             RuleFor(x => x.PageSize)
                 .GreaterThanOrEqualTo(1)

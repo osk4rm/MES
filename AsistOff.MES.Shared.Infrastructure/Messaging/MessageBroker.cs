@@ -21,8 +21,6 @@ internal sealed class MessageBroker : IMessageBroker
             return;
         }
 
-        messages = messages.Where(_ => true).ToArray();
-
         if (messages.Length == 0)
         {
             return;

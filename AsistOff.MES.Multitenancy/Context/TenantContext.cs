@@ -13,9 +13,21 @@ internal sealed class TenantContext : ITenantContext
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public Guid TenantId =>
-        Guid.Parse(_httpContextAccessor.HttpContext?.User.FindFirst("tenant_id")?.Value ??
-                   throw new UnauthorizedAccessException("Tenant not found"));
+    public Guid TenantId
+    {
+        get
+        {
+            var value = _httpContextAccessor.HttpContext?.User.FindFirst("tenant_id")?.Value
+                ?? throw new UnauthorizedAccessException("Tenant not found");
+
+            if (!Guid.TryParse(value, out var tenantId))
+            {
+                throw new UnauthorizedAccessException("Tenant claim contains an invalid identifier.");
+            }
+
+            return tenantId;
+        }
+    }
 
     public string TenantName =>
         _httpContextAccessor.HttpContext?.User.FindFirst("tenant_name")?.Value ??

@@ -20,11 +20,6 @@ namespace AsistOff.MES.Shared.Infrastructure
         public static IServiceCollection AddInfrastructure(this IServiceCollection services,
             IConfiguration configuration, IList<Assembly> assemblies)
         {
-            services.AddMediatR(cfg =>
-            {
-                cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly);
-            });
-
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
             services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
             services.AddSingleton<IGuidProvider, GuidProvider>();
@@ -47,8 +42,6 @@ namespace AsistOff.MES.Shared.Infrastructure
         private static IServiceCollection AddPersistence(this IServiceCollection services,
             IConfiguration configuration)
         {
-            var connectionString = configuration.GetConnectionString("Default");
-
             services.AddScoped<PublishDomainEventsInterceptor>();
             services.AddSingleton<AuditableEntityInterceptor>();
 

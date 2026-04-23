@@ -1,6 +1,7 @@
 using AsistOff.MES.Configuration.Application.Features.Operators.Responses;
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Abstractions.Pagination;
 using LinqKit;
@@ -9,13 +10,15 @@ using MediatR;
 namespace AsistOff.MES.Configuration.Application.Features.Operators.Browse;
 
 public sealed class BrowseOperatorsRequestHandler(
-    IOperatorsRepository operatorsRepository)
+    IOperatorsRepository operatorsRepository,
+    ITenantContext tenantContext)
     : IRequestHandler<BrowseOperatorsRequest, PagedResponse<OperatorResponse>>
 {
     public async Task<PagedResponse<OperatorResponse>> Handle(BrowseOperatorsRequest request,
         CancellationToken cancellationToken)
     {
         var predicate = BuildPredicate(request);
+        var totalCount = await operatorsRepository.CountAsync(predicate, cancellationToken);
         var operators =
             await operatorsRepository.BrowseAsync(new Paginator<Operator>(predicate, request), cancellationToken);
 
@@ -29,12 +32,13 @@ public sealed class BrowseOperatorsRequestHandler(
             Department = x.Department?.Name
         }).ToList();
 
-        return new PagedOperatorsResponse(items, 969, request.PageSize);
+        return new PagedOperatorsResponse(items, totalCount, request.PageSize);
     }
 
     private ExpressionStarter<Operator> BuildPredicate(BrowseOperatorsRequest request)
     {
         var predicate = PredicateBuilder.New<Operator>(true);
+        predicate = predicate.And(x => x.TenantId == tenantContext.TenantId);
 
         if (!string.IsNullOrWhiteSpace(request.Identifier))
         {
@@ -61,9 +65,9 @@ public sealed class BrowseOperatorsRequestHandler(
             predicate = predicate.And(o => o.RatePerHour <= request.RatePerHourTo.Value);
         }
 
-        if (request.DepartmentId != Guid.Empty)
+        if (request.DepartmentId.HasValue)
         {
-            predicate = predicate.And(o => o.DepartmentId == request.DepartmentId);
+            predicate = predicate.And(o => o.DepartmentId == request.DepartmentId.Value);
         }
 
         return predicate;

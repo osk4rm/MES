@@ -16,10 +16,28 @@ public class TenantValidationBehavior<TRequest, TResponse>(
         RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
-        if (request is not ITenantRequest || tenantContext.TenantId != Guid.Empty) 
+        if (request is not ITenantRequest)
             return await next(cancellationToken);
 
-        logger.LogWarning("Tenant request without valid tenant ID {TenantId}", tenantContext.TenantId);
-        throw new UnauthorizedAccessException("No valid tenant found for this request");
+        try
+        {
+            var tenantId = tenantContext.TenantId;
+            if (tenantId == Guid.Empty)
+            {
+                logger.LogWarning("Tenant request received with empty tenant ID");
+                throw new UnauthorizedAccessException("No valid tenant found for this request");
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to resolve tenant identity for request {RequestType}", typeof(TRequest).Name);
+            throw new UnauthorizedAccessException("No valid tenant found for this request");
+        }
+
+        return await next(cancellationToken);
     }
 }

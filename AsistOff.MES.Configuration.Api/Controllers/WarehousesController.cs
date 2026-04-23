@@ -38,8 +38,11 @@ public class WarehousesController(ISender mediator) : ApiController
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(UpdateWarehouseRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateWarehouseRequest request, CancellationToken cancellationToken)
     {
+        if (id != request.Id)
+            return BadRequest("Route ID does not match body ID.");
+
         await mediator.Send(request, cancellationToken);
         return NoContent();
     }
