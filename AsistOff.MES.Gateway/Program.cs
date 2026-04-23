@@ -32,12 +32,17 @@ builder.Services.AddCors(options =>
                 .AllowAnyHeader()
                 .WithExposedHeaders("Content-Disposition");
         }
-        else
+        else if (builder.Environment.IsDevelopment())
         {
             policy.AllowAnyOrigin()
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .WithExposedHeaders("Content-Disposition");
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "cors:allowedOrigins must be configured with at least one origin in non-Development environments.");
         }
     });
 });
