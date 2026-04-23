@@ -38,7 +38,9 @@ public class CreateTenantCommandHandler(
             UpdatedAt = now
         };
 
-        var hashedPassword = passwordHasher.HashPassword(null!, request.Password);
+        var hashedPassword = passwordHasher.HashPassword(
+            new User { TenantId = Guid.Empty, Password = string.Empty, Email = string.Empty },
+            request.Password);
 
         try
         {

@@ -44,7 +44,7 @@ builder.Services.AddCors(options =>
 
 builder.Services
     .AddPresentation()
-    .AddInfrastructure(builder.Configuration, assemblies);
+    .AddInfrastructure(builder.Configuration, assemblies, builder.Environment);
 
 builder.Services.AddMultitenancy(builder.Configuration);
 

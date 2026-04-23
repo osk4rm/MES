@@ -12,18 +12,19 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace AsistOff.MES.Shared.Infrastructure
 {
     public static class DependencyInjection
     {
         public static IServiceCollection AddInfrastructure(this IServiceCollection services,
-            IConfiguration configuration, IList<Assembly> assemblies)
+            IConfiguration configuration, IList<Assembly> assemblies, IHostEnvironment? hostEnvironment = null)
         {
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
             services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
             services.AddSingleton<IGuidProvider, GuidProvider>();
-            services.AddAuth();
+            services.AddAuth(hostEnvironment);
             services.AddMessaging();
             services.AddValidation(assemblies);
             services.AddPersistence(configuration);
