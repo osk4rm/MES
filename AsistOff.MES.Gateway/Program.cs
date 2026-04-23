@@ -18,6 +18,8 @@ builder.Services.AddMediatR(cfg =>
         cfg.RegisterServicesFromAssembly(assembly);
 });
 
+builder.Services.AddHealthChecks();
+
 builder.Services.AddExceptionHandling();
 
 // TEMP - TODO: przeniesc do konfiguracji
@@ -80,6 +82,7 @@ app.UseCors("AllowAll");
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();

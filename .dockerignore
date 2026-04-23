@@ -1,0 +1,8 @@
+**/.git
+**/.vs
+**/.vscode
+**/obj
+**/bin
+AsistOff.MES.Web
+**/*.md
+**/*.user
