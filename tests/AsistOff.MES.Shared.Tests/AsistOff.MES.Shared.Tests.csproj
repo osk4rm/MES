@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.18" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="FluentAssertions" Version="6.12.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity" Version="2.3.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\AsistOff.MES.Shared.Abstractions\AsistOff.MES.Shared.Abstractions.csproj" />
+    <ProjectReference Include="..\..\AsistOff.MES.Multitenancy\AsistOff.MES.Multitenancy.csproj" />
+    <ProjectReference Include="..\..\AsistOff.MES.Multitenancy.Contracts\AsistOff.MES.Multitenancy.Contracts.csproj" />
+    <ProjectReference Include="..\..\AsistOff.MES.Users.Application\AsistOff.MES.Users.Application.csproj" />
+    <ProjectReference Include="..\..\AsistOff.MES.Users.Core\AsistOff.MES.Users.Core.csproj" />
+  </ItemGroup>
+
+</Project>
