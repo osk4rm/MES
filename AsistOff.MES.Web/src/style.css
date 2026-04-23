@@ -1,201 +1,172 @@
-/* CSS Reset */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-}
-
-#app {
-  width: 100%;
-  height: 100%;
-}
-
-/* Login/Register Styles moved from App.vue */
-.login-bg {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: linear-gradient(135deg, #232526 0%, #414345 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 0;
-}
-.login-container {
-  background: #23272b;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px #000a, 0 1.5px 0 #f9d423 inset;
-  padding: 2.5rem 2rem 2rem 2rem;
-  min-width: 340px;
-  max-width: 420px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.login-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-.login-cog {
-  font-size: 2.5rem;
-  color: #f9d423;
-  animation: spin 2.5s linear infinite;
-}
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-.login-title {
-  color: #fff;
-  font-size: 1.6rem;
-  font-family: 'Orbitron', 'Roboto Mono', monospace;
-  letter-spacing: 2px;
-  text-shadow: 0 2px 8px #000a;
-}
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
-  width: 100%;
-  max-width: 340px;
-  justify-content: center;
-}
-.login-field {
-  width: 100%;
-  margin-bottom: 1.2rem;
-}
-.login-input {
-  width: 100%;
-  background: #2c3136;
-  border: 1px solid #444;
-  color: #fff;
-  border-radius: 6px;
-  padding: 0.75rem 1rem 0.75rem 1rem;
-  font-size: 1rem;
-  outline: none;
-  transition: border 0.2s;
-}
-.login-input:focus {
-  border-color: #f9d423;
-}
-.login-btn {
-  background: linear-gradient(90deg, #f9d423 0%, #fc913a 100%);
-  color: #232526;
-  font-weight: bold;
-  border: none;
-  border-radius: 6px;
-  padding: 0.75rem;
-  font-size: 1.1rem;
-  cursor: pointer;
-  box-shadow: 0 2px 8px #0003;
-  margin: 0.5rem auto 0 auto;
-  width: 100%;
-  max-width: 340px;
-  transition: background 0.2s;
-}
-.login-btn:hover {
-  background: linear-gradient(90deg, #fc913a 0%, #f9d423 100%);
-}
-.register-link {
-  background: none;
-  border: none;
-  color: #ffe066;
-  font-size: 1rem;
-  margin-top: 0.8rem;
-  cursor: pointer;
-  text-decoration: underline;
-  transition: color 0.2s;
-}
-.register-link:hover {
-  color: #f9d423;
-}
-@import 'primeicons/primeicons.css';
+/* =========================================================
+   AsistOff MES — Design System tokens
+   ========================================================= */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  /* Color palette — steel navy primary, amber warning */
+  --color-primary: #1E3A5F;
+  --color-primary-hover: #2C5282;
+  --color-primary-active: #17314f;
+  --color-primary-soft: #e7edf5;
+  --color-primary-soft-hover: #d9e2ef;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  --color-success: #147a4a;
+  --color-success-soft: #dff3e7;
+  --color-warning: #b45309;
+  --color-warning-soft: #fdf0dd;
+  --color-danger: #b42318;
+  --color-danger-soft: #fde7e5;
+  --color-info: #0b6bb8;
+  --color-info-soft: #e0eef9;
+  --color-idle: #64748b;
+  --color-idle-soft: #eef1f4;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* Surfaces (light theme) */
+  --color-bg: #F4F6F8;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F9FAFC;
+  --color-surface-sunken: #EEF1F5;
+
+  /* Borders */
+  --color-border: #E2E7EC;
+  --color-border-strong: #CBD3DB;
+  --color-divider: #EEF1F5;
+
+  /* Text */
+  --color-text: #0F1F30;
+  --color-text-muted: #4A5A6D;
+  --color-text-subtle: #6B7A8C;
+  --color-text-inverse: #FFFFFF;
+
+  /* Focus */
+  --color-focus-ring: rgba(30, 58, 95, 0.22);
+
+  /* Spacing */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 56px;
+
+  /* Radius */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --radius-full: 999px;
+
+  /* Controls */
+  --control-height-sm: 28px;
+  --control-height-md: 34px;
+  --control-height-lg: 40px;
+
+  /* Layout */
+  --layout-topbar-height: 52px;
+  --layout-sidenav-width: 240px;
+  --layout-sidenav-collapsed: 56px;
+
+  /* Typography */
+  --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 15px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 22px;
+  --font-size-3xl: 28px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(15, 31, 48, 0.04);
+  --shadow-md: 0 2px 6px rgba(15, 31, 48, 0.06);
+  --shadow-lg: 0 6px 18px rgba(15, 31, 48, 0.10);
+  --shadow-overlay: 0 24px 48px rgba(15, 31, 48, 0.18);
+
+  /* Transitions */
+  --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+/* Dark theme (opt-in via [data-theme='dark']) */
+[data-theme='dark'] {
+  --color-bg: #0F1722;
+  --color-surface: #1A2332;
+  --color-surface-muted: #1F2A3C;
+  --color-surface-sunken: #243045;
+  --color-border: #2C3850;
+  --color-border-strong: #3B4A68;
+  --color-divider: #273249;
+  --color-text: #E6EDF7;
+  --color-text-muted: #9AA7BC;
+  --color-text-subtle: #7B8AA3;
+  --color-primary: #4F7FB5;
+  --color-primary-hover: #6090c4;
+  --color-primary-active: #3f6a9c;
+  --color-primary-soft: rgba(79, 127, 181, 0.18);
+  --color-primary-soft-hover: rgba(79, 127, 181, 0.26);
 }
-a:hover {
-  color: #535bf2;
+
+/* =========================================================
+   Minimal reset
+   ========================================================= */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #app {
+  height: 100%;
 }
 
 body {
   margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  line-height: 1.45;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+h1, h2, h3, h4, h5, h6, p, ul, ol, figure {
+  margin: 0;
+  padding: 0;
 }
+
+ul, ol { list-style: none; }
 
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
 }
 
-.card {
-  padding: 2em;
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
 }
 
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
+a { color: var(--color-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
-}
+img, svg, video { display: block; max-width: 100%; }
+
+/* Scrollbar (WebKit) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: var(--radius-full); border: 2px solid var(--color-bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-subtle); }

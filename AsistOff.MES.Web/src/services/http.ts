@@ -1,52 +1,51 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL
 });
 
-http.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+http.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+http.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError<any>) => {
+    if (error.response?.status === 401) {
+      const path = window.location.pathname;
+      const onAuthPage = path === '/' || path.startsWith('/login') || path.startsWith('/register');
+      if (!onAuthPage) {
+        try {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        } catch { /* ignore */ }
+        window.location.assign('/login');
+      }
     }
-    
-    if (config.data && typeof config.data === 'object') {
-      config.headers['Content-Type'] = 'application/json';
-    }
-    
-    return config;
-  },
-  (error) => {
     return Promise.reject(error);
   }
 );
 
-http.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
-    if (error.response?.status === 401) {
-      const errorMessage = error.response?.data?.detail || error.response?.data?.message || '';
-      
-      if (errorMessage.includes('permission') || errorMessage.includes('authorize')) {
-        return Promise.reject(new Error('You do not have permission to access this resource'));
-      }
-      
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      
-      const currentPath = window.location.pathname;
-      if (!currentPath.includes('/login') && 
-          !currentPath.includes('/register') && 
-          currentPath !== '/') {
-        window.location.href = '/';
-      }
+export function extractErrorMessage(err: unknown, fallback: string): string {
+  const ax = err as AxiosError<any>;
+  const data = ax?.response?.data;
+  if (typeof data === 'string') return data;
+  if (data && typeof data === 'object') {
+    if (typeof data.detail === 'string') return data.detail;
+    if (typeof data.title === 'string') return data.title;
+    if (typeof data.message === 'string') return data.message;
+    if (data.errors && typeof data.errors === 'object') {
+      const firstKey = Object.keys(data.errors)[0];
+      const firstArr = firstKey ? data.errors[firstKey] : null;
+      if (Array.isArray(firstArr) && firstArr.length) return String(firstArr[0]);
     }
-    
-    return Promise.reject(error);
   }
-);
+  if (ax?.message) return ax.message;
+  return fallback;
+}
 
 export default http;

@@ -1,0 +1,38 @@
+import http from './http';
+import type { IPagedRequest, IPagedResponse } from '../models/pagedModels';
+
+export interface TenantResponse {
+  id: string;
+}
+
+export interface CreateTenantRequest {
+  name: string;
+  displayName: string;
+  contactEmail: string;
+  settings: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export async function createTenant(request: CreateTenantRequest): Promise<string> {
+  const response = await http.post<string>('/api/tenants', request);
+  return response.data;
+}
+
+// Helpers shared by modules
+export function buildPagedParams(req: IPagedRequest & Record<string, unknown>): Record<string, unknown>;
+export function buildPagedParams(req: object): Record<string, unknown>;
+export function buildPagedParams(req: object): Record<string, unknown> {
+  const p: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(req as Record<string, unknown>)) {
+    if (value === undefined || value === null || value === '') continue;
+    if (Array.isArray(value)) {
+      if (value.length) p[key] = value;
+    } else {
+      p[key] = value;
+    }
+  }
+  return p;
+}
+
+export type { IPagedResponse };

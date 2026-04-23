@@ -6,101 +6,79 @@ applyTo: "AsistOff.MES.Web/src/**"
 
 ## Stack
 
-| Tool | Version / Notes |
-|------|-----------------|
-| Vue 3 | Composition API, `<script setup>` |
-| TypeScript | `~5.8` |
-| Build tool | Vite 7 |
-| Router | Vue Router 4 – config in `src/router.ts` |
+| Tool | Notes |
+|------|-------|
+| Vue 3 | Composition API only, `<script setup lang="ts">` |
+| TypeScript | `~5.8`, `strict`, `noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly` — no `enum`, use `const` objects + derived types |
+| Build tool | Vite 7 (`vue-tsc -b && vite build`) |
+| Router | Vue Router 4 – config in `src/router.ts`, auth guard in `beforeEach` |
 | State | Pinia 3 – stores in `src/stores/` |
-| UI library | PrimeVue 4 + PrimeIcons |
-| HTTP | Axios – service wrappers in `src/services/` |
-| i18n | vue-i18n 11 – setup in `src/i18n.ts` |
-| Toasts | vue-toastification – helper in `src/toast.ts` |
+| HTTP | Axios – service wrappers in `src/services/`, never `import axios` directly in components |
+| i18n | vue-i18n 11 – default `pl`, fallback `en`, all messages in `src/i18n.ts` |
+| Icons | `primeicons` (icon font only — no UI framework) |
 
-## SFC Conventions
+**No UI framework runtime dep.** `primevue` and `vue-toastification` are removed. Do not reintroduce third-party UI/toast libraries — use the in-house design system.
 
-- Always use `<script setup lang="ts">`.
-- Define props with `defineProps<{ ... }>()` and emits with `defineEmits<{ ... }>()`.
-- Prefer `ref` and `computed`; avoid `reactive` for simple values.
-- Extract shared logic into composables (`src/composables/`).
-- Keep template logic minimal – move complex expressions to `computed` properties.
+## SFC conventions
 
-```vue
-<script setup lang="ts">
-import { ref, computed } from 'vue'
+- Always `<script setup lang="ts">`; define props with `defineProps<{...}>()` and emits with `defineEmits<{...}>()`.
+- Prefer `ref` + `computed`; use `reactive` only for form state objects.
+- Share logic via composables (`src/composables/`), e.g. `useCrudPage` for list pages.
+- Keep templates declarative — push logic to `computed`.
 
-const props = defineProps<{ title: string; isActive?: boolean }>()
-const emit = defineEmits<{ (e: 'close'): void }>()
+## Design system (`src/components/ui/`)
 
-const label = computed(() => props.isActive ? 'Active' : 'Inactive')
-</script>
-```
+Always use the `App*` components instead of raw HTML. The full list and usage pattern is in [`AsistOff.MES.Web/COMPONENTS.md`](../../AsistOff.MES.Web/COMPONENTS.md). Key rules:
 
-## Design System – Industrial Components
+- **Buttons:** `AppButton` (never raw `<button>`).
+- **Form controls:** `AppInput`, `AppNumberInput`, `AppTextarea`, `AppSelect`, `AppCheckbox` — wrap each with `AppFormField` for label + error.
+- **Dialogs:** `AppModal`, `AppConfirmDialog` (for destructive actions).
+- **Feedback:** `AppBadge` (statuses), `AppSpinner`, `AppEmptyState`, `AppToastHost` (mount once in `App.vue`).
+- **Layout:** `AppPageHeader` at the top of every page, `AppCard` for grouped content, `AppShell` owns routing layout.
+- **Lists:** `AppFilterBar` + `AppTable` + `AppPagination` + `AppRowActions`.
 
-Use the custom industrial-themed component set (documented in `AsistOff.MES.Web/COMPONENTS.md`). **Never use raw HTML elements where a component exists.**
+Never hard-code hex values. Reference CSS tokens defined in `src/style.css` (`--color-*`, `--space-*`, `--radius-*`, `--font-*`, `--layout-*`, `--control-height-*`, `--transition-*`).
 
-| Component | Use for |
-|-----------|---------|
-| `IndustrialButton` | Every button – never plain `<button>` |
-| `IndustrialInput` | Every text / form input |
-| `PageHeader` | Top of every page view |
-| `FilterBar` | Wrapper for filter inputs |
-| `ActionButtons` | Row-level actions in data grids |
-| `StatusBadge` | Any status indicator |
-| `WidgetCard` | Dashboard metric cards |
-| `ConfirmDialog` | Destructive action confirmation |
-| `DataTable` / `DataGrid` | Tabular data |
+Palette is steel-navy primary (`--color-primary` ≈ `#1E3A5F`), amber reserved for warnings (`--color-warning`), semantic success/danger/idle for statuses. Light theme is the default; dark theme is enabled via `data-theme="dark"`.
 
-## Design Tokens & Styles
+## State management (Pinia)
 
-CSS variables and base styles are in `src/style.css`. Do **not** hardcode hex colors inline.
+- Store files in `src/stores/`, one `defineStore` per file using the options style.
+- `authStore` exposes `token`, `user`, `isAuthenticated`, `setAuth`, `loadAuth`, `clearAuth` — persisted to `localStorage`.
+- `toastStore` drives `AppToastHost`; call `toastStore.success|error|info|warning(message)` instead of importing notification libs.
 
-| Purpose | Palette |
-|---------|---------|
-| Primary accent | Purple gradients (`#6366f1` → `#8b5cf6`) |
-| Background | Dark slate (`#1e293b` → `#334155`) |
-| Text – primary | `#f1f5f9` |
-| Text – muted | `#94a3b8` |
-| Success / Warning / Danger | Standard semantic colors |
+## API communication
 
-## State Management (Pinia)
-
-- Store files live in `src/stores/`.
-- Use `defineStore` with the Composition API style (not Options API).
-- Store IDs use camelCase (e.g., `'authStore'`).
-- JWT token and user data are managed in `authStore.ts`.
-
-## API Communication
-
-- All HTTP calls are wrapped in service files in `src/services/`.
-- Use the Axios instance configured there (do not create ad-hoc `axios` calls in components).
-- Handle errors at the service level and surface them via toast notifications.
+- Every HTTP call goes through a `src/services/*Service.ts` wrapper that uses the shared `http` axios instance.
+- The shared `http` interceptor injects the `Authorization` header and redirects to `/login` on `401`.
+- Use `extractErrorMessage(err, fallback)` from `src/services/http.ts` to produce toast-ready error strings that honour ASP.NET Core `ProblemDetails` / `ValidationProblemDetails`.
+- Paged list requests use `buildPagedParams(req)` from `tenantService.ts` to strip empty filter values.
 
 ## Routing
 
-- Routes are declared in `src/router.ts`.
-- Use **named routes** for `router.push` / `<RouterLink>`.
-- Protect authenticated routes with navigation guards (check `authStore.isAuthenticated`).
+- Authenticated routes live under the `AppShell` layout route.
+- Public routes (`/login`, `/register`) must set `meta.public = true`; the `beforeEach` guard handles redirects.
+- Sidebar entries and route structure must stay in sync with `src/sitemap.ts` (keys come from the `nav.*` i18n namespace).
 
 ## Internationalization
 
-- Use `vue-i18n` for all user-visible strings; never hardcode UI text.
-- Access translations with `const { t } = useI18n()` in `<script setup>`.
-- Translation keys are organized by feature / view.
+- All user-visible strings live in `src/i18n.ts` under nested keys grouped by feature (`products.*`, `operators.*`, `common.*`, …). **Never hardcode UI text in components.**
+- Default locale is `pl`; English is the fallback. Users switch locale from the top bar; it persists to `localStorage['locale']`.
 
-## Models
+## List/CRUD page pattern
 
-- TypeScript interfaces and types for API responses live in `src/models/`.
-- Match backend DTO field names (camelCase from the JSON serializer).
+1. Call `useCrudPage<TItem, TFilters>({ fetch: req => service.browse(req) })` from `src/composables/useCrudPage.ts` — it owns page, size, sort, filters, items, loading.
+2. Render `AppPageHeader` (with action buttons) → `AppFilterBar` (debounced text filters, 300 ms) → `AppTable` + `AppPagination`.
+3. Create/edit uses `AppModal` with the row's form. Delete uses `AppConfirmDialog`. Feedback uses `useToastStore()` and `extractErrorMessage`.
+4. Lookups for dropdowns (e.g. product groups, departments) load once via the same service in `onMounted`.
 
-## File & Folder Naming
+## File & folder naming
 
 | Asset | Convention |
 |-------|------------|
-| Components | `PascalCase.vue` |
+| Primitive components | `App*.vue` in `src/components/ui/` |
+| Layout components | `App*.vue` in `src/components/layout/` |
 | Composables | `use{Name}.ts` |
 | Stores | `{name}Store.ts` |
 | Services | `{name}Service.ts` |
-| Views | `{Name}View.vue` |
+| Views | `{Name}View.vue` — configuration modules live in `src/views/configuration/` |
