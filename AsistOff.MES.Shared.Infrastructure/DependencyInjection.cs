@@ -45,6 +45,7 @@ namespace AsistOff.MES.Shared.Infrastructure
         {
             services.AddScoped<PublishDomainEventsInterceptor>();
             services.AddSingleton<AuditableEntityInterceptor>();
+            services.AddScoped<SaasyEntityInterceptor>();
 
             return services;
         }

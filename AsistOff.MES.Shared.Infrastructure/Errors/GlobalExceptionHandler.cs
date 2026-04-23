@@ -48,6 +48,18 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
                 Status = (int)HttpStatusCode.NotFound,
                 Detail = notFoundEx.Message
             },
+            AuthenticationException authEx => new ProblemDetails
+            {
+                Title = "Unauthorized",
+                Status = (int)HttpStatusCode.Unauthorized,
+                Detail = authEx.Message
+            },
+            UnauthorizedAccessException uaEx => new ProblemDetails
+            {
+                Title = "Unauthorized",
+                Status = (int)HttpStatusCode.Unauthorized,
+                Detail = uaEx.Message
+            },
             RepositoryException repoEx => new ProblemDetails
             {
                 Title = "Repository Error",
