@@ -1,14 +1,14 @@
 # AsistOff MES
 
-> **Manufacturing Execution System** — a multi‑tenant SaaS platform built as a modular monolith with a Vue 3 SPA and an ASP.NET Core 8 backend.
+> **Manufacturing Execution System** — a multi‑tenant SaaS platform built as a modular monolith with a Vue 3 SPA and an ASP.NET Core 9 backend.
 
 ## At a glance
 
 | Layer        | Technology                                            |
 |--------------|-------------------------------------------------------|
-| Backend      | .NET 8, ASP.NET Core, C# 12                           |
+| Backend      | .NET 9, ASP.NET Core, C#                              |
 | Frontend     | Vue 3, TypeScript, Vite                               |
-| Database     | PostgreSQL via Entity Framework Core 8                |
+| Database     | PostgreSQL via Entity Framework Core 9                |
 | Auth         | JWT Bearer tokens                                     |
 | CQRS         | MediatR + `IRequestValidator<T>` pipeline behaviors   |
 | Multi‑tenancy| EF Core global query filter + `SaasyEntityInterceptor`|
@@ -32,11 +32,69 @@ docs/                               # Architecture Decision Records, glossary
 
 Each domain module follows the `*.Core` / `*.Application` / `*.Infrastructure` / `*.Api` split.
 
+## Quick start (Docker Compose)
+
+```bash
+docker compose up --build
+```
+
+On boot the Gateway:
+
+1. Applies all pending EF Core migrations for every registered `DbContext` (see
+   `AsistOff.MES.Shared.Infrastructure.MigrationExtensions.ApplyAllPendingMigrations`).
+2. Runs every registered `ISeeder`. When the environment is `Development` and
+   `Seed:Enabled` is `true`, `DevTenantSeeder` provisions the tenants configured under
+   `Seed:Tenants` in `appsettings.Development.json`. The seeder is **idempotent** — it skips
+   any tenant whose `Name` already exists — and uses the exact same `CreateTenantCommand`
+   pipeline as public registration, so the tenant-admin user is also created through the
+   regular `TenantCreatedEvent` listener.
+
+Default development credentials (from `AsistOff.MES.Gateway/appsettings.Development.json`):
+
+| Field     | Value              |
+|-----------|--------------------|
+| Tenant    | `dev`              |
+| Email     | `admin@dev.local`  |
+| Password  | `Passw0rd!`        |
+
+Sign in with:
+
+```bash
+curl -X POST http://localhost:5080/api/auth/sign-in \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@dev.local","password":"Passw0rd!"}'
+```
+
+Then use the returned `AccessToken` as a bearer token, or log in through the Vue SPA.
+
+### Adding more dev tenants
+
+Append entries to the `Seed:Tenants` array in `appsettings.Development.json`, or override via
+environment variables, e.g.:
+
+```bash
+Seed__Tenants__1__Name=qa
+Seed__Tenants__1__DisplayName=QA Tenant
+Seed__Tenants__1__ContactEmail=admin@qa.local
+Seed__Tenants__1__AdminPassword=Passw0rd!
+```
+
+### Self-service tenant registration (public)
+
+The same flow is available for real registrations at `POST /api/tenants` (anonymous). See
+`AsistOff.MES.Multitenancy/Controllers/TenantsController.cs`.
+
+### Disabling the seeder
+
+Set `Seed:Enabled=false` (or run the Gateway outside `Development`). `DevTenantSeeder`
+short-circuits when either condition is false, so production images never auto-provision
+tenants.
+
 ## Running the project
 
 ### Prerequisites
 
-- .NET SDK 8.0
+- .NET SDK 9.0
 - Node.js 20+
 - PostgreSQL 14+ (or use Docker)
 
@@ -70,12 +128,14 @@ dotnet test AsistOff.MES.sln                       # runs all test projects unde
 # Add a migration (to the main DbContext)
 dotnet ef migrations add <Name> \
   --project AsistOff.MES.Shared.Infrastructure \
-  --startup-project AsistOff.MES.Gateway
+  --startup-project AsistOff.MES.Gateway \
+  --context DefaultContext
 
 # Remove the last unapplied migration
 dotnet ef migrations remove \
   --project AsistOff.MES.Shared.Infrastructure \
-  --startup-project AsistOff.MES.Gateway
+  --startup-project AsistOff.MES.Gateway \
+  --context DefaultContext
 ```
 
 ## Multi‑tenancy model

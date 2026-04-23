@@ -3,6 +3,8 @@ using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Multitenancy.Entity;
 using AsistOff.MES.Multitenancy.Repositories;
+using AsistOff.MES.Multitenancy.Seeding;
+using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using MediatR;
@@ -29,6 +31,9 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString);
             options.AddInterceptors(publishDomainEventsInterceptor, auditableEntityInterceptor);
         });
+
+        services.Configure<DevTenantSeedOptions>(configuration.GetSection(DevTenantSeedOptions.SectionName));
+        services.AddScoped<ISeeder, DevTenantSeeder>();
 
         return services;
     }
