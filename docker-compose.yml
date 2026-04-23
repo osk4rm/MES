@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: mes
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: root
+      POSTGRES_DB: ${POSTGRES_DB:-mes}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d mes"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,7 +23,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: "8080"
-      postgres__connectionString: "Host=postgres;Port=5432;Database=mes;Username=admin;Password=root"
+      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:-root}"
     ports:
       - "8080:8080"
     depends_on:
@@ -42,7 +42,7 @@ services:
       context: ./AsistOff.MES.Web
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: "http://localhost:8080"
+        VITE_API_BASE_URL: "${VITE_API_BASE_URL:-http://localhost:8080}"
     ports:
       - "3000:80"
     depends_on:
