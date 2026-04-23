@@ -9,7 +9,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AppSideNav from './AppSideNav.vue';
 import AppTopBar from './AppTopBar.vue';
@@ -25,9 +25,8 @@ function loadCollapsed() {
   try { return localStorage.getItem('sidenav.collapsed') === '1'; } catch { return false; }
 }
 
-import { watch } from 'vue';
 watch(collapsed, (v) => {
-  try { localStorage.setItem('sidenav.collapsed', v ? '1' : '0'); } catch {}
+  try { localStorage.setItem('sidenav.collapsed', v ? '1' : '0'); } catch { /* ignore */ }
 });
 
 function onSignOut() {

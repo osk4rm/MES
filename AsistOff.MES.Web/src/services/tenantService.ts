@@ -1,5 +1,5 @@
 import http from './http';
-import type { IPagedRequest, IPagedResponse } from '../models/pagedModels';
+import type { IPagedResponse } from '../models/pagedModels';
 
 export interface TenantResponse {
   id: string;
@@ -20,8 +20,6 @@ export async function createTenant(request: CreateTenantRequest): Promise<string
 }
 
 // Helpers shared by modules
-export function buildPagedParams(req: IPagedRequest & Record<string, unknown>): Record<string, unknown>;
-export function buildPagedParams(req: object): Record<string, unknown>;
 export function buildPagedParams(req: object): Record<string, unknown> {
   const p: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(req as Record<string, unknown>)) {
