@@ -61,7 +61,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue';
-import type { DepartmentResponse } from '../services/departmentService';
+import type { Department } from '../services/departmentService';
 
 export interface DepartmentFormData {
   code: string;
@@ -70,7 +70,7 @@ export interface DepartmentFormData {
 
 interface Props {
   isVisible: boolean;
-  department?: DepartmentResponse | null;
+  department?: Department | null;
   loading?: boolean;
 }
 

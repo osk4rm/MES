@@ -18,8 +18,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, defineProps, defineEmits } from 'vue'
-const props = defineProps({
+import { ref } from 'vue'
+defineProps({
   id: String,
   label: String,
   type: { type: String, default: 'text' },
