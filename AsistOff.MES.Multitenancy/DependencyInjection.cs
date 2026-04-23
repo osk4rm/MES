@@ -18,6 +18,7 @@ public static class DependencyInjection
     {
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TenantValidationBehavior<,>));
         services.AddScoped<ITenantContext, TenantContext>();
+        services.AddScoped<ICurrentTenantAccessor>(sp => (ICurrentTenantAccessor)sp.GetRequiredService<ITenantContext>());
         services.AddScoped<ITenantRepository, TenantRepository>();
 
         services.AddDbContext<MultitenancyDbContext>((sp, options) =>

@@ -1,0 +1,36 @@
+name: Architecture Decision Record
+description: Propose an architectural decision to be documented as an ADR
+title: "[adr]: "
+labels: ["adr", "architecture"]
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What is the situation that calls for a decision?
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options considered
+      placeholder: |
+        1. Option A — pros / cons
+        2. Option B — pros / cons
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Proposed decision
+    validations:
+      required: true
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Consequences
+      placeholder: |
+        Positive:
+        - …
+        Negative:
+        - …

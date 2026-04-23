@@ -12,8 +12,11 @@ public class UsersRepository(DefaultContext context) : IUsersRepository
     public Task<User?> GetAsync(Guid id)
         => _users.SingleOrDefaultAsync(x => x.Id == id);
 
-    public Task<User?> GetAsync(string email) => 
+    public Task<User?> GetAsync(string email) =>
         _users.SingleOrDefaultAsync(x => x.Email == email);
+
+    public Task<User?> GetForAuthenticationAsync(string email, CancellationToken cancellationToken = default) =>
+        _users.IgnoreQueryFilters().SingleOrDefaultAsync(x => x.Email == email, cancellationToken);
 
     public async Task AddAsync(User user)
     {

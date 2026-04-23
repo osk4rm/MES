@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace AsistOff.MES.Multitenancy.Context;
 
-internal sealed class TenantContext : ITenantContext
+internal sealed class TenantContext : ITenantContext, ICurrentTenantAccessor
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -40,5 +40,19 @@ internal sealed class TenantContext : ITenantContext
     {
         var claim = _httpContextAccessor.HttpContext?.User.FindFirst(claimType)?.Value;
         return claim != null ? JsonSerializer.Deserialize<T>(claim) : default;
+    }
+
+    public Guid CurrentTenantId => TryGetTenantId(out var tenantId) ? tenantId : Guid.Empty;
+
+    public bool TryGetTenantId(out Guid tenantId)
+    {
+        tenantId = Guid.Empty;
+        var value = _httpContextAccessor.HttpContext?.User.FindFirst("tenant_id")?.Value;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return Guid.TryParse(value, out tenantId) && tenantId != Guid.Empty;
     }
 }
