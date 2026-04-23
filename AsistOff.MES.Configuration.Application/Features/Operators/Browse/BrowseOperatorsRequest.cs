@@ -10,12 +10,12 @@ public record BrowseOperatorsRequest(
     string? LastName,
     decimal? RatePerHourFrom,
     decimal? RatePerHourTo,
-    Guid DepartmentId
+    Guid? DepartmentId
 ) : IPagedRequest, ITenantRequest<PagedResponse<OperatorResponse>>
 {
     public List<string> RawSort { get; set; } = new();
     public IReadOnlyCollection<string> SupportedSortFields { get; } = ["Identifier", "FirstName", "LastName", "RatePerHour"];
-    public int? PageNumber { get; }
-    public int? PageSize { get; }
-    public int? MaxPageSize { get; }
+    public int? PageNumber { get; set; } = 1;
+    public int? PageSize { get; set; } = 10;
+    public int? MaxPageSize => 100;
 }

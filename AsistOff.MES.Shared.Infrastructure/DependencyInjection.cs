@@ -12,23 +12,19 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace AsistOff.MES.Shared.Infrastructure
 {
     public static class DependencyInjection
     {
         public static IServiceCollection AddInfrastructure(this IServiceCollection services,
-            IConfiguration configuration, IList<Assembly> assemblies)
+            IConfiguration configuration, IList<Assembly> assemblies, IHostEnvironment? hostEnvironment = null)
         {
-            services.AddMediatR(cfg =>
-            {
-                cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly);
-            });
-
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
             services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
             services.AddSingleton<IGuidProvider, GuidProvider>();
-            services.AddAuth();
+            services.AddAuth(hostEnvironment);
             services.AddMessaging();
             services.AddValidation(assemblies);
             services.AddPersistence(configuration);
@@ -47,8 +43,6 @@ namespace AsistOff.MES.Shared.Infrastructure
         private static IServiceCollection AddPersistence(this IServiceCollection services,
             IConfiguration configuration)
         {
-            var connectionString = configuration.GetConnectionString("Default");
-
             services.AddScoped<PublishDomainEventsInterceptor>();
             services.AddSingleton<AuditableEntityInterceptor>();
 

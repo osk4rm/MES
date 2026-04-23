@@ -20,24 +20,37 @@ builder.Services.AddMediatR(cfg =>
 
 builder.Services.AddExceptionHandling();
 
-// TEMP - TODO: przeniesc do konfiguracji
+var allowedOrigins = builder.Configuration.GetSection("cors:allowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
-        b =>
+    options.AddPolicy("DefaultPolicy", policy =>
+    {
+        if (allowedOrigins.Length > 0)
         {
-            b.AllowAnyOrigin()
+            policy.WithOrigins(allowedOrigins)
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .WithExposedHeaders("Content-Disposition");
-        });
+        }
+        else if (builder.Environment.IsDevelopment())
+        {
+            policy.AllowAnyOrigin()
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .WithExposedHeaders("Content-Disposition");
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "cors:allowedOrigins must be configured with at least one origin in non-Development environments.");
+        }
+    });
 });
 
 builder.Services
     .AddPresentation()
-    .AddInfrastructure(builder.Configuration, assemblies);
+    .AddInfrastructure(builder.Configuration, assemblies, builder.Environment);
 
-// Remove individual AddMediatR registrations from other projects to avoid duplicates
 builder.Services.AddMultitenancy(builder.Configuration);
 
 foreach (var module in modules)
@@ -75,9 +88,8 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// TEMP
-app.UseCors("AllowAll");
 app.UseHttpsRedirection();
+app.UseCors("DefaultPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

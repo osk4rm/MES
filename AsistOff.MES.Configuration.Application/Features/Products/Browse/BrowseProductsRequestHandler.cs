@@ -17,7 +17,7 @@ internal sealed class BrowseProductsRequestHandler(
     public async Task<PagedResponse<ProductResponse>> Handle(BrowseProductsRequest request, CancellationToken cancellationToken)
     {
         var filter = BuildPredicate(request);
-        var totalCount = await productsRepository.CountAsync(cancellationToken);
+        var totalCount = await productsRepository.CountAsync(filter, cancellationToken);
         var paginator = new Paginator<Product>(filter, request);
 
         var products = await productsRepository.BrowseAsync(paginator, cancellationToken);
