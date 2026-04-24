@@ -1,4 +1,5 @@
 export interface NavItem {
+  /** i18n key or literal label */
   label: string;
   icon: string;
   route?: string;
@@ -6,17 +7,28 @@ export interface NavItem {
 }
 
 export const sitemap: NavItem[] = [
-  { label: 'Dashboard', icon: 'pi pi-home', route: '/dashboard' },
-  { label: 'Production Orders', icon: 'pi pi-box', route: '/production-orders' },
-  { label: 'Production Recipes', icon: 'pi pi-book', route: '/production-recipes' },
-  { label: 'Schedule', icon: 'pi pi-calendar', route: '/schedule' },
-  { label: 'Report', icon: 'pi pi-chart-bar', route: '/report' },
+  { label: 'nav.dashboard', icon: 'pi pi-chart-pie', route: '/dashboard' },
   {
-    label: 'Configuration',
+    label: 'nav.production',
     icon: 'pi pi-cog',
     children: [
-      { label: 'Warehouses', icon: 'pi pi-building', route: '/configuration/warehouses' },
-      { label: 'Departments', icon: 'pi pi-sitemap', route: '/configuration/departments' }
+      { label: 'nav.productionOrders', icon: 'pi pi-list', route: '/production/orders' },
+      { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' }
     ]
-  }
+  },
+  { label: 'nav.schedule', icon: 'pi pi-calendar', route: '/schedule' },
+  { label: 'nav.reports', icon: 'pi pi-chart-bar', route: '/reports' },
+  {
+    label: 'nav.configuration',
+    icon: 'pi pi-sliders-h',
+    children: [
+      { label: 'nav.products', icon: 'pi pi-box', route: '/configuration/products' },
+      { label: 'nav.productGroups', icon: 'pi pi-tags', route: '/configuration/product-groups' },
+      { label: 'nav.measureUnits', icon: 'pi pi-percentage', route: '/configuration/measure-units' },
+      { label: 'nav.warehouses', icon: 'pi pi-building', route: '/configuration/warehouses' },
+      { label: 'nav.departments', icon: 'pi pi-sitemap', route: '/configuration/departments' },
+      { label: 'nav.operators', icon: 'pi pi-id-card', route: '/configuration/operators' }
+    ]
+  },
+  { label: 'nav.settings', icon: 'pi pi-cog', route: '/settings' }
 ];
