@@ -22,7 +22,10 @@ internal sealed class SetOperationDependenciesRequestHandler(
 
         var version = await VersionGuard.EnsureDraftAsync(versionsRepository, op.RecipeVersionId, cancellationToken);
 
-        var versionOps = await operationsRepository.ListForVersionAsync(version.Id, cancellationToken);
+        // Load every operation in the version *with* its dependency edges so
+        // that cycle detection sees the whole DAG (lazy loading is intentionally
+        // not enabled — without Include, sibling edges would be silently empty).
+        var versionOps = await operationsRepository.ListForVersionWithDependenciesAsync(version.Id, cancellationToken);
         var versionOpIds = versionOps.Select(o => o.Id).ToHashSet();
 
         // Validate predecessor identities and reject self-loops / duplicates.
@@ -37,8 +40,8 @@ internal sealed class SetOperationDependenciesRequestHandler(
                 throw new ValidationException("Dependencies", "Duplicate predecessor entries are not allowed.");
         }
 
-        // Load every edge in the version, swap in the new edge set for the
-        // target operation, and perform cycle detection across the whole DAG.
+        // Whole-graph cycle detection: take every existing edge in the version,
+        // swap in the new edge set for the target operation, and run DFS.
         var allEdges = versionOps
             .SelectMany(o => o.Dependencies.Select(d => (Successor: o.Id, Predecessor: d.PredecessorOperationNodeId)))
             .Where(e => e.Successor != op.Id)
@@ -49,19 +52,42 @@ internal sealed class SetOperationDependenciesRequestHandler(
         if (HasCycle(versionOpIds, allEdges))
             throw new ValidationException("Dependencies", "The proposed dependency graph contains a cycle.");
 
-        op.Dependencies.Clear();
+        // Stable diff against the currently tracked edges. Updating in place
+        // (rather than Clear() + Add() with new GUIDs) avoids spurious
+        // DELETE+INSERT batches that, combined with the unique index
+        // (OperationNodeId, PredecessorOperationNodeId), produced
+        // DbUpdateConcurrencyException when SaveChanges saw 0 rows affected.
+        var existingByPredecessor = op.Dependencies.ToDictionary(d => d.PredecessorOperationNodeId);
+        var requestedPredecessors = request.Dependencies.Select(d => d.PredecessorOperationId).ToHashSet();
+
+        // 1) Remove edges that are no longer requested.
+        foreach (var existing in op.Dependencies.ToList())
+        {
+            if (!requestedPredecessors.Contains(existing.PredecessorOperationNodeId))
+                op.Dependencies.Remove(existing);
+        }
+
+        // 2) Update changed edges in place; insert truly new ones.
         foreach (var dep in request.Dependencies)
         {
-            op.Dependencies.Add(new OperationDependency
+            if (existingByPredecessor.TryGetValue(dep.PredecessorOperationId, out var existing))
             {
-                Id = guidProvider.NewGuid(),
-                TenantId = tenantContext.TenantId,
-                RecipeVersionId = version.Id,
-                OperationNodeId = op.Id,
-                PredecessorOperationNodeId = dep.PredecessorOperationId,
-                DependencyType = dep.DependencyType,
-                LagMinutes = dep.LagMinutes
-            });
+                existing.DependencyType = dep.DependencyType;
+                existing.LagMinutes = dep.LagMinutes;
+            }
+            else
+            {
+                op.Dependencies.Add(new OperationDependency
+                {
+                    Id = guidProvider.NewGuid(),
+                    TenantId = tenantContext.TenantId,
+                    RecipeVersionId = version.Id,
+                    OperationNodeId = op.Id,
+                    PredecessorOperationNodeId = dep.PredecessorOperationId,
+                    DependencyType = dep.DependencyType,
+                    LagMinutes = dep.LagMinutes
+                });
+            }
         }
 
         await operationsRepository.SaveChangesAsync(cancellationToken);

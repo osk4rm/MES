@@ -25,6 +25,14 @@ internal sealed class OperationNodesRepository(DefaultContext context) : IOperat
             .OrderBy(x => x.SortIndex)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyCollection<OperationNode>> ListForVersionWithDependenciesAsync(Guid recipeVersionId, CancellationToken cancellationToken = default)
+        => await context.Set<OperationNode>()
+            .Where(x => x.RecipeVersionId == recipeVersionId)
+            .Include(x => x.Dependencies)
+            .OrderBy(x => x.SortIndex)
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+
     public async Task<OperationNode> AddAsync(OperationNode entity, CancellationToken cancellationToken = default)
     {
         context.Set<OperationNode>().Add(entity);
