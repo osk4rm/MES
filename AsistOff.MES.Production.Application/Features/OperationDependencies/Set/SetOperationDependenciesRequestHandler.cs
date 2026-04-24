@@ -74,7 +74,6 @@ internal sealed class SetOperationDependenciesRequestHandler(
             .GroupBy(e => e.Predecessor)
             .ToDictionary(g => g.Key, g => g.Select(e => e.Successor).ToList());
 
-        const int VisitingState = 1;
         var state = new Dictionary<Guid, int>();
 
         foreach (var node in nodes)
@@ -86,9 +85,12 @@ internal sealed class SetOperationDependenciesRequestHandler(
         return false;
     }
 
+    private const int Visiting = 1;
+    private const int Visited = 2;
+
     private static bool Dfs(Guid node, Dictionary<Guid, List<Guid>> successors, Dictionary<Guid, int> state)
     {
-        state[node] = VisitingState;
+        state[node] = Visiting;
         if (successors.TryGetValue(node, out var outgoing))
         {
             foreach (var next in outgoing)
@@ -97,13 +99,13 @@ internal sealed class SetOperationDependenciesRequestHandler(
                 {
                     if (Dfs(next, successors, state)) return true;
                 }
-                else if (s == VisitingState)
+                else if (s == Visiting)
                 {
                     return true;
                 }
             }
         }
-        state[node] = 2; // fully visited
+        state[node] = Visited;
         return false;
     }
 }

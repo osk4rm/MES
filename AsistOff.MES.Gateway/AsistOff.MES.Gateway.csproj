@@ -17,6 +17,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\AsistOff.MES.Attachments.Api\AsistOff.MES.Attachments.Api.csproj" />
       <ProjectReference Include="..\AsistOff.MES.Configuration.Api\AsistOff.MES.Configuration.Api.csproj" />
       <ProjectReference Include="..\AsistOff.MES.Multitenancy\AsistOff.MES.Multitenancy.csproj" />
       <ProjectReference Include="..\AsistOff.MES.Production.Api\AsistOff.MES.Production.Api.csproj" />
