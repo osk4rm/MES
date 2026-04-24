@@ -39,7 +39,7 @@ internal sealed class CreateRecipeVersionRequestHandler(
 
         await versionsRepository.AddAsync(version, cancellationToken);
 
-        var full = await versionsRepository.GetFullAsync(version.Id, cancellationToken)!;
+        var full = await versionsRepository.GetFullAsync(version.Id, cancellationToken);
         return ProductionMappers.MapDetail(full!);
     }
 }

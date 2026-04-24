@@ -18,7 +18,7 @@ internal sealed class LocalFileStorage(IOptions<LocalFileStorageOptions> options
         _ = contentType;
         var id = Guid.NewGuid().ToString("N");
         var safeName = SanitizeFileName(originalFileName);
-        var relative = $"{id[..2]}/{id.Substring(2, 2)}/{id}-{safeName}";
+        var relative = $"{id[..2]}/{id[2..4]}/{id}-{safeName}";
         var full = Path.Combine(_rootPath, relative);
 
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);

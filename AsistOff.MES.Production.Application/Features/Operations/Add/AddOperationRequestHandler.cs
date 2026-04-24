@@ -45,7 +45,7 @@ internal sealed class AddOperationRequestHandler(
 
         await operationsRepository.AddAsync(op, cancellationToken);
 
-        var reloaded = await operationsRepository.GetWithDetailsAsync(op.Id, cancellationToken)!;
+        var reloaded = await operationsRepository.GetWithDetailsAsync(op.Id, cancellationToken);
         return ProductionMappers.Map(reloaded!);
     }
 }

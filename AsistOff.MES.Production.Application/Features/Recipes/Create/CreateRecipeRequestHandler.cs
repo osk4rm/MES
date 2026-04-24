@@ -53,7 +53,7 @@ internal sealed class CreateRecipeRequestHandler(
         };
         await versionsRepository.AddAsync(firstVersion, cancellationToken);
 
-        var full = await recipesRepository.GetWithVersionsAsync(recipe.Id, cancellationToken)!;
+        var full = await recipesRepository.GetWithVersionsAsync(recipe.Id, cancellationToken);
         return ProductionMappers.Map(full!);
     }
 }

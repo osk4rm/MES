@@ -142,7 +142,7 @@ internal sealed class CloneRecipeVersionRequestHandler(
 
         await versionsRepository.AddAsync(target, cancellationToken);
 
-        var full = await versionsRepository.GetFullAsync(target.Id, cancellationToken)!;
+        var full = await versionsRepository.GetFullAsync(target.Id, cancellationToken);
         return ProductionMappers.MapDetail(full!);
     }
 }
