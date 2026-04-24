@@ -16,6 +16,14 @@ COPY AsistOff.MES.Users.Api/AsistOff.MES.Users.Api.csproj AsistOff.MES.Users.Api
 COPY AsistOff.MES.Users.Application/AsistOff.MES.Users.Application.csproj AsistOff.MES.Users.Application/
 COPY AsistOff.MES.Users.Core/AsistOff.MES.Users.Core.csproj AsistOff.MES.Users.Core/
 COPY AsistOff.MES.Users.Infrastructure/AsistOff.MES.Users.Infrastructure.csproj AsistOff.MES.Users.Infrastructure/
+COPY AsistOff.MES.Attachments.Api/AsistOff.MES.Attachments.Api.csproj AsistOff.MES.Attachments.Api/
+COPY AsistOff.MES.Attachments.Application/AsistOff.MES.Attachments.Application.csproj AsistOff.MES.Attachments.Application/
+COPY AsistOff.MES.Attachments.Core/AsistOff.MES.Attachments.Core.csproj AsistOff.MES.Attachments.Core/
+COPY AsistOff.MES.Attachments.Infrastructure/AsistOff.MES.Attachments.Infrastructure.csproj AsistOff.MES.Attachments.Infrastructure/
+COPY AsistOff.MES.Production.Api/AsistOff.MES.Production.Api.csproj AsistOff.MES.Production.Api/
+COPY AsistOff.MES.Production.Application/AsistOff.MES.Production.Application.csproj AsistOff.MES.Production.Application/
+COPY AsistOff.MES.Production.Core/AsistOff.MES.Production.Core.csproj AsistOff.MES.Production.Core/
+COPY AsistOff.MES.Production.Infrastructure/AsistOff.MES.Production.Infrastructure.csproj AsistOff.MES.Production.Infrastructure/
 
 RUN dotnet restore AsistOff.MES.Gateway/AsistOff.MES.Gateway.csproj
 
