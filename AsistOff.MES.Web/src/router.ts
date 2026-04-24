@@ -30,7 +30,9 @@ const routes: RouteRecordRaw[] = [
           { path: 'warehouses', name: 'warehouses', component: () => import('./views/configuration/WarehousesView.vue') },
           { path: 'departments', name: 'departments', component: () => import('./views/configuration/DepartmentsView.vue') },
           { path: 'machines', name: 'machines', component: () => import('./views/configuration/MachinesView.vue') },
-          { path: 'operators', name: 'operators', component: () => import('./views/configuration/OperatorsView.vue') }
+          { path: 'operators', name: 'operators', component: () => import('./views/configuration/OperatorsView.vue') },
+          { path: 'skills', name: 'skills', component: () => import('./views/configuration/SkillsView.vue') },
+          { path: 'operation-templates', name: 'operation-templates', component: () => import('./views/configuration/OperationTemplatesView.vue') }
         ]
       }
     ]

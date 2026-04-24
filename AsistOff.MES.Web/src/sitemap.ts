@@ -28,7 +28,9 @@ export const sitemap: NavItem[] = [
       { label: 'nav.warehouses', icon: 'pi pi-building', route: '/configuration/warehouses' },
       { label: 'nav.departments', icon: 'pi pi-sitemap', route: '/configuration/departments' },
       { label: 'nav.machines', icon: 'pi pi-cog', route: '/configuration/machines' },
-      { label: 'nav.operators', icon: 'pi pi-id-card', route: '/configuration/operators' }
+      { label: 'nav.operators', icon: 'pi pi-id-card', route: '/configuration/operators' },
+      { label: 'nav.skills', icon: 'pi pi-star', route: '/configuration/skills' },
+      { label: 'nav.operationTemplates', icon: 'pi pi-copy', route: '/configuration/operation-templates' }
     ]
   },
   { label: 'nav.settings', icon: 'pi pi-cog', route: '/settings' }

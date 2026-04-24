@@ -60,6 +60,7 @@ More detailed guidance lives in `.github/instructions/`. Load a file when you st
 | `database.instructions.md`     | EF Core entities, migrations, repositories, multitenancy |
 | `api.instructions.md`          | Controllers, HTTP endpoints, error handling, auth |
 | `testing.instructions.md`      | Writing or modifying tests |
+| `production-recipes.instructions.md` | Any work in the Recipes / Production module (entities, CRUD, frontend views, Skills, OperationTemplates) |
 
 ## Keeping These Files Up to Date
 

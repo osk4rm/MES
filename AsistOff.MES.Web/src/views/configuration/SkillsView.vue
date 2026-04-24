@@ -1,15 +1,15 @@
 <template>
   <div>
-    <AppPageHeader :title="$t('recipes.title')" :subtitle="$t('recipes.subtitle')" icon="pi pi-book">
+    <AppPageHeader :title="$t('skills.title')" :subtitle="$t('skills.subtitle')" icon="pi pi-star">
       <template #actions>
         <AppButton variant="secondary" icon="pi pi-refresh" @click="table.fetch">{{ $t('common.refresh') }}</AppButton>
-        <AppButton variant="primary" icon="pi pi-plus" @click="openCreate">{{ $t('recipes.create') }}</AppButton>
+        <AppButton variant="primary" icon="pi pi-plus" @click="openCreate">{{ $t('skills.create') }}</AppButton>
       </template>
     </AppPageHeader>
 
     <AppFilterBar @clear="clearFilters">
-      <AppInput v-model="codeFilter" :placeholder="$t('recipes.filters.code')" prefix-icon="pi pi-search" clearable @update:modelValue="onCode" />
-      <AppInput v-model="nameFilter" :placeholder="$t('recipes.filters.name')" prefix-icon="pi pi-search" clearable @update:modelValue="onName" />
+      <AppInput v-model="codeFilter" :placeholder="$t('skills.filters.code')" prefix-icon="pi pi-search" clearable @update:modelValue="onCode" />
+      <AppInput v-model="nameFilter" :placeholder="$t('skills.filters.name')" prefix-icon="pi pi-search" clearable @update:modelValue="onName" />
     </AppFilterBar>
 
     <AppTable
@@ -20,11 +20,6 @@
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
     >
-      <template #cell-name="{ item }">
-        <router-link :to="{ name: 'recipe-detail', params: { id: item.id } }" class="link">
-          {{ item.name }}
-        </router-link>
-      </template>
       <template #cell-isActive="{ item }">
         <span :class="['pill', item.isActive ? 'pill--ok' : 'pill--muted']">
           {{ item.isActive ? $t('common.active') : $t('common.inactive') }}
@@ -33,11 +28,10 @@
       <template #cell-actions="{ item }">
         <AppRowActions
           :actions="[
-            { key: 'open', label: $t('common.open'), icon: 'pi-external-link' },
-            { key: 'edit', label: $t('common.edit'), icon: 'pi-pencil' },
-            { key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger' }
+            { key: 'edit', label: $t('common.edit'), icon: 'pi pi-pencil' },
+            { key: 'delete', label: $t('common.delete'), icon: 'pi pi-trash', variant: 'danger' }
           ]"
-          @action="(k) => onRowAction(k, item)"
+          @action="onRowAction($event, item)"
         />
       </template>
     </AppTable>
@@ -51,21 +45,16 @@
       @page-size-change="table.setPageSize"
     />
 
-    <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('recipes.create')" @close="closeModal">
-      <form id="recipe-form" class="form-grid" @submit.prevent="onSave">
-        <AppFormField :label="$t('recipes.code')" required>
+    <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('skills.create')" @close="closeModal">
+      <form id="skill-form" class="form-grid" @submit.prevent="onSave">
+        <AppFormField :label="$t('skills.code')" required>
           <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.code" required :invalid="invalid" /></template>
         </AppFormField>
-        <AppFormField :label="$t('recipes.name')" required>
+        <AppFormField :label="$t('skills.name')" required>
           <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.name" required :invalid="invalid" /></template>
         </AppFormField>
-        <AppFormField :label="$t('recipes.description')" class="form-grid__full">
+        <AppFormField :label="$t('skills.description')" class="form-grid__full">
           <template #default="{ id }"><AppInput :id="id" v-model="form.description" /></template>
-        </AppFormField>
-        <AppFormField :label="$t('recipes.primaryProduct')" class="form-grid__full">
-          <template #default="{ id }">
-            <AppAutocomplete :id="id" v-model="form.primaryProductId" :options="productOptions" :placeholder="$t('recipes.primaryProductPlaceholder')" />
-          </template>
         </AppFormField>
         <AppFormField :label="$t('common.active')" class="form-grid__full">
           <template #default><input type="checkbox" v-model="form.isActive" /></template>
@@ -73,7 +62,7 @@
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="saving" @click="closeModal">{{ $t('common.cancel') }}</AppButton>
-        <AppButton type="submit" form="recipe-form" variant="primary" :loading="saving">{{ $t('common.save') }}</AppButton>
+        <AppButton type="submit" form="skill-form" variant="primary" :loading="saving">{{ $t('common.save') }}</AppButton>
       </template>
     </AppModal>
 
@@ -91,7 +80,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppFilterBar from '../../components/ui/AppFilterBar.vue';
 import AppInput from '../../components/ui/AppInput.vue';
@@ -102,40 +90,27 @@ import AppFormField from '../../components/ui/AppFormField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
-import AppAutocomplete, { type AutocompleteOption } from '../../components/ui/AppAutocomplete.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
-import { recipeService, type RecipeResponse } from '../../services/recipeService';
-import { productService } from '../../services/productService';
+import { skillService, type SkillResponse } from '../../services/skillService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const { t } = useI18n();
 const toast = useToastStore();
-const router = useRouter();
-
-// product autocomplete data
-const productOptions = ref<AutocompleteOption[]>([]);
-onMounted(async () => {
-  try {
-    const result = await productService.browse({ pageSize: 500 });
-    productOptions.value = result.items.map(p => ({ value: p.id, label: `${p.code} — ${p.name}` }));
-  } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
-  }
-});
 
 interface Filters { code?: string; name?: string }
 
-const table = useCrudPage<RecipeResponse, Filters>({
-  fetch: (req) => recipeService.browse(req),
+const table = useCrudPage<SkillResponse, Filters>({
+  fetch: (req) => skillService.browse(req),
   initialFilters: {}
 });
 
 const columns = computed(() => [
-  { key: 'code', label: t('recipes.code'), sortable: true },
-  { key: 'name', label: t('recipes.name'), sortable: true },
+  { key: 'code', label: t('skills.code'), sortable: true },
+  { key: 'name', label: t('skills.name'), sortable: true },
+  { key: 'description', label: t('skills.description') },
   { key: 'isActive', label: t('common.status') },
-  { key: 'actions', label: t('common.actions'), width: '130px' }
+  { key: 'actions', label: t('common.actions'), width: '100px' }
 ]);
 
 const codeFilter = ref('');
@@ -146,18 +121,18 @@ function onName(v: string | number | null | undefined) { clearTimeout(d2); d2 = 
 function clearFilters() { codeFilter.value = ''; nameFilter.value = ''; table.resetFilters(); }
 
 const modalOpen = ref(false);
-const editing = ref<RecipeResponse | null>(null);
+const editing = ref<SkillResponse | null>(null);
 const saving = ref(false);
-const form = reactive({ code: '', name: '', description: '' as string | null, isActive: true, primaryProductId: null as string | null });
+const form = reactive({ code: '', name: '', description: '' as string | null, isActive: true });
 
 function openCreate() {
   editing.value = null;
-  Object.assign(form, { code: '', name: '', description: '', isActive: true, primaryProductId: null });
+  Object.assign(form, { code: '', name: '', description: '', isActive: true });
   modalOpen.value = true;
 }
-function openEdit(item: RecipeResponse) {
+function openEdit(item: SkillResponse) {
   editing.value = item;
-  Object.assign(form, { code: item.code, name: item.name, description: item.description ?? '', isActive: item.isActive, primaryProductId: item.primaryProductId ?? null });
+  Object.assign(form, { code: item.code, name: item.name, description: item.description ?? '', isActive: item.isActive });
   modalOpen.value = true;
 }
 function closeModal() { if (saving.value) return; modalOpen.value = false; editing.value = null; }
@@ -165,18 +140,12 @@ function closeModal() { if (saving.value) return; modalOpen.value = false; editi
 async function onSave() {
   saving.value = true;
   try {
-    const payload = {
-      code: form.code,
-      name: form.name,
-      description: form.description || null,
-      isActive: form.isActive,
-      primaryProductId: form.primaryProductId || null
-    };
+    const payload = { code: form.code, name: form.name, description: form.description || null, isActive: form.isActive };
     if (editing.value) {
-      await recipeService.update(editing.value.id, { id: editing.value.id, ...payload });
+      await skillService.update(editing.value.id, { id: editing.value.id, ...payload });
       toast.success(t('toasts.updated'));
     } else {
-      await recipeService.create(payload);
+      await skillService.create(payload);
       toast.success(t('toasts.created'));
     }
     await table.fetch();
@@ -187,19 +156,19 @@ async function onSave() {
 }
 
 const confirmOpen = ref(false);
-const toDelete = ref<RecipeResponse | null>(null);
+const toDelete = ref<SkillResponse | null>(null);
 const deleting = ref(false);
 const deleteMessage = computed(() => toDelete.value ? `${t('common.delete')}: ${toDelete.value.name}` : '');
-function onRowAction(key: string, item: RecipeResponse) {
-  if (key === 'open') router.push({ name: 'recipe-detail', params: { id: item.id } });
-  else if (key === 'edit') openEdit(item);
+
+function onRowAction(key: string, item: SkillResponse) {
+  if (key === 'edit') openEdit(item);
   else if (key === 'delete') { toDelete.value = item; confirmOpen.value = true; }
 }
 async function confirmDelete() {
   if (!toDelete.value) return;
   deleting.value = true;
   try {
-    await recipeService.remove(toDelete.value.id);
+    await skillService.remove(toDelete.value.id);
     toast.success(t('toasts.deleted'));
     await table.fetch();
     confirmOpen.value = false; toDelete.value = null;
@@ -217,7 +186,5 @@ onMounted(() => table.fetch());
 .form-grid__full { grid-column: 1 / -1; }
 .pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; }
 .pill--ok { background: var(--color-success-soft, #d1fae5); color: var(--color-success, #065f46); }
-.pill--muted { background: var(--color-neutral-soft, #e5e7eb); color: var(--color-neutral-strong, #374151); }
-.link { color: var(--color-primary, #2563eb); text-decoration: none; font-weight: 500; }
-.link:hover { text-decoration: underline; }
+.pill--muted { background: var(--color-surface-sunken, #f3f4f6); color: var(--color-text-muted, #6b7280); }
 </style>
