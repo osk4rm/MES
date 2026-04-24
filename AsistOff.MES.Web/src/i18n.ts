@@ -24,6 +24,11 @@ const pl = {
     actions: 'Akcje',
     optional: 'opcjonalne',
     required: 'wymagane',
+    back: 'Wróć',
+    open: 'Otwórz',
+    empty: 'Brak wpisów',
+    status: 'Status',
+    notFound: 'Nie znaleziono',
     signedIn: 'Zalogowany',
     signOut: 'Wyloguj',
     notifications: 'Powiadomienia',
@@ -45,6 +50,7 @@ const pl = {
     measureUnits: 'Jednostki miary',
     warehouses: 'Magazyny',
     departments: 'Działy',
+    machines: 'Maszyny',
     operators: 'Operatorzy',
     settings: 'Ustawienia'
   },
@@ -152,6 +158,74 @@ const pl = {
       department: 'Dział'
     }
   },
+  machines: {
+    title: 'Maszyny',
+    subtitle: 'Wyposażenie na hali produkcyjnej',
+    create: 'Nowa maszyna',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
+  },
+  recipes: {
+    title: 'Receptury',
+    subtitle: 'Definicje procesu wytwarzania produktów',
+    create: 'Nowa receptura',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' },
+    versionStatus: { draft: 'Szkic', released: 'Wydana', obsolete: 'Wycofana' },
+    dependencyType: {
+      finishToStart: 'Zakończ → Rozpocznij',
+      startToStart: 'Rozpocznij → Rozpocznij',
+      finishToFinish: 'Zakończ → Zakończ',
+      startToFinish: 'Rozpocznij → Zakończ'
+    },
+    quantityType: { perUnit: 'Na sztukę', perBatch: 'Na partię', fixed: 'Stała' },
+    outputType: { product: 'Produkt', byProduct: 'Produkt uboczny', waste: 'Odpad', sample: 'Próbka' },
+    detail: {
+      subtitle: 'Wersje receptury i ich zawartość',
+      versions: 'Wersje',
+      newVersion: 'Nowa wersja',
+      release: 'Wydaj wersję',
+      releasedToast: 'Wersja wydana',
+      deleteVersion: 'Usuń wersję',
+      confirmDeleteVersion: 'Czy na pewno usunąć tę wersję?',
+      operations: 'Operacje',
+      noOperations: 'Brak operacji',
+      selectOperation: 'Wybierz operację aby edytować szczegóły',
+      addOperation: 'Dodaj operację',
+      opCode: 'Kod operacji',
+      opName: 'Nazwa operacji',
+      opDescription: 'Opis',
+      setupTimeMinutes: 'Setup (min)',
+      runTimePerUnitSeconds: 'Czas / szt (s)',
+      confirmDeleteOperation: 'Czy na pewno usunąć tę operację?',
+      tabs: {
+        dependencies: 'Zależności',
+        bom: 'BOM',
+        outputs: 'Produkty',
+        resources: 'Zasoby',
+        attachments: 'Załączniki'
+      },
+      dependenciesHelp: 'Operacje poprzedzające, które muszą być wykonane przed tą operacją.',
+      predecessor: 'Operacja poprzedzająca',
+      productId: 'ID produktu',
+      quantity: 'Ilość',
+      quantityType: 'Typ ilości',
+      outputType: 'Typ wyniku',
+      capability: 'Wymagana umiejętność',
+      operatorCount: 'Liczba operatorów',
+      role: 'Rola'
+    }
+  },
+  attachments: {
+    title: 'Załączniki',
+    upload: 'Wgraj plik',
+    empty: 'Brak załączników',
+    confirmDelete: 'Czy na pewno usunąć ten załącznik?'
+  },
   scanBy: { 1: 'EAN', 2: 'Kod' },
   stubs: {
     title: 'Moduł w przygotowaniu',
@@ -200,6 +274,11 @@ const en: typeof pl = {
     actions: 'Actions',
     optional: 'optional',
     required: 'required',
+    back: 'Back',
+    open: 'Open',
+    empty: 'No entries',
+    status: 'Status',
+    notFound: 'Not found',
     signedIn: 'Signed in',
     signOut: 'Sign out',
     notifications: 'Notifications',
@@ -221,6 +300,7 @@ const en: typeof pl = {
     measureUnits: 'Measure units',
     warehouses: 'Warehouses',
     departments: 'Departments',
+    machines: 'Machines',
     operators: 'Operators',
     settings: 'Settings'
   },
@@ -327,6 +407,74 @@ const en: typeof pl = {
       rateTo: 'Rate to',
       department: 'Department'
     }
+  },
+  machines: {
+    title: 'Machines',
+    subtitle: 'Shop-floor equipment',
+    create: 'New machine',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    filters: { code: 'Code contains…', name: 'Name contains…' }
+  },
+  recipes: {
+    title: 'Recipes',
+    subtitle: 'Production process definitions',
+    create: 'New recipe',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    filters: { code: 'Code contains…', name: 'Name contains…' },
+    versionStatus: { draft: 'Draft', released: 'Released', obsolete: 'Obsolete' },
+    dependencyType: {
+      finishToStart: 'Finish → Start',
+      startToStart: 'Start → Start',
+      finishToFinish: 'Finish → Finish',
+      startToFinish: 'Start → Finish'
+    },
+    quantityType: { perUnit: 'Per unit', perBatch: 'Per batch', fixed: 'Fixed' },
+    outputType: { product: 'Product', byProduct: 'By-product', waste: 'Waste', sample: 'Sample' },
+    detail: {
+      subtitle: 'Versions and their contents',
+      versions: 'Versions',
+      newVersion: 'New version',
+      release: 'Release version',
+      releasedToast: 'Version released',
+      deleteVersion: 'Delete version',
+      confirmDeleteVersion: 'Really delete this version?',
+      operations: 'Operations',
+      noOperations: 'No operations',
+      selectOperation: 'Select an operation to edit details',
+      addOperation: 'Add operation',
+      opCode: 'Operation code',
+      opName: 'Operation name',
+      opDescription: 'Description',
+      setupTimeMinutes: 'Setup (min)',
+      runTimePerUnitSeconds: 'Run time / unit (s)',
+      confirmDeleteOperation: 'Really delete this operation?',
+      tabs: {
+        dependencies: 'Dependencies',
+        bom: 'BOM',
+        outputs: 'Outputs',
+        resources: 'Resources',
+        attachments: 'Attachments'
+      },
+      dependenciesHelp: 'Predecessor operations that must complete before this one.',
+      predecessor: 'Predecessor operation',
+      productId: 'Product ID',
+      quantity: 'Quantity',
+      quantityType: 'Qty type',
+      outputType: 'Output type',
+      capability: 'Required capability',
+      operatorCount: 'Operator count',
+      role: 'Role'
+    }
+  },
+  attachments: {
+    title: 'Attachments',
+    upload: 'Upload file',
+    empty: 'No attachments',
+    confirmDelete: 'Really delete this attachment?'
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
   stubs: {

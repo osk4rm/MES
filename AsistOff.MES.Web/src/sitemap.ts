@@ -27,6 +27,7 @@ export const sitemap: NavItem[] = [
       { label: 'nav.measureUnits', icon: 'pi pi-percentage', route: '/configuration/measure-units' },
       { label: 'nav.warehouses', icon: 'pi pi-building', route: '/configuration/warehouses' },
       { label: 'nav.departments', icon: 'pi pi-sitemap', route: '/configuration/departments' },
+      { label: 'nav.machines', icon: 'pi pi-cog', route: '/configuration/machines' },
       { label: 'nav.operators', icon: 'pi pi-id-card', route: '/configuration/operators' }
     ]
   },

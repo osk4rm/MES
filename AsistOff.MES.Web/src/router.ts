@@ -15,7 +15,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'dashboard', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
       { path: 'production', redirect: '/production/orders' },
       { path: 'production/orders', name: 'production-orders', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.productionOrders', icon: 'pi pi-list' } },
-      { path: 'production/recipes', name: 'production-recipes', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
+      { path: 'production/recipes', name: 'production-recipes', component: () => import('./views/production/RecipesView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
+      { path: 'production/recipes/:id', name: 'recipe-detail', component: () => import('./views/production/RecipeDetailView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
       { path: 'schedule', name: 'schedule', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.schedule', icon: 'pi pi-calendar' } },
       { path: 'reports', name: 'reports', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.reports', icon: 'pi pi-chart-bar' } },
       { path: 'settings', name: 'settings', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.settings', icon: 'pi pi-cog' } },
@@ -28,6 +29,7 @@ const routes: RouteRecordRaw[] = [
           { path: 'measure-units', name: 'measure-units', component: () => import('./views/configuration/MeasureUnitsView.vue') },
           { path: 'warehouses', name: 'warehouses', component: () => import('./views/configuration/WarehousesView.vue') },
           { path: 'departments', name: 'departments', component: () => import('./views/configuration/DepartmentsView.vue') },
+          { path: 'machines', name: 'machines', component: () => import('./views/configuration/MachinesView.vue') },
           { path: 'operators', name: 'operators', component: () => import('./views/configuration/OperatorsView.vue') }
         ]
       }
