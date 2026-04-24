@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddScoped<IRecipeVersionsRepository, RecipeVersionsRepository>();
         services.AddScoped<IOperationNodesRepository, OperationNodesRepository>();
         services.AddScoped<IChildEntitiesRepository, ChildEntitiesRepository>();
+        services.AddScoped<IOperationTemplatesRepository, OperationTemplatesRepository>();
 
         services.AddScoped<IEntityConfigurator, ProductionEntityConfigurator>();
 

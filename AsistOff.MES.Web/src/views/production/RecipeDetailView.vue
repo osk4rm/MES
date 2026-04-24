@@ -70,22 +70,26 @@ function statusPillClass(status: RecipeVersionStatus): string {
   return 'pill--muted';
 }
 
-async function loadRecipe() {
+async function fetchRecipeData() {
   loading.value = true;
   try {
     recipe.value = await recipeService.get(recipeId.value);
-    if ((recipe.value.versions?.length ?? 0) > 0) {
-      const targetId = recipe.value.currentVersionId ?? recipe.value.versions![recipe.value.versions!.length - 1].id;
-      await loadVersion(targetId);
-    } else {
-      selectedVersionId.value = null;
-      selectedVersion.value = null;
-    }
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.loadFailed')));
     recipe.value = null;
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadRecipe() {
+  await fetchRecipeData();
+  if (recipe.value && (recipe.value.versions?.length ?? 0) > 0) {
+    const targetId = recipe.value.currentVersionId ?? recipe.value.versions![recipe.value.versions!.length - 1].id;
+    await loadVersion(targetId);
+  } else {
+    selectedVersionId.value = null;
+    selectedVersion.value = null;
   }
 }
 
@@ -116,8 +120,9 @@ async function createVersion() {
 
 async function reloadAll() {
   if (!selectedVersionId.value) return;
-  await loadRecipe();
-  if (selectedVersionId.value) await loadVersion(selectedVersionId.value);
+  const versionToKeep = selectedVersionId.value;
+  await fetchRecipeData();
+  await loadVersion(versionToKeep);
 }
 
 onMounted(loadRecipe);

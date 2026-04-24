@@ -15,6 +15,7 @@ public class ProductionEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<BomItem>();
         modelBuilder.Entity<OperationOutput>();
         modelBuilder.Entity<ResourceRequirement>();
+        modelBuilder.Entity<OperationTemplate>();
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProductionEntityConfigurator).Assembly);
     }

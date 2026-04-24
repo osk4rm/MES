@@ -24,7 +24,7 @@ public class RecipeVersionsController(ISender sender) : ApiController
         [FromBody] CreateRecipeVersionRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(request, cancellationToken);
-        return CreatedAtAction(nameof(GetAsync), new { id = result.Id }, result);
+        return CreatedAtAction("Get", new { id = result.Id }, result);
     }
 
     [HttpPost("clone")]
@@ -32,7 +32,7 @@ public class RecipeVersionsController(ISender sender) : ApiController
         [FromBody] CloneRecipeVersionRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(request, cancellationToken);
-        return CreatedAtAction(nameof(GetAsync), new { id = result.Id }, result);
+        return CreatedAtAction("Get", new { id = result.Id }, result);
     }
 
     [HttpPut("{id:guid}/metadata")]
