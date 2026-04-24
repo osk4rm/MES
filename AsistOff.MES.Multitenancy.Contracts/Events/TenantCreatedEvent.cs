@@ -2,4 +2,4 @@
 
 namespace AsistOff.MES.Multitenancy.Contracts.Events;
 
-public record TenantCreatedEvent(Guid Id, string Email, string Password) : IEvent;
+public record TenantCreatedEvent(Guid Id, string Email, string HashedPassword) : IEvent;

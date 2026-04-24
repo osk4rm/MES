@@ -3,6 +3,7 @@ using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Extensions;
 using AsistOff.MES.Shared.Abstractions.Pagination;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
+using LinqKit;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Configuration.Infrastructure.Repositories;
@@ -30,9 +31,9 @@ internal sealed class ProductsRepository(DefaultContext context) : IProductsRepo
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
-    public async Task<int> CountAsync(CancellationToken cancellationToken = default)
+    public async Task<int> CountAsync(ExpressionStarter<Product> predicate, CancellationToken cancellationToken = default)
     {
-        return await context.Products.CountAsync(cancellationToken);
+        return await context.Products.Where(predicate).CountAsync(cancellationToken);
     }
 
     public async Task<Product> AddAsync(Product entity, CancellationToken cancellationToken = default)

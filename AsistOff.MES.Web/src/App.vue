@@ -1,6 +1,8 @@
 <template>
   <router-view />
+  <AppToastHost />
 </template>
 
-<style>
-</style>
+<script setup lang="ts">
+import AppToastHost from './components/ui/AppToastHost.vue';
+</script>

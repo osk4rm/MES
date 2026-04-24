@@ -1,0 +1,47 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      microsoft:
+        patterns:
+          - "Microsoft.*"
+          - "System.*"
+      test-libraries:
+        patterns:
+          - "xunit*"
+          - "Moq"
+          - "FluentAssertions"
+          - "Microsoft.NET.Test.Sdk"
+
+  - package-ecosystem: npm
+    directory: "/AsistOff.MES.Web"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      vue-ecosystem:
+        patterns:
+          - "vue"
+          - "vue-*"
+          - "@vue/*"
+          - "@vitejs/*"
+          - "vite"
+          - "pinia"
+      primevue:
+        patterns:
+          - "primevue"
+          - "primeicons"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: docker
+    directory: "/AsistOff.MES.Web"
+    schedule:
+      interval: monthly

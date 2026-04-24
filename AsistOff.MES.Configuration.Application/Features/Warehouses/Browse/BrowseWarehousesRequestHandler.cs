@@ -23,7 +23,7 @@ public sealed class BrowseWarehousesRequestHandler(
         if (!string.IsNullOrWhiteSpace(request.Name))
             predicate = predicate.And(x => x.Name.Contains(request.Name));
 
-        var totalCount = await warehousesRepository.CountAsync(cancellationToken);
+        var totalCount = await warehousesRepository.CountAsync(predicate, cancellationToken);
         var paginator = new Paginator<Warehouse>(predicate, request);
 
         var warehouses = await warehousesRepository.BrowseAsync(paginator, cancellationToken);

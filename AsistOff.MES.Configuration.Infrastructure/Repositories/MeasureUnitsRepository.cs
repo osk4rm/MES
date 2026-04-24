@@ -3,6 +3,7 @@ using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Extensions;
 using AsistOff.MES.Shared.Abstractions.Pagination;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
+using LinqKit;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Configuration.Infrastructure.Repositories;
@@ -13,6 +14,7 @@ internal sealed class MeasureUnitsRepository(DefaultContext context)
     public async Task<IReadOnlyCollection<MeasureUnit>> BrowseAsync(Paginator<MeasureUnit> paginator, CancellationToken cancellationToken = default)
     {
         var units = await context.MeasureUnits
+            .Include(x => x.BaseUnit)
             .PageFilter(paginator)
             .ToListAsync(cancellationToken);
 
@@ -26,9 +28,10 @@ internal sealed class MeasureUnitsRepository(DefaultContext context)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
-    public async Task<int> CountAsync(CancellationToken cancellationToken = default)
+    public async Task<int> CountAsync(ExpressionStarter<MeasureUnit> predicate, CancellationToken cancellationToken = default)
     {
         return await context.MeasureUnits
+            .Where(predicate)
             .CountAsync(cancellationToken);
     }
 

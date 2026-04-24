@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace AsistOff.MES.Shared.Infrastructure.Auth;
 
-internal sealed class DisabledAuthenticationPolicyEvaluator: IPolicyEvaluator
+internal sealed class DisabledAuthenticationPolicyEvaluator : IPolicyEvaluator
 {
     public Task<AuthenticateResult> AuthenticateAsync(AuthorizationPolicy policy, HttpContext context)
     {
@@ -17,7 +17,7 @@ internal sealed class DisabledAuthenticationPolicyEvaluator: IPolicyEvaluator
     }
 
     public Task<PolicyAuthorizationResult> AuthorizeAsync(AuthorizationPolicy policy,
-        AuthenticateResult authenticationResult, HttpContext context, object resource)
+        AuthenticateResult authenticationResult, HttpContext context, object? resource)
     {
         return Task.FromResult(PolicyAuthorizationResult.Success());
     }

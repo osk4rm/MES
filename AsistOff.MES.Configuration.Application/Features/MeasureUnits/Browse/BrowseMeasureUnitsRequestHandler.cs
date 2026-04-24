@@ -18,7 +18,7 @@ internal sealed class BrowseMeasureUnitsRequestHandler(
         CancellationToken cancellationToken)
     {
         var filter = BuildPredicate(request);
-        var totalCount = await measureUnitsRepository.CountAsync(cancellationToken);
+        var totalCount = await measureUnitsRepository.CountAsync(filter, cancellationToken);
         var paginator = new Paginator<MeasureUnit>(filter, request);
         
         var measureUnits = await measureUnitsRepository.BrowseAsync(paginator, cancellationToken);

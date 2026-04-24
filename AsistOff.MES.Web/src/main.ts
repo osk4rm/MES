@@ -1,41 +1,20 @@
-import { createApp } from 'vue'
-import App from './App.vue'
-import './style.css'
-import 'primeicons/primeicons.css';
-
-import PrimeVue from 'primevue/config';
-import InputText from 'primevue/inputtext';
-import FloatLabel from 'primevue/floatlabel';
-import Toast from 'vue-toastification';
-import 'vue-toastification/dist/index.css';
+import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import App from './App.vue';
 import router from './router';
 import i18n from './i18n';
-import { createPinia } from 'pinia';
+import { useAuthStore } from './stores/authStore';
 
-const app = createApp(App)
-app.use(router)
-app.use(PrimeVue)
-app.component('InputText', InputText)
-app.component('FloatLabel', FloatLabel)
-app.use(Toast, {
-  position: 'top-right',
-  timeout: 3000,
-  closeOnClick: true,
-  pauseOnHover: true,
-  draggable: true,
-  showCloseButtonOnHover: false,
-  hideProgressBar: false,
-  closeButton: 'button',
-  icon: true,
-  rtl: false
-})
-app.use(i18n)
-const pinia = createPinia()
-app.use(pinia)
+import './style.css';
+import 'primeicons/primeicons.css';
 
-// Initialize auth store to load token from localStorage
-import { useAuthStore } from './stores/authStore'
-const authStore = useAuthStore(pinia)
-authStore.loadAuth()
+const app = createApp(App);
+const pinia = createPinia();
+app.use(pinia);
+app.use(router);
+app.use(i18n);
 
-app.mount('#app')
+// Initialize auth state from localStorage before mounting
+useAuthStore(pinia).loadAuth();
+
+app.mount('#app');
