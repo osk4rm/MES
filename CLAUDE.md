@@ -17,6 +17,7 @@ Load the relevant file(s) **only when you're working in that area** to keep cont
 | `.github/instructions/database.instructions.md` | EF Core entities, migrations, repositories, multitenancy / ISaasy |
 | `.github/instructions/api.instructions.md` | Controllers, HTTP endpoints, error handling, authorization |
 | `.github/instructions/testing.instructions.md` | Writing or modifying tests (backend xUnit or frontend Vitest) |
+| `.github/instructions/production-recipes.instructions.md` | Any work in the Recipes / Production module (entities, CRUD, frontend views, Skills, OperationTemplates) |
 
 ## Running the Project
 
