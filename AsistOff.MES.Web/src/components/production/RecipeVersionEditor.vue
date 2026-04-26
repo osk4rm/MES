@@ -266,7 +266,10 @@ const props = defineProps<{
   version: RecipeVersionDetailResponse;
   recipeId: string;
 }>();
-const emit = defineEmits<{ (e: 'refresh'): void }>();
+const emit = defineEmits<{
+  (e: 'refresh'): void;
+  (e: 'version-deleted', deletedVersionId: string): void;
+}>();
 
 const { t } = useI18n();
 const toast = useToastStore();
@@ -476,9 +479,13 @@ async function releaseVersion() {
 async function onDeleteVersion() {
   if (!confirm(t('recipes.detail.confirmDeleteVersion'))) return;
   try {
-    await recipeVersionService.remove(props.version.id);
+    const deletedId = props.version.id;
+    await recipeVersionService.remove(deletedId);
     toast.success(t('toasts.deleted'));
-    emit('refresh');
+    // The parent view decides where to navigate next (previous version, last
+    // existing, or — when no versions remain — opens a delete/deactivate prompt
+    // for the entire recipe).
+    emit('version-deleted', deletedId);
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.deleteFailed')));
   }

@@ -30,7 +30,42 @@
       :version="selectedVersion"
       :recipe-id="recipe.id"
       @refresh="reloadAll"
+      @version-deleted="onVersionDeleted"
     />
+
+    <AppModal
+      :open="cleanupModalOpen"
+      :title="$t('recipes.detail.noVersionsLeftTitle')"
+      @close="cleanupModalOpen = false"
+    >
+      <p>{{ $t('recipes.detail.noVersionsLeftPrompt') }}</p>
+      <p class="cleanup-hint">
+        {{ wasEverReleased
+          ? $t('recipes.detail.noVersionsLeftDeactivateHint')
+          : $t('recipes.detail.noVersionsLeftDeleteHint') }}
+      </p>
+      <template #footer>
+        <AppButton variant="ghost" :disabled="cleanupBusy" @click="cleanupModalOpen = false">
+          {{ $t('recipes.detail.keepRecipe') }}
+        </AppButton>
+        <AppButton
+          v-if="wasEverReleased"
+          variant="primary"
+          :loading="cleanupBusy"
+          @click="deactivateRecipe"
+        >
+          {{ $t('recipes.detail.deactivateRecipe') }}
+        </AppButton>
+        <AppButton
+          v-else
+          variant="danger"
+          :loading="cleanupBusy"
+          @click="deleteRecipe"
+        >
+          {{ $t('recipes.detail.deleteRecipe') }}
+        </AppButton>
+      </template>
+    </AppModal>
   </div>
   <div v-else-if="loading" class="loading"><i class="pi pi-spin pi-spinner" /> {{ $t('common.loading') }}</div>
   <div v-else class="loading">{{ $t('common.notFound') }}</div>
@@ -38,17 +73,19 @@
 
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppButton from '../../components/ui/AppButton.vue';
+import AppModal from '../../components/ui/AppModal.vue';
 import RecipeVersionEditor from '../../components/production/RecipeVersionEditor.vue';
-import { recipeService, type RecipeResponse, RecipeVersionStatus } from '../../services/recipeService';
+import { recipeService, type RecipeResponse, type RecipeVersionSummary, RecipeVersionStatus } from '../../services/recipeService';
 import { recipeVersionService, type RecipeVersionDetailResponse } from '../../services/recipeVersionService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const route = useRoute();
+const router = useRouter();
 const { t } = useI18n();
 const toast = useToastStore();
 
@@ -56,6 +93,16 @@ const recipe = ref<RecipeResponse | null>(null);
 const selectedVersionId = ref<string | null>(null);
 const selectedVersion = ref<RecipeVersionDetailResponse | null>(null);
 const loading = ref(false);
+
+// "No versions left" cleanup prompt state.
+const cleanupModalOpen = ref(false);
+const cleanupBusy = ref(false);
+// Whether the recipe was ever released — used to decide between "Delete" and
+// "Deactivate" as the primary action in the cleanup prompt. Captured at the
+// moment the last version is deleted (the recipe response after delete may
+// still surface this via currentVersionId, but we snapshot it eagerly to be
+// resilient to backend changes).
+const wasEverReleased = ref(false);
 
 const recipeId = computed(() => String(route.params.id));
 
@@ -102,6 +149,11 @@ async function loadVersion(id: string) {
   }
 }
 
+function clearSelection() {
+  selectedVersionId.value = null;
+  selectedVersion.value = null;
+}
+
 async function createVersion() {
   if (!recipe.value) return;
   // If we have a released version, clone it; otherwise create blank.
@@ -125,6 +177,87 @@ async function reloadAll() {
   await loadVersion(versionToKeep);
 }
 
+/// <summary>
+/// After a version is deleted in the editor, navigate to the most appropriate
+/// remaining version:
+///   1) the previous version (highest VersionNumber strictly less than deleted),
+///   2) otherwise the last existing version (highest VersionNumber),
+///   3) otherwise — no versions remain — open the cleanup prompt to delete or
+///      deactivate the recipe.
+/// </summary>
+async function onVersionDeleted(deletedId: string) {
+  // Snapshot release history *before* refetching, in case the backend updates
+  // currentVersionId during cascade or the recipe row is still under a stale
+  // representation. Fall back to the version list if needed.
+  const before = recipe.value;
+  const everReleasedSnapshot = !!(
+    before?.currentVersionId ||
+    (before?.versions ?? []).some(v => v.status === RecipeVersionStatus.Released)
+  );
+  const deletedVersionNumber = (before?.versions ?? []).find(v => v.id === deletedId)?.versionNumber ?? null;
+
+  await fetchRecipeData();
+
+  const remaining = (recipe.value?.versions ?? []).slice().sort(byVersionNumberDesc);
+  if (remaining.length === 0) {
+    clearSelection();
+    wasEverReleased.value = everReleasedSnapshot;
+    cleanupModalOpen.value = true;
+    return;
+  }
+
+  // Prefer the largest VersionNumber that is strictly less than the deleted one.
+  let next: RecipeVersionSummary | undefined;
+  if (deletedVersionNumber !== null) {
+    next = remaining.find(v => v.versionNumber < deletedVersionNumber);
+  }
+  // Fallback: the latest remaining version (e.g. when we deleted the oldest).
+  next ??= remaining[0];
+
+  await loadVersion(next.id);
+}
+
+function byVersionNumberDesc(a: RecipeVersionSummary, b: RecipeVersionSummary): number {
+  return b.versionNumber - a.versionNumber;
+}
+
+async function deleteRecipe() {
+  if (!recipe.value) return;
+  cleanupBusy.value = true;
+  try {
+    await recipeService.remove(recipe.value.id);
+    toast.success(t('recipes.detail.recipeDeleted'));
+    cleanupModalOpen.value = false;
+    await router.push({ name: 'production-recipes' });
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.deleteFailed')));
+  } finally {
+    cleanupBusy.value = false;
+  }
+}
+
+async function deactivateRecipe() {
+  if (!recipe.value) return;
+  cleanupBusy.value = true;
+  try {
+    await recipeService.update(recipe.value.id, {
+      id: recipe.value.id,
+      code: recipe.value.code,
+      name: recipe.value.name,
+      description: recipe.value.description ?? null,
+      isActive: false,
+      primaryProductId: recipe.value.primaryProductId ?? null
+    });
+    toast.success(t('recipes.detail.recipeDeactivated'));
+    cleanupModalOpen.value = false;
+    await router.push({ name: 'production-recipes' });
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+  } finally {
+    cleanupBusy.value = false;
+  }
+}
+
 onMounted(loadRecipe);
 </script>
 
@@ -141,4 +274,5 @@ onMounted(loadRecipe);
 .pill--info { background: #dbeafe; color: #1e40af; }
 .pill--muted { background: #e5e7eb; color: #374151; }
 .loading { padding: var(--space-6); text-align: center; color: var(--color-text-muted, #6b7280); }
+.cleanup-hint { color: var(--color-text-muted, #6b7280); margin-top: var(--space-2); }
 </style>
