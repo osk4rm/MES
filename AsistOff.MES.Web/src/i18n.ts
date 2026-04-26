@@ -52,6 +52,8 @@ const pl = {
     departments: 'Działy',
     machines: 'Maszyny',
     operators: 'Operatorzy',
+    skills: 'Umiejętności',
+    operationTemplates: 'Wzorcowe operacje',
     settings: 'Ustawienia'
   },
   auth: {
@@ -174,6 +176,8 @@ const pl = {
     code: 'Kod',
     name: 'Nazwa',
     description: 'Opis',
+    primaryProduct: 'Produkt główny',
+    primaryProductPlaceholder: 'Wybierz produkt…',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' },
     versionStatus: { draft: 'Szkic', released: 'Wydana', obsolete: 'Wycofana' },
     dependencyType: {
@@ -211,13 +215,16 @@ const pl = {
       },
       dependenciesHelp: 'Operacje poprzedzające, które muszą być wykonane przed tą operacją.',
       predecessor: 'Operacja poprzedzająca',
+      product: 'Produkt',
       productId: 'ID produktu',
       quantity: 'Ilość',
       quantityType: 'Typ ilości',
       outputType: 'Typ wyniku',
       capability: 'Wymagana umiejętność',
       operatorCount: 'Liczba operatorów',
-      role: 'Rola'
+      role: 'Rola',
+      fromTemplate: 'Wzorcowa operacja',
+      fromTemplatePlaceholder: 'Wybierz wzorzec (opcjonalne)…'
     }
   },
   attachments: {
@@ -225,6 +232,24 @@ const pl = {
     upload: 'Wgraj plik',
     empty: 'Brak załączników',
     confirmDelete: 'Czy na pewno usunąć ten załącznik?'
+  },
+  skills: {
+    title: 'Umiejętności',
+    subtitle: 'Słownik umiejętności operatorów',
+    create: 'Nowa umiejętność',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
+  },
+  operationTemplates: {
+    title: 'Wzorcowe operacje',
+    subtitle: 'Szablony do ponownego użycia podczas tworzenia receptur',
+    create: 'Nowy wzorzec',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
   },
   scanBy: { 1: 'EAN', 2: 'Kod' },
   stubs: {
@@ -302,6 +327,8 @@ const en: typeof pl = {
     departments: 'Departments',
     machines: 'Machines',
     operators: 'Operators',
+    skills: 'Skills',
+    operationTemplates: 'Operation templates',
     settings: 'Settings'
   },
   auth: {
@@ -424,6 +451,8 @@ const en: typeof pl = {
     code: 'Code',
     name: 'Name',
     description: 'Description',
+    primaryProduct: 'Primary product',
+    primaryProductPlaceholder: 'Select product…',
     filters: { code: 'Code contains…', name: 'Name contains…' },
     versionStatus: { draft: 'Draft', released: 'Released', obsolete: 'Obsolete' },
     dependencyType: {
@@ -461,13 +490,16 @@ const en: typeof pl = {
       },
       dependenciesHelp: 'Predecessor operations that must complete before this one.',
       predecessor: 'Predecessor operation',
+      product: 'Product',
       productId: 'Product ID',
       quantity: 'Quantity',
       quantityType: 'Qty type',
       outputType: 'Output type',
       capability: 'Required capability',
       operatorCount: 'Operator count',
-      role: 'Role'
+      role: 'Role',
+      fromTemplate: 'Template operation',
+      fromTemplatePlaceholder: 'Select a template (optional)…'
     }
   },
   attachments: {
@@ -475,6 +507,24 @@ const en: typeof pl = {
     upload: 'Upload file',
     empty: 'No attachments',
     confirmDelete: 'Really delete this attachment?'
+  },
+  skills: {
+    title: 'Skills',
+    subtitle: 'Operator skill dictionary',
+    create: 'New skill',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    filters: { code: 'Code contains…', name: 'Name contains…' }
+  },
+  operationTemplates: {
+    title: 'Operation templates',
+    subtitle: 'Reusable templates for recipe operations',
+    create: 'New template',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    filters: { code: 'Code contains…', name: 'Name contains…' }
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
   stubs: {

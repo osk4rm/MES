@@ -101,14 +101,14 @@
             <div v-else-if="activeTab === 'bom'">
               <table class="grid">
                 <thead><tr>
-                  <th>{{ $t('recipes.detail.productId') }}</th>
+                  <th>{{ $t('recipes.detail.product') }}</th>
                   <th>{{ $t('recipes.detail.quantity') }}</th>
                   <th>{{ $t('recipes.detail.quantityType') }}</th>
                   <th v-if="isDraft"></th>
                 </tr></thead>
                 <tbody>
                   <tr v-for="item in selectedOperation.bomItems" :key="item.id">
-                    <td class="mono">{{ item.productId }}</td>
+                    <td>{{ productLabel(item.productId) }}</td>
                     <td>{{ item.quantity }}</td>
                     <td>{{ $t(`recipes.quantityType.${qtyTypeKey(item.quantityType)}`) }}</td>
                     <td v-if="isDraft">
@@ -119,7 +119,7 @@
                 </tbody>
               </table>
               <div v-if="isDraft" class="add-row wrap">
-                <AppInput v-model="newBom.productId" :placeholder="$t('recipes.detail.productId')" />
+                <AppAutocomplete v-model="newBom.productId" :options="productOptions" :placeholder="$t('recipes.detail.product')" />
                 <AppInput v-model.number="newBom.quantity" type="number" :placeholder="$t('recipes.detail.quantity')" />
                 <select v-model.number="newBom.quantityType">
                   <option :value="1">{{ $t('recipes.quantityType.perUnit') }}</option>
@@ -136,14 +136,14 @@
             <div v-else-if="activeTab === 'outputs'">
               <table class="grid">
                 <thead><tr>
-                  <th>{{ $t('recipes.detail.productId') }}</th>
+                  <th>{{ $t('recipes.detail.product') }}</th>
                   <th>{{ $t('recipes.detail.quantity') }}</th>
                   <th>{{ $t('recipes.detail.outputType') }}</th>
                   <th v-if="isDraft"></th>
                 </tr></thead>
                 <tbody>
                   <tr v-for="o in selectedOperation.outputs" :key="o.id">
-                    <td class="mono">{{ o.productId }}</td>
+                    <td>{{ productLabel(o.productId) }}</td>
                     <td>{{ o.quantity }}</td>
                     <td>{{ $t(`recipes.outputType.${outputTypeKey(o.outputType)}`) }}</td>
                     <td v-if="isDraft"><AppButton size="sm" variant="ghost" icon="pi pi-times" @click="removeOutput(o.id)" /></td>
@@ -152,7 +152,7 @@
                 </tbody>
               </table>
               <div v-if="isDraft" class="add-row wrap">
-                <AppInput v-model="newOutput.productId" :placeholder="$t('recipes.detail.productId')" />
+                <AppAutocomplete v-model="newOutput.productId" :options="productOptions" :placeholder="$t('recipes.detail.product')" />
                 <AppInput v-model.number="newOutput.quantity" type="number" :placeholder="$t('recipes.detail.quantity')" />
                 <select v-model.number="newOutput.outputType">
                   <option :value="1">{{ $t('recipes.outputType.product') }}</option>
@@ -186,7 +186,7 @@
                 </tbody>
               </table>
               <div v-if="isDraft" class="add-row wrap">
-                <AppInput v-model="newResource.requiredCapability" :placeholder="$t('recipes.detail.capability')" />
+                <AppAutocomplete v-model="newResource.selectedSkillId" :options="skillOptions" :placeholder="$t('recipes.detail.capability')" />
                 <AppInput v-model.number="newResource.requiredOperatorCount" type="number" :placeholder="$t('recipes.detail.operatorCount')" />
                 <AppInput v-model="newResource.requiredRole" :placeholder="$t('recipes.detail.role')" />
                 <AppButton size="sm" variant="primary" icon="pi pi-plus" @click="addResource">
@@ -207,6 +207,11 @@
     <!-- Add / Edit operation modal -->
     <AppModal :open="opModalOpen" :title="editingOperation ? $t('common.edit') : $t('recipes.detail.addOperation')" @close="opModalOpen = false">
       <form id="op-form" class="form-grid" @submit.prevent="saveOperation">
+        <AppFormField v-if="!editingOperation && templateOptions.length > 0" :label="$t('recipes.detail.fromTemplate')" class="form-grid__full">
+          <template #default="{ id }">
+            <AppAutocomplete :id="id" v-model="selectedTemplateId" :options="templateOptions" :placeholder="$t('recipes.detail.fromTemplatePlaceholder')" />
+          </template>
+        </AppFormField>
         <AppFormField :label="$t('recipes.detail.opCode')" required>
           <template #default="{ id, invalid }"><AppInput :id="id" v-model="opForm.code" required :invalid="invalid" /></template>
         </AppFormField>
@@ -232,12 +237,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppButton from '../ui/AppButton.vue';
 import AppInput from '../ui/AppInput.vue';
 import AppModal from '../ui/AppModal.vue';
 import AppFormField from '../ui/AppFormField.vue';
+import AppAutocomplete, { type AutocompleteOption } from '../ui/AppAutocomplete.vue';
 import AttachmentsPanel from './AttachmentsPanel.vue';
 import {
   recipeVersionService,
@@ -250,6 +256,9 @@ import {
   RunTimeMode
 } from '../../services/recipeVersionService';
 import { RecipeVersionStatus } from '../../services/recipeService';
+import { productService, type ProductResponse } from '../../services/productService';
+import { skillService, type SkillResponse } from '../../services/skillService';
+import { operationTemplateService, type OperationTemplateResponse } from '../../services/operationTemplateService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -263,6 +272,42 @@ const { t } = useI18n();
 const toast = useToastStore();
 
 const releasing = ref(false);
+
+// ─── lookup data ──────────────────────────────────────────────────────────────
+const products = ref<ProductResponse[]>([]);
+const skills = ref<SkillResponse[]>([]);
+const operationTemplates = ref<OperationTemplateResponse[]>([]);
+
+const productOptions = computed<AutocompleteOption[]>(() =>
+  products.value.map(p => ({ value: p.id, label: `${p.code} — ${p.name}` })));
+
+const skillOptions = computed<AutocompleteOption[]>(() =>
+  skills.value.map(s => ({ value: s.id, label: `${s.code} — ${s.name}` })));
+
+const templateOptions = computed<AutocompleteOption[]>(() =>
+  operationTemplates.value.map(t => ({ value: t.id, label: `${t.code} — ${t.name}` })));
+
+function productLabel(id: string): string {
+  const p = products.value.find(x => x.id === id);
+  return p ? `${p.code} — ${p.name}` : id;
+}
+
+async function loadLookups() {
+  try {
+    const [prods, skls, tpls] = await Promise.all([
+      productService.browse({ pageSize: 500 }),
+      skillService.browse({ pageSize: 500 }),
+      operationTemplateService.browse({ pageSize: 500, isActive: true })
+    ]);
+    products.value = prods.items;
+    skills.value = skls.items;
+    operationTemplates.value = tpls.items;
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  }
+}
+
+onMounted(loadLookups);
 
 type TabKey = 'dependencies' | 'bom' | 'outputs' | 'resources' | 'attachments';
 const tabs: { key: TabKey }[] = [
@@ -316,6 +361,7 @@ function outputTypeKey(t: OperationOutputType): string {
 const opModalOpen = ref(false);
 const editingOperation = ref<OperationNodeDto | null>(null);
 const savingOp = ref(false);
+const selectedTemplateId = ref<string | null>(null);
 const opForm = reactive({
   code: '', name: '', description: '' as string | null,
   setupTimeMinutes: null as number | null,
@@ -324,9 +370,24 @@ const opForm = reactive({
 
 function openAddOperation() {
   editingOperation.value = null;
+  selectedTemplateId.value = null;
   Object.assign(opForm, { code: '', name: '', description: '', setupTimeMinutes: null, runTimePerUnitSeconds: null });
   opModalOpen.value = true;
 }
+
+watch(selectedTemplateId, (id) => {
+  if (!id || editingOperation.value) return;
+  const tpl = operationTemplates.value.find(t => t.id === id);
+  if (tpl) {
+    Object.assign(opForm, {
+      code: tpl.code,
+      name: tpl.name,
+      description: tpl.description ?? '',
+      setupTimeMinutes: tpl.setupTimeMinutes,
+      runTimePerUnitSeconds: tpl.runTimePerUnitSeconds
+    });
+  }
+});
 function openEditOperation() {
   if (!selectedOperation.value) return;
   editingOperation.value = selectedOperation.value;
@@ -525,24 +586,25 @@ async function removeOutput(id: string) {
 
 // resources
 const newResource = reactive({
-  requiredCapability: '' as string | null,
+  selectedSkillId: null as string | null,
   requiredOperatorCount: 1,
   requiredRole: '' as string | null
 });
 async function addResource() {
   if (!selectedOperation.value) return;
   try {
+    const skill = newResource.selectedSkillId ? skills.value.find(s => s.id === newResource.selectedSkillId) : null;
     await recipeVersionService.addResource(selectedOperation.value.id, {
       operationId: selectedOperation.value.id,
       preferredDepartmentId: null,
       preferredMachineId: null,
-      requiredCapability: newResource.requiredCapability || null,
+      requiredCapability: skill ? `${skill.code} — ${skill.name}` : null,
       requiredOperatorCount: newResource.requiredOperatorCount,
       requiredRole: newResource.requiredRole || null,
       notes: null
     });
     toast.success(t('toasts.created'));
-    newResource.requiredCapability = ''; newResource.requiredOperatorCount = 1; newResource.requiredRole = '';
+    newResource.selectedSkillId = null; newResource.requiredOperatorCount = 1; newResource.requiredRole = '';
     emit('refresh');
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.saveFailed')));
