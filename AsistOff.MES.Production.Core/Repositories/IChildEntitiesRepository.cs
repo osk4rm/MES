@@ -8,8 +8,15 @@ public interface IChildEntitiesRepository
     Task<OperationOutput?> GetOperationOutputAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ResourceRequirement?> GetResourceRequirementAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task AddBomItemAsync(BomItem entity, CancellationToken cancellationToken = default);
     Task AddOperationOutputAsync(OperationOutput entity, CancellationToken cancellationToken = default);
     Task AddResourceRequirementAsync(ResourceRequirement entity, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the highest <c>SortIndex</c> currently used by BOM items
+    /// belonging to the given operation, or <c>null</c> if none exist.
+    /// </summary>
+    Task<int?> GetMaxBomItemSortIndexAsync(Guid operationNodeId, CancellationToken cancellationToken = default);
 
     Task RemoveBomItemAsync(Guid id, CancellationToken cancellationToken = default);
     Task RemoveOperationOutputAsync(Guid id, CancellationToken cancellationToken = default);

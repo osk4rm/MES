@@ -16,6 +16,12 @@ internal sealed class ChildEntitiesRepository(DefaultContext context) : IChildEn
     public Task<ResourceRequirement?> GetResourceRequirementAsync(Guid id, CancellationToken cancellationToken = default)
         => context.Set<ResourceRequirement>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+    public async Task AddBomItemAsync(BomItem entity, CancellationToken cancellationToken = default)
+    {
+        context.Set<BomItem>().Add(entity);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task AddOperationOutputAsync(OperationOutput entity, CancellationToken cancellationToken = default)
     {
         context.Set<OperationOutput>().Add(entity);
@@ -27,6 +33,12 @@ internal sealed class ChildEntitiesRepository(DefaultContext context) : IChildEn
         context.Set<ResourceRequirement>().Add(entity);
         await context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<int?> GetMaxBomItemSortIndexAsync(Guid operationNodeId, CancellationToken cancellationToken = default)
+        => await context.Set<BomItem>()
+            .Where(x => x.OperationNodeId == operationNodeId)
+            .Select(x => (int?)x.SortIndex)
+            .MaxAsync(cancellationToken);
 
     public async Task RemoveBomItemAsync(Guid id, CancellationToken cancellationToken = default)
     {

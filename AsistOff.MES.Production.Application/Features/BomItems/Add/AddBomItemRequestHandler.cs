@@ -9,6 +9,7 @@ using MediatR;
 namespace AsistOff.MES.Production.Application.Features.BomItems.Add;
 
 internal sealed class AddBomItemRequestHandler(
+    IChildEntitiesRepository childRepository,
     IOperationNodesRepository operationsRepository,
     IRecipeVersionsRepository versionsRepository,
     IGuidProvider guidProvider,
@@ -17,13 +18,19 @@ internal sealed class AddBomItemRequestHandler(
 {
     public async Task<Guid> Handle(AddBomItemRequest request, CancellationToken cancellationToken)
     {
-        var op = await operationsRepository.GetWithDetailsAsync(request.OperationId, cancellationToken)
+        // Lightweight load — we only need OperationNodeId / RecipeVersionId / TenantId here.
+        // We deliberately avoid GetWithDetailsAsync (which eagerly loads BomItems / Outputs /
+        // ResourceRequirements / Dependencies via split queries). Mutating the navigation
+        // collection of a tracked principal under that loading pattern was producing a
+        // DbUpdateConcurrencyException on save; using DbSet.Add directly mirrors the proven
+        // pattern already used by AddOperationOutput / AddResourceRequirement.
+        var op = await operationsRepository.GetAsync(request.OperationId, cancellationToken)
             ?? throw new NotFoundException("OperationNode", request.OperationId);
 
         await VersionGuard.EnsureDraftAsync(versionsRepository, op.RecipeVersionId, cancellationToken);
 
         var sortIndex = request.SortIndex ??
-            ((op.BomItems.Select(b => (int?)b.SortIndex).Max() ?? -1) + 1);
+            ((await childRepository.GetMaxBomItemSortIndexAsync(op.Id, cancellationToken) ?? -1) + 1);
 
         var entity = new BomItem
         {
@@ -42,8 +49,7 @@ internal sealed class AddBomItemRequestHandler(
             SortIndex = sortIndex
         };
 
-        op.BomItems.Add(entity);
-        await operationsRepository.SaveChangesAsync(cancellationToken);
+        await childRepository.AddBomItemAsync(entity, cancellationToken);
         return entity.Id;
     }
 }

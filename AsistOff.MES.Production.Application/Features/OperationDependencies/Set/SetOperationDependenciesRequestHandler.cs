@@ -10,6 +10,7 @@ namespace AsistOff.MES.Production.Application.Features.OperationDependencies.Set
 
 internal sealed class SetOperationDependenciesRequestHandler(
     IOperationNodesRepository operationsRepository,
+    IOperationDependenciesRepository dependenciesRepository,
     IRecipeVersionsRepository versionsRepository,
     IGuidProvider guidProvider,
     ITenantContext tenantContext)
@@ -17,16 +18,18 @@ internal sealed class SetOperationDependenciesRequestHandler(
 {
     public async Task Handle(SetOperationDependenciesRequest request, CancellationToken cancellationToken)
     {
-        var op = await operationsRepository.GetWithDetailsAsync(request.OperationId, cancellationToken)
+        // Lightweight load: we only need the operation's RecipeVersionId for the draft
+        // guard. Do *not* load the operation with eager Includes — mutating the navigation
+        // collection of a tracked principal under split-query loading was the original
+        // source of DbUpdateConcurrencyException. All edge mutation here flows through
+        // IOperationDependenciesRepository (DbSet.Add / DbSet.Remove on tracked entities).
+        var op = await operationsRepository.GetAsync(request.OperationId, cancellationToken)
             ?? throw new NotFoundException("OperationNode", request.OperationId);
 
         var version = await VersionGuard.EnsureDraftAsync(versionsRepository, op.RecipeVersionId, cancellationToken);
 
-        // Load every operation in the version *with* its dependency edges so
-        // that cycle detection sees the whole DAG (lazy loading is intentionally
-        // not enabled — without Include, sibling edges would be silently empty).
-        var versionOps = await operationsRepository.ListForVersionWithDependenciesAsync(version.Id, cancellationToken);
-        var versionOpIds = versionOps.Select(o => o.Id).ToHashSet();
+        var versionOpIds = (await dependenciesRepository.ListOperationIdsForVersionAsync(version.Id, cancellationToken))
+            .ToHashSet();
 
         // Validate predecessor identities and reject self-loops / duplicates.
         var seen = new HashSet<Guid>();
@@ -40,31 +43,32 @@ internal sealed class SetOperationDependenciesRequestHandler(
                 throw new ValidationException("Dependencies", "Duplicate predecessor entries are not allowed.");
         }
 
-        // Whole-graph cycle detection: take every existing edge in the version,
-        // swap in the new edge set for the target operation, and run DFS.
-        var allEdges = versionOps
-            .SelectMany(o => o.Dependencies.Select(d => (Successor: o.Id, Predecessor: d.PredecessorOperationNodeId)))
+        // Whole-graph cycle detection: take every existing edge in the version (cheap
+        // projection — no entity hydration), swap in the proposed edge set for the
+        // target operation, and run DFS.
+        var existingVersionEdges = await dependenciesRepository.ListEdgesForVersionAsync(version.Id, cancellationToken);
+        var allEdges = existingVersionEdges
             .Where(e => e.Successor != op.Id)
             .ToList();
-
-        allEdges.AddRange(request.Dependencies.Select(d => (op.Id, d.PredecessorOperationId)));
+        allEdges.AddRange(request.Dependencies.Select(d => new DependencyEdge(op.Id, d.PredecessorOperationId)));
 
         if (HasCycle(versionOpIds, allEdges))
             throw new ValidationException("Dependencies", "The proposed dependency graph contains a cycle.");
 
-        // Stable diff against the currently tracked edges. Updating in place
-        // (rather than Clear() + Add() with new GUIDs) avoids spurious
+        // Stable diff against the currently tracked edges (loaded for THIS operation only).
+        // Updating in place — rather than Clear() + Add() with new GUIDs — avoids spurious
         // DELETE+INSERT batches that, combined with the unique index
-        // (OperationNodeId, PredecessorOperationNodeId), produced
-        // DbUpdateConcurrencyException when SaveChanges saw 0 rows affected.
-        var existingByPredecessor = op.Dependencies.ToDictionary(d => d.PredecessorOperationNodeId);
+        // (OperationNodeId, PredecessorOperationNodeId), produced DbUpdateConcurrencyException
+        // when SaveChanges saw 0 rows affected.
+        var existingEdges = await dependenciesRepository.ListForOperationAsync(op.Id, cancellationToken);
+        var existingByPredecessor = existingEdges.ToDictionary(d => d.PredecessorOperationNodeId);
         var requestedPredecessors = request.Dependencies.Select(d => d.PredecessorOperationId).ToHashSet();
 
         // 1) Remove edges that are no longer requested.
-        foreach (var existing in op.Dependencies.ToList())
+        foreach (var existing in existingEdges)
         {
             if (!requestedPredecessors.Contains(existing.PredecessorOperationNodeId))
-                op.Dependencies.Remove(existing);
+                dependenciesRepository.Remove(existing);
         }
 
         // 2) Update changed edges in place; insert truly new ones.
@@ -77,7 +81,7 @@ internal sealed class SetOperationDependenciesRequestHandler(
             }
             else
             {
-                op.Dependencies.Add(new OperationDependency
+                dependenciesRepository.Add(new OperationDependency
                 {
                     Id = guidProvider.NewGuid(),
                     TenantId = tenantContext.TenantId,
@@ -90,11 +94,11 @@ internal sealed class SetOperationDependenciesRequestHandler(
             }
         }
 
-        await operationsRepository.SaveChangesAsync(cancellationToken);
+        await dependenciesRepository.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>DFS-based cycle detection over a directed graph.</summary>
-    internal static bool HasCycle(HashSet<Guid> nodes, IReadOnlyCollection<(Guid Successor, Guid Predecessor)> edges)
+    internal static bool HasCycle(HashSet<Guid> nodes, IReadOnlyCollection<DependencyEdge> edges)
     {
         var successors = edges
             .GroupBy(e => e.Predecessor)
