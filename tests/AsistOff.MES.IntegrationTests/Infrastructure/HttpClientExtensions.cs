@@ -22,7 +22,7 @@ internal static class HttpClientExtensions
     public static async Task<T> PostJsonAsync<T>(this HttpClient client, string url, object body)
     {
         var response = await client.PostAsJsonAsync(url, body, Json);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessOrThrow(response, $"POST {url}");
         var result = await response.Content.ReadFromJsonAsync<T>(Json);
         return result!;
     }
@@ -30,12 +30,19 @@ internal static class HttpClientExtensions
     public static async Task PostJsonAsync(this HttpClient client, string url, object body)
     {
         var response = await client.PostAsJsonAsync(url, body, Json);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessOrThrow(response, $"POST {url}");
     }
 
     public static async Task PutJsonAsync(this HttpClient client, string url, object body)
     {
         var response = await client.PutAsJsonAsync(url, body, Json);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessOrThrow(response, $"PUT {url}");
+    }
+
+    private static async Task EnsureSuccessOrThrow(HttpResponseMessage response, string context)
+    {
+        if (response.IsSuccessStatusCode) return;
+        var body = await response.Content.ReadAsStringAsync();
+        throw new HttpRequestException($"{context} -> {(int)response.StatusCode} {response.StatusCode}\n{body}");
     }
 }
