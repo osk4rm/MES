@@ -1,9 +1,11 @@
 <template>
-  <span :class="['app-spinner', `app-spinner--${size}`]" role="status" aria-label="Loading"></span>
+  <span :class="['app-spinner', `app-spinner--${props.size}`]" role="status" aria-label="Loading"></span>
 </template>
 
 <script setup lang="ts">
-defineProps<{ size?: 'sm' | 'md' | 'lg' }>();
+const props = withDefaults(defineProps<{ size?: 'sm' | 'md' | 'lg' }>(), {
+  size: 'md',
+});
 </script>
 
 <style scoped>
