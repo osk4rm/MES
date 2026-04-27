@@ -1,46 +1,61 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
-import LoginView from './views/LoginView.vue';
-import RegisterView from './views/RegisterView.vue';
+import { useAuthStore } from './stores/authStore';
 
-import DashboardView from './views/DashboardView.vue';
-import ProductionView from './views/ProductionView.vue';
-import ReportsView from './views/ReportsView.vue';
-import WarehousesView from './views/WarehousesView.vue';
-import ScheduleView from './views/ScheduleView.vue';
+const AppShell = () => import('./components/layout/AppShell.vue');
 
 const routes: RouteRecordRaw[] = [
-  { path: '/', name: 'Login', component: LoginView },
-  { path: '/register', name: 'Register', component: RegisterView },
+  { path: '/', redirect: '/dashboard' },
+  { path: '/login', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
+  { path: '/register', name: 'register', component: () => import('./views/RegisterView.vue'), meta: { public: true } },
   {
     path: '/',
-    component: () => import('./components/MainLayout.vue'),
+    component: AppShell,
     children: [
-      { path: 'dashboard', name: 'Dashboard', component: DashboardView },
-      { path: 'production-orders', name: 'ProductionOrders', component: ProductionView },
-      { path: 'production-recipes', name: 'ProductionRecipes', component: () => import('./views/ProductionView.vue') },
-      { path: 'schedule', name: 'Schedule', component: ScheduleView },
-      { path: 'report', name: 'Report', component: ReportsView },
+      { path: 'dashboard', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
+      { path: 'production', redirect: '/production/orders' },
+      { path: 'production/orders', name: 'production-orders', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.productionOrders', icon: 'pi pi-list' } },
+      { path: 'production/recipes', name: 'production-recipes', component: () => import('./views/production/RecipesView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
+      { path: 'production/recipes/:id', name: 'recipe-detail', component: () => import('./views/production/RecipeDetailView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
+      { path: 'schedule', name: 'schedule', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.schedule', icon: 'pi pi-calendar' } },
+      { path: 'reports', name: 'reports', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.reports', icon: 'pi pi-chart-bar' } },
+      { path: 'settings', name: 'settings', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.settings', icon: 'pi pi-cog' } },
       {
         path: 'configuration',
-        name: 'Configuration',
-        redirect: '/configuration/warehouses',
+        redirect: '/configuration/products',
         children: [
-          { path: 'warehouses', name: 'Warehouses', component: WarehousesView },
-          { 
-            path: 'departments', 
-            name: 'Departments', 
-            component: () => import('./views/DepartmentsView.vue')
-          },
+          { path: 'products', name: 'products', component: () => import('./views/configuration/ProductsView.vue') },
+          { path: 'product-groups', name: 'product-groups', component: () => import('./views/configuration/ProductGroupsView.vue') },
+          { path: 'measure-units', name: 'measure-units', component: () => import('./views/configuration/MeasureUnitsView.vue') },
+          { path: 'warehouses', name: 'warehouses', component: () => import('./views/configuration/WarehousesView.vue') },
+          { path: 'departments', name: 'departments', component: () => import('./views/configuration/DepartmentsView.vue') },
+          { path: 'machines', name: 'machines', component: () => import('./views/configuration/MachinesView.vue') },
+          { path: 'operators', name: 'operators', component: () => import('./views/configuration/OperatorsView.vue') },
+          { path: 'skills', name: 'skills', component: () => import('./views/configuration/SkillsView.vue') },
+          { path: 'operation-templates', name: 'operation-templates', component: () => import('./views/configuration/OperationTemplatesView.vue') }
         ]
-      },
+      }
     ]
   },
+  { path: '/:pathMatch(.*)*', redirect: '/dashboard' }
 ];
 
 const router = createRouter({
   history: createWebHistory(),
   routes
+});
+
+router.beforeEach((to) => {
+  const auth = useAuthStore();
+  if (!auth.token) auth.loadAuth();
+  const isPublic = to.meta?.public === true;
+  if (!isPublic && !auth.isAuthenticated) {
+    return { name: 'login', query: to.fullPath && to.fullPath !== '/' ? { redirect: to.fullPath } : undefined };
+  }
+  if (isPublic && auth.isAuthenticated && (to.name === 'login' || to.name === 'register')) {
+    return { name: 'dashboard' };
+  }
+  return true;
 });
 
 export default router;

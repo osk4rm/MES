@@ -46,11 +46,12 @@ internal sealed class CreateUserRequestHandler : IRequestHandler<CreateUserReque
         {
             Id = _guidProvider.NewGuid(),
             Email = request.Email,
-            Password = _passwordHasher.HashPassword(null!, request.Password),
+            TenantId = tenantId,
             FirstName = request.FirstName,
             LastName = request.LastName,
-            TenantId = tenantId
+            Password = string.Empty
         };
+        user.Password = _passwordHasher.HashPassword(user, request.Password);
 
         await _usersRepository.AddAsync(user);
 

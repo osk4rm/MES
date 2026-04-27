@@ -10,7 +10,8 @@ namespace AsistOff.MES.Shared.Infrastructure.Interceptors
         public override InterceptionResult<int> SavingChanges(DbContextEventData eventData,
             InterceptionResult<int> result)
         {
-            throw new NotImplementedException();
+            throw new InvalidOperationException(
+                "Synchronous SaveChanges is not supported. Use SaveChangesAsync instead.");
         }
 
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,

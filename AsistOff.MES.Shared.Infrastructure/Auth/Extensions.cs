@@ -4,6 +4,7 @@ using AsistOff.MES.Shared.Abstractions.Modules;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
@@ -11,14 +12,19 @@ namespace AsistOff.MES.Shared.Infrastructure.Auth;
 
 public static class Extensions
 {
-    public static IServiceCollection AddAuth(this IServiceCollection services, IList<IModule> modules = null,
-        Action<JwtBearerOptions> optionsFactory = null)
+    public static IServiceCollection AddAuth(this IServiceCollection services, IHostEnvironment? hostEnvironment = null,
+        IList<IModule>? modules = null, Action<JwtBearerOptions>? optionsFactory = null)
     {
         var options = services.GetOptions<AuthOptions>("auth");
         services.AddSingleton<IAuthManager, AuthManager>();
 
         if (options.AuthenticationDisabled)
         {
+            if (hostEnvironment?.IsProduction() == true)
+            {
+                throw new InvalidOperationException("Authentication cannot be disabled in a Production environment.");
+            }
+
             services.AddSingleton<IPolicyEvaluator, DisabledAuthenticationPolicyEvaluator>();
         }
 
@@ -74,7 +80,10 @@ public static class Extensions
             {
                 o.Authority = options.Authority;
                 o.Audience = options.Audience;
-                o.MetadataAddress = options.MetadataAddress;
+                if (!string.IsNullOrWhiteSpace(options.MetadataAddress))
+                {
+                    o.MetadataAddress = options.MetadataAddress;
+                }
                 o.SaveToken = options.SaveToken;
                 o.RefreshOnIssuerKeyNotFound = options.RefreshOnIssuerKeyNotFound;
                 o.RequireHttpsMetadata = options.RequireHttpsMetadata;
@@ -85,25 +94,22 @@ public static class Extensions
                     o.Challenge = options.Challenge;
                 }
 
-                // Add event to debug token validation
                 o.Events = new JwtBearerEvents
                 {
                     OnTokenValidated = context =>
                     {
                         var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<JwtBearerEvents>>();
-                        logger.LogInformation("=== JWT TOKEN VALIDATED ===");
-                        logger.LogInformation("Claims in token:");
-                        foreach (var claim in context.Principal.Claims)
+                        if (logger.IsEnabled(LogLevel.Debug))
                         {
-                            logger.LogInformation("  {Type} = {Value}", claim.Type, claim.Value);
+                            logger.LogDebug("JWT token validated for subject: {Subject}",
+                                context.Principal?.FindFirst("sub")?.Value);
                         }
                         return Task.CompletedTask;
                     },
                     OnAuthenticationFailed = context =>
                     {
                         var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<JwtBearerEvents>>();
-                        logger.LogError("=== JWT AUTHENTICATION FAILED ===");
-                        logger.LogError("Exception: {Exception}", context.Exception.Message);
+                        logger.LogWarning("JWT authentication failed: {ExceptionType}", context.Exception.GetType().Name);
                         return Task.CompletedTask;
                     }
                 };

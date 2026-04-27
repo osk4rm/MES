@@ -1,0 +1,48 @@
+name: Feature request
+description: Propose a new feature for AsistOff MES
+title: "[feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you solving?
+      description: Describe the user / business pain point.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: dropdown
+    id: bounded-context
+    attributes:
+      label: Bounded context
+      description: Which MES bounded context does this belong to?
+      options:
+        - Configuration (kartoteka)
+        - Multi‑tenancy / Identity
+        - Production Orders
+        - Routing / Operations
+        - BOM
+        - Work Centers / Shifts
+        - Shopfloor Execution
+        - Traceability
+        - OEE / Reporting
+        - Integrations (ERP / PLC)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] …
+        - [ ] …

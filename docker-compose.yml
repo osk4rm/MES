@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mes}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  seq:
+    image: datalust/seq:2024.3
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      # Seq serves both the web UI and the ingestion API on a single HTTP
+      # port (80 inside the container). Open http://localhost:5341 in the
+      # browser to view logs; the API ships logs to the same endpoint.
+      - "${SEQ_PORT:-5341}:80"
+    volumes:
+      - seq_data:/data
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:-root}"
+      # Override the Seq sink server URL so logs ship to the seq container
+      # over the docker network. Configuration array elements are addressable
+      # via __<index>__ — index 1 is the "Seq" sink in appsettings.json.
+      Serilog__WriteTo__1__Args__serverUrl: "http://seq:80"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seq:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: on-failure
+
+  web:
+    build:
+      context: ./AsistOff.MES.Web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: "${VITE_API_BASE_URL:-http://localhost:8080}"
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  seq_data:

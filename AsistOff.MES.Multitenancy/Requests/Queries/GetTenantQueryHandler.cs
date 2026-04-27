@@ -23,7 +23,7 @@ public class GetTenantQueryHandler(ITenantRepository tenantRepository)
             Name: tenant.Name,
             DisplayName: tenant.DisplayName,
             ContactEmail: tenant.ContactEmail,
-            Settings: new TenantSettingsResponse()
+            Settings: new TenantSettingsResponse(tenant.Settings?.Country ?? string.Empty)
         );
     }
 }

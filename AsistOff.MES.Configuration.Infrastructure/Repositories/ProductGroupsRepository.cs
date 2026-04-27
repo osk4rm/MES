@@ -3,6 +3,7 @@ using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Extensions;
 using AsistOff.MES.Shared.Abstractions.Pagination;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
+using LinqKit;
 using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Configuration.Infrastructure.Repositories;
@@ -12,6 +13,7 @@ internal sealed class ProductGroupsRepository(DefaultContext context) : IProduct
     public async Task<IReadOnlyCollection<ProductGroup>> BrowseAsync(Paginator<ProductGroup> paginator, CancellationToken cancellationToken = default)
     {
         var units = await context.ProductGroups
+            .Include(x => x.ParentGroup)
             .PageFilter(paginator)
             .ToListAsync(cancellationToken);
 
@@ -25,9 +27,10 @@ internal sealed class ProductGroupsRepository(DefaultContext context) : IProduct
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
-    public async Task<int> CountAsync(CancellationToken cancellationToken = default)
+    public async Task<int> CountAsync(ExpressionStarter<ProductGroup> predicate, CancellationToken cancellationToken = default)
     {
         return await context.ProductGroups
+            .Where(predicate)
             .CountAsync(cancellationToken);
     }
 

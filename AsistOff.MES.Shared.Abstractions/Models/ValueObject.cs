@@ -31,8 +31,7 @@
         public override int GetHashCode()
         {
             return GetEqualityComponents()
-                .Select(x => x?.GetHashCode() ?? 0)
-                .Aggregate((x, y) => x ^ y);
+                .Aggregate(17, (hash, obj) => hash * 31 + (obj?.GetHashCode() ?? 0));
         }
 
         public bool Equals(ValueObject? other)

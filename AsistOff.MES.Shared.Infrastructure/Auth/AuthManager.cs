@@ -18,15 +18,16 @@ public class AuthManager : IAuthManager
     public AuthManager(AuthOptions options, IDateTimeProvider dateTimeProvider)
     {
         var issuerSigningKey = options.IssuerSigningKey;
-        if (issuerSigningKey is null)
+        if (string.IsNullOrWhiteSpace(issuerSigningKey))
         {
-            throw new InvalidOperationException("Issuer signing key not set.");
+            throw new InvalidOperationException(
+                "auth:IssuerSigningKey must be set via User Secrets or an environment variable before the application starts.");
         }
 
         _options = options;
         _dateTimeProvider = dateTimeProvider;
         _signingCredentials =
-            new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.IssuerSigningKey)),
+            new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(issuerSigningKey)),
                 SecurityAlgorithms.HmacSha256);
         _issuer = options.Issuer ?? "AsistOff.MES";
     }

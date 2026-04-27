@@ -16,6 +16,7 @@ public sealed class BrowseOperatorsRequestHandler(
         CancellationToken cancellationToken)
     {
         var predicate = BuildPredicate(request);
+        var totalCount = await operatorsRepository.CountAsync(predicate, cancellationToken);
         var operators =
             await operatorsRepository.BrowseAsync(new Paginator<Operator>(predicate, request), cancellationToken);
 
@@ -29,7 +30,7 @@ public sealed class BrowseOperatorsRequestHandler(
             Department = x.Department?.Name
         }).ToList();
 
-        return new PagedOperatorsResponse(items, 969, request.PageSize);
+        return new PagedOperatorsResponse(items, totalCount, request.PageSize);
     }
 
     private ExpressionStarter<Operator> BuildPredicate(BrowseOperatorsRequest request)
@@ -61,9 +62,9 @@ public sealed class BrowseOperatorsRequestHandler(
             predicate = predicate.And(o => o.RatePerHour <= request.RatePerHourTo.Value);
         }
 
-        if (request.DepartmentId != Guid.Empty)
+        if (request.DepartmentId.HasValue)
         {
-            predicate = predicate.And(o => o.DepartmentId == request.DepartmentId);
+            predicate = predicate.And(o => o.DepartmentId == request.DepartmentId.Value);
         }
 
         return predicate;
