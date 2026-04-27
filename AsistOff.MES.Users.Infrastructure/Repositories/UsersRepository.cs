@@ -18,6 +18,9 @@ public class UsersRepository(DefaultContext context) : IUsersRepository
     public Task<User?> GetForAuthenticationAsync(string email, CancellationToken cancellationToken = default) =>
         _users.IgnoreQueryFilters().SingleOrDefaultAsync(x => x.Email == email, cancellationToken);
 
+    public Task<User?> GetByEmailAndTenantIgnoringQueryFiltersAsync(string email, Guid tenantId, CancellationToken cancellationToken = default) =>
+        _users.IgnoreQueryFilters().SingleOrDefaultAsync(x => x.Email == email && x.TenantId == tenantId, cancellationToken);
+
     public async Task AddAsync(User user)
     {
         await _users.AddAsync(user);

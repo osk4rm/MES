@@ -14,6 +14,14 @@ public interface IUsersRepository
     /// </summary>
     Task<User?> GetForAuthenticationAsync(string email, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Look up a user by email and tenant ID bypassing the global tenant query filter.
+    /// Use ONLY for idempotency checks in anonymous/system flows (e.g. event listeners)
+    /// where no ambient tenant is established. Scopes the check to the given tenant,
+    /// so it does not act as a cross-tenant uniqueness guard.
+    /// </summary>
+    Task<User?> GetByEmailAndTenantIgnoringQueryFiltersAsync(string email, Guid tenantId, CancellationToken cancellationToken = default);
+
     Task AddAsync(User user);
     Task UpdateAsync(User user);
 }
