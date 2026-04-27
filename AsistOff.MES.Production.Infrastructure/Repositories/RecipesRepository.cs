@@ -13,6 +13,7 @@ internal sealed class RecipesRepository(DefaultContext context) : IRecipesReposi
     public async Task<IReadOnlyCollection<Recipe>> BrowseAsync(Paginator<Recipe> paginator, CancellationToken cancellationToken = default)
     {
         return await context.Set<Recipe>()
+            .AsNoTracking()
             .Include(x => x.Versions)
             .PageFilter(paginator)
             .ToListAsync(cancellationToken);
@@ -26,6 +27,7 @@ internal sealed class RecipesRepository(DefaultContext context) : IRecipesReposi
 
     public Task<Recipe?> GetWithVersionsAsync(Guid id, CancellationToken cancellationToken = default)
         => context.Set<Recipe>()
+            .AsNoTracking()
             .Include(x => x.Versions)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 

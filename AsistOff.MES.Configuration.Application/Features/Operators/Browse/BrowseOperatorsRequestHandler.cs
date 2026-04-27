@@ -1,7 +1,6 @@
 using AsistOff.MES.Configuration.Application.Features.Operators.Responses;
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
-using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Abstractions.Pagination;
 using LinqKit;
@@ -10,8 +9,7 @@ using MediatR;
 namespace AsistOff.MES.Configuration.Application.Features.Operators.Browse;
 
 public sealed class BrowseOperatorsRequestHandler(
-    IOperatorsRepository operatorsRepository,
-    ITenantContext tenantContext)
+    IOperatorsRepository operatorsRepository)
     : IRequestHandler<BrowseOperatorsRequest, PagedResponse<OperatorResponse>>
 {
     public async Task<PagedResponse<OperatorResponse>> Handle(BrowseOperatorsRequest request,
@@ -38,7 +36,6 @@ public sealed class BrowseOperatorsRequestHandler(
     private ExpressionStarter<Operator> BuildPredicate(BrowseOperatorsRequest request)
     {
         var predicate = PredicateBuilder.New<Operator>(true);
-        predicate = predicate.And(x => x.TenantId == tenantContext.TenantId);
 
         if (!string.IsNullOrWhiteSpace(request.Identifier))
         {
