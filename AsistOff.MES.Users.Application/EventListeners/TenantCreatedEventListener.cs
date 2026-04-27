@@ -15,10 +15,10 @@ public sealed class TenantCreatedEventListener(
 {
     public async Task HandleAsync(TenantCreatedEvent @event)
     {
-        var existing = await usersRepository.GetAsync(@event.Email);
+        var existing = await usersRepository.GetByEmailAndTenantIgnoringQueryFiltersAsync(@event.Email, @event.Id);
         if (existing is not null)
         {
-            logger.LogWarning("Tenant admin user for email {Email} already exists, skipping creation", @event.Email);
+            logger.LogWarning("Tenant admin user for email {Email} already exists for tenant {TenantId}, skipping creation", @event.Email, @event.Id);
             return;
         }
 
