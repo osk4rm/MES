@@ -160,3 +160,7 @@ finally
     Log.CloseAndFlush();
 }
 
+// Exposed as public partial so that integration tests can use
+// WebApplicationFactory<Program> to host the full pipeline in-process.
+public partial class Program;
+
