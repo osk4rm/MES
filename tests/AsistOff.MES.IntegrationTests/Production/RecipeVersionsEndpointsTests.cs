@@ -23,7 +23,7 @@ public sealed class RecipeVersionsEndpointsTests : IntegrationTestBase
             ValidTo = (DateTime?)null,
         });
         draft.RecipeId.Should().Be(recipeId);
-        draft.VersionNumber.Should().BeGreaterOrEqualTo(2);
+        draft.VersionNumber.Should().Be(2);
         draft.Status.Should().Be(1);
 
         // Update metadata

@@ -36,6 +36,7 @@ internal static class ModuleLoader
     /// <see cref="Assembly.GetTypes"/> can throw <see cref="ReflectionTypeLoadException"/> when an
     /// assembly references types that fail to load (e.g. native runtime mismatches in transitive
     /// test dependencies). Fall back to whatever types did load so module discovery keeps working.
+    /// Other unexpected failures are logged to stderr instead of being silently swallowed.
     /// </summary>
     private static IEnumerable<Type> SafeGetTypes(Assembly assembly)
     {
@@ -47,8 +48,10 @@ internal static class ModuleLoader
         {
             return ex.Types.Where(t => t is not null)!;
         }
-        catch
+        catch (Exception ex)
         {
+            Console.Error.WriteLine(
+                $"[ModuleLoader] Skipping assembly '{assembly.FullName}' during module discovery: {ex.GetType().Name}: {ex.Message}");
             return Array.Empty<Type>();
         }
     }
