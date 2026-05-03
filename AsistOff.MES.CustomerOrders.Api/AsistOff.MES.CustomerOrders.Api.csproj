@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AsistOff.MES.CustomerOrders.Application\AsistOff.MES.CustomerOrders.Application.csproj" />
+    <ProjectReference Include="..\AsistOff.MES.CustomerOrders.Infrastructure\AsistOff.MES.CustomerOrders.Infrastructure.csproj" />
+    <ProjectReference Include="..\AsistOff.MES.Shared.Abstractions\AsistOff.MES.Shared.Abstractions.csproj" />
+    <ProjectReference Include="..\AsistOff.MES.Shared.Infrastructure\AsistOff.MES.Shared.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>
