@@ -1,5 +1,5 @@
 <template>
-  <div class="app-autocomplete" ref="containerRef">
+  <div class="app-autocomplete">
     <div :class="['app-input', { 'app-input--invalid': invalid, 'app-input--disabled': disabled }]">
       <input
         :id="id"
@@ -72,7 +72,6 @@ const emit = defineEmits<{
   (e: 'search', query: string): void;
 }>();
 
-const containerRef = ref<HTMLElement | null>(null);
 const open = ref(false);
 const query = ref('');
 const highlightedIdx = ref(-1);
