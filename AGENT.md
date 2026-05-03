@@ -6,6 +6,7 @@ to AsistOff MES. The longer architectural context lives in:
 
 * [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — high‑level rules
 * [`.github/instructions/`](.github/instructions/) — area‑specific instructions (backend, frontend, DB, API, testing)
+* [`.github/instructions/business-features.instructions.md`](.github/instructions/business-features.instructions.md) — implemented MES business features, workflows and known gaps
 * [`docs/adr/`](docs/adr/) — Architecture Decision Records
 * [`docs/glossary.md`](docs/glossary.md) — domain vocabulary
 
