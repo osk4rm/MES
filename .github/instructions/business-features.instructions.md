@@ -395,7 +395,7 @@ API endpoints:
 
 Business semantics:
 
-- Operations form a routing/marszruta for a recipe version.
+- Operations form a routing for a recipe version.
 - `SortIndex` controls display/order.
 - Dependencies create a directed process graph.
 - Optional operations can be skipped by future execution logic.
