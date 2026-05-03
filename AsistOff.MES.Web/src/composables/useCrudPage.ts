@@ -25,7 +25,7 @@ export function useCrudPage<TItem, TFilters extends object = Record<string, neve
 
   const request = computed<IPagedRequest & TFilters>(() => {
     const rawSort = sortKey.value && sortDirection.value
-      ? [`${sortKey.value} ${sortDirection.value}`]
+      ? [`${sortKey.value},${sortDirection.value}`]
       : [];
     return {
       pageNumber: page.value,
