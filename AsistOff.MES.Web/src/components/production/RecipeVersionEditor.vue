@@ -642,11 +642,18 @@ async function saveBomItem(item: BomItemDto) {
   savingBom.value = true;
   try {
     await recipeVersionService.updateBomItem(item.id, {
-      ...item,
       bomItemId: item.id,
       productId: bomEdit.productId,
+      measureUnitId: item.measureUnitId,
       quantity: bomEdit.quantity,
-      quantityType: bomEdit.quantityType
+      quantityType: bomEdit.quantityType,
+      scrapPercentage: item.scrapPercentage,
+      isOptional: item.isOptional,
+      preferredWarehouseId: item.preferredWarehouseId,
+      consumptionTiming: item.consumptionTiming,
+      notes: item.notes,
+      sortIndex: item.sortIndex,
+      id: item.id
     });
     toast.success(t('toasts.updated'));
     editingBomId.value = null;
@@ -715,11 +722,16 @@ async function saveOutput(output: OperationOutputDto) {
   savingOutput.value = true;
   try {
     await recipeVersionService.updateOutput(output.id, {
-      ...output,
       outputId: output.id,
       productId: outputEdit.productId,
+      measureUnitId: output.measureUnitId,
       quantity: outputEdit.quantity,
-      outputType: outputEdit.outputType
+      quantityType: output.quantityType,
+      outputType: outputEdit.outputType,
+      preferredWarehouseId: output.preferredWarehouseId,
+      notes: output.notes,
+      sortIndex: output.sortIndex,
+      id: output.id
     });
     toast.success(t('toasts.updated'));
     editingOutputId.value = null;
