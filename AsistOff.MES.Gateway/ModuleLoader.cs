@@ -44,7 +44,7 @@ internal static class ModuleLoader
         }
         catch (ReflectionTypeLoadException ex)
         {
-            return ex.Types.Where(type => type is not null)!;
+            return ex.Types.OfType<Type>();
         }
     }
 }
