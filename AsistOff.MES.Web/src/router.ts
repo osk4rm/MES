@@ -13,7 +13,9 @@ const routes: RouteRecordRaw[] = [
     component: AppShell,
     children: [
       { path: 'dashboard', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
-      { path: 'production', redirect: '/production/orders' },
+      { path: 'production', redirect: '/production/customer-orders' },
+      { path: 'production/customer-orders', name: 'customer-orders', component: () => import('./views/customer-orders/CustomerOrdersView.vue'), meta: { titleKey: 'nav.customerOrders', icon: 'pi pi-shopping-cart' } },
+      { path: 'production/customer-orders/:id', name: 'customer-order-detail', component: () => import('./views/customer-orders/CustomerOrderDetailView.vue'), meta: { titleKey: 'nav.customerOrders', icon: 'pi pi-shopping-cart' } },
       { path: 'production/orders', name: 'production-orders', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.productionOrders', icon: 'pi pi-list' } },
       { path: 'production/recipes', name: 'production-recipes', component: () => import('./views/production/RecipesView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
       { path: 'production/recipes/:id', name: 'recipe-detail', component: () => import('./views/production/RecipeDetailView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
@@ -24,6 +26,7 @@ const routes: RouteRecordRaw[] = [
         path: 'configuration',
         redirect: '/configuration/products',
         children: [
+          { path: 'customers', name: 'customers', component: () => import('./views/configuration/CustomersView.vue') },
           { path: 'products', name: 'products', component: () => import('./views/configuration/ProductsView.vue') },
           { path: 'product-groups', name: 'product-groups', component: () => import('./views/configuration/ProductGroupsView.vue') },
           { path: 'measure-units', name: 'measure-units', component: () => import('./views/configuration/MeasureUnitsView.vue') },

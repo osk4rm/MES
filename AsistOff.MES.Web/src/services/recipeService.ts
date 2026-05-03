@@ -34,6 +34,7 @@ export interface BrowseRecipesRequest extends IPagedRequest {
   code?: string;
   name?: string;
   isActive?: boolean;
+  primaryProductId?: string;
 }
 
 export interface CreateRecipeRequest {

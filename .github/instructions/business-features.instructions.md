@@ -33,6 +33,7 @@ Implemented UI areas:
 | Dashboard shell | Implemented shell | `/dashboard` |
 | Configuration master data | Implemented CRUD views | `/configuration/*` |
 | Production recipes | Implemented list/detail/editor | `/production/recipes`, `/production/recipes/:id` |
+| Customer orders | Implemented order intake | `/production/customer-orders`, `/production/customer-orders/:id` |
 | Production orders | Placeholder | `/production/orders` |
 | Schedule | Placeholder | `/schedule` |
 | Reports | Placeholder | `/reports` |
@@ -536,6 +537,39 @@ Typical implemented flow:
 6. When the draft is complete, the user releases it.
 7. Release makes the version immutable and sets it as the recipe's current version.
 
+
+## 5.1 Customer Orders
+
+Customer orders represent demand from customers. They can be imported from ERP/external systems or created manually in MES. Customers can also be maintained manually in Configuration → Customers.
+
+Key paths:
+
+- Domain: `AsistOff.MES.CustomerOrders.Core/Entities/`
+- Application handlers: `AsistOff.MES.CustomerOrders.Application/Features/`
+- API: `AsistOff.MES.CustomerOrders.Api/Controllers/`
+- Frontend service: `AsistOff.MES.Web/src/services/customerOrderService.ts`
+- Frontend views:
+  - `AsistOff.MES.Web/src/views/customer-orders/CustomerOrdersView.vue`
+  - `AsistOff.MES.Web/src/views/customer-orders/CustomerOrderDetailView.vue`
+  - `AsistOff.MES.Web/src/views/configuration/CustomersView.vue`
+
+Business behavior:
+
+- `CustomerOrder` stores order header data, source ERP identifiers and a customer snapshot.
+- `CustomerOrderLine` stores product demand, quantity, delivery date and a product/unit snapshot.
+- One line can be released to production multiple times. Partial releases are allowed.
+- Production release currently stores the selected released recipe/current version and quantity as a planning link; the production order module is still a placeholder.
+- Planned due date defaults from the order line delivery date, then order delivery date, and can be manually changed by the user.
+- MES owns local customer-order statuses independently from ERP statuses; ERP status mapping is not implemented yet.
+
+API endpoints:
+
+- `GET/POST /api/customers`, `GET/PUT/DELETE /api/customers/{id}`
+- `GET/POST /api/customer-orders`, `GET/PUT/DELETE /api/customer-orders/{id}`
+- `POST /api/customer-orders/{orderId}/lines`
+- `PUT/DELETE /api/customer-orders/lines/{id}`
+- `POST /api/customer-orders/lines/{id}/production-releases`
+
 ## 6. Attachments
 
 Attachments provide polymorphic file support for business objects.
@@ -586,6 +620,8 @@ Main route map:
 | Route | Business meaning |
 |-------|------------------|
 | `/dashboard` | Authenticated landing page. |
+| `/production/customer-orders` | Customer order list and creation. |
+| `/production/customer-orders/:id` | Customer order detail, lines and production release requests. |
 | `/production/recipes` | Recipe list and creation. |
 | `/production/recipes/:id` | Recipe detail, versions and editor. |
 | `/production/orders` | Placeholder for production orders. |

@@ -12,6 +12,7 @@ export const sitemap: NavItem[] = [
     label: 'nav.production',
     icon: 'pi pi-cog',
     children: [
+      { label: 'nav.customerOrders', icon: 'pi pi-shopping-cart', route: '/production/customer-orders' },
       { label: 'nav.productionOrders', icon: 'pi pi-list', route: '/production/orders' },
       { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' }
     ]
@@ -22,6 +23,7 @@ export const sitemap: NavItem[] = [
     label: 'nav.configuration',
     icon: 'pi pi-sliders-h',
     children: [
+      { label: 'nav.customers', icon: 'pi pi-users', route: '/configuration/customers' },
       { label: 'nav.products', icon: 'pi pi-box', route: '/configuration/products' },
       { label: 'nav.productGroups', icon: 'pi pi-tags', route: '/configuration/product-groups' },
       { label: 'nav.measureUnits', icon: 'pi pi-percentage', route: '/configuration/measure-units' },
