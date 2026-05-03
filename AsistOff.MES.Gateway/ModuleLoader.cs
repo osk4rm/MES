@@ -7,10 +7,8 @@ namespace AsistOff.MES.Gateway;
 internal static class ModuleLoader
 {
     public static IList<IModule> LoadModules()
-        => AssemblyLoadContext.Default.Assemblies
-            .Union(Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.dll")
-                .Select(Assembly.LoadFrom)) 
-            .SelectMany(x => x.GetTypes())
+        => LoadApplicationAssemblies()
+            .SelectMany(GetLoadableTypes)
             .Where(x => typeof(IModule).IsAssignableFrom(x) && !x.IsInterface)
             .OrderBy(x => x.Name)
             .Select(Activator.CreateInstance)
@@ -18,10 +16,14 @@ internal static class ModuleLoader
             .ToList();
 
     public static IList<Assembly> LoadAssemblies()
+        => LoadApplicationAssemblies().ToList();
+
+    private static IEnumerable<Assembly> LoadApplicationAssemblies()
     {
         var binPath = AppDomain.CurrentDomain.BaseDirectory;
-        var allDlls = Directory.GetFiles(binPath, "*.dll", SearchOption.AllDirectories);
-        foreach (var dll in allDlls)
+        var applicationDlls = Directory.GetFiles(binPath, "AsistOff.MES.*.dll", SearchOption.TopDirectoryOnly);
+
+        foreach (var dll in applicationDlls)
         {
             try
             {
@@ -29,6 +31,20 @@ internal static class ModuleLoader
             }
             catch { /* ignore load errors */ }
         }
-        return AppDomain.CurrentDomain.GetAssemblies().ToList();
+
+        return AssemblyLoadContext.Default.Assemblies
+            .Where(x => x.GetName().Name?.StartsWith("AsistOff.MES.", StringComparison.Ordinal) == true);
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(type => type is not null)!;
+        }
     }
 }
