@@ -71,6 +71,20 @@
           <div class="tab-body">
             <!-- dependencies -->
             <div v-if="activeTab === 'dependencies'">
+              <div class="dependency-map" :aria-label="$t('recipes.detail.dependencyGraph')">
+                <div
+                  v-for="op in sortedOperations"
+                  :key="op.id"
+                  :class="['dependency-node', selectedOperationId === op.id && 'dependency-node--active']"
+                  @click="selectedOperationId = op.id"
+                >
+                  <span class="dependency-node__code">{{ op.code }}</span>
+                  <span class="dependency-node__name">{{ op.name }}</span>
+                  <span class="dependency-node__meta">
+                    {{ dependencySummary(op) }}
+                  </span>
+                </div>
+              </div>
               <p class="muted">{{ $t('recipes.detail.dependenciesHelp') }}</p>
               <ul class="items">
                 <li v-for="(dep, idx) in selectedOperation.dependencies" :key="idx" class="item">
@@ -82,9 +96,9 @@
               </ul>
               <div v-if="isDraft" class="add-row">
                 <select v-model="newDep.predecessorOperationId">
-                  <option value="">{{ $t('recipes.detail.predecessor') }}</option>
-                  <option v-for="o in otherOperations" :key="o.id" :value="o.id">{{ o.code }} — {{ o.name }}</option>
-                </select>
+                   <option value="">{{ $t('recipes.detail.predecessor') }}</option>
+                   <option v-for="o in availablePredecessors" :key="o.id" :value="o.id">{{ o.code }} — {{ o.name }}</option>
+                 </select>
                 <select v-model.number="newDep.dependencyType">
                   <option :value="1">{{ $t('recipes.dependencyType.finishToStart') }}</option>
                   <option :value="2">{{ $t('recipes.dependencyType.startToStart') }}</option>
@@ -108,11 +122,31 @@
                 </tr></thead>
                 <tbody>
                   <tr v-for="item in selectedOperation.bomItems" :key="item.id">
-                    <td>{{ productLabel(item.productId) }}</td>
-                    <td>{{ item.quantity }}</td>
-                    <td>{{ $t(`recipes.quantityType.${qtyTypeKey(item.quantityType)}`) }}</td>
+                    <template v-if="editingBomId === item.id">
+                      <td><AppAutocomplete v-model="bomEdit.productId" :options="productOptions" :placeholder="$t('recipes.detail.product')" /></td>
+                      <td><AppInput v-model.number="bomEdit.quantity" type="number" :placeholder="$t('recipes.detail.quantity')" /></td>
+                      <td>
+                        <select v-model.number="bomEdit.quantityType">
+                          <option :value="1">{{ $t('recipes.quantityType.perUnit') }}</option>
+                          <option :value="2">{{ $t('recipes.quantityType.perBatch') }}</option>
+                          <option :value="3">{{ $t('recipes.quantityType.fixed') }}</option>
+                        </select>
+                      </td>
+                    </template>
+                    <template v-else>
+                      <td>{{ productLabel(item.productId) }}</td>
+                      <td>{{ item.quantity }}</td>
+                      <td>{{ $t(`recipes.quantityType.${qtyTypeKey(item.quantityType)}`) }}</td>
+                    </template>
                     <td v-if="isDraft">
-                      <AppButton size="sm" variant="ghost" icon="pi pi-times" @click="removeBomItem(item.id)" />
+                      <template v-if="editingBomId === item.id">
+                        <AppButton size="sm" variant="primary" icon="pi pi-check" :loading="savingBom" @click="saveBomItem(item)" />
+                        <AppButton size="sm" variant="ghost" icon="pi pi-times" :disabled="savingBom" @click="cancelBomEdit" />
+                      </template>
+                      <template v-else>
+                        <AppButton size="sm" variant="ghost" icon="pi pi-pencil" @click="startBomEdit(item)" />
+                        <AppButton size="sm" variant="ghost" icon="pi pi-times" @click="removeBomItem(item.id)" />
+                      </template>
                     </td>
                   </tr>
                   <tr v-if="selectedOperation.bomItems.length === 0"><td colspan="4" class="muted">{{ $t('common.empty') }}</td></tr>
@@ -143,10 +177,33 @@
                 </tr></thead>
                 <tbody>
                   <tr v-for="o in selectedOperation.outputs" :key="o.id">
-                    <td>{{ productLabel(o.productId) }}</td>
-                    <td>{{ o.quantity }}</td>
-                    <td>{{ $t(`recipes.outputType.${outputTypeKey(o.outputType)}`) }}</td>
-                    <td v-if="isDraft"><AppButton size="sm" variant="ghost" icon="pi pi-times" @click="removeOutput(o.id)" /></td>
+                    <template v-if="editingOutputId === o.id">
+                      <td><AppAutocomplete v-model="outputEdit.productId" :options="productOptions" :placeholder="$t('recipes.detail.product')" /></td>
+                      <td><AppInput v-model.number="outputEdit.quantity" type="number" :placeholder="$t('recipes.detail.quantity')" /></td>
+                      <td>
+                        <select v-model.number="outputEdit.outputType">
+                          <option :value="1">{{ $t('recipes.outputType.product') }}</option>
+                          <option :value="2">{{ $t('recipes.outputType.byProduct') }}</option>
+                          <option :value="3">{{ $t('recipes.outputType.waste') }}</option>
+                          <option :value="4">{{ $t('recipes.outputType.sample') }}</option>
+                        </select>
+                      </td>
+                    </template>
+                    <template v-else>
+                      <td>{{ productLabel(o.productId) }}</td>
+                      <td>{{ o.quantity }}</td>
+                      <td>{{ $t(`recipes.outputType.${outputTypeKey(o.outputType)}`) }}</td>
+                    </template>
+                    <td v-if="isDraft">
+                      <template v-if="editingOutputId === o.id">
+                        <AppButton size="sm" variant="primary" icon="pi pi-check" :loading="savingOutput" @click="saveOutput(o)" />
+                        <AppButton size="sm" variant="ghost" icon="pi pi-times" :disabled="savingOutput" @click="cancelOutputEdit" />
+                      </template>
+                      <template v-else>
+                        <AppButton size="sm" variant="ghost" icon="pi pi-pencil" @click="startOutputEdit(o)" />
+                        <AppButton size="sm" variant="ghost" icon="pi pi-times" @click="removeOutput(o.id)" />
+                      </template>
+                    </td>
                   </tr>
                   <tr v-if="selectedOperation.outputs.length === 0"><td colspan="4" class="muted">{{ $t('common.empty') }}</td></tr>
                 </tbody>
@@ -250,6 +307,8 @@ import {
   type RecipeVersionDetailResponse,
   type OperationNodeDto,
   type DependencyEntry,
+  type BomItemDto,
+  type OperationOutputDto,
   BomQuantityType,
   OperationDependencyType,
   OperationOutputType,
@@ -326,8 +385,12 @@ const sortedOperations = computed(() =>
 const selectedOperation = computed<OperationNodeDto | null>(() =>
   sortedOperations.value.find(o => o.id === selectedOperationId.value) ?? null);
 
-const otherOperations = computed(() =>
-  sortedOperations.value.filter(o => o.id !== selectedOperationId.value));
+const availablePredecessors = computed(() => {
+  const selected = selectedOperation.value;
+  if (!selected) return [];
+  const existing = new Set(selected.dependencies.map(d => d.predecessorOperationId));
+  return sortedOperations.value.filter(o => o.id !== selected.id && !existing.has(o.id));
+});
 
 const isDraft = computed(() => props.version.status === RecipeVersionStatus.Draft);
 const statusKey = computed(() => {
@@ -349,6 +412,11 @@ watch(() => props.version.id, () => {
 function predecessorName(id: string): string {
   const o = sortedOperations.value.find(x => x.id === id);
   return o ? `${o.code} — ${o.name}` : id;
+}
+function dependencySummary(op: OperationNodeDto): string {
+  const predecessors = op.dependencies.length;
+  const successors = sortedOperations.value.filter(x => x.dependencies.some(d => d.predecessorOperationId === op.id)).length;
+  return t('recipes.detail.dependencyNodeMeta', { predecessors, successors });
 }
 function depTypeKey(t: OperationDependencyType): string {
   return ({ 1: 'finishToStart', 2: 'startToStart', 3: 'finishToFinish', 4: 'startToFinish' } as const)[t];
@@ -510,8 +578,13 @@ async function removeDependency(idx: number) {
 }
 async function sendDependencies(deps: DependencyEntry[]) {
   if (!selectedOperation.value) return;
+  const validOperationIds = new Set(sortedOperations.value.map(o => o.id));
+  const sanitized = deps.filter(d =>
+    d.predecessorOperationId &&
+    d.predecessorOperationId !== selectedOperation.value?.id &&
+    validOperationIds.has(d.predecessorOperationId));
   try {
-    await recipeVersionService.setDependencies(selectedOperation.value.id, deps);
+    await recipeVersionService.setDependencies(selectedOperation.value.id, sanitized);
     toast.success(t('toasts.updated'));
     emit('refresh');
   } catch (err) {
@@ -522,6 +595,13 @@ async function sendDependencies(deps: DependencyEntry[]) {
 // bom items
 const newBom = reactive({
   productId: '', quantity: 1, quantityType: BomQuantityType.PerUnit
+});
+const editingBomId = ref<string | null>(null);
+const savingBom = ref(false);
+const bomEdit = reactive({
+  productId: '',
+  quantity: 1,
+  quantityType: BomQuantityType.PerUnit
 });
 async function addBomItem() {
   if (!selectedOperation.value || !newBom.productId) return;
@@ -546,6 +626,44 @@ async function addBomItem() {
     toast.error(extractErrorMessage(err, t('errors.saveFailed')));
   }
 }
+function startBomEdit(item: BomItemDto) {
+  editingBomId.value = item.id;
+  Object.assign(bomEdit, {
+    productId: item.productId,
+    quantity: item.quantity,
+    quantityType: item.quantityType
+  });
+}
+function cancelBomEdit() {
+  editingBomId.value = null;
+}
+async function saveBomItem(item: BomItemDto) {
+  if (!bomEdit.productId) return;
+  savingBom.value = true;
+  try {
+    await recipeVersionService.updateBomItem(item.id, {
+      bomItemId: item.id,
+      productId: bomEdit.productId,
+      measureUnitId: item.measureUnitId,
+      quantity: bomEdit.quantity,
+      quantityType: bomEdit.quantityType,
+      scrapPercentage: item.scrapPercentage,
+      isOptional: item.isOptional,
+      preferredWarehouseId: item.preferredWarehouseId,
+      consumptionTiming: item.consumptionTiming,
+      notes: item.notes,
+      sortIndex: item.sortIndex,
+      id: item.id
+    });
+    toast.success(t('toasts.updated'));
+    editingBomId.value = null;
+    emit('refresh');
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+  } finally {
+    savingBom.value = false;
+  }
+}
 async function removeBomItem(id: string) {
   try {
     await recipeVersionService.removeBomItem(id);
@@ -559,6 +677,13 @@ async function removeBomItem(id: string) {
 // outputs
 const newOutput = reactive({
   productId: '', quantity: 1, outputType: OperationOutputType.Product
+});
+const editingOutputId = ref<string | null>(null);
+const savingOutput = ref(false);
+const outputEdit = reactive({
+  productId: '',
+  quantity: 1,
+  outputType: OperationOutputType.Product
 });
 async function addOutput() {
   if (!selectedOperation.value || !newOutput.productId) return;
@@ -579,6 +704,42 @@ async function addOutput() {
     emit('refresh');
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+  }
+}
+function startOutputEdit(output: OperationOutputDto) {
+  editingOutputId.value = output.id;
+  Object.assign(outputEdit, {
+    productId: output.productId,
+    quantity: output.quantity,
+    outputType: output.outputType
+  });
+}
+function cancelOutputEdit() {
+  editingOutputId.value = null;
+}
+async function saveOutput(output: OperationOutputDto) {
+  if (!outputEdit.productId) return;
+  savingOutput.value = true;
+  try {
+    await recipeVersionService.updateOutput(output.id, {
+      outputId: output.id,
+      productId: outputEdit.productId,
+      measureUnitId: output.measureUnitId,
+      quantity: outputEdit.quantity,
+      quantityType: output.quantityType,
+      outputType: outputEdit.outputType,
+      preferredWarehouseId: output.preferredWarehouseId,
+      notes: output.notes,
+      sortIndex: output.sortIndex,
+      id: output.id
+    });
+    toast.success(t('toasts.updated'));
+    editingOutputId.value = null;
+    emit('refresh');
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+  } finally {
+    savingOutput.value = false;
   }
 }
 async function removeOutput(id: string) {
@@ -655,6 +816,42 @@ async function removeResource(id: string) {
 .tab { background: none; border: none; padding: 10px 16px; cursor: pointer; font: inherit; color: var(--color-text-muted, #6b7280); border-bottom: 2px solid transparent; }
 .tab--active { color: var(--color-primary, #2563eb); border-bottom-color: var(--color-primary, #2563eb); }
 .tab-body { padding-top: var(--space-2); }
+.dependency-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
+}
+.dependency-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+.dependency-node::after {
+  content: '→';
+  position: absolute;
+  right: var(--space-2);
+  top: var(--space-2);
+  color: var(--color-text-subtle);
+}
+.dependency-node--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+.dependency-node__code { font-weight: var(--font-weight-semibold); }
+.dependency-node__name { color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dependency-node__meta { font-size: var(--font-size-xs); color: var(--color-text-subtle); }
 .items { list-style: none; padding: 0; margin: 0 0 var(--space-3) 0; display: flex; flex-direction: column; gap: 6px; }
 .item { display: flex; align-items: center; gap: var(--space-2); padding: 6px 10px; background: var(--color-hover, #f9fafb); border-radius: 4px; }
 .item__label { font-weight: 500; flex: 1; }
@@ -673,4 +870,8 @@ async function removeResource(id: string) {
 .pill--muted { background: #e5e7eb; color: #374151; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+@media (max-width: 900px) {
+  .rv-editor__layout { grid-template-columns: 1fr; }
+  .rv-editor__sidebar { border-right: 0; border-bottom: 1px solid var(--color-border); }
+}
 </style>

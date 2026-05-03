@@ -42,7 +42,7 @@ public class OperatorsController(ISender sender) : ApiController
     {
         var result = await sender.Send(request, cancellationToken);
 
-        return CreatedAtAction(nameof(GetAsync), new { id = result.Id }, result);
+        return CreatedAtAction("Get", new { id = result.Id }, result);
     }
 
     [HttpPut("{id:guid}")]
