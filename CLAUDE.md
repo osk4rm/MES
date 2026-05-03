@@ -13,10 +13,11 @@ Load the relevant file(s) **only when you're working in that area** to keep cont
 | Instruction file | Load when… |
 |------------------|------------|
 | `.github/instructions/architecture.instructions.md` | Any C# work – modules, CQRS, MediatR, domain events, Clean Architecture layers |
-| `.github/instructions/frontend.instructions.md` | Working inside `AsistOff.MES.Web/src/` (Vue 3, TypeScript, Pinia, PrimeVue) |
+| `.github/instructions/frontend.instructions.md` | Working inside `AsistOff.MES.Web/src/` (Vue 3, TypeScript, Pinia, in-house `App*` UI components) |
 | `.github/instructions/database.instructions.md` | EF Core entities, migrations, repositories, multitenancy / ISaasy |
 | `.github/instructions/api.instructions.md` | Controllers, HTTP endpoints, error handling, authorization |
 | `.github/instructions/testing.instructions.md` | Writing or modifying tests (backend xUnit or frontend Vitest) |
+| `.github/instructions/business-features.instructions.md` | Business behavior, implemented MES features, workflows, module map, known gaps |
 | `.github/instructions/production-recipes.instructions.md` | Any work in the Recipes / Production module (entities, CRUD, frontend views, Skills, OperationTemplates) |
 
 ## Running the Project
