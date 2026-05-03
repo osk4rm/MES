@@ -6,7 +6,7 @@ applyTo: "**/Migrations/**,**/DAL/**,**/Repositories/**,**/*Context*.cs,**/*DbCo
 
 ## Setup
 
-- **PostgreSQL** via **Entity Framework Core 9** (`Npgsql.EntityFrameworkCore.PostgreSQL`).
+- **PostgreSQL** via **Entity Framework Core 10** (`Npgsql.EntityFrameworkCore.PostgreSQL`).
 - Connection string is configured in `appsettings.json`:
   ```json
   "postgres": { "connectionString": "Host=...;Port=5432;Database=mes;Username=...;Password=..." }
