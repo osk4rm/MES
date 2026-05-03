@@ -8,9 +8,9 @@ AsistOff MES is a **Manufacturing Execution System** built as a **modular monoli
 
 | Layer        | Technology                                         |
 |--------------|----------------------------------------------------|
-| Backend      | .NET 9, ASP.NET Core, C#                           |
+| Backend      | .NET 10, ASP.NET Core, C#                           |
 | Frontend     | Vue 3, TypeScript, Vite                            |
-| Database     | PostgreSQL via Entity Framework Core 9             |
+| Database     | PostgreSQL via Entity Framework Core 10             |
 | Auth         | JWT Bearer tokens                                  |
 | CQRS         | MediatR                                            |
 | Validation   | Custom pipeline behaviors + `IRequestValidator<T>` |

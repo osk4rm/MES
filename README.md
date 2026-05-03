@@ -1,14 +1,14 @@
 # AsistOff MES
 
-> **Manufacturing Execution System** — a multi‑tenant SaaS platform built as a modular monolith with a Vue 3 SPA and an ASP.NET Core 9 backend.
+> **Manufacturing Execution System** — a multi‑tenant SaaS platform built as a modular monolith with a Vue 3 SPA and an ASP.NET Core 10 backend.
 
 ## At a glance
 
 | Layer        | Technology                                            |
 |--------------|-------------------------------------------------------|
-| Backend      | .NET 9, ASP.NET Core, C#                              |
+| Backend      | .NET 10, ASP.NET Core, C#                              |
 | Frontend     | Vue 3, TypeScript, Vite                               |
-| Database     | PostgreSQL via Entity Framework Core 9                |
+| Database     | PostgreSQL via Entity Framework Core 10                |
 | Auth         | JWT Bearer tokens                                     |
 | CQRS         | MediatR + `IRequestValidator<T>` pipeline behaviors   |
 | Multi‑tenancy| EF Core global query filter + `SaasyEntityInterceptor`|
