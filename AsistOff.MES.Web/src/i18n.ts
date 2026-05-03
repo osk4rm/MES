@@ -223,6 +223,8 @@ const pl = {
         attachments: 'Załączniki'
       },
       dependenciesHelp: 'Operacje poprzedzające, które muszą być wykonane przed tą operacją.',
+      dependencyGraph: 'Graf zależności operacji',
+      dependencyNodeMeta: 'Poprzedza: {predecessors}, następne: {successors}',
       predecessor: 'Operacja poprzedzająca',
       product: 'Produkt',
       productId: 'ID produktu',
@@ -507,6 +509,8 @@ const en: typeof pl = {
         attachments: 'Attachments'
       },
       dependenciesHelp: 'Predecessor operations that must complete before this one.',
+      dependencyGraph: 'Operation dependency graph',
+      dependencyNodeMeta: 'Prev: {predecessors}, next: {successors}',
       predecessor: 'Predecessor operation',
       product: 'Product',
       productId: 'Product ID',
