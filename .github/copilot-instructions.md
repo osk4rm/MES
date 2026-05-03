@@ -8,14 +8,14 @@ AsistOff MES is a **Manufacturing Execution System** built as a **modular monoli
 
 | Layer        | Technology                                         |
 |--------------|----------------------------------------------------|
-| Backend      | .NET 9, ASP.NET Core, C#                           |
+| Backend      | .NET 8, ASP.NET Core, C#                           |
 | Frontend     | Vue 3, TypeScript, Vite                            |
 | Database     | PostgreSQL via Entity Framework Core 9             |
 | Auth         | JWT Bearer tokens                                  |
 | CQRS         | MediatR                                            |
 | Validation   | Custom pipeline behaviors + `IRequestValidator<T>` |
 | State (FE)   | Pinia                                              |
-| UI Library   | PrimeVue 4                                         |
+| UI            | In-house `App*` components + PrimeIcons            |
 | HTTP client  | Axios                                              |
 | i18n         | vue-i18n                                           |
 
@@ -28,6 +28,8 @@ AsistOff.MES.Shared.Infrastructure/ # Cross-cutting infrastructure (EF Core, aut
 AsistOff.MES.Multitenancy/          # Tenant management module
 AsistOff.MES.Configuration.*/       # Configuration module (products, warehouses, departments…)
 AsistOff.MES.Users.*/               # Users module (authentication, user CRUD)
+AsistOff.MES.Production.*/          # Production module (recipes, versions, operations, BOM…)
+AsistOff.MES.Attachments.*/         # Polymorphic file attachments
 AsistOff.MES.Web/                   # Vue 3 SPA frontend
 ```
 
@@ -60,6 +62,7 @@ More detailed guidance lives in `.github/instructions/`. Load a file when you st
 | `database.instructions.md`     | EF Core entities, migrations, repositories, multitenancy |
 | `api.instructions.md`          | Controllers, HTTP endpoints, error handling, auth |
 | `testing.instructions.md`      | Writing or modifying tests |
+| `business-features.instructions.md` | Implemented MES business features, workflows, module map, known gaps |
 | `production-recipes.instructions.md` | Any work in the Recipes / Production module (entities, CRUD, frontend views, Skills, OperationTemplates) |
 
 ## Keeping These Files Up to Date
