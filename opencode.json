@@ -8,7 +8,14 @@
   ],
   "permission": {
     "bash": {
-      "*": "ask"
-    }
+      "*": "allow",
+      "rm -rf *": "deny",
+      "git push --force*": "deny",
+      "git push -f*": "deny"
+    },
+    "edit": "allow",
+    "external_directory": "allow",
+    "webfetch": "allow",
+    "websearch": "allow"
   }
 }

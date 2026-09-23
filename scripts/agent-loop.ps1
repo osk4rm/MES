@@ -40,7 +40,7 @@ param(
     [switch]$SyncTracker
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 
 function Invoke-Agent {
     param(
@@ -67,16 +67,18 @@ function Get-SessionId {
 
 function Get-Verdict {
     param([string]$Raw)
-    if ($Raw -match 'VERDICT:\s*CHANGES_REQUESTED') { return 'CHANGES_REQUESTED' }
-    if ($Raw -match 'VERDICT:\s*APPROVED')          { return 'APPROVED' }
-    return 'UNKNOWN'
+    # Take the LAST verdict mentioned: the raw stream also contains the
+    # reviewer's reasoning, which may reference the other verdict.
+    $matches = [regex]::Matches($Raw, 'VERDICT:\s*(APPROVED|CHANGES_REQUESTED)')
+    if ($matches.Count -eq 0) { return 'UNKNOWN' }
+    return $matches[$matches.Count - 1].Groups[1].Value
 }
 
 # ---------------------------------------------------------------------------
 # 1. Pick the next issue
 # ---------------------------------------------------------------------------
 $issues = gh issue list --label $ImplementLabel --state open --limit 1 `
-    --json number, title | ConvertFrom-Json
+    --json 'number,title' | ConvertFrom-Json
 if (-not $issues) {
     Write-Host "No open issue labelled '$ImplementLabel'. Nothing to do."
     return
@@ -99,7 +101,7 @@ $implRaw = Invoke-Agent -Agent 'mes-implementer' -Prompt (
 $implSession = Get-SessionId $implRaw
 Write-Host "    session: $implSession"
 
-$pr = gh pr list --state open --json number, headRefName |
+$pr = gh pr list --state open --json 'number,headRefName' |
     ConvertFrom-Json |
     Where-Object { $_.headRefName -like "ai/issue-$num-*" } |
     Select-Object -First 1

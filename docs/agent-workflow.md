@@ -57,8 +57,8 @@ Konsekwencje:
 
 | Agent | Rola | Mode | Uprawnienia | Trigger |
 |---|---|---|---|---|
-| `mes-analyst` | Czyta glossary + `business-features` (known gaps) + ADR → pisze specyfikację i tworzy issue z kryteriami akceptacji | primary | read-only; `bash` tylko `gh issue create/view` | ręcznie / po researchu |
-| `mes-researcher` | Szuka kolejnych możliwości (OEE, genealogia, OPC UA, Andon, SPC, CMMS) → issues + notatki | primary | read-only + `webfetch`/`websearch` + `gh issue create` | cyklicznie (cron) |
+| `mes-researcher` | **Szerokość**: przegląda domenę (wiersze `gap` z trackera **oraz** nowe pomysły MES/ISA-95) → proponuje 1–2 issue, **bez** labela | primary | read-only + `webfetch`/`websearch` + `gh issue create` | cyklicznie / ręcznie |
+| `mes-analyst` | **Głębokość**: bierze JEDEN pomysł (propozycję lub issue #N) → finalna specyfikacja z AC + **nadaje** `ai:implement` | primary | read-only; `bash` tylko `gh issue *` | ręcznie / po researchu |
 | `mes-implementer` | Bierze issue → kod BE+FE+testy → `dotnet build/test`, `npm run build` → branch + PR | primary | `edit: allow`, `bash: allow` (deny: push do main, force push, `rm -rf`) | label `ai:implement` |
 | `mes-reviewer` | Review diffa PR względem `AGENT.md`/multi-tenancy → `gh pr review` | subagent | `edit: deny`; `bash` tylko `gh pr *`, `git diff` | PR opened / label `ai:review` |
 | `mes-verifier` (opcjonalny) | Niezależnie weryfikuje „czy testy nie są oszukane", dorzuca brakujące przypadki | subagent | `edit` tylko w `tests/**`; bash: testy | po review |
@@ -197,6 +197,8 @@ opencode.json                                  # model, instructions, permission
 .opencode/skills/mes-pr-review/SKILL.md        # checklista review (multi-tenancy!)
 docs/feature-tracker.md                        # kanoniczna mapa zdolności
 scripts/agent-loop.ps1                         # orkiestrator
+scripts/dashboard/server.mjs                    # lokalny dashboard (API, zero deps)
+scripts/dashboard/index.html                   # UI dashboardu (prompty w DEFAULTS)
 .github/workflows/ai-implement.yml             # (faza 4)
 ```
 
@@ -208,18 +210,18 @@ scripts/agent-loop.ps1                         # orkiestrator
   "model": "opencode-go/deepseek-v4.1-flash",
   "instructions": ["AGENT.md", ".github/copilot-instructions.md", "docs/glossary.md"],
   "permission": {
-    "bash": {
-      "*": "ask",
-      "rm -rf *": "deny",
-      "git push --force*": "deny",
-      "git push origin main*": "deny"
-    }
-  },
-  "agent": {
-    "mes-reviewer": { "permission": { "edit": "deny" } }
+    "bash": { "*": "allow", "rm -rf *": "deny", "git push --force*": "deny", "git push -f*": "deny" },
+    "edit": "allow",
+    "external_directory": "allow",
+    "webfetch": "allow",
+    "websearch": "allow"
   }
 }
 ```
+
+> Uwaga: to globalny, wygodny profil „bez pytań". Ograniczenia per-agent
+> (m.in. `deny` na push do `main`/`master`) żyją w plikach `.opencode/agent/*.md`
+> i **nadpisują** ten globalny profil.
 
 ### 6.2 Szkic `mes-reviewer.md`
 
@@ -247,7 +249,7 @@ plikami i liniami. NIE edytujesz kodu.
 ## 7. Guardrails
 
 - Max 3 rundy review → fix; potem label `ai:blocked` i eskalacja do człowieka.
-- Nigdy push do `main` — zawsze branch + PR.
+- Nigdy push do `main`/`master` — zawsze branch + PR. (Default branch tego repo to `master`.)
 - Bramka obiektywna = CI (`ci.yml`: `dotnet build/test` + `npm run build`).
   Reviewer to bramka subiektywna.
 - Budżet: limit tokenów/kosztu na issue; monitoring przez `opencode stats`.
@@ -271,6 +273,47 @@ plikami i liniami. NIE edytujesz kodu.
 - odsetek PR-ów z zielonym CI za pierwszym razem,
 - odsetek zmian odrzuconych przez review (jakość implementera).
 
+## 10. Dashboard (lokalny panel)
+
+Prosty panel do odpalania agentów i podglądu stanu — zero zależności (czysty Node):
+
+```powershell
+node scripts/dashboard/server.mjs      # -> http://127.0.0.1:5178
+```
+
+- pokazuje: branch, liczbę zmienionych plików, otwarte PR-y `ai/*`, issues
+  `ai:implement` / `ai:blocked`, uruchomione procesy, live logi;
+- pozwala odpalić dowolnego agenta oraz pętlę (`agent-loop.ps1`) z UI;
+- domyślne prompty siedzą w `scripts/dashboard/index.html` (`DEFAULTS`) — edycja
+  bez restartu serwera (wystarczy odświeżyć stronę);
+- logi runów trafiają do `%TEMP%\opencode\*.log`.
+
+## 11. Stan sesji i gotchas (handoff)
+
+**Stan:** PR #82 (issue #81, reason codes) — review `APPROVED`, gotowy do merge
+przez człowieka. Otwarte propozycje: #80 (Production Order), #83 (work-center
+calendars), #84 (downtime events), #85 (lot registry). CI naprawione (działa
+na `master`).
+
+**Znane pułapki:**
+
+- **Default branch to `master`**, nie `main` — CI i guardraile muszą łapać oba.
+- **PowerShell + natywne komendy**: listy pól do `gh` cytuj jako `--json 'a,b'`
+  (bez cudzysłowów PS rozbija je na dwa argumenty); `agent-loop.ps1` używa
+  `$ErrorActionPreference = 'Continue'`, bo `opencode`/`gh` piszą na stderr.
+- **Werdykt review**: `Get-Verdict` bierze **ostatnie** wystąpienie
+  `VERDICT: ...` (wcześniej łapał fałszywy `CHANGES_REQUESTED` z rozumowania
+  reviewera → zbędna runda).
+- **Logowanie dashboardu**: output przechwytujemy pipe-em w Node z `*>&1`
+  (samo `*>` do pliku nie łapało outputu `opencode`).
+- **Config opencode nie jest hot-reloadowany**: zmiany `opencode.json`/agentów
+  wymagają restartu opencode; zmiany promptów w dashboardzie — tylko reload.
+- Model `deepseek-v4.1-flash` radzi sobie z CRUD; trudniejsze taski (lifecycle,
+  migracje) warto weryfikować.
+
+**Następne kroki:** zmergować #82; oznaczyć #83/#84/#85 labelem `ai:implement`
+i odpalić pętlę; odpalić `mes-tracker`; rozważyć auto-merge zielonych PR-ów.
+
 ---
 
 ## Powiązane dokumenty
@@ -280,3 +323,4 @@ plikami i liniami. NIE edytujesz kodu.
 - [`docs/glossary.md`](glossary.md) — słownik domenowy
 - [`.github/instructions/`](../.github/instructions/) — instrukcje obszarowe
 - [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — bramka CI
+- [`scripts/dashboard/server.mjs`](../scripts/dashboard/server.mjs) — lokalny dashboard
