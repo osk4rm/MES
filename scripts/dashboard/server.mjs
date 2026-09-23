@@ -1,6 +1,11 @@
 // MES Agent Swarm dashboard — zero-dependency local control panel.
 // Run: node scripts/dashboard/server.mjs   (then open http://127.0.0.1:5178)
+//
+// Manual controls: mes-researcher, mes-analyst, mes-e2e-tester.
+// Everything else (implementer/reviewer/e2e transitions + feature tracker) is
+// driven automatically by scripts/agent-dispatcher.ps1.
 import http from 'node:http'
+import net from 'node:net'
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import fs from 'node:fs'
@@ -16,14 +21,10 @@ const LOG_DIR = path.join(os.tmpdir(), 'opencode')
 const PORT = Number(process.env.DASHBOARD_PORT || 5178)
 const HOST = '127.0.0.1'
 
-const AGENTS = [
-  'mes-researcher',
-  'mes-analyst',
-  'mes-implementer',
-  'mes-reviewer',
-  'mes-verifier',
-  'mes-tracker',
-]
+// Agents a human may start by hand from the dashboard.
+const MANUAL_AGENTS = ['mes-researcher', 'mes-analyst', 'mes-e2e-tester']
+const BACKEND_PORT = 5243
+const FRONTEND_PORT = 5173
 
 const running = new Map()
 
@@ -51,24 +52,86 @@ async function ghJson(args) {
   }
 }
 
+function tcp(port) {
+  return new Promise((resolve) => {
+    const socket = net.connect(port, '127.0.0.1')
+    socket.setTimeout(700)
+    socket.on('connect', () => { socket.destroy(); resolve(true) })
+    socket.on('error', () => resolve(false))
+    socket.on('timeout', () => { socket.destroy(); resolve(false) })
+  })
+}
+
+function labelNames(item) {
+  return (item.labels || []).map((l) => (typeof l === 'string' ? l : l.name))
+}
+
+function stageOf(labels) {
+  const has = (n) => labels.includes(n)
+  if (has('ai:blocked')) return 'blocked'
+  if (has('ai:ready')) return 'ready'
+  if (has('ai:e2e')) return 'e2e'
+  if (has('ai:changes')) return 'changes'
+  if (has('ai:review')) return 'review'
+  if (has('ai:running')) return 'running'
+  if (has('ai:implement')) return 'queued'
+  return 'other'
+}
+
+function checksOf(rollup) {
+  if (!rollup || !rollup.length) return 'none'
+  const states = rollup.map((c) => String(c.conclusion || c.state || '').toUpperCase())
+  const fail = ['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE']
+  const pend = ['PENDING', 'QUEUED', 'IN_PROGRESS', 'STALE', 'EXPECTED', '']
+  if (states.some((s) => fail.includes(s))) return 'fail'
+  if (states.some((s) => pend.includes(s))) return 'pending'
+  return 'pass'
+}
+
 async function getState() {
-  const [branch, porcelain, prs, ready, blocked] = await Promise.all([
+  const [branch, porcelain, issues, prs, backendUp, frontendUp] = await Promise.all([
     sh('git', ['branch', '--show-current']),
     sh('git', ['status', '--porcelain']),
-    ghJson(['pr', 'list', '--state', 'open', '--limit', '60', '--json', 'number,title,headRefName,url,isDraft']),
-    ghJson(['issue', 'list', '--label', 'ai:implement', '--state', 'open', '--limit', '60', '--json', 'number,title,url']),
-    ghJson(['issue', 'list', '--label', 'ai:blocked', '--state', 'open', '--limit', '60', '--json', 'number,title,url']),
+    ghJson(['issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,url,labels']),
+    ghJson(['pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,url,labels,headRefName,isDraft,statusCheckRollup']),
+    tcp(BACKEND_PORT),
+    tcp(FRONTEND_PORT),
   ])
+
   const dirty = porcelain ? porcelain.split(/\r?\n/).filter(Boolean).length : 0
+
+  const pipeline = []
+  for (const i of issues || []) {
+    const labels = labelNames(i)
+    if (!labels.some((l) => l.startsWith('ai:'))) continue
+    pipeline.push({ kind: 'issue', number: i.number, title: i.title, url: i.url, labels, stage: stageOf(labels) })
+  }
+  for (const p of prs || []) {
+    const labels = labelNames(p)
+    const isAi = labels.some((l) => l.startsWith('ai:')) || (p.headRefName || '').startsWith('ai/')
+    if (!isAi) continue
+    pipeline.push({
+      kind: 'pr', number: p.number, title: p.title, url: p.url, labels,
+      branch: p.headRefName, draft: p.isDraft,
+      stage: stageOf(labels), checks: checksOf(p.statusCheckRollup),
+    })
+  }
+  const order = { changes: 0, review: 1, e2e: 2, queued: 3, running: 4, ready: 5, blocked: 6, other: 7 }
+  pipeline.sort((a, b) => (order[a.stage] ?? 9) - (order[b.stage] ?? 9) || b.number - a.number)
+
+  const dispatcher = [...running.values()].find((r) => r.kind === 'dispatcher' && r.exitCode == null) || null
+
   return {
     root: ROOT,
     branch: branch || '(detached)',
     dirty,
-    prs: (prs || []).filter((p) => (p.headRefName || '').startsWith('ai/')),
-    issuesReady: ready || [],
-    issuesBlocked: blocked || [],
+    pipeline,
+    dispatcher: dispatcher
+      ? { id: dispatcher.id, pid: dispatcher.pid, startedAt: dispatcher.startedAt, logName: dispatcher.logName }
+      : null,
+    app: { backendUp, frontendUp, backendUrl: `http://localhost:${BACKEND_PORT}`, frontendUrl: `http://localhost:${FRONTEND_PORT}` },
     running: [...running.values()].sort((a, b) => b.startedAt - a.startedAt),
-    agents: AGENTS,
+    agents: MANUAL_AGENTS,
   }
 }
 
@@ -99,23 +162,15 @@ async function getLogs() {
   return logs
 }
 
-function startRun({ kind, agent, prompt }) {
-  const id = `${kind === 'loop' ? 'loop' : agent}-${Date.now()}`
+function spawnScript({ id, name, script, env = {} }) {
   const log = path.join(LOG_DIR, `${id}.log`)
-  const env = { ...process.env }
-  let script
-  if (kind === 'loop') {
-    const maxRounds = Math.max(1, Number(prompt.maxRounds) || 3)
-    const sync = prompt.syncTracker ? ' -SyncTracker' : ''
-    script = `& '${path.join(ROOT, 'scripts', 'agent-loop.ps1')}' -MaxRounds ${maxRounds}${sync} *>&1`
-  } else {
-    env.MES_PROMPT = prompt.text || 'Proceed with your role.'
-    script = `& opencode run --agent '${agent}' $env:MES_PROMPT *>&1`
-  }
   const out = fs.createWriteStream(log, { flags: 'a' })
-  const child = spawn('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], {
+  const pwshArgs = process.platform === 'win32'
+    ? ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]
+    : ['-NoProfile', '-Command', script]
+  const child = spawn('pwsh', pwshArgs, {
     cwd: ROOT,
-    env,
+    env: { ...process.env, ...env },
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -123,8 +178,7 @@ function startRun({ kind, agent, prompt }) {
   child.stderr.pipe(out)
   const rec = {
     id,
-    kind,
-    name: kind === 'loop' ? 'agent-loop.ps1' : agent,
+    name,
     pid: child.pid,
     log,
     logName: path.basename(log),
@@ -139,10 +193,41 @@ function startRun({ kind, agent, prompt }) {
   return rec
 }
 
+function startRun({ kind, agent, prompt }) {
+  if (kind === 'dispatcher') {
+    const interval = Math.max(5, Number(prompt.intervalSeconds) || 20)
+    const maxRounds = Math.max(1, Number(prompt.maxRounds) || 3)
+    const noTracker = prompt.noTracker ? ' -NoTracker' : ''
+    return spawnScript({
+      id: `dispatcher-${Date.now()}`,
+      name: 'agent-dispatcher.ps1',
+      script: `& '${path.join(ROOT, 'scripts', 'agent-dispatcher.ps1')}' -IntervalSeconds ${interval} -MaxRounds ${maxRounds}${noTracker} *>&1`,
+    })
+  }
+  return spawnScript({
+    id: `${agent}-${Date.now()}`,
+    name: agent,
+    script: `& opencode run --agent '${agent}' $env:MES_PROMPT *>&1`,
+    env: { MES_PROMPT: prompt.text || 'Proceed with your role.' },
+  })
+}
+
+function startApp(action) {
+  return spawnScript({
+    id: `e2e-app-${action}-${Date.now()}`,
+    name: `e2e app ${action}`,
+    script: `& '${path.join(ROOT, 'scripts', 'e2e', 'app.ps1')}' -Action ${action} *>&1`,
+  })
+}
+
 async function killRun(id) {
   const rec = running.get(id)
   if (!rec) return false
-  await sh('taskkill', ['/PID', String(rec.pid), '/T', '/F'])
+  if (process.platform === 'win32') {
+    await sh('taskkill', ['/PID', String(rec.pid), '/T', '/F'])
+  } else {
+    try { process.kill(rec.pid, 'SIGKILL') } catch { /* already gone */ }
+  }
   rec.exitCode = rec.exitCode ?? -1
   rec.endedAt = Date.now()
   return true
@@ -183,11 +268,17 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/run') {
       const body = await readBody(req)
-      if (body.kind === 'loop') {
-        return send(res, 200, startRun({ kind: 'loop', prompt: body }))
-      }
-      if (!AGENTS.includes(body.agent)) return send(res, 400, { error: 'unknown agent' })
+      if (body.kind === 'dispatcher') return send(res, 200, startRun({ kind: 'dispatcher', prompt: body }))
+      if (!MANUAL_AGENTS.includes(body.agent)) return send(res, 400, { error: 'agent not manually runnable' })
       return send(res, 200, startRun({ kind: 'agent', agent: body.agent, prompt: body }))
+    }
+    if (req.method === 'POST' && url.pathname === '/api/app') {
+      const body = await readBody(req)
+      if (!['start', 'stop', 'status'].includes(body.action)) return send(res, 400, { error: 'bad action' })
+      if (body.action === 'status') {
+        return send(res, 200, { backendUp: await tcp(BACKEND_PORT), frontendUp: await tcp(FRONTEND_PORT) })
+      }
+      return send(res, 200, startApp(body.action))
     }
     if (req.method === 'POST' && url.pathname === '/api/kill') {
       const body = await readBody(req)

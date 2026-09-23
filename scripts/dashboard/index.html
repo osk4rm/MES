@@ -6,24 +6,25 @@
 <title>MES Agent Swarm — dashboard</title>
 <style>
   :root { --bg:#0e1116; --panel:#161b22; --border:#273040; --fg:#e6edf3; --muted:#8b949e;
-          --accent:#2f81f7; --ok:#3fb950; --warn:#d29922; --bad:#f85149; }
+          --accent:#2f81f7; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --purple:#a371f7; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif; }
   header { position:sticky; top:0; z-index:5; background:#0b0e13; border-bottom:1px solid var(--border);
-           padding:10px 16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
-  header h1 { font-size:15px; margin:0; font-weight:600; }
+           padding:10px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0 8px 0 0; font-weight:600; }
   .badge { background:var(--panel); border:1px solid var(--border); border-radius:999px; padding:2px 10px; font-size:12px; color:var(--muted); }
   .badge b { color:var(--fg); font-weight:600; }
+  .badge.up b { color:var(--ok); } .badge.down b { color:var(--bad); }
   main { display:grid; grid-template-columns: 380px 1fr; gap:14px; padding:14px; align-items:start; }
   @media (max-width:900px){ main { grid-template-columns:1fr; } }
   .col { display:flex; flex-direction:column; gap:14px; min-width:0; }
   .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
-  .card h2 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .card h2 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); display:flex; justify-content:space-between; }
   label { display:block; font-size:12px; color:var(--muted); margin:8px 0 4px; }
   select, textarea, input[type=number] { width:100%; background:#0d1117; color:var(--fg); border:1px solid var(--border);
            border-radius:8px; padding:8px; font:inherit; }
   textarea { min-height:92px; resize:vertical; }
-  .row { display:flex; gap:8px; align-items:center; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:8px 14px; font:inherit; font-weight:600; cursor:pointer; }
   button.ghost { background:#21262d; border:1px solid var(--border); color:var(--fg); }
   button.danger { background:var(--bad); }
@@ -31,13 +32,22 @@
   .list { display:flex; flex-direction:column; gap:6px; }
   .item { display:flex; gap:8px; align-items:center; justify-content:space-between; background:#0d1117;
           border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+  .item .main { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .item a { color:var(--fg); text-decoration:none; }
   .item a:hover { color:var(--accent); }
   .muted { color:var(--muted); }
-  .pill { font-size:11px; padding:1px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted); }
+  .pill { font-size:11px; padding:1px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted); white-space:nowrap; }
   .pill.run { color:var(--ok); border-color:#1f6f3f; }
   .pill.done { color:var(--muted); }
   .pill.fail { color:var(--bad); border-color:#6e2b28; }
+  .pill.stage { font-weight:600; }
+  .pill.queued { color:#e3b341; border-color:#7a5c12; }
+  .pill.review { color:var(--accent); border-color:#1f4b8f; }
+  .pill.e2e { color:var(--purple); border-color:#5a3f8f; }
+  .pill.ready { color:var(--ok); border-color:#1f6f3f; }
+  .pill.blocked { color:var(--bad); border-color:#6e2b28; }
+  .pill.changes { color:var(--warn); border-color:#7a5c12; }
+  .pill.ci-pass { color:var(--ok); } .pill.ci-fail { color:var(--bad); } .pill.ci-pending { color:var(--warn); }
   details { border:1px solid var(--border); border-radius:8px; margin-bottom:8px; background:#0d1117; }
   summary { cursor:pointer; padding:8px 10px; font-size:12px; color:var(--muted); display:flex; justify-content:space-between; }
   pre { margin:0; padding:10px; max-height:340px; overflow:auto; font:12px/1.4 ui-monospace,Consolas,monospace;
@@ -50,6 +60,9 @@
   <h1>MES Agent Swarm</h1>
   <span class="badge">branch <b id="branch">…</b></span>
   <span class="badge">dirty <b id="dirty">…</b></span>
+  <span class="badge" id="be">backend <b>…</b></span>
+  <span class="badge" id="fe">frontend <b>…</b></span>
+  <span class="badge" id="dispatcherBadge">dispatcher <b>…</b></span>
   <span class="badge" id="tick">polling…</span>
 </header>
 
@@ -57,7 +70,7 @@
   <div class="col">
     <section class="card">
       <h2>Uruchom agenta</h2>
-      <label for="agent">Agent</label>
+      <label for="agent">Agent (ręcznie)</label>
       <select id="agent"></select>
       <label for="prompt">Prompt</label>
       <textarea id="prompt" placeholder="Wiadomość dla agenta…"></textarea>
@@ -68,13 +81,29 @@
     </section>
 
     <section class="card">
-      <h2>Pętla (agent-loop.ps1)</h2>
-      <label for="maxRounds">Max rund review→fix</label>
-      <input id="maxRounds" type="number" min="1" max="10" value="2" />
-      <label class="row" style="margin-top:10px"><input type="checkbox" id="syncTracker" style="width:auto" /> Sync feature tracker po pętli</label>
+      <h2>Dyspozytor <span id="dispState" class="muted"></span></h2>
+      <div class="row">
+        <div style="flex:1"><label for="intervalSeconds">Interwał (s)</label>
+          <input id="intervalSeconds" type="number" min="5" max="600" value="20" /></div>
+        <div style="flex:1"><label for="maxRounds">Max rund</label>
+          <input id="maxRounds" type="number" min="1" max="10" value="3" /></div>
+      </div>
+      <label class="row" style="margin-top:8px"><input type="checkbox" id="noTracker" style="width:auto" /> Wyłącz autonomiczny feature tracker</label>
       <div class="row" style="margin-top:10px">
-        <button id="loop">Start pętli</button>
-        <span class="muted" id="loopMsg"></span>
+        <button id="dispStart">Start</button>
+        <button id="dispStop" class="ghost danger">Stop</button>
+        <span class="muted" id="dispMsg"></span>
+      </div>
+      <p class="empty" style="margin:10px 0 0">Dyspozytor sam prowadzi implement→review→e2e po labelach i sam synchronizuje tracker.</p>
+    </section>
+
+    <section class="card">
+      <h2>Aplikacja (e2e)</h2>
+      <div class="row">
+        <button id="appStart">Start</button>
+        <button id="appStop" class="ghost">Stop</button>
+        <button id="appStatus" class="ghost">Status</button>
+        <span class="muted" id="appMsg"></span>
       </div>
     </section>
 
@@ -86,16 +115,8 @@
 
   <div class="col">
     <section class="card">
-      <h2>Gotowe do implementacji (ai:implement)</h2>
-      <div class="list" id="ready"><div class="empty">brak</div></div>
-    </section>
-    <section class="card">
-      <h2>Otwarte PR-y AI</h2>
-      <div class="list" id="prs"><div class="empty">brak</div></div>
-    </section>
-    <section class="card">
-      <h2>Zablokowane (ai:blocked)</h2>
-      <div class="list" id="blocked"><div class="empty">brak</div></div>
+      <h2>Pipeline</h2>
+      <div class="list" id="pipeline"><div class="empty">brak</div></div>
     </section>
     <section class="card">
       <h2>Logi</h2>
@@ -108,61 +129,66 @@
 const $ = (id) => document.getElementById(id)
 const DEFAULTS = {
   'mes-researcher': 'Read docs/feature-tracker.md first (do NOT rescan the whole repo). Work the gap rows AND propose genuinely NEW capabilities not yet in the tracker, grounded in the MES domain (ISA-95, OEE, downtime, genealogy, scheduling, quality, OPC UA, CMMS). Propose 1-2 small, independently implementable increments as GitHub issues via the mes-issue-spec skill. Do NOT add the ai:implement label - these are proposals only.',
-  'mes-analyst': 'Spec ONE feature into a final, build-ready issue. Input: <describe the feature, or an existing proposal issue number / a gap row from docs/feature-tracker.md>. Read the tracker first and verify only the relevant area. Use the mes-issue-spec skill, then add the ai:implement label so the orchestrator picks it up.',
-  'mes-implementer': 'Implement GitHub issue #<N> per AGENT.md. Write tests, run dotnet build/test and npm run build, then open a PR that closes #<N>.',
-  'mes-reviewer': 'Review PR #<N> per the mes-pr-review skill (diff only) and post your findings with the verdict line.',
-  'mes-verifier': 'Verify that the tests in PR #<N> actually prove the acceptance criteria of issue #<M>, and report gaps.',
-  'mes-tracker': 'Reconcile docs/feature-tracker.md with GitHub issues/PRs and the code, then open a PR on branch ai/tracker-sync.',
+  'mes-analyst': 'Spec ONE feature into a final, build-ready issue. Input: <describe the feature, or an existing proposal issue number / a gap row from docs/feature-tracker.md>. Read the tracker first and verify only the relevant area. Use the mes-issue-spec skill, then add the ai:implement label so the dispatcher picks it up.',
+  'mes-e2e-tester': 'Run a Playwright e2e smoke test. Input: <PR number, or leave empty to take the first PR labelled ai:e2e>. Resolve the scope from the PR diff with the mes-e2e skill, ensure the stack with scripts/e2e/app.ps1 -Action start, then post the result as a PR comment ending with VERDICT: E2E_PASS / E2E_FAIL / E2E_BLOCKED.',
 }
 let defaults = {}
 
-function ago(ts) {
+const ago = (ts) => {
   if (!ts) return ''
   const s = Math.floor((Date.now() - ts) / 1000)
   if (s < 60) return s + 's'
   if (s < 3600) return Math.floor(s / 60) + 'm'
   return Math.floor(s / 3600) + 'h'
 }
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+async function api(path, opts) { return (await fetch(path, opts)).json() }
+const post = (path, body) => api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 
-async function api(path, opts) {
-  const r = await fetch(path, opts)
-  return r.json()
-}
+const STAGE_LABEL = { queued: 'queued', running: 'running', review: 'review', changes: 'changes', e2e: 'e2e', ready: 'ready', blocked: 'blocked', other: 'other' }
 
-function itemLink(it) {
-  const label = it.number ? `#${it.number} ` : ''
-  return `<a href="${it.url}" target="_blank" rel="noreferrer">${label}${escapeHtml(it.title || '')}</a>`
-}
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+function pipelineItem(it) {
+  const link = `<a href="${it.url}" target="_blank" rel="noreferrer">${it.kind === 'pr' ? 'PR' : 'issue'} #${it.number} ${escapeHtml(it.title || '')}</a>`
+  const ci = it.kind === 'pr' && it.checks && it.checks !== 'none'
+    ? `<span class="pill ci-${it.checks}">CI ${it.checks}</span>` : ''
+  const draft = it.draft ? '<span class="pill">draft</span>' : ''
+  return `<div class="item"><span class="main">${link}</span>
+    <span class="row">${draft}${ci}<span class="pill stage ${it.stage}">${STAGE_LABEL[it.stage] || it.stage}</span></span></div>`
 }
 
 function renderState(st) {
   $('branch').textContent = st.branch
   $('dirty').textContent = st.dirty
 
+  const be = $('be'), fe = $('fe')
+  be.className = 'badge ' + (st.app.backendUp ? 'up' : 'down'); be.querySelector('b').textContent = st.app.backendUp ? 'up' : 'down'
+  fe.className = 'badge ' + (st.app.frontendUp ? 'up' : 'down'); fe.querySelector('b').textContent = st.app.frontendUp ? 'up' : 'down'
+
+  const d = $('dispatcherBadge')
+  d.className = 'badge ' + (st.dispatcher ? 'up' : 'down')
+  d.querySelector('b').textContent = st.dispatcher ? `running ${ago(st.dispatcher.startedAt)}` : 'stopped'
+  $('dispState').textContent = st.dispatcher ? `(pid ${st.dispatcher.pid})` : ''
+
   const sel = $('agent')
   if (!sel.options.length) {
     st.agents.forEach((a) => sel.add(new Option(a, a)))
     defaults = DEFAULTS
-    sel.value = 'mes-implementer'
+    sel.value = 'mes-researcher'
     $('prompt').value = defaults[sel.value] || ''
   }
   sel.onchange = () => { $('prompt').value = defaults[sel.value] || '' }
 
   const running = st.running || []
   $('running').innerHTML = running.length ? running.map((r) => {
-    const state = r.exitCode === null || r.exitCode === undefined
+    const state = r.exitCode == null
       ? `<span class="pill run">running ${ago(r.startedAt)}</span>`
-      : (r.exitCode === 0 ? `<span class="pill done">done</span>` : `<span class="pill fail">exit ${r.exitCode}</span>`)
-    return `<div class="item"><span>${escapeHtml(r.name)} <span class="muted">pid ${r.pid}</span></span>
+      : (r.exitCode === 0 ? '<span class="pill done">done</span>' : `<span class="pill fail">exit ${r.exitCode}</span>`)
+    return `<div class="item"><span class="main">${escapeHtml(r.name)} <span class="muted">pid ${r.pid}</span></span>
       <span class="row">${state}${r.exitCode == null ? `<button class="ghost danger" onclick="kill('${r.id}')">stop</button>` : ''}</span></div>`
   }).join('') : '<div class="empty">nic nie chodzi</div>'
 
-  const list = (arr) => arr.length ? arr.map((i) => `<div class="item">${itemLink(i)}</div>`).join('') : '<div class="empty">brak</div>'
-  $('ready').innerHTML = list(st.issuesReady)
-  $('blocked').innerHTML = list(st.issuesBlocked)
-  $('prs').innerHTML = list(st.prs)
+  const p = st.pipeline || []
+  $('pipeline').innerHTML = p.length ? p.map(pipelineItem).join('') : '<div class="empty">brak otwartych issue/PR-ów z labelami ai:*</div>'
 }
 
 function renderLogs(logs) {
@@ -189,31 +215,34 @@ function renderLogs(logs) {
       pre.scrollTop = atBottom ? pre.scrollHeight : prevTop
     }
   }
-  for (const d of [...container.querySelectorAll('details')]) {
-    if (!seen.has(d.dataset.name)) d.remove()
+  for (const dd of [...container.querySelectorAll('details')]) {
+    if (!seen.has(dd.dataset.name)) dd.remove()
   }
 }
 
-window.kill = async (id) => { await api('/api/kill', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) }); refresh() }
+window.kill = async (id) => { await post('/api/kill', { id }); refresh() }
 
 $('run').onclick = async () => {
   $('runMsg').textContent = 'uruchamiam…'
-  const res = await api('/api/run', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ kind: 'agent', agent: $('agent').value, text: $('prompt').value }),
-  })
+  const res = await post('/api/run', { kind: 'agent', agent: $('agent').value, text: $('prompt').value })
   $('runMsg').textContent = res.error ? res.error : `start: ${res.name} (pid ${res.pid})`
   refresh()
 }
-$('loop').onclick = async () => {
-  $('loopMsg').textContent = 'uruchamiam…'
-  const res = await api('/api/run', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ kind: 'loop', maxRounds: Number($('maxRounds').value), syncTracker: $('syncTracker').checked }),
-  })
-  $('loopMsg').textContent = res.error ? res.error : `start pętli (pid ${res.pid})`
+$('dispStart').onclick = async () => {
+  $('dispMsg').textContent = 'uruchamiam…'
+  const res = await post('/api/run', { kind: 'dispatcher', intervalSeconds: Number($('intervalSeconds').value), maxRounds: Number($('maxRounds').value), noTracker: $('noTracker').checked })
+  $('dispMsg').textContent = res.error ? res.error : `start (pid ${res.pid})`
   refresh()
 }
+$('dispStop').onclick = async () => {
+  const st = await api('/api/state')
+  if (st.dispatcher) { await post('/api/kill', { id: st.dispatcher.id }); $('dispMsg').textContent = 'zatrzymano' }
+  else $('dispMsg').textContent = 'nie chodzi'
+  refresh()
+}
+$('appStart').onclick = async () => { $('appMsg').textContent = 'start…'; const r = await post('/api/app', { action: 'start' }); $('appMsg').textContent = r.error || `pid ${r.pid}`; refresh() }
+$('appStop').onclick = async () => { $('appMsg').textContent = 'stop…'; const r = await post('/api/app', { action: 'stop' }); $('appMsg').textContent = r.error || `pid ${r.pid}`; refresh() }
+$('appStatus').onclick = async () => { const r = await post('/api/app', { action: 'status' }); $('appMsg').textContent = `backend ${r.backendUp ? 'up' : 'down'}, frontend ${r.frontendUp ? 'up' : 'down'}` }
 
 let n = 0
 async function refresh() {

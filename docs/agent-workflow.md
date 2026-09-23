@@ -1,320 +1,278 @@
 # MES Agent Swarm — autonomiczny workflow wieloagentowy
 
-Plan wdrożenia w pełni autonomicznego, wieloagentowego cyklu wytwarzania
-AsistOff MES przy użyciu opencode. Cel: eksperyment „totalnie autonomicznej
-implementacji przez AI" — od pomysłu/researchu, przez issue, implementację,
-review, aż po zielony PR.
+Wieloagentowy cykl wytwarzania AsistOff MES przy użyciu opencode: od pomysłu,
+przez specyfikację, implementację, review i e2e, aż po zielony PR gotowy do
+merge przez człowieka.
 
-Status: **scaffold gotowy (faza 1–2)**. Utworzone: `opencode.json`,
-`.opencode/agent/mes-{analyst,researcher,implementer,reviewer,verifier}.md`,
-`.opencode/skills/mes-{issue-spec,pr-review}/`, `scripts/agent-loop.ps1`,
-labele GitHub `ai:implement` / `ai:blocked`. GitHub Actions = faza 4 (jeszcze nie).
-Decyzje: orkiestracja lokalnym skryptem PowerShell, model domyślny
-`opencode-go/deepseek-v4.1-flash` wszędzie.
+Status: **półautomat z lokalnym dyspozytorem (faza 3)**. Researcher i analyst
+odpalasz ręcznie z dashboardu; implementer, reviewer, e2e-tester i tracker
+działają automatycznie po labelach. Merge zostaje bramką człowieka.
 
 ## 0. Szybki start
 
 ```powershell
 # 0. zrestartuj opencode, żeby wczytał opencode.json i agentów (config nie jest hot-reloadowany)
-opencode agent list            # sanity check: powinny być mes-analyst/.../mes-verifier
+opencode agent list            # sanity check: mes-analyst/.../mes-tracker + mes-e2e-tester
 
-# 1. wygeneruj propozycje (bez labela ai:implement)
-opencode run --agent mes-researcher "Zaproponuj 3 kolejne inkrementalne funkcje MES."
+# 1. utwórz/zaktualizuj labele workflow (raz na repo)
+pwsh -File scripts/setup-labels.ps1
 
-# 2. zaakceptuj wybrane issue ręcznie
-gh issue edit <N> --add-label "ai:implement"
+# 2. panel sterowania (ręcznie: researcher, analyst, e2e)
+node scripts/dashboard/server.mjs      # -> http://127.0.0.1:5178
 
-# 3. odpal pętlę (implement -> review -> fix, max 3 rundy)
-pwsh -File scripts/agent-loop.ps1 -MaxRounds 3
+# 3. dyspozytor (implement -> review -> e2e + tracker), w osobnym oknie
+pwsh -File scripts/agent-dispatcher.ps1
 
-# 4. ręcznie zmerguj zielony PR; issue z labelem ai:blocked wymaga Twojej uwagi
+# --- od tego momentu wszystko leci po labelach ---
+# researcher/analyst tworzą issue; analyst nadaje ai:implement -> reszta sama
 
-# 5. (opcjonalnie) uzgodnij feature tracker z GitHubem
-opencode run --agent mes-tracker "Uzgodnij docs/feature-tracker.md z GitHubem i otwórz PR."
+# 4. ręcznie mergujesz PR z labelami ai:ready (człowiek w pętli)
 ```
 
 Uwaga: `-Auto` (auto-approve uprawnień) tylko na izolowanym klonie.
-
----
 
 ## 1. Model mentalny
 
 Nie budujemy jednego długiego agenta robiącego wszystko. Budujemy **bezmózgich,
 jednorolowych workerów**, a całą inteligencję workflow i pamięć trzymamy
-w **GitHubie** (issue, PR, komentarze review, labele, CI).
+w **GitHubie** (issue, PR, komentarze, labele, CI). Handoff = issue body / PR
+description / review comment / label, nigdy wspólny wątek czatu.
 
-Konsekwencje:
+Nowość względem fazy 1–2: **stan workflow kodujemy labelami**, a przejściami
+między nimi steruje lokalny **dyspozytor**. Agenci nie dotykają labeli — to
+jednoznacznie rozdziela „kto decyduje" (dyspozytor) od „kto pracuje" (agent).
 
-- **Kontekst jest izolowany z definicji** — każdy worker to świeża sesja
-  `opencode run`, seedowana wyłącznie: swoim promptem + plikami `instructions`
-  + treścią artefaktu (issue/PR).
-- **Stan przechodzi przez artefakty, nie przez historię czatu.** To jest
-  mechanizm „pamiętania o contextach agentów": handoff = issue body / PR
-  description / review comment, nie wspólny wątek.
-- Każdy worker jest niezależny, wymienny i testowalny osobno.
+## 2. Labele = maszyna stanów
 
-## 2. Roster agentów
+| Label | Znaczenie | Ustawia |
+|---|---|---|
+| `ai:implement` | issue gotowe do implementacji | analyst / człowiek |
+| `ai:running` | lock: agent właśnie to przetwarza | dyspozytor |
+| `ai:review` | PR gotowe do review (CI zielone) | dyspozytor |
+| `ai:changes` | reviewer/e2e/CI żąda poprawek | dyspozytor |
+| `ai:e2e` | PR gotowe do smoke e2e (Playwright) | dyspozytor |
+| `ai:ready` | CI + review + e2e zielone; do merge przez człowieka | dyspozytor |
+| `ai:blocked` | eskalacja do człowieka (limit rund, brak werdyktu, brak PR) | dyspozytor |
+| `ai:auto-merge` | opt-in na przyszły auto-merge (jeszcze nieaktywny) | człowiek |
 
-| Agent | Rola | Mode | Uprawnienia | Trigger |
+`ai:running` jest jednocześnie lockiem (dyspozytor jest jednowątkowy) i
+znacznikiem widoczności. Po restarcie dyspozytor zdejmuje osierocone
+`ai:running`.
+
+## 3. Roster agentów
+
+| Agent | Rola | Mode | Trigger | Kto odpala |
 |---|---|---|---|---|
-| `mes-researcher` | **Szerokość**: przegląda domenę (wiersze `gap` z trackera **oraz** nowe pomysły MES/ISA-95) → proponuje 1–2 issue, **bez** labela | primary | read-only + `webfetch`/`websearch` + `gh issue create` | cyklicznie / ręcznie |
-| `mes-analyst` | **Głębokość**: bierze JEDEN pomysł (propozycję lub issue #N) → finalna specyfikacja z AC + **nadaje** `ai:implement` | primary | read-only; `bash` tylko `gh issue *` | ręcznie / po researchu |
-| `mes-implementer` | Bierze issue → kod BE+FE+testy → `dotnet build/test`, `npm run build` → branch + PR | primary | `edit: allow`, `bash: allow` (deny: push do main, force push, `rm -rf`) | label `ai:implement` |
-| `mes-reviewer` | Review diffa PR względem `AGENT.md`/multi-tenancy → `gh pr review` | subagent | `edit: deny`; `bash` tylko `gh pr *`, `git diff` | PR opened / label `ai:review` |
-| `mes-verifier` (opcjonalny) | Niezależnie weryfikuje „czy testy nie są oszukane", dorzuca brakujące przypadki | subagent | `edit` tylko w `tests/**`; bash: testy | po review |
-| `mes-tracker` | Uzgadnia `docs/feature-tracker.md` z GitHubem i kodem; jedyny writer trackera | all | `edit` tylko tracker; `gh`/`git` | po pętli / cyklicznie |
+| `mes-researcher` | **Szerokość**: gapy z trackera + nowe pomysły MES → 1–2 issue **bez** labela | primary | ręcznie / cyklicznie | dashboard |
+| `mes-analyst` | **Głębokość**: jeden pomysł → finalny spec z AC + nadaje `ai:implement` | primary | ręcznie | dashboard |
+| `mes-implementer` | issue → kod BE+FE+testy → PR | primary | `ai:implement` / `ai:changes` | dyspozytor |
+| `mes-reviewer` | diff PR względem `AGENT.md` → werdykt | all | `ai:review` + CI zielone | dyspozytor |
+| `mes-e2e-tester` | Playwright smoke (cały system lub obszar PR) → werdykt | all | `ai:e2e` | dyspozytor / dashboard |
+| `mes-verifier` | anty-cheat: czy testy naprawdę dowodzą AC | all | ręcznie (warunkowo) | — |
+| `mes-tracker` | jedyny writer `docs/feature-tracker.md` | all | **autonomicznie** (dyspozytor) | dyspozytor |
 
-Testy pisze **implementer** (zgodnie z wymaganiem). `mes-verifier` to
-bezpiecznik anty-cheat (wykrywanie wyłączonych/usuniętych testów), a nie
-codzienny krok.
+`mes-e2e-tester` używa Playwright MCP (skonfigurowany w `opencode.json`).
 
-## 3. Pętla ping-pong
-
-```
-mes-researcher ──> issue (#N) ──label ai:implement──> mes-implementer
-                                                        │  branch + PR
-                                                        ▼
-                                             CI: build + test (bramka obiektywna)
-                                                        │
-                                         label ai:review ▼
-                                                   mes-reviewer ──> gh pr review (comment / request-changes)
-                                                        │
-                       ┌──────── jeśli changes requested (max 3 rundy) ────────┐
-                       ▼                                                       │
-             mes-implementer (--continue TEJ SAMEJ sesji, zna swój kod) ──────┘
-                       │
-                       ▼  CI green + review approved
-                merge (start: bramka człowieka; potem auto-merge)
-```
-
-Trik kontekstowy:
-
-- **Implementer wraca do tej samej sesji** przy poprawkach po review
-  (`opencode run --continue` / `-s <sessionID>`) — ma już kod w kontekście.
-- **Reviewer zawsze startuje świeżo** — musi być niezależny; dostaje tylko diff.
-- Analyst / researcher zawsze świeżo.
-
-## 4. Orkiestracja
-
-Rekomendowany start: **lokalny skrypt PowerShell** (`scripts/agent-loop.ps1`).
-Działa na Twoim opencode, używa Twoich modeli, daje pełną kontrolę i widoczność
-każdego kroku. GitHub Actions (event-driven) to faza późniejsza — te same pliki
-agentów, inny „silnik".
-
-### 4.1 Szkic sterownika
-
-```powershell
-# scripts/agent-loop.ps1
-$maxRounds = 3
-$round = 0
-$sessionId = $null
-
-# 1. Wybierz issue do implementacji
-$issue = gh issue list --label "ai:implement" --json number,title,body |
-         ConvertFrom-Json | Select-Object -First 1
-if (-not $issue) { Write-Host "Brak issue z label ai:implement"; exit 0 }
-
-# 2. Implementacja (świeża sesja), tworzy branch + PR
-$implOut = opencode run --agent mes-implementer --format json `
-    "Zaimplementuj issue #$($issue.number). Przeczytaj je przez 'gh issue view $($issue.number)'. " `
-    "Po implementacji uruchom 'dotnet build/test' i 'npm run build', potem otwórz PR." |
-    Out-String
-# wyciągnij numer PR i sessionID z JSON eventów (sessionID potrzebny do --continue)
-
-# 3. Pętla review -> fix
-while ($round -lt $maxRounds) {
-    $round++
-    $review = opencode run --agent mes-reviewer --format json `
-        "Zrób review PR #$pr. Tylko diff. Werdykt przez 'gh pr review'." | Out-String
-
-    if ($review -match "approved") { break }
-
-    # implementer kontynuuje SWOJĄ sesję
-    opencode run --continue --session $sessionId `
-        "Popraw PR #$pr wg review z 'gh pr view $pr --comments'. Uruchom testy."
-}
-
-# 4. Eskalacja
-if ($round -ge $maxRounds) { gh issue edit $issue.number --add-label "ai:blocked" }
-```
-
-Uwaga: dokładny sposób wyciągnięcia `sessionID` i numeru PR zależy od formatu
-`--format json` — do dopracowania przy implementacji fazy 2.
-
-### 4.2 GitHub Actions (faza 4)
-
-Te same agenty odpalane z workflow na event `issues.labeled` / `pull_request`.
-Zalety: działa bez Twojej maszyny, naturalna izolacja, CI na tej samej maszynie.
-Wady: sekret API key w repo, wolniejsze. Nie robimy tego na starcie.
-
-### 4.3 Wariant odrzucony
-
-Jeden primary „orchestrator" wołający subagenty przez Task tool — dobre do demo,
-ale jedna długa sesja puchnie kontekstowo i nie przetrwa restartu. Nie na produkcję.
-
-## 5. Strategia kontekstu
-
-- Globalnie w `opencode.json` → `instructions`: `AGENT.md`,
-  `.github/copilot-instructions.md`, `docs/glossary.md`. Każdy agent dostaje to
-  automatycznie.
-- Instrukcje obszarowe (`architecture`, `database`, `frontend`,
-  `production-recipes`) ładuj **per-agent**, nie globalnie:
-  - implementer: wszystkie,
-  - reviewer: `architecture` + `api` + `testing`,
-  - researcher/analyst: żadne (potrzebują glossary, nie kodu).
-- Research zewnętrzny (MCP `context7`, GitHub MCP, `webfetch`) tylko dla
-  researcher/analyst.
-- **Nigdy nie reużywaj sesji między różnymi rolami.** Jedyna legalna
-  kontynuacja: implementer ↔ implementer po review.
-- Duże pliki (glossary, instrukcje) wchodzą przez `instructions`/`references`,
-  nie przez wklejanie do promptu.
-
-## 5.1 Feature tracker (żeby nie skanować repo od zera)
-
-`docs/feature-tracker.md` to kanoniczna, trwała mapa zdolności systemu:
-`done` / `partial` / `proposed` / `in-progress` / `gap`, z numerami issue/PR.
-
-- **researcher / analyst** czytają tracker **najpierw** i nie skanują całego
-  repo — pracują po wierszach `gap` i tylko weryfikują pojedyncze wiersze.
-- **mes-tracker** to **jedyny writer** trackera: uzgadnia statusy z GitHubem i
-  kodem, publikuje przez PR na branchu `ai/tracker-sync`.
-- **implementer / reviewer** nie dotykają trackera (minimalne PR-y).
-
-Uruchomienie: `opencode run --agent mes-tracker "..."` lub
-`pwsh -File scripts/agent-loop.ps1 -SyncTracker`.
-
-## 6. Pliki (utworzone; Actions = faza 4)
+## 4. Pętla
 
 ```
-opencode.json                                  # model, instructions, permission, agent, mcp
-.opencode/agent/mes-analyst.md
-.opencode/agent/mes-researcher.md
-.opencode/agent/mes-implementer.md
-.opencode/agent/mes-reviewer.md
-.opencode/agent/mes-verifier.md
-.opencode/agent/mes-tracker.md
-.opencode/skills/mes-issue-spec/SKILL.md       # szablon spec/AC dla analityka
-.opencode/skills/mes-pr-review/SKILL.md        # checklista review (multi-tenancy!)
-docs/feature-tracker.md                        # kanoniczna mapa zdolności
-scripts/agent-loop.ps1                         # orkiestrator
-scripts/dashboard/server.mjs                    # lokalny dashboard (API, zero deps)
-scripts/dashboard/index.html                   # UI dashboardu (prompty w DEFAULTS)
-.github/workflows/ai-implement.yml             # (faza 4)
+researcher ─┐
+            ├─> issue (bez labela) ──analyst──> issue [ai:implement]
+analyst ────┘                                          │
+                                                       ▼  label ai:implement
+                                            mes-implementer ─> PR (ai/issue-N-*)
+                                                       │
+                              PR opened ──> dyspozytor: +ai:review
+                                                       ▼  ai:review + CI zielone
+                                            mes-reviewer ─> komentarz VERDICT
+                                        ┌──────────────┴───────────────┐
+                              CHANGES_REQUESTED                 APPROVED
+                                        │                             │
+                          implementer (ta sama sesja)        dyspozytor: +ai:e2e
+                                        │                             ▼
+                                        │                    mes-e2e-tester (Playwright)
+                                        │                 ┌──────────┴──────────┐
+                                        │               FAIL                   PASS
+                                        └───────────────┘                +ai:ready
+                                      round++                        merge (człowiek)
+                                        │
+                                 limit rund -> ai:blocked
+
+  równolegle, autonomicznie:  zmiana zbioru work-itemów ─> mes-tracker ─> PR ai/tracker-sync
 ```
 
-### 6.1 Szkic `opencode.json`
+Trik kontekstowy: implementer wraca do **tej samej sesji** przy poprawkach
+(`--session`, mapa issue→sessionID w stanie dyspozytora); reviewer i e2e zawsze
+startują świeżo (niezależność).
 
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "model": "opencode-go/deepseek-v4.1-flash",
-  "instructions": ["AGENT.md", ".github/copilot-instructions.md", "docs/glossary.md"],
-  "permission": {
-    "bash": { "*": "allow", "rm -rf *": "deny", "git push --force*": "deny", "git push -f*": "deny" },
-    "edit": "allow",
-    "external_directory": "allow",
-    "webfetch": "allow",
-    "websearch": "allow"
-  }
-}
-```
+## 5. Orkiestracja — dyspozytor
 
-> Uwaga: to globalny, wygodny profil „bez pytań". Ograniczenia per-agent
-> (m.in. `deny` na push do `main`/`master`) żyją w plikach `.opencode/agent/*.md`
-> i **nadpisują** ten globalny profil.
+`scripts/agent-dispatcher.ps1` to lokalny, jednowątkowy daemon: co
+`-IntervalSeconds` (domyślnie 20 s) czyta stan GitHuba i wykonuje **jedną**
+akcję, wybierając wg priorytetu: `ai:changes` → `ai:review` (jeśli CI zielone)
+→ `ai:e2e` → `ai:implement`.
 
-### 6.2 Szkic `mes-reviewer.md`
+Parametry:
 
-```markdown
----
-description: Reviews PRs for AsistOff MES against AGENT.md and multi-tenancy rules.
-mode: subagent
-model: opencode-go/deepseek-v4.1-flash
-permission:
-  edit: deny
-  bash: { "*": ask, "git diff*": allow, "gh pr diff*": allow, "gh pr review*": allow, "gh pr view*": allow }
----
-Jesteś surowym reviewerem AsistOff MES. Sprawdzasz wyłącznie diff PR-a:
-- ITenantRequest albo IAllowAnonymousRequest na każdym nowym MediatR request,
-- ISaasy + brak ręcznych predykatów TenantId,
-- typed exceptions (NotFoundException / ValidationException / ...),
-- brak `any` w TypeScript, `<script setup lang="ts">`,
-- brak zmian w niepowiązanych testach/migracjach,
-- obecne i sensowne testy dla nowego zachowania,
-- brak nowych hardcode'owanych permissions/tenantów/roli.
-Werdykt wystawiasz przez `gh pr review` (comment lub request-changes) z konkretnymi
-plikami i liniami. NIE edytujesz kodu.
-```
+| Parametr | Default | Znaczenie |
+|---|---|---|
+| `-IntervalSeconds` | 20 | przerwa między cyklami |
+| `-MaxRounds` | 3 | limit rund review/e2e → fix na PR |
+| `-Once` | — | jeden cykl i wyjście (testy, dashboard) |
+| `-DryRun` | — | pokaż plan bez uruchamiania agentów i zmian labeli |
+| `-Auto` | — | przekaż `--auto` do opencode (izolowany klon) |
+| `-NoTracker` | — | wyłącz autonomiczny tracker |
+| `-TrackerIntervalMinutes` | 30 | wymuś sync trackera co tyle, nawet bez zmian |
+| `-TrackerCooldownMinutes` | 10 | minimalny odstęp między syncami trackera |
 
-## 7. Guardrails
+Zachowanie przy błędach:
 
-- Max 3 rundy review → fix; potem label `ai:blocked` i eskalacja do człowieka.
-- Nigdy push do `main`/`master` — zawsze branch + PR. (Default branch tego repo to `master`.)
-- Bramka obiektywna = CI (`ci.yml`: `dotnet build/test` + `npm run build`).
-  Reviewer to bramka subiektywna.
-- Budżet: limit tokenów/kosztu na issue; monitoring przez `opencode stats`.
-- `--auto` (auto-approve) tylko na izolowanym klonie/runnerze, nigdy na
-  roboczym repo.
-- Reviewer dostaje **tylko diff**, nie historię implementera → niezależność.
+- CI czerwone na `ai:review` → dyspozytor traktuje to jak `ai:changes`
+  (implementer naprawia), bez marnowania review.
+- Implementer nie otworzył PR → `ai:blocked` + komentarz.
+- Reviewer/e2e bez parsowalnego werdyktu → `ai:blocked`.
+- Przekroczony `-MaxRounds` → `ai:blocked` (+ komentarz) na PR i issue.
 
-## 8. Rollout fazami
+Stan (sesje, liczniki rund, ostatni sync trackera) trzymany w
+`%TEMP%\opencode\dispatcher-state.json`, więc restart nie gubi rund.
 
-1. **Faza 1 — ręcznie:** odpalasz agentów pojedynczo, dopracowujesz prompty.
-2. **Faza 2 — półautomat:** `scripts/agent-loop.ps1` na jednym issue, max 1 runda.
-3. **Faza 3 — pełna pętla:** 3 rundy + `mes-verifier`, merge za zgodą człowieka.
-4. **Faza 4 — autonomicznie:** GitHub Actions event-driven, researcher na cronie,
-   auto-merge zielonych.
+### 5.1 Ręczny override
 
-## 9. Mierzalne KPI eksperymentu
+`scripts/agent-loop.ps1` zostaje jako jednorazowa pętla na jedno issue
+(przydatne do debugowania promptów). Nie używa labeli stanu — to „ręczny bieg".
 
-- odsetek issue domkniętych bez interwencji człowieka,
-- średnia liczba rund review→fix,
-- koszt tokenów na PR (`opencode stats`),
-- odsetek PR-ów z zielonym CI za pierwszym razem,
-- odsetek zmian odrzuconych przez review (jakość implementera).
+## 6. Feature tracker — autonomiczny
 
-## 10. Dashboard (lokalny panel)
+`docs/feature-tracker.md` to kanoniczna mapa zdolności (`done` / `partial` /
+`proposed` / `in-progress` / `gap`).
 
-Prosty panel do odpalania agentów i podglądu stanu — zero zależności (czysty Node):
+- researcher / analyst czytają tracker **najpierw** i nie skanują repo.
+- `mes-tracker` to **jedyny writer**. Dyspozytor uruchamia go sam:
+  - gdy zmieni się **sygnatura** zbioru otwartych issue/PR (nowe issue,
+    zmiana labeli, merge/zamknięcie) i minął cooldown, albo
+  - gdy od ostatniego sync minął `-TrackerIntervalMinutes`.
+- Sync publikuje PR na branchu `ai/tracker-sync` (aktualizuje istniejący PR,
+  jeśli jest otwarty). Tracker PR nie jest liczony do sygnatury, żeby nie
+  wywołać pętli.
+- implementer / reviewer / e2e nie dotykają trackera (minimalne PR-y).
+
+## 7. End-to-end (Playwright)
+
+`mes-e2e-tester` + skill **mes-e2e**:
+
+- scope = `gh pr diff --name-only` zmapowany na obszary (tabela w skillu);
+  zmiany w routerze / `http.ts` / layoutcie / auth → **cały system**;
+- stack: `pwsh -File scripts/e2e/app.ps1 -Action start|stop|status`
+  (backend `:5243`, frontend `:5173`, login `admin@dev.local` / `Passw0rd!`);
+- werdykt w komentarzu PR: `VERDICT: E2E_PASS | E2E_FAIL | E2E_BLOCKED`.
+
+Jeśli backend nie wstanie (np. brak PostgreSQL), werdykt to `E2E_BLOCKED`, a
+dyspozytor eskaluje `ai:blocked` — e2e nigdy nie „przechodzi" po cichu.
+
+## 8. Dashboard
 
 ```powershell
 node scripts/dashboard/server.mjs      # -> http://127.0.0.1:5178
 ```
 
-- pokazuje: branch, liczbę zmienionych plików, otwarte PR-y `ai/*`, issues
-  `ai:implement` / `ai:blocked`, uruchomione procesy, live logi;
-- pozwala odpalić dowolnego agenta oraz pętlę (`agent-loop.ps1`) z UI;
-- domyślne prompty siedzą w `scripts/dashboard/index.html` (`DEFAULTS`) — edycja
-  bez restartu serwera (wystarczy odświeżyć stronę);
-- logi runów trafiają do `%TEMP%\opencode\*.log`.
+Ręcznie odpalasz **tylko**: `mes-researcher`, `mes-analyst`, `mes-e2e-tester`
+(reszta jest zdarzeniowa). Panel pokazuje:
 
-## 11. Stan sesji i gotchas (handoff)
+- **Pipeline**: otwarte issue/PR z labelami `ai:*`, ich etap i status CI;
+- stan **dyspozytora** (start/stop, interwał, max rund) i **aplikacji**
+  (start/stop/status backendu i frontendu dla e2e);
+- uruchomione procesy i live logi (`%TEMP%\opencode\*.log`).
 
-**Stan:** PR #82 (issue #81, reason codes) — review `APPROVED`, gotowy do merge
-przez człowieka. Otwarte propozycje: #80 (Production Order), #83 (work-center
-calendars), #84 (downtime events), #85 (lot registry). CI naprawione (działa
-na `master`).
+Prompty domyślne siedzą w `scripts/dashboard/index.html` (`DEFAULTS`) — edycja
+bez restartu serwera.
 
-**Znane pułapki:**
+### 8.1 Docker — dashboard i dyspozytor „zawsze dostępne"
 
-- **Default branch to `master`**, nie `main` — CI i guardraile muszą łapać oba.
-- **PowerShell + natywne komendy**: listy pól do `gh` cytuj jako `--json 'a,b'`
-  (bez cudzysłowów PS rozbija je na dwa argumenty); `agent-loop.ps1` używa
-  `$ErrorActionPreference = 'Continue'`, bo `opencode`/`gh` piszą na stderr.
-- **Werdykt review**: `Get-Verdict` bierze **ostatnie** wystąpienie
-  `VERDICT: ...` (wcześniej łapał fałszywy `CHANGES_REQUESTED` z rozumowania
-  reviewera → zbędna runda).
-- **Logowanie dashboardu**: output przechwytujemy pipe-em w Node z `*>&1`
-  (samo `*>` do pliku nie łapało outputu `opencode`).
-- **Config opencode nie jest hot-reloadowany**: zmiany `opencode.json`/agentów
-  wymagają restartu opencode; zmiany promptów w dashboardzie — tylko reload.
+Usługa `swarm` w `docker-compose.yml` uruchamia dashboard **i** dyspozytora
+w kontenerze, który pracuje na **izolowanym klonie repo** w wolumenie
+`swarm_work` (nie dotyka Twojego Windowsowego working tree).
+
+```powershell
+# 1. token GitHuba (raz): skopiuj .env.example -> .env i wpisz GH_TOKEN
+gh auth token                     # wartość do .env
+
+# 2. zamknij hostowy dashboard (jeśli chodzi) — inaczej zajmie port 5178
+# 3. zbuduj i włącz (restart: unless-stopped => wstaje z Dockerem)
+docker compose up -d --build swarm
+
+# podgląd logów / restart
+docker compose logs -f swarm
+```
+
+- Obraz: .NET 10 SDK, Node 20, PowerShell 7, git, gh, opencode, Playwright
+  (chromium) — implementer/reviewer/e2e mają wszystko, czego potrzebują.
+- Auth: `GH_TOKEN` (gh + `git push`) oraz zmontowane z hosta `~/.config/opencode`
+  i `~/.local/share/opencode` (config i auth opencode).
+- Docker socket jest zamontowany, żeby `dotnet test` (Testcontainers) działał.
+- e2e gada z `postgres` z compose przez `postgres__connectionString`
+  (nadpisywane env-em), więc dev seed (`admin@dev.local` / `Passw0rd!`) działa.
+- **Kontener klonuje repo z GitHuba**, więc najpierw wypchnij zmiany w
+  `scripts/`, `.opencode/` i `docs/` — inaczej kontener widzi stary `master`.
+- Zmienne: `SWARM_REPO_URL`, `SWARM_REPO_BRANCH`, `SWARM_AUTOSTART_DISPATCHER`,
+  `DASHBOARD_PORT` (patrz `.env.example`).
+
+## 9. Guardrails
+
+- Max `-MaxRounds` rund review/e2e → fix; potem `ai:blocked` + komentarz.
+- Nigdy push do `main`/`master` — zawsze branch + PR (default branch to `master`).
+- Bramka obiektywna = CI (`ci.yml`: `dotnet build/test` + `npm run build`),
+  potem review (subiektywna) i e2e (obserwacja UI).
+- Bramka człowieka = merge PR `ai:ready`. `ai:auto-merge` jest zarezerwowany na
+  przyszłość.
+- `--auto` tylko na izolowanym klonie/runnerze.
+- Reviewer i e2e dostają tylko artefakt (diff/PR), nie historię implementera.
+
+## 10. Rollout
+
+1. ~~Faza 1 — ręcznie.~~ 2. ~~Faza 2 — półautomat `agent-loop.ps1`.~~
+3. **Faza 3 (obecna) — dyspozytor po labelach, e2e, autonomiczny tracker,
+   merge za zgodą człowieka.**
+4. Faza 4 — GitHub Actions event-driven (`issues.labeled` / `pull_request`),
+   researcher na cronie, opcjonalny auto-merge zielonych.
+
+## 11. Pliki
+
+```
+opencode.json                                  # model, instructions, permission, agent, mcp (playwright)
+.opencode/agent/mes-{analyst,researcher,implementer,reviewer,verifier,tracker,e2e-tester}.md
+.opencode/skills/mes-issue-spec/SKILL.md       # szablon spec/AC
+.opencode/skills/mes-pr-review/SKILL.md        # checklista review (multi-tenancy)
+.opencode/skills/mes-e2e/SKILL.md              # scope map + smoke + werdykt e2e
+docs/feature-tracker.md                        # kanoniczna mapa zdolności
+scripts/agent-dispatcher.ps1                   # dyspozytor (label state machine + tracker)
+scripts/agent-loop.ps1                         # ręczny override na jedno issue
+scripts/setup-labels.ps1                       # tworzy/aktualizuje labele workflow
+scripts/e2e/app.ps1                            # start/stop/status stacku dla e2e
+scripts/dashboard/server.mjs                   # panel: pipeline, dyspozytor, app, logi
+scripts/dashboard/index.html                   # UI (prompty w DEFAULTS)
+docker/swarm/Dockerfile                        # obraz swarm (dashboard+dyspozytor+agenty)
+docker/swarm/entrypoint.sh                     # klon wolumenu + auth + start
+.env.example                                   # GH_TOKEN i overrides dla compose
+.github/workflows/ci.yml                       # bramka CI
+.github/workflows/ai-implement.yml             # (faza 4, jeszcze nie ma)
+```
+
+## 12. Gotchas (handoff)
+
+- **Default branch to `master`**, nie `main` — CI i guardraile łapią oba.
+- **PowerShell + natywne komendy**: listy pól do `gh` cytuj jako `--json 'a,b'`;
+  skrypty używają `$ErrorActionPreference = 'Continue'`, bo `opencode`/`gh`
+  piszą na stderr.
+- **Werdykt**: bierzemy **ostatnie** wystąpienie `VERDICT: ...`; dyspozytor
+  dodatkowo fallbackuje do ostatniego komentarza PR, gdy agent nie wypisze go
+  na stdout.
+- **Config opencode nie jest hot-reloadowany** — zmiany `opencode.json`/agentów
+  wymagają restartu; prompty dashboardu — tylko reload.
+- **Dyspozytor jest jednowątkowy** — nie odpalaj dwóch naraz na tym samym repo.
+- **e2e wymaga PostgreSQL** (dev seed `admin@dev.local` / `Passw0rd!`); bez DB
+  werdykt to `E2E_BLOCKED`.
 - Model `deepseek-v4.1-flash` radzi sobie z CRUD; trudniejsze taski (lifecycle,
   migracje) warto weryfikować.
-
-**Następne kroki:** zmergować #82; oznaczyć #83/#84/#85 labelem `ai:implement`
-i odpalić pętlę; odpalić `mes-tracker`; rozważyć auto-merge zielonych PR-ów.
-
----
 
 ## Powiązane dokumenty
 
@@ -323,4 +281,4 @@ i odpalić pętlę; odpalić `mes-tracker`; rozważyć auto-merge zielonych PR-�
 - [`docs/glossary.md`](glossary.md) — słownik domenowy
 - [`.github/instructions/`](../.github/instructions/) — instrukcje obszarowe
 - [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — bramka CI
-- [`scripts/dashboard/server.mjs`](../scripts/dashboard/server.mjs) — lokalny dashboard
+- [`scripts/agent-dispatcher.ps1`](../scripts/agent-dispatcher.ps1) — dyspozytor

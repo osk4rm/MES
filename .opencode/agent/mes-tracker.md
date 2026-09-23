@@ -27,6 +27,10 @@ of the system so that other agents do not rescan the repository.
 
 No specific input. You may receive a focus area.
 
+You are normally launched **autonomously** by `scripts/agent-dispatcher.ps1`
+whenever the set of open work items changes (or the tracker interval elapses).
+You can still be run by hand. Either way: same procedure, same publishing rules.
+
 ## Procedure
 
 1. Read `docs/feature-tracker.md` (current state).
