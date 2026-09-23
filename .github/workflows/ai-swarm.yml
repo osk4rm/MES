@@ -77,6 +77,8 @@ jobs:
         run: |
           if ! command -v opencode >/dev/null 2>&1; then
             curl -fsSL https://opencode.ai/install | bash
+            # GITHUB_PATH applies to the NEXT step only; export now for this one.
+            export PATH="$HOME/.opencode/bin:$PATH"
           fi
           opencode --version
       - name: Implement and open PR
@@ -229,6 +231,8 @@ jobs:
         run: |
           if ! command -v opencode >/dev/null 2>&1; then
             curl -fsSL https://opencode.ai/install | bash
+            # GITHUB_PATH applies to the NEXT step only; export now for this one.
+            export PATH="$HOME/.opencode/bin:$PATH"
           fi
           opencode --version
       - name: Verify tests prove the acceptance criteria
@@ -287,6 +291,8 @@ jobs:
         run: |
           if ! command -v opencode >/dev/null 2>&1; then
             curl -fsSL https://opencode.ai/install | bash
+            # GITHUB_PATH applies to the NEXT step only; export now for this one.
+            export PATH="$HOME/.opencode/bin:$PATH"
           fi
           opencode --version
       - name: Fix and push to the same branch
@@ -361,6 +367,8 @@ jobs:
         run: |
           if ! command -v opencode >/dev/null 2>&1; then
             curl -fsSL https://opencode.ai/install | bash
+            # GITHUB_PATH applies to the NEXT step only; export now for this one.
+            export PATH="$HOME/.opencode/bin:$PATH"
           fi
           opencode --version
           npm --prefix AsistOff.MES.Web ci
@@ -417,6 +425,8 @@ jobs:
         run: |
           if ! command -v opencode >/dev/null 2>&1; then
             curl -fsSL https://opencode.ai/install | bash
+            # GITHUB_PATH applies to the NEXT step only; export now for this one.
+            export PATH="$HOME/.opencode/bin:$PATH"
           fi
           opencode --version
       - name: Append gap rows and open PR
@@ -460,6 +470,8 @@ jobs:
         run: |
           if ! command -v opencode >/dev/null 2>&1; then
             curl -fsSL https://opencode.ai/install | bash
+            # GITHUB_PATH applies to the NEXT step only; export now for this one.
+            export PATH="$HOME/.opencode/bin:$PATH"
           fi
           opencode --version
       - name: Reconcile feature tracker
