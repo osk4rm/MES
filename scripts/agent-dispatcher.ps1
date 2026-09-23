@@ -7,7 +7,8 @@
     (see docs/agent-workflow.md):
 
         issue [ai:implement]           -> mes-implementer -> PR [ai:review]
-        PR [ai:review] + CI green      -> mes-reviewer    -> [ai:e2e] / [ai:changes]
+        PR [ai:review] + CI green      -> mes-reviewer    -> [ai:verify] / [ai:changes]
+        PR [ai:verify]                 -> mes-verifier (read-only) -> [ai:e2e] / [ai:changes]
         PR [ai:changes]                -> mes-implementer (same session) -> [ai:review]
         PR [ai:e2e]                    -> mes-e2e-tester  -> [ai:ready] / [ai:changes] / [ai:blocked]
         PR [ai:ready]                  -> human merges
@@ -43,6 +44,10 @@
 .PARAMETER TrackerCooldownMinutes
     Minimum time between two tracker syncs. Default 10.
 
+.PARAMETER RunningTtlMinutes
+    ai:running locks older than this are considered orphaned and cleared on
+    startup. Default 30. Fresh locks are kept (may belong to a live agent).
+
 .NOTES
     Requires: git, gh (authenticated), opencode, and (for e2e) Playwright MCP.
     Run from the repository root. State is kept in %TEMP%\opencode\dispatcher-state.json.
@@ -56,7 +61,8 @@ param(
     [switch]$Auto,
     [switch]$NoTracker,
     [int]$TrackerIntervalMinutes = 30,
-    [int]$TrackerCooldownMinutes = 10
+    [int]$TrackerCooldownMinutes = 10,
+    [int]$RunningTtlMinutes = 30
 )
 
 $ErrorActionPreference = 'Continue'
@@ -199,9 +205,15 @@ function Get-SessionId {
 
 function Get-Verdict {
     param([string]$Raw, [string]$Pattern)
+    # Strict: verdict must be unambiguous. Multiple DISTINCT verdicts in one
+    # output (e.g. reasoning quotes the other option) -> AMBIGUOUS -> blocked.
+    # Callers take the last match only when all matches agree.
     $matches = [regex]::Matches($Raw, $Pattern)
     if ($matches.Count -eq 0) { return 'UNKNOWN' }
-    return $matches[$matches.Count - 1].Groups[1].Value
+    $values = @($matches | ForEach-Object { $_.Groups[1].Value })
+    $distinct = @($values | Sort-Object -Unique)
+    if ($distinct.Count -gt 1) { return 'AMBIGUOUS' }
+    return $distinct[0]
 }
 
 function Get-IssueFromBranch {
@@ -247,6 +259,36 @@ function Reset-Rounds {
     Set-Rounds $State $PrNumber 0
 }
 
+function Set-LockTimestamp {
+    param($State, [string]$Kind, $Number)
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $owner = Get-LockOwner
+    if ($Kind -eq 'issue') {
+        $entry = Get-Prop $State.issues "$Number"
+        if (-not $entry) { $entry = [pscustomobject]@{} }
+        $entry | Add-Member -NotePropertyName lockAcquiredAt -NotePropertyValue $now -Force
+        $entry | Add-Member -NotePropertyName lockOwner -NotePropertyValue $owner -Force
+        $State.issues | Add-Member -NotePropertyName "$Number" -NotePropertyValue $entry -Force
+    } else {
+        $entry = Get-Prop $State.prs "$Number"
+        if (-not $entry) { $entry = [pscustomobject]@{} }
+        $entry | Add-Member -NotePropertyName lockAcquiredAt -NotePropertyValue $now -Force
+        $entry | Add-Member -NotePropertyName lockOwner -NotePropertyValue $owner -Force
+        $State.prs | Add-Member -NotePropertyName "$Number" -NotePropertyValue $entry -Force
+    }
+    Save-State $State
+}
+
+function Clear-LockTimestamp {
+    param($State, [string]$Kind, $Number)
+    $entry = if ($Kind -eq 'issue') { Get-Prop $State.issues "$Number" } else { Get-Prop $State.prs "$Number" }
+    if ($entry) {
+        $entry.PSObject.Properties.Remove('lockAcquiredAt')
+        $entry.PSObject.Properties.Remove('lockOwner')
+    }
+    Save-State $State
+}
+
 # ---------------------------------------------------------------------------
 # Actions
 # ---------------------------------------------------------------------------
@@ -255,6 +297,7 @@ function Invoke-Implement {
     $num = $Issue.number
     Write-Host "==> implement issue #$num : $($Issue.title)"
     Add-Label issue $num 'ai:running'
+    Set-LockTimestamp $State 'issue' $num
     $raw = Invoke-Agent -Agent 'mes-implementer' -Prompt (
         "Implement GitHub issue #$num. Read it with 'gh issue view $num --comments'. " +
         "Follow AGENT.md and the area instructions. Write tests, run " +
@@ -264,6 +307,7 @@ function Invoke-Implement {
     )
     $session = Get-SessionId $raw
     Remove-Label issue $num 'ai:running'
+    Clear-LockTimestamp $State 'issue' $num
 
     $pr = @(GhJson @('pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,headRefName,isDraft') |
         Where-Object { $_.headRefName -like "ai/issue-$num-*" } | Select-Object -First 1)
@@ -301,6 +345,7 @@ function Invoke-Fix {
     }
 
     Add-Label pr $prNum 'ai:running'
+    Set-LockTimestamp $State 'pr' $prNum
     $prompt = "Review/e2e feedback on PR #$prNum requested changes. " +
         "Read it with 'gh pr view $prNum --comments'. Fix every point, re-run " +
         "'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and " +
@@ -308,6 +353,7 @@ function Invoke-Fix {
     if ($Reason -eq 'ci') { $prompt = "CI on PR #$prNum is red. Inspect 'gh pr checks $prNum' and the logs, fix the failure, re-run build/test locally, then push to the same branch." }
     Invoke-Agent -Agent 'mes-implementer' -Session $session -Prompt $prompt | Out-Null
     Remove-Label pr $prNum 'ai:running'
+    Clear-LockTimestamp $State 'pr' $prNum
     Remove-Label pr $prNum 'ai:changes'
     Add-Label pr $prNum 'ai:review'
     Set-Rounds $State $prNum $rounds
@@ -319,28 +365,72 @@ function Invoke-Review {
     $prNum = $Pr.number
     Write-Host "==> review PR #$prNum : $($Pr.title)"
     Add-Label pr $prNum 'ai:running'
+    Set-LockTimestamp $State 'pr' $prNum
     $raw = Invoke-Agent -Agent 'mes-reviewer' -Prompt (
         "Review PR #$prNum for AsistOff MES. Inspect only the diff with 'gh pr diff $prNum'. " +
         "Post your findings with 'gh pr comment $prNum' and end the body with exactly one " +
-        "verdict line: 'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'."
+        "verdict on its own line: 'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'. " +
+        "Do not write any other VERDICT line (do not quote the alternative)."
     )
     Remove-Label pr $prNum 'ai:running'
+    Clear-LockTimestamp $State 'pr' $prNum
     Remove-Label pr $prNum 'ai:review'
 
     $verdict = Get-Verdict $raw 'VERDICT:\s*(APPROVED|CHANGES_REQUESTED)'
-    if ($verdict -eq 'UNKNOWN') {
+    if (($verdict -eq 'UNKNOWN') -or ($verdict -eq 'AMBIGUOUS')) {
         $comments = GhJson @('pr', 'view', "$prNum", '--json', 'comments')
         $body = (@($comments.comments) | ForEach-Object { $_.body }) -join "`n"
         $verdict = Get-Verdict $body 'VERDICT:\s*(APPROVED|CHANGES_REQUESTED)'
     }
 
     switch ($verdict) {
-        'APPROVED' { Add-Label pr $prNum 'ai:e2e'; Write-Host "    -> ai:e2e" }
+        'APPROVED' { Add-Label pr $prNum 'ai:verify'; Write-Host "    -> ai:verify" }
         'CHANGES_REQUESTED' { Add-Label pr $prNum 'ai:changes'; Write-Host "    -> ai:changes" }
         default {
             Add-Label pr $prNum 'ai:blocked'
-            Add-Comment pr $prNum 'Agent flow: reviewer produced no parseable verdict. Needs human attention.'
-            Write-Host "    -> ai:blocked (no verdict)"
+            Add-Comment pr $prNum 'Agent flow: reviewer produced no unambiguous verdict (none or multiple). Needs human attention.'
+            Write-Host "    -> ai:blocked (review verdict $verdict)"
+        }
+    }
+}
+
+function Invoke-Verify {
+    param($State, $Pr)
+    $prNum = $Pr.number
+    $issueNum = Get-IssueFromBranch $Pr.headRefName
+    Write-Host "==> verify PR #$prNum : $($Pr.title)"
+    Add-Label pr $prNum 'ai:running'
+    Set-LockTimestamp $State 'pr' $prNum
+    $issuePart = if ($issueNum) { " linked issue #$issueNum (read AC with 'gh issue view $issueNum --comments')" } else { "" }
+    $raw = Invoke-Agent -Agent 'mes-verifier' -Prompt (
+        "Verify that the tests in PR #$prNum genuinely prove the acceptance criteria$issuePart. " +
+        "Read-only audit: inspect the diff with 'gh pr diff $prNum', map each criterion to the test(s) " +
+        "that prove it, and check for weakened tests. DO NOT write files, commit, or push. " +
+        "Post the report with 'gh pr comment $prNum' ending with exactly one verdict on its own line: " +
+        "'VERDICT: TESTS_SOUND' or 'VERDICT: TESTS_INSUFFICIENT'. Do not write any other VERDICT line."
+    )
+    Remove-Label pr $prNum 'ai:running'
+    Clear-LockTimestamp $State 'pr' $prNum
+    Remove-Label pr $prNum 'ai:verify'
+
+    $verdict = Get-Verdict $raw 'VERDICT:\s*(TESTS_SOUND|TESTS_INSUFFICIENT)'
+    if (($verdict -eq 'UNKNOWN') -or ($verdict -eq 'AMBIGUOUS')) {
+        $comments = GhJson @('pr', 'view', "$prNum", '--json', 'comments')
+        $body = (@($comments.comments) | ForEach-Object { $_.body }) -join "`n"
+        $verdict = Get-Verdict $body 'VERDICT:\s*(TESTS_SOUND|TESTS_INSUFFICIENT)'
+    }
+
+    switch ($verdict) {
+        'TESTS_SOUND' { Add-Label pr $prNum 'ai:e2e'; Write-Host "    -> ai:e2e" }
+        'TESTS_INSUFFICIENT' {
+            Add-Label pr $prNum 'ai:changes'
+            Add-Comment pr $prNum 'Agent flow: verifier found untested criteria or weakened tests (see verification report). Implementer must add real tests.'
+            Write-Host "    -> ai:changes (tests insufficient)"
+        }
+        default {
+            Add-Label pr $prNum 'ai:blocked'
+            Add-Comment pr $prNum 'Agent flow: verifier produced no unambiguous verdict. Needs human attention.'
+            Write-Host "    -> ai:blocked (verify verdict $verdict)"
         }
     }
 }
@@ -350,6 +440,7 @@ function Invoke-E2e {
     $prNum = $Pr.number
     Write-Host "==> e2e PR #$prNum : $($Pr.title)"
     Add-Label pr $prNum 'ai:running'
+    Set-LockTimestamp $State 'pr' $prNum
     $raw = Invoke-Agent -Agent 'mes-e2e-tester' -Prompt (
         "Run the Playwright end-to-end smoke test for PR #$prNum. Resolve the scope from " +
         "'gh pr diff $prNum --name-only' using the mes-e2e skill, ensure the stack with " +
@@ -358,10 +449,11 @@ function Invoke-E2e {
         "'VERDICT: E2E_PASS', 'VERDICT: E2E_FAIL' or 'VERDICT: E2E_BLOCKED'."
     )
     Remove-Label pr $prNum 'ai:running'
+    Clear-LockTimestamp $State 'pr' $prNum
     Remove-Label pr $prNum 'ai:e2e'
 
     $verdict = Get-Verdict $raw 'VERDICT:\s*(E2E_PASS|E2E_FAIL|E2E_BLOCKED)'
-    if ($verdict -eq 'UNKNOWN') {
+    if (($verdict -eq 'UNKNOWN') -or ($verdict -eq 'AMBIGUOUS')) {
         $comments = GhJson @('pr', 'view', "$prNum", '--json', 'comments')
         $body = (@($comments.comments) | ForEach-Object { $_.body }) -join "`n"
         $verdict = Get-Verdict $body 'VERDICT:\s*(E2E_PASS|E2E_FAIL|E2E_BLOCKED)'
@@ -370,7 +462,7 @@ function Invoke-E2e {
     switch ($verdict) {
         'E2E_PASS' {
             Add-Label pr $prNum 'ai:ready'
-            Add-Comment pr $prNum 'Agent flow: CI + review + e2e green. Ready for a human merge.'
+            Add-Comment pr $prNum 'Agent flow: CI + review + verify + e2e green. Ready for a human merge.'
             Write-Host "    -> ai:ready"
         }
         'E2E_FAIL' { Add-Label pr $prNum 'ai:changes'; Write-Host "    -> ai:changes" }
@@ -387,17 +479,50 @@ function Invoke-E2e {
 # ---------------------------------------------------------------------------
 function Get-WorkSignature {
     param($OpenIssues, $OpenPrs)
+    # NOTE: ai:running is a transient lock churned every cycle — exclude it so
+    # the tracker does not sync on every lock/unlock.
     $parts = @()
     foreach ($i in @($OpenIssues)) {
-        $labels = (Get-LabelNames $i | Sort-Object) -join '+'
+        $labels = @(Get-LabelNames $i | Where-Object { $_ -ne 'ai:running' } | Sort-Object) -join '+'
         $parts += "i$($i.number):$labels"
     }
     foreach ($p in @($OpenPrs)) {
         if ($p.headRefName -eq 'ai/tracker-sync') { continue }
-        $labels = (Get-LabelNames $p | Sort-Object) -join '+'
+        $labels = @(Get-LabelNames $p | Where-Object { $_ -ne 'ai:running' } | Sort-Object) -join '+'
         $parts += "p$($p.number):$labels"
     }
     return ($parts -join '|')
+}
+
+function Get-RepoDirty {
+    $out = (& git status --porcelain 2>&1 | Out-String).Trim()
+    return (-not [string]::IsNullOrWhiteSpace($out))
+}
+
+function Get-LockOwner {
+    return "$env:COMPUTERNAME/$env:USERNAME pid=$PID"
+}
+
+function Test-StaleLock {
+    param($State, [string]$Kind, $Number, $Item)
+    # Returns $true only when the ai:running lock is safe to clear:
+    # older than RunningTtlMinutes by BOTH local state and GitHub updatedAt.
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $ttlSec = [math]::Max(1, $RunningTtlMinutes) * 60
+    $entry = if ($Kind -eq 'issue') { Get-Prop $State.issues "$Number" } else { Get-Prop $State.prs "$Number" }
+    $localTs = [int64](Get-Prop $entry 'lockAcquiredAt')
+    $localAgeOk = ($localTs -gt 0) -and (($now - $localTs) -gt $ttlSec)
+    if ($localTs -gt 0 -and -not $localAgeOk) { return $false }
+    # No local timestamp (e.g. TEMP wiped) — fall back to GitHub updatedAt.
+    try {
+        $updated = [string]$Item.updatedAt
+        if ($updated) {
+            $updSec = [int64]([DateTimeOffset]::Parse($updated).ToUnixTimeSeconds())
+            return (($now - $updSec) -gt $ttlSec)
+        }
+    } catch { }
+    # No evidence at all: only stale if we had a local timestamp that expired.
+    return $localAgeOk
 }
 
 function Invoke-TrackerIfDue {
@@ -415,10 +540,16 @@ function Invoke-TrackerIfDue {
     $due = (($changed) -and ($sinceMin -ge $cooldown)) -or ($sinceMin -ge $interval)
     if (-not $due) { return }
 
+    if (Get-RepoDirty) {
+        Write-Host "==> tracker skipped: working tree dirty (commit/stash first). Will retry next cycle."
+        return
+    }
+
     Write-Host "==> feature tracker sync (changed=$changed, since=${sinceMin}m)"
     Invoke-Agent -Agent 'mes-tracker' -Prompt (
         "Reconcile docs/feature-tracker.md with GitHub issues/PRs and the codebase, " +
-        "then publish the update on branch ai/tracker-sync and open or update a PR. " +
+        "then publish the update on branch ai/tracker-sync (based on the repo default branch, " +
+        "see 'gh repo view --json defaultBranchRef') and open or update a PR. " +
         "Abort if the working tree is dirty."
     ) | Out-Null
 
@@ -433,12 +564,13 @@ function Invoke-TrackerIfDue {
 function Invoke-Cycle {
     param($State)
 
-    $openIssues = @(GhJson @('issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,url,labels'))
-    $openPrs = @(GhJson @('pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,url,labels,headRefName,isDraft,body'))
+    $openIssues = @(GhJson @('issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,url,labels,updatedAt'))
+    $openPrs = @(GhJson @('pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,url,labels,headRefName,isDraft,body,updatedAt'))
 
     $implementable = @($openIssues | Where-Object { (Has-Label $_ 'ai:implement') -and -not (Has-Label $_ 'ai:running') -and -not (Has-Label $_ 'ai:blocked') })
     $changes = @($openPrs | Where-Object { (Has-Label $_ 'ai:changes') -and -not (Has-Label $_ 'ai:running') })
     $reviews = @($openPrs | Where-Object { (Has-Label $_ 'ai:review') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft })
+    $verifies = @($openPrs | Where-Object { (Has-Label $_ 'ai:verify') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft })
     $e2es = @($openPrs | Where-Object { (Has-Label $_ 'ai:e2e') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft })
 
     $acted = $false
@@ -459,6 +591,9 @@ function Invoke-Cycle {
             Invoke-Review $State $pr
             $acted = $true
         }
+    } elseif (@($verifies).Count -gt 0) {
+        Invoke-Verify $State $verifies[0]
+        $acted = $true
     } elseif (@($e2es).Count -gt 0) {
         Invoke-E2e $State $e2es[0]
         $acted = $true
@@ -483,16 +618,30 @@ if (-not $DryRun) {
 }
 
 try {
-    # Clear stale ai:running locks from a previous (crashed) run.
-    $staleIssues = @(GhJson @('issue', 'list', '--label', 'ai:running', '--state', 'open', '--limit', '100', '--json', 'number'))
-    foreach ($i in $staleIssues) { Remove-Label issue $i.number 'ai:running' }
-    $stalePrs = @(GhJson @('pr', 'list', '--label', 'ai:running', '--state', 'open', '--limit', '100', '--json', 'number'))
-    foreach ($p in $stalePrs) { Remove-Label pr $p.number 'ai:running' }
-    if ($staleIssues.Count + $stalePrs.Count -gt 0) {
-        Write-Host "Cleared $($staleIssues.Count + $stalePrs.Count) stale ai:running lock(s)."
-    }
-
     $state = Get-State
+
+    # Clear only EXPIRED ai:running locks (TTL). Fresh locks belong to a live
+    # agent — possibly on another host — and must not be stolen on restart.
+    $staleIssues = @(GhJson @('issue', 'list', '--label', 'ai:running', '--state', 'open', '--limit', '100', '--json', 'number,updatedAt'))
+    $cleared = 0; $kept = 0
+    foreach ($i in $staleIssues) {
+        if (Test-StaleLock $state 'issue' $i.number $i) {
+            Remove-Label issue $i.number 'ai:running'
+            Clear-LockTimestamp $state 'issue' $i.number
+            $cleared++
+        } else { $kept++ }
+    }
+    $stalePrs = @(GhJson @('pr', 'list', '--label', 'ai:running', '--state', 'open', '--limit', '100', '--json', 'number,updatedAt'))
+    foreach ($p in $stalePrs) {
+        if (Test-StaleLock $state 'pr' $p.number $p) {
+            Remove-Label pr $p.number 'ai:running'
+            Clear-LockTimestamp $state 'pr' $p.number
+            $cleared++
+        } else { $kept++ }
+    }
+    if ($cleared + $kept -gt 0) {
+        Write-Host "ai:running locks: cleared $cleared expired (TTL ${RunningTtlMinutes}m), kept $kept fresh."
+    }
 
     if ($Once) {
         Invoke-Cycle $state | Out-Null

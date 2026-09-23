@@ -43,6 +43,7 @@
   .pill.stage { font-weight:600; }
   .pill.queued { color:#e3b341; border-color:#7a5c12; }
   .pill.review { color:var(--accent); border-color:#1f4b8f; }
+  .pill.verify { color:#3fb950; border-color:#1f6f3f; }
   .pill.e2e { color:var(--purple); border-color:#5a3f8f; }
   .pill.ready { color:var(--ok); border-color:#1f6f3f; }
   .pill.blocked { color:var(--bad); border-color:#6e2b28; }
@@ -128,8 +129,8 @@
 <script>
 const $ = (id) => document.getElementById(id)
 const DEFAULTS = {
-  'mes-researcher': 'Read docs/feature-tracker.md first (do NOT rescan the whole repo). Work the gap rows AND propose genuinely NEW capabilities not yet in the tracker, grounded in the MES domain (ISA-95, OEE, downtime, genealogy, scheduling, quality, OPC UA, CMMS). Propose 1-2 small, independently implementable increments as GitHub issues via the mes-issue-spec skill. Do NOT add the ai:implement label - these are proposals only.',
-  'mes-analyst': 'Spec ONE feature into a final, build-ready issue. Input: <describe the feature, or an existing proposal issue number / a gap row from docs/feature-tracker.md>. Read the tracker first and verify only the relevant area. Use the mes-issue-spec skill, then add the ai:implement label so the dispatcher picks it up.',
+  'mes-researcher': 'Read docs/feature-tracker.md first (do NOT rescan the whole repo). Find capabilities that are missing from the tracker entirely, grounded in the MES domain (ISA-95, OEE, downtime, genealogy, scheduling, quality, OPC UA, CMMS). APPEND 1-3 new gap rows to docs/feature-tracker.md in the correct section (Status=gap, Work item=-, dependencies in Notes prefixed "depends on"). Never create GitHub issues and never modify existing rows - mes-tracker reconciles statuses.',
+  'mes-analyst': 'Turn the first actionable tracker gap into a build-ready GitHub issue. Read docs/feature-tracker.md first. First adopt the oldest unlabeled open proposal (an open issue with no ai:* label) if one exists; otherwise take the first gap row whose dependencies are done. Use the mes-issue-spec skill, create the issue, then add the ai:implement label so the dispatcher picks it up.',
   'mes-e2e-tester': 'Run a Playwright e2e smoke test. Input: <PR number, or leave empty to take the first PR labelled ai:e2e>. Resolve the scope from the PR diff with the mes-e2e skill, ensure the stack with scripts/e2e/app.ps1 -Action start, then post the result as a PR comment ending with VERDICT: E2E_PASS / E2E_FAIL / E2E_BLOCKED.',
 }
 let defaults = {}
@@ -145,7 +146,7 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 async function api(path, opts) { return (await fetch(path, opts)).json() }
 const post = (path, body) => api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 
-const STAGE_LABEL = { queued: 'queued', running: 'running', review: 'review', changes: 'changes', e2e: 'e2e', ready: 'ready', blocked: 'blocked', other: 'other' }
+const STAGE_LABEL = { queued: 'queued', running: 'running', review: 'review', verify: 'verify', changes: 'changes', e2e: 'e2e', ready: 'ready', blocked: 'blocked', other: 'other' }
 
 function pipelineItem(it) {
   const link = `<a href="${it.url}" target="_blank" rel="noreferrer">${it.kind === 'pr' ? 'PR' : 'issue'} #${it.number} ${escapeHtml(it.title || '')}</a>`

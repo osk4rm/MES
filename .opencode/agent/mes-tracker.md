@@ -1,7 +1,7 @@
 ---
 description: Reconciles docs/feature-tracker.md with GitHub issues/PRs and the codebase, then publishes a tracker-sync PR.
 mode: all
-model: opencode-go/deepseek-v4.1-flash
+model: opencode/muse-spark-1.3-contributor-free
 temperature: 0.1
 permission:
   edit:
@@ -56,8 +56,12 @@ you never touch `main`:
 
 ```
 git fetch origin
-git status --porcelain        # if not empty, STOP and report
-git checkout -b ai/tracker-sync origin/main
+git status --porcelain        # if not empty, STOP and report "tracker blocked: dirty tree"
+$default = (gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+if (-not $default) { $default = 'master' }
+git checkout -b ai/tracker-sync "origin/$default"
+# if the branch already exists locally or remotely, update it instead:
+# git checkout ai/tracker-sync; git rebase "origin/$default"
 git add docs/feature-tracker.md
 git commit -m "docs: sync feature tracker"
 git push -u origin ai/tracker-sync

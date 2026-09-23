@@ -73,6 +73,7 @@ function stageOf(labels) {
   if (has('ai:e2e')) return 'e2e'
   if (has('ai:changes')) return 'changes'
   if (has('ai:review')) return 'review'
+  if (has('ai:verify')) return 'verify'
   if (has('ai:running')) return 'running'
   if (has('ai:implement')) return 'queued'
   return 'other'
@@ -116,7 +117,7 @@ async function getState() {
       stage: stageOf(labels), checks: checksOf(p.statusCheckRollup),
     })
   }
-  const order = { changes: 0, review: 1, e2e: 2, queued: 3, running: 4, ready: 5, blocked: 6, other: 7 }
+  const order = { changes: 0, review: 1, verify: 2, e2e: 3, queued: 4, running: 5, ready: 6, blocked: 7, other: 8 }
   pipeline.sort((a, b) => (order[a.stage] ?? 9) - (order[b.stage] ?? 9) || b.number - a.number)
 
   const dispatcher = [...running.values()].find((r) => r.kind === 'dispatcher' && r.exitCode == null) || null

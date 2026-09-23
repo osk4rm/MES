@@ -24,7 +24,7 @@ node scripts/dashboard/server.mjs      # -> http://127.0.0.1:5178
 pwsh -File scripts/agent-dispatcher.ps1
 
 # --- od tego momentu wszystko leci po labelach ---
-# researcher/analyst tworzą issue; analyst nadaje ai:implement -> reszta sama
+# researcher dopisuje nowe gapy do trackera; analyst tworzy issue + ai:implement -> reszta sama
 
 # 4. ręcznie mergujesz PR z labelami ai:ready (człowiek w pętli)
 ```
@@ -49,26 +49,28 @@ jednoznacznie rozdziela „kto decyduje" (dyspozytor) od „kto pracuje" (agent)
 | `ai:implement` | issue gotowe do implementacji | analyst / człowiek |
 | `ai:running` | lock: agent właśnie to przetwarza | dyspozytor |
 | `ai:review` | PR gotowe do review (CI zielone) | dyspozytor |
-| `ai:changes` | reviewer/e2e/CI żąda poprawek | dyspozytor |
+| `ai:verify` | PR po review, do weryfikacji testów (anty-cheat) | dyspozytor |
+| `ai:changes` | reviewer/verifier/e2e/CI żąda poprawek | dyspozytor |
 | `ai:e2e` | PR gotowe do smoke e2e (Playwright) | dyspozytor |
-| `ai:ready` | CI + review + e2e zielone; do merge przez człowieka | dyspozytor |
+| `ai:ready` | CI + review + verify + e2e zielone; do merge przez człowieka | dyspozytor |
 | `ai:blocked` | eskalacja do człowieka (limit rund, brak werdyktu, brak PR) | dyspozytor |
 | `ai:auto-merge` | opt-in na przyszły auto-merge (jeszcze nieaktywny) | człowiek |
 
 `ai:running` jest jednocześnie lockiem (dyspozytor jest jednowątkowy) i
-znacznikiem widoczności. Po restarcie dyspozytor zdejmuje osierocone
-`ai:running`.
+znacznikiem widoczności. Po restarcie dyspozytor zdejmuje **tylko wygasłe**
+locki (TTL `-RunningTtlMinutes`); świeże zostawia. Agenci nie dotykają labeli
+— stary tekst o `mes-implementer` w tej roli był nieaktualny.
 
 ## 3. Roster agentów
 
 | Agent | Rola | Mode | Trigger | Kto odpala |
 |---|---|---|---|---|
-| `mes-researcher` | **Szerokość**: gapy z trackera + nowe pomysły MES → 1–2 issue **bez** labela | primary | ręcznie / cyklicznie | dashboard |
-| `mes-analyst` | **Głębokość**: jeden pomysł → finalny spec z AC + nadaje `ai:implement` | primary | ręcznie | dashboard |
+| `mes-researcher` | **Szerokość**: nowe pomysły MES → nowe wiersze `gap` w trackerze (**bez** issue) | primary | ręcznie / cyklicznie | dashboard |
+| `mes-analyst` | **Głębokość**: pierwszy wykonalny `gap` z trackera (lub najstarsza nieolabelowana propozycja) → issue z AC + `ai:implement` | primary | ręcznie | dashboard |
 | `mes-implementer` | issue → kod BE+FE+testy → PR | primary | `ai:implement` / `ai:changes` | dyspozytor |
 | `mes-reviewer` | diff PR względem `AGENT.md` → werdykt | all | `ai:review` + CI zielone | dyspozytor |
+| `mes-verifier` | anty-cheat: czy testy naprawdę dowodzą AC (read-only w automacie) → werdykt | all | `ai:verify` | dyspozytor (automatycznie) / ręcznie |
 | `mes-e2e-tester` | Playwright smoke (cały system lub obszar PR) → werdykt | all | `ai:e2e` | dyspozytor / dashboard |
-| `mes-verifier` | anty-cheat: czy testy naprawdę dowodzą AC | all | ręcznie (warunkowo) | — |
 | `mes-tracker` | jedyny writer `docs/feature-tracker.md` | all | **autonomicznie** (dyspozytor) | dyspozytor |
 
 `mes-e2e-tester` używa Playwright MCP (skonfigurowany w `opencode.json`).
@@ -76,24 +78,29 @@ znacznikiem widoczności. Po restarcie dyspozytor zdejmuje osierocone
 ## 4. Pętla
 
 ```
-researcher ─┐
-            ├─> issue (bez labela) ──analyst──> issue [ai:implement]
-analyst ────┘                                          │
+researcher ──> tracker `gap` rows ──analyst──> issue [ai:implement]
+                                                       │
                                                        ▼  label ai:implement
                                             mes-implementer ─> PR (ai/issue-N-*)
                                                        │
-                              PR opened ──> dyspozytor: +ai:review
+                               PR opened ──> dyspozytor: +ai:review
                                                        ▼  ai:review + CI zielone
                                             mes-reviewer ─> komentarz VERDICT
                                         ┌──────────────┴───────────────┐
                               CHANGES_REQUESTED                 APPROVED
                                         │                             │
-                          implementer (ta sama sesja)        dyspozytor: +ai:e2e
+                          implementer (ta sama sesja)        dyspozytor: +ai:verify
                                         │                             ▼
-                                        │                    mes-e2e-tester (Playwright)
-                                        │                 ┌──────────┴──────────┐
-                                        │               FAIL                   PASS
-                                        └───────────────┘                +ai:ready
+                                        │                 mes-verifier (read-only)
+                                        │              ┌─────────┴──────────┐
+                                        │     TESTS_INSUFFICIENT      TESTS_SOUND
+                                        │              │                    ▼
+                                        │              │         dyspozytor: +ai:e2e
+                                        │              │                    ▼
+                                        │              │   mes-e2e-tester (Playwright)
+                                        │              │  ┌──────────┴──────────┐
+                                        │              │FAIL                   PASS
+                                        └──────────────┘                  +ai:ready
                                       round++                        merge (człowiek)
                                         │
                                  limit rund -> ai:blocked
@@ -102,15 +109,20 @@ analyst ────┘                                          │
 ```
 
 Trik kontekstowy: implementer wraca do **tej samej sesji** przy poprawkach
-(`--session`, mapa issue→sessionID w stanie dyspozytora); reviewer i e2e zawsze
-startują świeżo (niezależność).
+(`--session`, mapa issue→sessionID w stanie dyspozytora); reviewer, verifier
+i e2e zawsze startują świeżo (niezależność).
+
+Werdykty są ścisłe: dyspozytor parsuje `VERDICT: ...` i wymaga **jednoznaczności**
+— brak werdyktu albo kilka różnych werdyktów w jednym output/komentarzu
+(`AMBIGUOUS`) eskaluje do `ai:blocked`. Agenci mają pisać werdykt w osobnej linii
+i nie cytować alternatywy.
 
 ## 5. Orkiestracja — dyspozytor
 
 `scripts/agent-dispatcher.ps1` to lokalny, jednowątkowy daemon: co
 `-IntervalSeconds` (domyślnie 20 s) czyta stan GitHuba i wykonuje **jedną**
 akcję, wybierając wg priorytetu: `ai:changes` → `ai:review` (jeśli CI zielone)
-→ `ai:e2e` → `ai:implement`.
+→ `ai:verify` → `ai:e2e` → `ai:implement`.
 
 Parametry:
 
@@ -124,6 +136,7 @@ Parametry:
 | `-NoTracker` | — | wyłącz autonomiczny tracker |
 | `-TrackerIntervalMinutes` | 30 | wymuś sync trackera co tyle, nawet bez zmian |
 | `-TrackerCooldownMinutes` | 10 | minimalny odstęp między syncami trackera |
+| `-RunningTtlMinutes` | 30 | locki `ai:running` starsze niż tyle są uznawane za osierocone i czyszczone przy starcie; świeże są zostawiane (mogą należeć do żywego agenta) |
 
 Zachowanie przy błędach:
 
@@ -133,8 +146,12 @@ Zachowanie przy błędach:
 - Reviewer/e2e bez parsowalnego werdyktu → `ai:blocked`.
 - Przekroczony `-MaxRounds` → `ai:blocked` (+ komentarz) na PR i issue.
 
-Stan (sesje, liczniki rund, ostatni sync trackera) trzymany w
-`%TEMP%\opencode\dispatcher-state.json`, więc restart nie gubi rund.
+Stan (sesje, liczniki rund, timestampy locków `ai:running`, ostatni sync
+trackera) trzymany w `%TEMP%\opencode\dispatcher-state.json`, więc restart nie
+gubi rund. Przy starcie dyspozytor czyści **tylko wygasłe** locki `ai:running`
+(starsze niż `-RunningTtlMinutes` wg timestampu lokalnego i `updatedAt` z GitHuba);
+świeże locki zostawia — mogą należeć do żywego agenta na innym hoście.
+Nie odpalaj dwóch dyspozytorów na tym samym repo.
 
 ### 5.1 Ręczny override
 
@@ -147,13 +164,21 @@ Stan (sesje, liczniki rund, ostatni sync trackera) trzymany w
 `proposed` / `in-progress` / `gap`).
 
 - researcher / analyst czytają tracker **najpierw** i nie skanują repo.
-- `mes-tracker` to **jedyny writer**. Dyspozytor uruchamia go sam:
+- `mes-researcher` tylko **dopisuje** nowe wiersze `gap` (nie tworzy issue).
+- `mes-analyst` bierze pierwszy wykonalny `gap` (wszystkie zależności `done`)
+  albo najstarszą nieolabelowaną propozycję i tworzy issue z `ai:implement`.
+- `mes-tracker` to **jedyny writer** statusów i work itemów. Dyspozytor uruchamia go sam:
   - gdy zmieni się **sygnatura** zbioru otwartych issue/PR (nowe issue,
-    zmiana labeli, merge/zamknięcie) i minął cooldown, albo
+    zmiana labeli z wyłączeniem tranzytowego `ai:running`, merge/zamknięcie)
+    i minął cooldown, albo
   - gdy od ostatniego sync minął `-TrackerIntervalMinutes`.
-- Sync publikuje PR na branchu `ai/tracker-sync` (aktualizuje istniejący PR,
-  jeśli jest otwarty). Tracker PR nie jest liczony do sygnatury, żeby nie
-  wywołać pętli.
+- Sync jest **pomijany przy brudnym working tree** (`git status --porcelain` niepuste)
+  — tracker wymaga czystego drzewa, więc dyspozytor loguje `tracker skipped` i próbuje
+  w następnym cyklu, zamiast marnować run agenta.
+- Sync publikuje PR na branchu `ai/tracker-sync` bazującym na **default branch repo**
+  (`gh repo view --json defaultBranchRef`, obecnie `master` — nie zakładaj `main`;
+  jeśli branch/PR już istnieje, aktualizuje go zamiast otwierać nowy).
+  Tracker PR nie jest liczony do sygnatury, żeby nie wywołać pętli.
 - implementer / reviewer / e2e nie dotykają trackera (minimalne PR-y).
 
 ## 7. End-to-end (Playwright)
@@ -218,7 +243,7 @@ docker compose logs -f swarm
 
 ## 9. Guardrails
 
-- Max `-MaxRounds` rund review/e2e → fix; potem `ai:blocked` + komentarz.
+- Max `-MaxRounds` rund review/verify/e2e → fix; potem `ai:blocked` + komentarz.
 - Nigdy push do `main`/`master` — zawsze branch + PR (default branch to `master`).
 - Bramka obiektywna = CI (`ci.yml`: `dotnet build/test` + `npm run build`),
   potem review (subiektywna) i e2e (obserwacja UI).
@@ -259,7 +284,9 @@ docker/swarm/entrypoint.sh                     # klon wolumenu + auth + start
 
 ## 12. Gotchas (handoff)
 
-- **Default branch to `master`**, nie `main` — CI i guardraile łapią oba.
+- **Default branch wykrywaj dynamicznie** (`gh repo view --json defaultBranchRef`;
+  obecnie `master`), nie zakładaj `main` — CI łapie oba, ale skrypty i agenci muszą
+  bazować na faktycznym defaulcie.
 - **PowerShell + natywne komendy**: listy pól do `gh` cytuj jako `--json 'a,b'`;
   skrypty używają `$ErrorActionPreference = 'Continue'`, bo `opencode`/`gh`
   piszą na stderr.
@@ -269,10 +296,14 @@ docker/swarm/entrypoint.sh                     # klon wolumenu + auth + start
 - **Config opencode nie jest hot-reloadowany** — zmiany `opencode.json`/agentów
   wymagają restartu; prompty dashboardu — tylko reload.
 - **Dyspozytor jest jednowątkowy** — nie odpalaj dwóch naraz na tym samym repo.
+  Lock `ai:running` ma TTL (`-RunningTtlMinutes`, default 30 min): restart czyści
+  tylko wygasłe locki, świeże zostawia. Sygnatura trackera ignoruje `ai:running`,
+  a tracker skipuje się przy brudnym drzewie.
 - **e2e wymaga PostgreSQL** (dev seed `admin@dev.local` / `Passw0rd!`); bez DB
   werdykt to `E2E_BLOCKED`.
-- Model `deepseek-v4.1-flash` radzi sobie z CRUD; trudniejsze taski (lifecycle,
-  migracje) warto weryfikować.
+- Model `opencode/muse-spark-1.3-contributor-free` (Muse Spark 1.3 Free) jest
+  defaultem dla wszystkich agentów (`opencode.json` + `.opencode/agent/*.md`);
+  trudniejsze taski (lifecycle, migracje) warto weryfikować verifierem.
 
 ## Powiązane dokumenty
 

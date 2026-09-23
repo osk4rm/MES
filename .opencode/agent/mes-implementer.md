@@ -1,7 +1,7 @@
 ---
 description: Implements one AsistOff MES GitHub issue end-to-end (backend, frontend, tests) and opens a PR.
 mode: primary
-model: opencode-go/deepseek-v4.1-flash
+model: opencode/muse-spark-1.3-contributor-free
 temperature: 0.2
 permission:
   edit: allow
@@ -54,7 +54,7 @@ owns those transitions. Just implement and open/update the PR.
    `database.instructions.md`, `api.instructions.md`,
    `frontend.instructions.md`, `testing.instructions.md`, and
    `production-recipes.instructions.md` when in the Recipes module.
-3. Create a branch named `ai/issue-<N>-<short-slug>` from up-to-date `main`.
+3. Create a branch named `ai/issue-<N>-<short-slug>` from the up-to-date default branch (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`, currently `master` — never assume `main`).
 4. Implement the **smallest change** that fully satisfies the acceptance
    criteria. Follow `AGENT.md` and the area instructions.
 5. Write tests for the new behaviour, following

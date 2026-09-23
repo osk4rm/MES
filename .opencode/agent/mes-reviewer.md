@@ -1,7 +1,7 @@
 ---
 description: Reviews an AsistOff MES pull request against AGENT.md and multi-tenancy rules, and posts a verdict comment.
 mode: all
-model: opencode-go/deepseek-v4.1-flash
+model: opencode/muse-spark-1.3-contributor-free
 temperature: 0.1
 permission:
   edit: deny

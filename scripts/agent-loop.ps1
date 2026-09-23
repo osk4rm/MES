@@ -67,11 +67,12 @@ function Get-SessionId {
 
 function Get-Verdict {
     param([string]$Raw)
-    # Take the LAST verdict mentioned: the raw stream also contains the
-    # reviewer's reasoning, which may reference the other verdict.
-    $matches = [regex]::Matches($Raw, 'VERDICT:\s*(APPROVED|CHANGES_REQUESTED)')
+    # Strict: all VERDICT mentions must agree; mixed values -> AMBIGUOUS.
+    $matches = [regex]::Matches($Raw, 'VERDICT:\s*(APPROVED|CHANGES_REQUESTED|TESTS_SOUND|TESTS_INSUFFICIENT)')
     if ($matches.Count -eq 0) { return 'UNKNOWN' }
-    return $matches[$matches.Count - 1].Groups[1].Value
+    $distinct = @($matches | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    if ($distinct.Count -gt 1) { return 'AMBIGUOUS' }
+    return $distinct[0]
 }
 
 # ---------------------------------------------------------------------------
@@ -124,17 +125,31 @@ while ($round -lt $MaxRounds) {
     $reviewRaw = Invoke-Agent -Agent 'mes-reviewer' -Prompt (
         "Review PR #$prNum for AsistOff MES. Inspect only the diff with " +
         "'gh pr diff $prNum'. Post your findings with 'gh pr comment $prNum' " +
-        "and end the body with exactly one verdict line: " +
-        "'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'."
+        "and end the body with exactly one verdict on its own line: " +
+        "'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'. " +
+        "Do not write any other VERDICT line."
     )
     $verdict = Get-Verdict $reviewRaw
-    Write-Host "    verdict: $verdict"
+    Write-Host "    review verdict: $verdict"
 
-    if ($verdict -eq 'APPROVED') { $passed = $true; break }
+    if ($verdict -eq 'APPROVED') {
+        Write-Host "==> Verify round $round/$MaxRounds (fresh verifier session, read-only)"
+        $verifyRaw = Invoke-Agent -Agent 'mes-verifier' -Prompt (
+            "Verify that the tests in PR #$prNum genuinely prove the acceptance criteria " +
+            "of issue #$num. Read-only audit: inspect the diff with 'gh pr diff $prNum', " +
+            "map each criterion to test(s), check for weakened tests. DO NOT write files. " +
+            "Post the report with 'gh pr comment $prNum' ending with exactly one verdict " +
+            "on its own line: 'VERDICT: TESTS_SOUND' or 'VERDICT: TESTS_INSUFFICIENT'."
+        )
+        $vverdict = Get-Verdict $verifyRaw
+        Write-Host "    verify verdict: $vverdict"
+        if ($vverdict -eq 'TESTS_SOUND') { $passed = $true; break }
+        $verdict = "VERIFY_$vverdict"
+    }
 
-    Write-Host "==> Changes requested; implementer continues session $implSession"
+    Write-Host "==> Changes requested ($verdict); implementer continues session $implSession"
     Invoke-Agent -Agent 'mes-implementer' -Session $implSession -Prompt (
-        "Review on PR #$prNum requested changes. Read them with " +
+        "Review/verification on PR #$prNum requested changes ($verdict). Read them with " +
         "'gh pr view $prNum --comments', fix every point, re-run " +
         "'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and " +
         "'cd AsistOff.MES.Web; npm run build', then push to the same branch " +

@@ -19,6 +19,7 @@ $labels = @(
     @('ai:implement',  '0E8A16', 'Ready for the implementation agent'),
     @('ai:running',    'FBCA04', 'An agent is currently processing this item (lock)'),
     @('ai:review',     '1D76DB', 'PR ready for the review agent (CI green)'),
+    @('ai:verify',     '0E8A16', 'PR passed review; ready for test-verification agent'),
     @('ai:changes',    'D93F0B', 'Reviewer requested changes; implementer must fix'),
     @('ai:e2e',        '5319E7', 'PR ready for the Playwright e2e smoke agent'),
     @('ai:ready',      '006B75', 'CI + review + e2e green; ready for human merge'),

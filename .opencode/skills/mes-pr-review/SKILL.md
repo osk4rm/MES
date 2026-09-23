@@ -52,7 +52,7 @@ gh pr comment <N> --body "<review>"
 
 You cannot approve or request changes on your own PR with a single `gh`
 identity, so the verdict is encoded in the comment body. End the body with
-exactly one line:
+exactly one verdict on its own line:
 
 ```
 VERDICT: APPROVED
@@ -64,4 +64,6 @@ or
 VERDICT: CHANGES_REQUESTED
 ```
 
-`APPROVED` means no blocking issues. Never edit code.
+Write no other `VERDICT:` line anywhere (do not quote the alternative —
+the dispatcher treats multiple distinct verdicts as `AMBIGUOUS` and escalates
+to a human). `APPROVED` means no blocking issues. Never edit code.

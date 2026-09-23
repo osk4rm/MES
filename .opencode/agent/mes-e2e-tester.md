@@ -1,7 +1,7 @@
 ---
 description: Runs Playwright end-to-end smoke tests for a PR (whole system or the PR's affected scope) and posts an E2E verdict.
 mode: all
-model: opencode-go/deepseek-v4.1-flash
+model: opencode/muse-spark-1.3-contributor-free
 temperature: 0.2
 permission:
   edit: deny

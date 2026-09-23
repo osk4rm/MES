@@ -26,8 +26,8 @@ tracker autonomously. The dashboard only starts `researcher`, `analyst` and
 | `pwsh -File scripts/e2e/app.ps1 -Action start` | Start backend+frontend for e2e smoke tests |
 | `docker compose up -d --build swarm` | Run dashboard + dispatcher 24/7 in Docker (isolated clone; needs `GH_TOKEN` in `.env`) |
 | `pwsh -File scripts/agent-loop.ps1 -MaxRounds 3` | Manual override: one-issue implement→review→fix loop |
-| `opencode run --agent mes-researcher "..."` | Propose new work (no label) |
-| `opencode run --agent mes-analyst "..."` | Spec one feature and label it `ai:implement` |
+| `opencode run --agent mes-researcher "..."` | Append new capabilities to the tracker (no issue) |
+| `opencode run --agent mes-analyst "..."` | Turn the first actionable tracker gap into an `ai:implement` issue |
 
 ## Context-Specific Instructions
 
