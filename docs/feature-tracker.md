@@ -6,14 +6,17 @@ every run.
 
 ## Contract (agents, read this)
 
-- **mes-researcher / mes-analyst** — read this file **first**. Treat `done` rows
-  as implemented and do not re-investigate them unless you suspect drift.
-  Treat `proposed` / `in-progress` rows as already having a work item. Work the
-  `gap` rows first. Open code only to verify a specific row or a suspected
-  drift, never to rebuild the whole map.
-- **mes-tracker** — the single writer. Reconciles this file with GitHub
-  (issues / PRs) and the codebase, and publishes the update via a PR on branch
-  `ai/tracker-sync`.
+- **mes-researcher** — reads this file **first** and is its only **appender**: it
+  adds capabilities that are missing entirely as new `gap` rows, and never
+  modifies, reorders, or deletes existing rows. It does not create GitHub
+  issues.
+- **mes-analyst** — reads this file **first**. Each run it either adopts the
+  oldest unlabeled open issue, or takes the first `gap` row whose dependencies
+  are `done`, and turns it into an `ai:implement`-labeled issue. It does not
+  edit this file.
+- **mes-tracker** — the single writer for statuses and work items. Reconciles
+  this file with GitHub (issues / PRs) and the codebase, and publishes the
+  update via a PR on branch `ai/tracker-sync`.
 - **mes-implementer / mes-reviewer** — do **not** edit this file; keep PRs
   minimal. The tracker is reconciled out of band.
 - Work items live in GitHub; this file stores only their identifiers.
@@ -27,6 +30,12 @@ every run.
 | `proposed` | An open GitHub issue exists. |
 | `in-progress` | An open PR implements it. |
 | `gap` | Missing; no work item yet. |
+
+## Dependencies
+
+A row that needs another capability first names it in the `Notes` column,
+prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
+`mes-analyst` will not pick a `gap` row until every named dependency is `done`.
 
 ## Platform / cross-cutting
 

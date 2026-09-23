@@ -1,12 +1,13 @@
 ---
 name: mes-issue-spec
-description: Use when the mes-analyst or mes-researcher agent drafts a new AsistOff MES issue. Provides the required issue structure (context, scope, acceptance criteria, multi-tenancy impact, test plan) and the labelling rule.
+description: Use when the mes-analyst agent drafts a new AsistOff MES issue. Provides the required issue structure (context, scope, acceptance criteria, multi-tenancy impact, test plan) and the labelling rule.
 ---
 
 # MES issue specification template
 
-Every issue created by `mes-analyst` or `mes-researcher` must follow this
-structure so that `mes-implementer` can act on it without further questions.
+Every issue created by `mes-analyst` must follow this structure so that
+`mes-implementer` can act on it without further questions. `mes-researcher` does
+**not** create issues — it only appends `gap` rows to `docs/feature-tracker.md`.
 
 ## Title
 
@@ -49,7 +50,15 @@ A checklist of objectively verifiable, testable statements:
 
 ### Test plan
 
-Which unit / integration tests prove each acceptance criterion. Follow
+Which tests prove each acceptance criterion. Every feature requires **both**:
+
+- **unit tests** (`tests/AsistOff.MES.Shared.Tests/`) for handlers/validators, and
+- **endpoint integration tests** (`tests/AsistOff.MES.Integration.Tests/`,
+  Testcontainers PostgreSQL, extend `IntegrationTestBase`) covering the happy
+  path and the relevant failure paths.
+
+UI-facing changes additionally require a **Playwright click-through** of the
+changed flow on the local stack (recorded in the PR). Follow
 `.github/instructions/testing.instructions.md`.
 
 ### Affected areas
@@ -59,7 +68,8 @@ migration is required.
 
 ## Labelling
 
-- `mes-analyst` output: create the issue and add the `ai:implement` label so
-  the orchestrator picks it up.
-- `mes-researcher` output: create the issue **without** `ai:implement` — it is a
-  proposal that a human or the analyst promotes.
+- `mes-analyst` creates the issue and adds the `ai:implement` label so the
+  orchestrator picks it up. It may instead complete and label an existing
+  unlabeled proposal issue.
+- `mes-researcher` never creates issues — it only appends new `gap` rows to
+  `docs/feature-tracker.md`.

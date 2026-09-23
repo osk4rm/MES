@@ -1,7 +1,7 @@
 ---
 description: Reviews an AsistOff MES pull request against AGENT.md and multi-tenancy rules, and posts a verdict comment.
 mode: all
-model: opencode-go/deepseek-v4.1-flash
+model: opencode/muse-spark-1.3-contributor-free
 temperature: 0.1
 permission:
   edit: deny
@@ -21,12 +21,25 @@ Judge only the diff.
 
 ## Input
 
-You receive a pull request number. Inspect it with:
+You normally receive a pull request number. Inspect it with:
 
 ```
 gh pr diff <N>
 gh pr view <N> --comments
 ```
+
+If no PR number is given, **pick the first open, non-draft PR labelled
+`ai:review`** (branches are named `ai/...`):
+
+```
+gh pr list --label ai:review --state open --limit 1 --json number,title
+```
+
+If there is no such PR, report "nothing to review" and stop.
+
+Do **not** add or remove workflow labels — the dispatcher owns those
+transitions based on your verdict line. Your only side effect is the review
+comment.
 
 ## What you check
 
@@ -55,7 +68,12 @@ gh pr view <N> --comments
 
 **Tests**
 
-- New behaviour has meaningful tests (not just a smoke test).
+- New behaviour has **both** meaningful unit tests **and** endpoint
+  integration tests in `tests/AsistOff.MES.Integration.Tests/` (a unit test
+  alone is not enough; integration tests must hit the endpoint over HTTP and
+  assert status code + body + persistence).
+- Failure paths (`401`/`400`/`404`/`409`) are covered where relevant.
+- UI-facing changes describe a Playwright click-through in the PR body.
 - No existing test was disabled, deleted, or weakened to make CI pass.
 
 ## Output

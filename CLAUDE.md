@@ -12,12 +12,22 @@ This repo runs a multi-agent swarm (researcher → analyst → implementer → r
 Before working on it, read **`docs/agent-workflow.md`** (roles, loop, dashboard, gotchas) and
 **`docs/feature-tracker.md`** (canonical capability map — do not rescan the repo).
 
+The swarm is **label-driven**: `scripts/agent-dispatcher.ps1` watches GitHub and runs
+implementer → reviewer → e2e-tester as labels change, and reconciles the feature
+tracker autonomously. The dashboard only starts `researcher`, `analyst` and
+`e2e-tester` by hand.
+
 | Command | Description |
 |---------|-------------|
+| `pwsh -File scripts/setup-labels.ps1` | Create/update the `ai:*` workflow labels |
 | `node scripts/dashboard/server.mjs` | Local control panel → http://127.0.0.1:5178 |
-| `pwsh -File scripts/agent-loop.ps1 -MaxRounds 3` | Run the implement→review→fix loop |
-| `opencode run --agent mes-researcher "..."` | Propose new work (no label) |
-| `opencode run --agent mes-tracker "..."` | Reconcile the feature tracker |
+| `pwsh -File scripts/agent-dispatcher.ps1` | Run the label-driven dispatcher (implement→review→e2e + tracker) |
+| `pwsh -File scripts/agent-dispatcher.ps1 -Once -DryRun` | Show the next planned action without running it |
+| `pwsh -File scripts/e2e/app.ps1 -Action start` | Start backend+frontend for e2e smoke tests |
+| `docker compose up -d --build swarm` | Run dashboard + dispatcher 24/7 in Docker (isolated clone; needs `GH_TOKEN` in `.env`) |
+| `pwsh -File scripts/agent-loop.ps1 -MaxRounds 3` | Manual override: one-issue implement→review→fix loop |
+| `opencode run --agent mes-researcher "..."` | Append new capabilities to the tracker (no issue) |
+| `opencode run --agent mes-analyst "..."` | Turn the first actionable tracker gap into an `ai:implement` issue |
 
 ## Context-Specific Instructions
 
