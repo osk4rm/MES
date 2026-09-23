@@ -42,6 +42,7 @@ const pl = {
     production: 'Produkcja',
     productionOrders: 'Zlecenia produkcyjne',
     productionRecipes: 'Receptury',
+    productionDowntime: 'Przestoje',
     schedule: 'Harmonogram',
     reports: 'Raporty',
     configuration: 'Konfiguracja',
@@ -287,6 +288,24 @@ const pl = {
       5: 'Inne'
     }
   },
+  downtime: {
+    title: 'Przestoje',
+    subtitle: 'Zdarzenia przestojów stanowisk z kodami przyczyn',
+    start: 'Rozpocznij przestój',
+    close: 'Zamknij',
+    closeTitle: 'Zamknięcie przestoju',
+    machine: 'Stanowisko',
+    reasonCode: 'Kod przyczyny',
+    startedAt: 'Początek',
+    endedAt: 'Koniec',
+    duration: 'Czas trwania',
+    minutes: 'min',
+    notes: 'Notatki',
+    selectMachine: 'Wybierz stanowisko…',
+    selectReason: 'Wybierz przyczynę…',
+    status: { open: 'Otwarty', closed: 'Zamknięty' },
+    filters: { machine: 'Stanowisko', reason: 'Przyczyna' }
+  },
   scanBy: { 1: 'EAN', 2: 'Kod' },
   stubs: {
     title: 'Moduł w przygotowaniu',
@@ -353,6 +372,7 @@ const en: typeof pl = {
     production: 'Production',
     productionOrders: 'Production orders',
     productionRecipes: 'Recipes',
+    productionDowntime: 'Downtime',
     schedule: 'Schedule',
     reports: 'Reports',
     configuration: 'Configuration',
@@ -597,6 +617,24 @@ const en: typeof pl = {
       4: 'Setup',
       5: 'Other'
     }
+  },
+  downtime: {
+    title: 'Downtime',
+    subtitle: 'Work-center downtime events with reason codes',
+    start: 'Start downtime',
+    close: 'Close',
+    closeTitle: 'Close downtime event',
+    machine: 'Work center',
+    reasonCode: 'Reason code',
+    startedAt: 'Started at',
+    endedAt: 'Ended at',
+    duration: 'Duration',
+    minutes: 'min',
+    notes: 'Notes',
+    selectMachine: 'Select a work center…',
+    selectReason: 'Select a reason…',
+    status: { open: 'Open', closed: 'Closed' },
+    filters: { machine: 'Work center', reason: 'Reason' }
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
   stubs: {

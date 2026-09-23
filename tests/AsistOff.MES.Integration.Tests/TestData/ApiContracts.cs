@@ -15,3 +15,24 @@ public sealed record PagedResponseDto<T>(
     int TotalCount,
     int TotalPages,
     IReadOnlyCollection<T> Items);
+
+/// <summary>Shape of a downtime event as returned by <c>/api/downtime-events</c>.</summary>
+public sealed record DowntimeEventDto(
+    Guid Id,
+    Guid MachineId,
+    Guid ReasonCodeId,
+    DateTime StartedAt,
+    DateTime? EndedAt,
+    short Status,
+    double? DurationMinutes,
+    string? Notes,
+    Guid? ReportedByOperatorId,
+    Guid? ProductionOrderId,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>Shape of a machine as returned by <c>/api/machines</c>.</summary>
+public sealed record MachineDto(
+    Guid Id,
+    string Code,
+    string Name);
