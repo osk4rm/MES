@@ -26,6 +26,7 @@ public class DepartmentsConfiguration : IEntityTypeConfiguration<Department>
         builder.HasMany(x => x.Operators)
             .WithOne(x => x.Department)
             .HasForeignKey(x => x.DepartmentId)
-            .OnDelete(DeleteBehavior.NoAction);
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
