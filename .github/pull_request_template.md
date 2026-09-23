@@ -23,8 +23,9 @@
 
 ## Testing
 
-- [ ] Unit tests added / updated
-- [ ] Manual test steps:
+- [ ] Unit tests added / updated (`tests/AsistOff.MES.Shared.Tests`)
+- [ ] Endpoint integration tests added / updated (`tests/AsistOff.MES.Integration.Tests`, Testcontainers PostgreSQL)
+- [ ] Manual test steps (Playwright click-through for UI-facing changes):
   1. …
 
 ## Screenshots / screencasts

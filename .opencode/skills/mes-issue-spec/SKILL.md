@@ -49,7 +49,15 @@ A checklist of objectively verifiable, testable statements:
 
 ### Test plan
 
-Which unit / integration tests prove each acceptance criterion. Follow
+Which tests prove each acceptance criterion. Every feature requires **both**:
+
+- **unit tests** (`tests/AsistOff.MES.Shared.Tests/`) for handlers/validators, and
+- **endpoint integration tests** (`tests/AsistOff.MES.Integration.Tests/`,
+  Testcontainers PostgreSQL, extend `IntegrationTestBase`) covering the happy
+  path and the relevant failure paths.
+
+UI-facing changes additionally require a **Playwright click-through** of the
+changed flow on the local stack (recorded in the PR). Follow
 `.github/instructions/testing.instructions.md`.
 
 ### Affected areas

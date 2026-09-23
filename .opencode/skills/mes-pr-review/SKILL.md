@@ -34,7 +34,11 @@ finding, cite the file and line.
 
 ## 4. Tests
 
-- [ ] New behaviour has meaningful tests (not only a smoke test).
+- [ ] New behaviour has **both** meaningful unit tests **and** endpoint
+      integration tests in `tests/AsistOff.MES.Integration.Tests/` (HTTP call,
+      status code + body + persistence - not only a smoke test).
+- [ ] Failure paths (`401`/`400`/`404`/`409`) covered where relevant.
+- [ ] UI-facing changes describe a Playwright click-through in the PR body.
 - [ ] No existing test disabled, deleted, or weakened.
 - [ ] CI-relevant commands would pass (`dotnet build/test`, `npm run build`).
 

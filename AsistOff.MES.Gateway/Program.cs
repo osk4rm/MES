@@ -160,3 +160,6 @@ finally
     Log.CloseAndFlush();
 }
 
+// Exposed so integration tests can boot the real host via WebApplicationFactory<Program>.
+public partial class Program;
+

@@ -25,9 +25,19 @@ to AsistOff MES. The longer architectural context lives in:
   filter and the `SaasyEntityInterceptor` will then enforce isolation for
   you. Do not write manual `x.TenantId == currentTenant` predicates in
   application handlers — they are redundant.
-* **Write tests** for new behavior. Unit tests live in
-  `tests/AsistOff.MES.Shared.Tests/`. If your change touches a new module,
-  create a matching `tests/AsistOff.MES.<Module>.Tests/` project.
+* **Write tests** for new behavior — a feature is not done with only one kind:
+  * **Unit tests** (handlers / validators, no database) live in
+    `tests/AsistOff.MES.Shared.Tests/`. If your change touches a new module,
+    create a matching `tests/AsistOff.MES.<Module>.Tests/` project.
+  * **Endpoint integration tests** live in `tests/AsistOff.MES.Integration.Tests/`
+    and drive the real HTTP pipeline (auth → tenant → handler → EF Core) against
+    a Testcontainers PostgreSQL via the existing
+    `MesApplicationFixture` / `IntegrationTestBase`. Cover the happy path plus
+    the failure paths (`401`/`400`/`404`/`409`). Docker must be running.
+  * **E2E click-through (Playwright):** for any UI-facing change, run the local
+    stack and click the changed flow through with Playwright before opening the
+    PR, then describe the steps/result in the PR body. A committed Playwright
+    suite does not exist yet — this is a manual verification step.
 * **Prefer the smallest change** that fully solves the task. Unrelated
   cleanups belong in separate PRs.
 * **Use the domain glossary.** Say `Production Order`, not "work order" or
@@ -68,10 +78,15 @@ to AsistOff MES. The longer architectural context lives in:
 ## Before opening a PR
 
 1. `dotnet build AsistOff.MES.sln` — succeeds, no new warnings.
-2. `dotnet test AsistOff.MES.sln` — green.
+2. `dotnet test AsistOff.MES.sln` — green (includes the Testcontainers
+   integration tests; Docker must be running).
 3. `cd AsistOff.MES.Web && npm run build` — succeeds (runs `vue-tsc` + Vite).
-4. Fill in the PR template, tick the **multi‑tenancy checklist**.
-5. Keep the commit message conventional (`feat:`, `fix:`, `chore:`, `docs:`,
+4. For UI-facing changes: Playwright click-through of the changed flow on the
+   local stack (see
+   [`testing.instructions.md`](.github/instructions/testing.instructions.md)).
+5. Fill in the PR template, tick the **multi‑tenancy checklist** and the
+   **testing checklist** (unit + integration).
+6. Keep the commit message conventional (`feat:`, `fix:`, `chore:`, `docs:`,
    `refactor:`, `test:`).
 
 ## Scenarios
@@ -91,6 +106,19 @@ to AsistOff MES. The longer architectural context lives in:
    `ITenantRequest<TResponse>` (or `IRequest<TResponse>` with `ITenantRequest` if no return value).
 6. Add a controller in `*.Api/Controllers/`.
 7. Add a unit test for at least the Create and Browse handlers.
+8. Add an endpoint integration test class in
+   `tests/AsistOff.MES.Integration.Tests/Endpoints/<Feature>EndpointTests.cs`
+   (extend `IntegrationTestBase`) covering create + read + the failure paths.
+
+### Adding an endpoint to an existing feature
+
+1. Add the MediatR request/handler (+ validator) following the module layout.
+2. Add the controller action.
+3. Add unit tests in `tests/AsistOff.MES.Shared.Tests/`.
+4. Add/extend an endpoint integration test in
+   `tests/AsistOff.MES.Integration.Tests/` asserting the HTTP contract.
+5. If the UI consumes the endpoint, do the Playwright click-through on the
+   local stack and record it in the PR.
 
 ### Adding an anonymous endpoint (e.g. sign‑up)
 
