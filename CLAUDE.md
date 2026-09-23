@@ -6,6 +6,19 @@ This file is the entry point for **Claude Code** (and other AI agents that read 
 
 → **`.github/copilot-instructions.md`** – project overview, tech stack summary, repo structure, and general conventions. Read this before any task.
 
+## Autonomous Agent Workflow
+
+This repo runs a multi-agent swarm (researcher → analyst → implementer → reviewer → tracker).
+Before working on it, read **`docs/agent-workflow.md`** (roles, loop, dashboard, gotchas) and
+**`docs/feature-tracker.md`** (canonical capability map — do not rescan the repo).
+
+| Command | Description |
+|---------|-------------|
+| `node scripts/dashboard/server.mjs` | Local control panel → http://127.0.0.1:5178 |
+| `pwsh -File scripts/agent-loop.ps1 -MaxRounds 3` | Run the implement→review→fix loop |
+| `opencode run --agent mes-researcher "..."` | Propose new work (no label) |
+| `opencode run --agent mes-tracker "..."` | Reconcile the feature tracker |
+
 ## Context-Specific Instructions
 
 Load the relevant file(s) **only when you're working in that area** to keep context focused:
