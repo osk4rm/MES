@@ -23,6 +23,8 @@
     <ProjectReference Include="..\..\AsistOff.MES.Shared.Abstractions\AsistOff.MES.Shared.Abstractions.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Multitenancy\AsistOff.MES.Multitenancy.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Multitenancy.Contracts\AsistOff.MES.Multitenancy.Contracts.csproj" />
+    <ProjectReference Include="..\..\AsistOff.MES.Configuration.Application\AsistOff.MES.Configuration.Application.csproj" />
+    <ProjectReference Include="..\..\AsistOff.MES.Configuration.Core\AsistOff.MES.Configuration.Core.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Production.Application\AsistOff.MES.Production.Application.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Production.Core\AsistOff.MES.Production.Core.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Users.Application\AsistOff.MES.Users.Application.csproj" />
