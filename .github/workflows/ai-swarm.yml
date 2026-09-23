@@ -1,0 +1,469 @@
+name: ai-swarm
+
+# Phase 4 — event-driven half of the MES Agent Swarm.
+#
+# Mirrors the label state machine owned locally by scripts/agent-dispatcher.ps1:
+#   issue[ai:implement] -> implement -> PR[ai:review] -> review -> PR[ai:verify]
+#   -> verify -> PR[ai:e2e] -> e2e -> PR[ai:ready] (human merges)
+#   any failure verdict -> PR[ai:changes] -> fix -> PR[ai:review]
+#
+# The local dispatcher stays as fallback/debug; both sides honor ai:running
+# as the cross-runner lock and ai:blocked as the human-escalation state.
+#
+# Required secret: OPENCODE_API_KEY (opencode.ai/auth) — without it every
+# agent job fails fast with a clear message. GITHUB_TOKEN is automatic.
+# CI runners are isolated clones, so agents run with opencode --auto
+# (permission files still deny pushes to the default branch).
+
+on:
+  issues:
+    types: [labeled]
+  pull_request_target:
+    types: [labeled, synchronize]
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+  schedule:
+    - cron: '0 6 * * 1' # researcher: Mondays 06:00 UTC
+    - cron: '30 5 * * *' # tracker: daily 05:30 UTC
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: 'Agent to run'
+        required: true
+        type: choice
+        options: [mes-implementer, mes-reviewer, mes-verifier, mes-e2e-tester, mes-researcher, mes-tracker]
+      number:
+        description: 'Issue or PR number (not needed for researcher/tracker)'
+        required: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  checks: read
+
+concurrency:
+  group: ai-swarm-${{ github.event.issue.number || github.event.pull_request.number || inputs.number || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  MAX_ROUNDS: '3'
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+
+jobs:
+  # ---------------------------------------------------------------- implement
+  implement:
+    name: implement issue
+    if: >
+      github.event_name == 'issues' &&
+      github.event.label.name == 'ai:implement' ||
+      github.event_name == 'workflow_dispatch' &&
+      inputs.agent == 'mes-implementer'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: Install opencode
+        run: |
+          if ! command -v opencode >/dev/null 2>&1; then
+            curl -fsSL https://opencode.ai/install | bash
+          fi
+          opencode --version
+      - name: Implement and open PR
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          ISSUE='${{ github.event.issue.number || inputs.number }}'
+          swarm_require_auth
+          swarm_acquire_lock issue "$ISSUE" || exit 1
+          swarm_auto_release issue "$ISSUE"
+          git config user.name 'MES Agent Swarm'
+          git config user.email 'mes-swarm@users.noreply.github.com'
+          swarm_run_agent mes-implementer \
+            "Implement GitHub issue #$ISSUE. Read it with 'gh issue view $ISSUE --comments'. Follow AGENT.md and the area instructions. Write tests, run 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build', then open a PR that closes #$ISSUE. Use branch name ai/issue-$ISSUE-<slug>. Do not add or remove ai:* labels." \
+            implement.log
+          PR=$(swarm_find_pr_for_issue "$ISSUE")
+          if [ -z "$PR" ]; then
+            swarm_remove_label issue "$ISSUE" ai:implement
+            swarm_add_label issue "$ISSUE" ai:blocked
+            swarm_say issue "$ISSUE" 'Agent flow (CI): implementer did not open a PR. Needs human attention.'
+            exit 1
+          fi
+          if [ "$(gh pr view "$PR" --json isDraft --jq .isDraft)" = true ]; then
+            gh pr ready "$PR" >/dev/null
+          fi
+          swarm_remove_label issue "$ISSUE" ai:implement
+          swarm_add_label pr "$PR" ai:review
+          echo "PR #$PR -> ai:review"
+
+  # -------------------------------------------------------------------- review
+  review:
+    name: review PR
+    # NOTE: no parentheses in GitHub expressions; && binds tighter than ||.
+    if: >
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.draft == false &&
+      github.event.label.name == 'ai:review' ||
+      github.event_name == 'pull_request_target' &&
+      github.event.action == 'synchronize' &&
+      contains(github.event.pull_request.labels.*.name, 'ai:review') ||
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' ||
+      github.event_name == 'workflow_dispatch' &&
+      inputs.agent == 'mes-reviewer'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Resolve PR number
+        id: pr
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          if [ '${{ github.event_name }}' = workflow_run ]; then
+            PR=$(swarm_pr_for_sha '${{ github.event.workflow_run.head_sha }}')
+            if [ -z "$PR" ] || ! swarm_has_label pr "$PR" ai:review; then
+              echo 'No open PR with ai:review for this CI run; nothing to do.'
+              echo "skip=true" >>"$GITHUB_OUTPUT"
+            else
+              echo "number=$PR" >>"$GITHUB_OUTPUT"
+            fi
+          elif [ '${{ github.event_name }}' = workflow_dispatch ]; then
+            echo "number=${{ inputs.number }}" >>"$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.pull_request.number }}" >>"$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v6
+        if: steps.pr.outputs.skip != 'true'
+        with:
+          repository: ${{ github.repository }}
+          ref: refs/pull/${{ steps.pr.outputs.number }}/merge
+      - name: Install opencode
+        if: steps.pr.outputs.skip != 'true'
+        run: |
+          if ! command -v opencode >/dev/null 2>&1; then
+            curl -fsSL https://opencode.ai/install | bash
+          fi
+          opencode --version
+      - name: Wait for CI, then review
+        if: steps.pr.outputs.skip != 'true'
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          PR='${{ steps.pr.outputs.number }}'
+          swarm_require_auth
+          if [ '${{ github.event.pull_request.draft }}' = true ]; then
+            echo 'Draft PR; skipping.'
+            exit 0
+          fi
+          swarm_acquire_lock pr "$PR" || exit 1
+          swarm_auto_release pr "$PR"
+          CI=$(swarm_wait_ci "$PR" 1200)
+          echo "ci=$CI"
+          if [ "$CI" = fail ]; then
+            swarm_remove_label pr "$PR" ai:review
+            swarm_add_label pr "$PR" ai:changes
+            swarm_say pr "$PR" 'Agent flow (CI): CI is red — implementer will fix (see failing checks).'
+            exit 0
+          fi
+          if [ "$CI" = timeout ]; then
+            swarm_say pr "$PR" 'Agent flow (CI): CI was still pending after 20m; keeping ai:review. The ci-completed event will retrigger this job.'
+            exit 0
+          fi
+          swarm_run_agent mes-reviewer \
+            "Review PR #$PR for AsistOff MES. Inspect only the diff with 'gh pr diff $PR'. Post your findings with 'gh pr comment $PR' and end the body with exactly one verdict on its own line: 'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
+            review.log
+          VERDICT=$(swarm_verdict 'APPROVED|CHANGES_REQUESTED' review.log)
+          if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
+            VERDICT=$(swarm_comments_body pr "$PR" | swarm_verdict_stdin 'APPROVED|CHANGES_REQUESTED')
+          fi
+          swarm_remove_label pr "$PR" ai:review
+          case "$VERDICT" in
+            APPROVED) swarm_add_label pr "$PR" ai:verify; echo '-> ai:verify' ;;
+            CHANGES_REQUESTED) swarm_add_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
+            *)
+              swarm_add_label pr "$PR" ai:blocked
+              swarm_say pr "$PR" 'Agent flow (CI): reviewer produced no unambiguous verdict. Needs human attention.'
+              exit 1
+              ;;
+          esac
+
+  # -------------------------------------------------------------------- verify
+  verify:
+    name: verify PR tests
+    if: >
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.draft == false &&
+      github.event.label.name == 'ai:verify' ||
+      github.event_name == 'workflow_dispatch' &&
+      inputs.agent == 'mes-verifier'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository }}
+          ref: refs/pull/${{ github.event.pull_request.number || inputs.number }}/merge
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: Install opencode
+        run: |
+          if ! command -v opencode >/dev/null 2>&1; then
+            curl -fsSL https://opencode.ai/install | bash
+          fi
+          opencode --version
+      - name: Verify tests prove the acceptance criteria
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          PR='${{ github.event.pull_request.number || inputs.number }}'
+          swarm_require_auth
+          swarm_acquire_lock pr "$PR" || exit 1
+          swarm_auto_release pr "$PR"
+          swarm_run_agent mes-verifier \
+            "Verify that the tests in PR #$PR genuinely prove the acceptance criteria. Read-only audit: inspect the diff with 'gh pr diff $PR', map each criterion to the test(s) that prove it, check for weakened tests. DO NOT write files, commit, or push. Post the report with 'gh pr comment $PR' ending with exactly one verdict on its own line: 'VERDICT: TESTS_SOUND' or 'VERDICT: TESTS_INSUFFICIENT'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
+            verify.log
+          VERDICT=$(swarm_verdict 'TESTS_SOUND|TESTS_INSUFFICIENT' verify.log)
+          if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
+            VERDICT=$(swarm_comments_body pr "$PR" | swarm_verdict_stdin 'TESTS_SOUND|TESTS_INSUFFICIENT')
+          fi
+          swarm_remove_label pr "$PR" ai:verify
+          case "$VERDICT" in
+            TESTS_SOUND) swarm_add_label pr "$PR" ai:e2e; echo '-> ai:e2e' ;;
+            TESTS_INSUFFICIENT)
+              swarm_add_label pr "$PR" ai:changes
+              swarm_say pr "$PR" 'Agent flow (CI): verifier found untested criteria or weakened tests (see verification report). Implementer must add real tests.'
+              ;;
+            *)
+              swarm_add_label pr "$PR" ai:blocked
+              swarm_say pr "$PR" 'Agent flow (CI): verifier produced no unambiguous verdict. Needs human attention.'
+              exit 1
+              ;;
+          esac
+
+  # ------------------------------------------------------------------------ fix
+  fix:
+    name: fix PR from feedback
+    if: >
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.draft == false &&
+      github.event.label.name == 'ai:changes' ||
+      github.event_name == 'workflow_dispatch' &&
+      inputs.agent == 'mes-implementer' &&
+      inputs.number != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository }}
+          ref: refs/pull/${{ github.event.pull_request.number || inputs.number }}/merge
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: Install opencode
+        run: |
+          if ! command -v opencode >/dev/null 2>&1; then
+            curl -fsSL https://opencode.ai/install | bash
+          fi
+          opencode --version
+      - name: Fix and push to the same branch
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          PR='${{ github.event.pull_request.number || inputs.number }}'
+          swarm_require_auth
+          swarm_acquire_lock pr "$PR" || exit 1
+          swarm_auto_release pr "$PR"
+          FAILS=$(swarm_fail_count "$PR")
+          if [ "$FAILS" -ge "${MAX_ROUNDS:-3}" ]; then
+            swarm_remove_label pr "$PR" ai:changes
+            swarm_add_label pr "$PR" ai:blocked
+            swarm_say pr "$PR" "Agent flow (CI): exceeded $FAILS/$MAX_ROUNDS review/fix rounds. Needs human attention."
+            exit 1
+          fi
+          git config user.name 'MES Agent Swarm'
+          git config user.email 'mes-swarm@users.noreply.github.com'
+          HEAD_REF=$(gh pr view "$PR" --json headRefName --jq .headRefName)
+          git fetch origin "$HEAD_REF"
+          git checkout "$HEAD_REF"
+          # CI has no session affinity (unlike the local dispatcher): the fix
+          # prompt points at the PR comments so a fresh session can continue.
+          swarm_run_agent mes-implementer \
+            "Review/e2e feedback on PR #$PR requested changes. Read it with 'gh pr view $PR --comments'. Fix every point, re-run 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build', then push to the same branch and reply. Do not add or remove ai:* labels." \
+            fix.log
+          git push origin "$HEAD_REF"
+          swarm_remove_label pr "$PR" ai:changes
+          swarm_add_label pr "$PR" ai:review
+          echo '-> ai:review'
+
+  # ------------------------------------------------------------------------ e2e
+  e2e:
+    name: e2e smoke PR
+    if: >
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.draft == false &&
+      github.event.label.name == 'ai:e2e' ||
+      github.event_name == 'workflow_dispatch' &&
+      inputs.agent == 'mes-e2e-tester'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: mes
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: root
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U admin -d mes"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      postgres__connectionString: 'Host=localhost;Port=5432;Database=mes;Username=admin;Password=root'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository }}
+          ref: refs/pull/${{ github.event.pull_request.number || inputs.number }}/merge
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: Install opencode and Playwright browsers
+        run: |
+          if ! command -v opencode >/dev/null 2>&1; then
+            curl -fsSL https://opencode.ai/install | bash
+          fi
+          opencode --version
+          npm --prefix AsistOff.MES.Web ci
+          npx --yes playwright@latest install --with-deps chromium
+      - name: Run Playwright smoke via agent
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          PR='${{ github.event.pull_request.number || inputs.number }}'
+          swarm_require_auth
+          swarm_acquire_lock pr "$PR" || exit 1
+          swarm_auto_release pr "$PR"
+          # The agent starts the stack itself (scripts/e2e/app.ps1); the
+          # service above only provides PostgreSQL on localhost:5432.
+          swarm_run_agent mes-e2e-tester \
+            "Run the Playwright end-to-end smoke test for PR #$PR. Resolve the scope from 'gh pr diff $PR --name-only' using the mes-e2e skill, ensure the stack with 'pwsh -File scripts/e2e/app.ps1 -Action start', then post the result with 'gh pr comment $PR' ending with exactly one line on its own: 'VERDICT: E2E_PASS', 'VERDICT: E2E_FAIL' or 'VERDICT: E2E_BLOCKED'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
+            e2e.log
+          VERDICT=$(swarm_verdict 'E2E_PASS|E2E_FAIL|E2E_BLOCKED' e2e.log)
+          if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
+            VERDICT=$(swarm_comments_body pr "$PR" | swarm_verdict_stdin 'E2E_PASS|E2E_FAIL|E2E_BLOCKED')
+          fi
+          swarm_remove_label pr "$PR" ai:e2e
+          case "$VERDICT" in
+            E2E_PASS)
+              swarm_add_label pr "$PR" ai:ready
+              swarm_say pr "$PR" 'Agent flow (CI): CI + review + verify + e2e green. Ready for a human merge.'
+              ;;
+            E2E_FAIL) swarm_add_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
+            *)
+              swarm_add_label pr "$PR" ai:blocked
+              swarm_say pr "$PR" 'Agent flow (CI): e2e could not produce a verdict (stack down?). Needs human attention.'
+              exit 1
+              ;;
+          esac
+      - name: Stop e2e stack
+        if: always()
+        run: pwsh -NoProfile -File scripts/e2e/app.ps1 -Action stop || true
+
+  # ----------------------------------------------------------------- researcher
+  researcher:
+    name: researcher (weekly gaps)
+    if: >
+      github.event_name == 'schedule' &&
+      github.event.schedule == '0 6 * * 1' ||
+      github.event_name == 'workflow_dispatch' &&
+      inputs.agent == 'mes-researcher'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Install opencode
+        run: |
+          if ! command -v opencode >/dev/null 2>&1; then
+            curl -fsSL https://opencode.ai/install | bash
+          fi
+          opencode --version
+      - name: Append gap rows and open PR
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          swarm_require_auth
+          git config user.name 'MES Agent Swarm'
+          git config user.email 'mes-swarm@users.noreply.github.com'
+          swarm_run_agent mes-researcher \
+            'Read docs/feature-tracker.md first (do NOT rescan the whole repo). Append 1-3 new gap rows in the correct section (Status=gap, Work item=-, dependencies in Notes prefixed "depends on"). Never create GitHub issues and never modify existing rows.' \
+            researcher.log
+          if git diff --quiet -- docs/feature-tracker.md; then
+            echo 'No new gaps; nothing to do.'
+            exit 0
+          fi
+          BRANCH="ai/research-$(date -u +%Y%m%d)"
+          git checkout -B "$BRANCH"
+          git add docs/feature-tracker.md
+          git commit -m 'docs: researcher gap rows'
+          git push -u origin "$BRANCH"
+          if ! gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            gh pr create --title 'docs: researcher gap rows' --body 'Weekly mes-researcher run. Human merges; mes-analyst turns gaps into ai:implement issues.'
+          fi
+
+  # -------------------------------------------------------------------- tracker
+  tracker:
+    name: tracker sync (daily)
+    if: >
+      github.event_name == 'schedule' &&
+      github.event.schedule == '30 5 * * *' ||
+      github.event_name == 'workflow_dispatch' &&
+      inputs.agent == 'mes-tracker'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Install opencode
+        run: |
+          if ! command -v opencode >/dev/null 2>&1; then
+            curl -fsSL https://opencode.ai/install | bash
+          fi
+          opencode --version
+      - name: Reconcile feature tracker
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          swarm_require_auth
+          git config user.name 'MES Agent Swarm'
+          git config user.email 'mes-swarm@users.noreply.github.com'
+          DEFAULT=$(swarm_default_branch)
+          swarm_run_agent mes-tracker \
+            "Reconcile docs/feature-tracker.md with GitHub issues/PRs and the codebase, then publish the update on branch ai/tracker-sync (based on $DEFAULT) and open or update a PR. Abort if the working tree is dirty." \
+            tracker.log

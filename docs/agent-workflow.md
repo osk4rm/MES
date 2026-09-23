@@ -255,10 +255,9 @@ docker compose logs -f swarm
 ## 10. Rollout
 
 1. ~~Faza 1 — ręcznie.~~ 2. ~~Faza 2 — półautomat `agent-loop.ps1`.~~
-3. **Faza 3 (obecna) — dyspozytor po labelach, e2e, autonomiczny tracker,
-   merge za zgodą człowieka.**
-4. Faza 4 — GitHub Actions event-driven (`issues.labeled` / `pull_request`),
-   researcher na cronie, opcjonalny auto-merge zielonych.
+3. ~~Faza 3 — dyspozytor po labelach, e2e, autonomiczny tracker.~~
+4. **Faza 4 (obecna) — GitHub Actions event-driven (patrz §13), lokalny
+   dyspozytor jako fallback/debug, merge za zgodą człowieka.**
 
 ## 11. Pliki
 
@@ -279,7 +278,8 @@ docker/swarm/Dockerfile                        # obraz swarm (dashboard+dyspozyt
 docker/swarm/entrypoint.sh                     # klon wolumenu + auth + start
 .env.example                                   # GH_TOKEN i overrides dla compose
 .github/workflows/ci.yml                       # bramka CI
-.github/workflows/ai-implement.yml             # (faza 4, jeszcze nie ma)
+.github/workflows/ai-swarm.yml                 # faza 4: implement/review/verify/fix/e2e + cron researcher/tracker
+scripts/ci/swarm-lib.sh                        # wspólne helpery CI (locki, labele, werdykty, CI wait)
 ```
 
 ## 12. Gotchas (handoff)
@@ -290,9 +290,9 @@ docker/swarm/entrypoint.sh                     # klon wolumenu + auth + start
 - **PowerShell + natywne komendy**: listy pól do `gh` cytuj jako `--json 'a,b'`;
   skrypty używają `$ErrorActionPreference = 'Continue'`, bo `opencode`/`gh`
   piszą na stderr.
-- **Werdykt**: bierzemy **ostatnie** wystąpienie `VERDICT: ...`; dyspozytor
-  dodatkowo fallbackuje do ostatniego komentarza PR, gdy agent nie wypisze go
-  na stdout.
+- **Werdykt musi być jednoznaczny**: wiele różnych `VERDICT: ...` w jednym
+  outpucie to `AMBIGUOUS` → `ai:blocked`. Przy braku werdyktu na stdout
+  dyspozytor i CI fallbackują do komentarzy PR.
 - **Config opencode nie jest hot-reloadowany** — zmiany `opencode.json`/agentów
   wymagają restartu; prompty dashboardu — tylko reload.
 - **Dyspozytor jest jednowątkowy** — nie odpalaj dwóch naraz na tym samym repo.
@@ -305,6 +305,43 @@ docker/swarm/entrypoint.sh                     # klon wolumenu + auth + start
   defaultem dla wszystkich agentów (`opencode.json` + `.opencode/agent/*.md`);
   trudniejsze taski (lifecycle, migracje) warto weryfikować verifierem.
 
+## 13. Faza 4 — event-driven (GitHub Actions)
+
+`.github/workflows/ai-swarm.yml` robi to samo co lokalny dyspozytor, ale
+zamiast pollingu reaguje na eventy. Wspólne helpery (locki, labele, ścisłe
+werdykty, czekanie na CI) żyją w `scripts/ci/swarm-lib.sh`.
+
+| Event | Job | Efekt |
+|---|---|---|
+| issue `labeled ai:implement` | `implement` | implementer → PR + `ai:review` (brak PR → `ai:blocked`) |
+| PR `labeled ai:review` / `synchronize` z `ai:review` / koniec CI (`workflow_run`) | `review` | czeka na CI (max 20 min) → reviewer → `ai:verify` / `ai:changes` |
+| PR `labeled ai:verify` | `verify` | verifier read-only → `ai:e2e` / `ai:changes` |
+| PR `labeled ai:changes` | `fix` | guard rund (liczy failure-verdykty w komentarzach, limit `MAX_ROUNDS=3`) → implementer fix → `ai:review` |
+| PR `labeled ai:e2e` | `e2e` | Postgres service + stack + tester → `ai:ready` / `ai:changes` / `ai:blocked` |
+| cron pn 06:00 UTC | `researcher` | gap rows → zwykły PR do mergu przez człowieka |
+| cron codziennie 05:30 UTC | `tracker` | sync trackera → PR `ai/tracker-sync` |
+| `workflow_dispatch` | dowolny | ręczny trigger (zastępuje przyciski dashboardu w CI) |
+
+Zasady:
+
+- **Sekret**: `OPENCODE_API_KEY` (opencode.ai/auth) w Settings → Secrets →
+  Actions. Bez niego joby padają z jawnym błędem. `GITHUB_TOKEN` jest automatyczny.
+- **Concurrency**: jedna kolejka na issue/PR (`cancel-in-progress: false`) —
+  odpowiednik jednowątkowego dyspozytora. `ai:running` jest lockiem między
+  runnerem CI a lokalnym dyspozytorem: job widzący cudzy lock kończy się błędem,
+  ponawiasz go zdejmując i dokładając label-trigger.
+- **`--auto`**: runnery CI to izolowane klony, więc agenci lecą z
+  `opencode --auto` (permission files dalej bronią pusha na default branch).
+- **Brak session affinity w CI**: fix w CI startuje świeżą sesję z promptem
+  „przeczytaj komentarze PR" (lokalny dyspozytor trzyma `--session`
+  implementera — patrz §4).
+- **E2E w CI**: service `postgres:16` na `localhost:5432`, backend dostaje
+  `postgres__connectionString` env-em; agent sam stawia stack przez
+  `scripts/e2e/app.ps1` (pwsh jest na runnerach). Bez DB werdykt to `E2E_BLOCKED`.
+- Lokalny dyspozytor zostaje jako **fallback/debug** — nie odpalaj go
+  równolegle z zielonym CI na tych samych labelach, bo będziecie się mijać
+  lockami (to akurat bezpieczne, ale hałaśliwe).
+
 ## Powiązane dokumenty
 
 - [`AGENT.md`](../AGENT.md) — do/don't dla agentów
@@ -312,4 +349,6 @@ docker/swarm/entrypoint.sh                     # klon wolumenu + auth + start
 - [`docs/glossary.md`](glossary.md) — słownik domenowy
 - [`.github/instructions/`](../.github/instructions/) — instrukcje obszarowe
 - [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — bramka CI
-- [`scripts/agent-dispatcher.ps1`](../scripts/agent-dispatcher.ps1) — dyspozytor
+- [`.github/workflows/ai-swarm.yml`](../.github/workflows/ai-swarm.yml) — faza 4 event-driven
+- [`scripts/ci/swarm-lib.sh`](../scripts/ci/swarm-lib.sh) — helpery CI
+- [`scripts/agent-dispatcher.ps1`](../scripts/agent-dispatcher.ps1) — dyspozytor (fallback)
