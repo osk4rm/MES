@@ -28,6 +28,7 @@ export const sitemap: NavItem[] = [
       { label: 'nav.warehouses', icon: 'pi pi-building', route: '/configuration/warehouses' },
       { label: 'nav.departments', icon: 'pi pi-sitemap', route: '/configuration/departments' },
       { label: 'nav.machines', icon: 'pi pi-cog', route: '/configuration/machines' },
+      { label: 'nav.shifts', icon: 'pi pi-clock', route: '/configuration/shifts' },
       { label: 'nav.operators', icon: 'pi pi-id-card', route: '/configuration/operators' },
       { label: 'nav.skills', icon: 'pi pi-star', route: '/configuration/skills' },
       { label: 'nav.reasonCodes', icon: 'pi pi-exclamation-circle', route: '/configuration/reason-codes' },

@@ -51,6 +51,7 @@ const pl = {
     warehouses: 'Magazyny',
     departments: 'Działy',
     machines: 'Maszyny',
+    shifts: 'Zmiany',
     operators: 'Operatorzy',
     skills: 'Umiejętności',
     reasonCodes: 'Kody przyczyn',
@@ -168,7 +169,35 @@ const pl = {
     code: 'Kod',
     name: 'Nazwa',
     description: 'Opis',
+    calendar: 'Kalendarz',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
+  },
+  shifts: {
+    title: 'Zmiany',
+    subtitle: 'Słownik zmian roboczych',
+    create: 'Nowa zmiana',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    startTime: 'Początek',
+    endTime: 'Koniec',
+    workingHours: 'Godziny pracy',
+    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
+  },
+  calendar: {
+    title: 'Kalendarz stanowiska',
+    hint: 'Tygodniowy rozkład czasu pracy. Wpis z godziną końca wcześniejszą niż początku przechodzi na następny dzień.',
+    working: 'Czas pracy',
+    noShift: 'Bez zmiany',
+    days: {
+      monday: 'Poniedziałek',
+      tuesday: 'Wtorek',
+      wednesday: 'Środa',
+      thursday: 'Czwartek',
+      friday: 'Piątek',
+      saturday: 'Sobota',
+      sunday: 'Niedziela'
+    }
   },
   recipes: {
     title: 'Receptury',
@@ -362,6 +391,7 @@ const en: typeof pl = {
     warehouses: 'Warehouses',
     departments: 'Departments',
     machines: 'Machines',
+    shifts: 'Shifts',
     operators: 'Operators',
     skills: 'Skills',
     reasonCodes: 'Reason codes',
@@ -479,7 +509,35 @@ const en: typeof pl = {
     code: 'Code',
     name: 'Name',
     description: 'Description',
+    calendar: 'Calendar',
     filters: { code: 'Code contains…', name: 'Name contains…' }
+  },
+  shifts: {
+    title: 'Shifts',
+    subtitle: 'Shift dictionary',
+    create: 'New shift',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    startTime: 'Start',
+    endTime: 'End',
+    workingHours: 'Working hours',
+    filters: { code: 'Code contains…', name: 'Name contains…' }
+  },
+  calendar: {
+    title: 'Work-center calendar',
+    hint: 'Weekly working-time schedule. An entry ending earlier than it starts crosses midnight.',
+    working: 'Working time',
+    noShift: 'No shift',
+    days: {
+      monday: 'Monday',
+      tuesday: 'Tuesday',
+      wednesday: 'Wednesday',
+      thursday: 'Thursday',
+      friday: 'Friday',
+      saturday: 'Saturday',
+      sunday: 'Sunday'
+    }
   },
   recipes: {
     title: 'Recipes',

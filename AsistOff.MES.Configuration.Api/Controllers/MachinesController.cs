@@ -4,6 +4,9 @@ using AsistOff.MES.Configuration.Application.Features.Machines.Delete;
 using AsistOff.MES.Configuration.Application.Features.Machines.Get;
 using AsistOff.MES.Configuration.Application.Features.Machines.Responses;
 using AsistOff.MES.Configuration.Application.Features.Machines.Update;
+using AsistOff.MES.Configuration.Application.Features.WorkCenterCalendar.Get;
+using AsistOff.MES.Configuration.Application.Features.WorkCenterCalendar.Responses;
+using AsistOff.MES.Configuration.Application.Features.WorkCenterCalendar.Save;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Infrastructure.Controllers;
 using MediatR;
@@ -48,4 +51,14 @@ public class MachinesController(ISender sender) : ApiController
         await sender.Send(new DeleteMachineRequest(id), cancellationToken);
         return NoContent();
     }
+
+    [HttpGet("{machineId:guid}/calendar")]
+    public async Task<ActionResult<WorkCenterCalendarResponse>> GetCalendarAsync(
+        [FromRoute] Guid machineId, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new GetWorkCenterCalendarRequest(machineId), cancellationToken));
+
+    [HttpPut("{machineId:guid}/calendar")]
+    public async Task<ActionResult<WorkCenterCalendarResponse>> SaveCalendarAsync(
+        [FromRoute] Guid machineId, [FromBody] SaveWorkCenterCalendarRequest body, CancellationToken cancellationToken)
+        => Ok(await sender.Send(body with { MachineId = machineId }, cancellationToken));
 }

@@ -30,6 +30,10 @@ export interface UpdateMachineRequest extends CreateMachineRequest {
   id: string;
 }
 
+import type { WorkCenterCalendar, WorkCenterCalendarEntry } from './shiftService';
+
+export type { WorkCenterCalendar, WorkCenterCalendarEntry };
+
 const BASE = '/api/machines';
 
 export const machineService = {
@@ -50,5 +54,21 @@ export const machineService = {
   },
   async remove(id: string): Promise<void> {
     await http.delete(`${BASE}/${id}`);
+  },
+  async getCalendar(machineId: string): Promise<WorkCenterCalendar> {
+    const { data } = await http.get<WorkCenterCalendar>(`${BASE}/${machineId}/calendar`);
+    return data;
+  },
+  async saveCalendar(machineId: string, entries: WorkCenterCalendarEntry[]): Promise<WorkCenterCalendar> {
+    const { data } = await http.put<WorkCenterCalendar>(`${BASE}/${machineId}/calendar`, {
+      entries: entries.map((e) => ({
+        dayOfWeek: e.dayOfWeek,
+        startTime: e.startTime.length === 5 ? `${e.startTime}:00` : e.startTime,
+        endTime: e.endTime.length === 5 ? `${e.endTime}:00` : e.endTime,
+        shiftId: e.shiftId ?? null,
+        isWorking: e.isWorking
+      }))
+    });
+    return data;
   }
 };

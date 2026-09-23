@@ -1,15 +1,15 @@
 <template>
   <div>
-    <AppPageHeader :title="$t('machines.title')" :subtitle="$t('machines.subtitle')" icon="pi pi-cog">
+    <AppPageHeader :title="$t('shifts.title')" :subtitle="$t('shifts.subtitle')" icon="pi pi-clock">
       <template #actions>
         <AppButton variant="secondary" icon="pi pi-refresh" @click="table.fetch">{{ $t('common.refresh') }}</AppButton>
-        <AppButton variant="primary" icon="pi pi-plus" @click="openCreate">{{ $t('machines.create') }}</AppButton>
+        <AppButton variant="primary" icon="pi pi-plus" @click="openCreate">{{ $t('shifts.create') }}</AppButton>
       </template>
     </AppPageHeader>
 
     <AppFilterBar @clear="clearFilters">
-      <AppInput v-model="codeFilter" :placeholder="$t('machines.filters.code')" prefix-icon="pi pi-search" clearable @update:modelValue="onCode" />
-      <AppInput v-model="nameFilter" :placeholder="$t('machines.filters.name')" prefix-icon="pi pi-search" clearable @update:modelValue="onName" />
+      <AppInput v-model="codeFilter" :placeholder="$t('shifts.filters.code')" prefix-icon="pi pi-search" clearable @update:modelValue="onCode" />
+      <AppInput v-model="nameFilter" :placeholder="$t('shifts.filters.name')" prefix-icon="pi pi-search" clearable @update:modelValue="onName" />
     </AppFilterBar>
 
     <AppTable
@@ -20,6 +20,9 @@
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
     >
+      <template #cell-startTime="{ item }">
+        {{ toShortTime(item.startTime) }} – {{ toShortTime(item.endTime) }}
+      </template>
       <template #cell-isActive="{ item }">
         <span :class="['pill', item.isActive ? 'pill--ok' : 'pill--muted']">
           {{ item.isActive ? $t('common.active') : $t('common.inactive') }}
@@ -28,11 +31,10 @@
       <template #cell-actions="{ item }">
         <AppRowActions
           :actions="[
-            { key: 'edit', label: $t('common.edit'), icon: 'pi-pencil' },
-            { key: 'calendar', label: $t('machines.calendar'), icon: 'pi-calendar' },
-            { key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger' }
+            { key: 'edit', label: $t('common.edit'), icon: 'pi pi-pencil' },
+            { key: 'delete', label: $t('common.delete'), icon: 'pi pi-trash', variant: 'danger' }
           ]"
-          @action="(k) => onRowAction(k, item)"
+          @action="onRowAction($event, item)"
         />
       </template>
     </AppTable>
@@ -46,15 +48,21 @@
       @page-size-change="table.setPageSize"
     />
 
-    <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('machines.create')" @close="closeModal">
-      <form id="machine-form" class="form-grid" @submit.prevent="onSave">
-        <AppFormField :label="$t('machines.code')" required>
+    <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('shifts.create')" @close="closeModal">
+      <form id="shift-form" class="form-grid" @submit.prevent="onSave">
+        <AppFormField :label="$t('shifts.code')" required>
           <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.code" required :invalid="invalid" /></template>
         </AppFormField>
-        <AppFormField :label="$t('machines.name')" required>
+        <AppFormField :label="$t('shifts.name')" required>
           <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.name" required :invalid="invalid" /></template>
         </AppFormField>
-        <AppFormField :label="$t('machines.description')" class="form-grid__full">
+        <AppFormField :label="$t('shifts.startTime')" required>
+          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.startTime" type="time" required :invalid="invalid" /></template>
+        </AppFormField>
+        <AppFormField :label="$t('shifts.endTime')" required>
+          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.endTime" type="time" required :invalid="invalid" /></template>
+        </AppFormField>
+        <AppFormField :label="$t('shifts.description')" class="form-grid__full">
           <template #default="{ id }"><AppInput :id="id" v-model="form.description" /></template>
         </AppFormField>
         <AppFormField :label="$t('common.active')" class="form-grid__full">
@@ -63,7 +71,7 @@
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="saving" @click="closeModal">{{ $t('common.cancel') }}</AppButton>
-        <AppButton type="submit" form="machine-form" variant="primary" :loading="saving">{{ $t('common.save') }}</AppButton>
+        <AppButton type="submit" form="shift-form" variant="primary" :loading="saving">{{ $t('common.save') }}</AppButton>
       </template>
     </AppModal>
 
@@ -74,14 +82,6 @@
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
-    />
-
-    <WorkCenterCalendarEditor
-      :machine-id="calendarMachine?.id ?? null"
-      :machine-name="calendarMachine?.name ?? ''"
-      :open="calendarOpen"
-      @close="calendarOpen = false"
-      @saved="calendarOpen = false"
     />
   </div>
 </template>
@@ -100,8 +100,7 @@ import AppButton from '../../components/ui/AppButton.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
-import { machineService, type MachineResponse } from '../../services/machineService';
-import WorkCenterCalendarEditor from './WorkCenterCalendarEditor.vue';
+import { shiftService, type ShiftResponse } from '../../services/shiftService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -110,16 +109,22 @@ const toast = useToastStore();
 
 interface Filters { code?: string; name?: string }
 
-const table = useCrudPage<MachineResponse, Filters>({
-  fetch: (req) => machineService.browse(req),
+const table = useCrudPage<ShiftResponse, Filters>({
+  fetch: (req) => shiftService.browse(req),
   initialFilters: {}
 });
 
+function toShortTime(value: string): string {
+  return value.length >= 5 ? value.slice(0, 5) : value;
+}
+
 const columns = computed(() => [
-  { key: 'code', label: t('machines.code'), sortable: true },
-  { key: 'name', label: t('machines.name'), sortable: true },
+  { key: 'code', label: t('shifts.code'), sortable: true },
+  { key: 'name', label: t('shifts.name'), sortable: true },
+  { key: 'startTime', label: t('shifts.workingHours') },
+  { key: 'description', label: t('shifts.description') },
   { key: 'isActive', label: t('common.status') },
-  { key: 'actions', label: t('common.actions'), width: '90px' }
+  { key: 'actions', label: t('common.actions'), width: '100px' }
 ]);
 
 const codeFilter = ref('');
@@ -130,18 +135,32 @@ function onName(v: string | number | null | undefined) { clearTimeout(d2); d2 = 
 function clearFilters() { codeFilter.value = ''; nameFilter.value = ''; table.resetFilters(); }
 
 const modalOpen = ref(false);
-const editing = ref<MachineResponse | null>(null);
+const editing = ref<ShiftResponse | null>(null);
 const saving = ref(false);
-const form = reactive({ code: '', name: '', description: '' as string | null, isActive: true });
+const form = reactive({
+  code: '',
+  name: '',
+  description: '' as string | null,
+  startTime: '06:00',
+  endTime: '14:00',
+  isActive: true
+});
 
 function openCreate() {
   editing.value = null;
-  Object.assign(form, { code: '', name: '', description: '', isActive: true });
+  Object.assign(form, { code: '', name: '', description: '', startTime: '06:00', endTime: '14:00', isActive: true });
   modalOpen.value = true;
 }
-function openEdit(item: MachineResponse) {
+function openEdit(item: ShiftResponse) {
   editing.value = item;
-  Object.assign(form, { code: item.code, name: item.name, description: item.description ?? '', isActive: item.isActive });
+  Object.assign(form, {
+    code: item.code,
+    name: item.name,
+    description: item.description ?? '',
+    startTime: toShortTime(item.startTime),
+    endTime: toShortTime(item.endTime),
+    isActive: item.isActive
+  });
   modalOpen.value = true;
 }
 function closeModal() { if (saving.value) return; modalOpen.value = false; editing.value = null; }
@@ -153,13 +172,15 @@ async function onSave() {
       code: form.code,
       name: form.name,
       description: form.description || null,
+      startTime: form.startTime,
+      endTime: form.endTime,
       isActive: form.isActive
     };
     if (editing.value) {
-      await machineService.update(editing.value.id, { id: editing.value.id, ...payload });
+      await shiftService.update(editing.value.id, { id: editing.value.id, ...payload });
       toast.success(t('toasts.updated'));
     } else {
-      await machineService.create(payload);
+      await shiftService.create(payload);
       toast.success(t('toasts.created'));
     }
     await table.fetch();
@@ -170,19 +191,19 @@ async function onSave() {
 }
 
 const confirmOpen = ref(false);
-const toDelete = ref<MachineResponse | null>(null);
+const toDelete = ref<ShiftResponse | null>(null);
 const deleting = ref(false);
 const deleteMessage = computed(() => toDelete.value ? `${t('common.delete')}: ${toDelete.value.name}` : '');
-function onRowAction(key: string, item: MachineResponse) {
+
+function onRowAction(key: string, item: ShiftResponse) {
   if (key === 'edit') openEdit(item);
-  else if (key === 'calendar') { calendarMachine.value = item; calendarOpen.value = true; }
   else if (key === 'delete') { toDelete.value = item; confirmOpen.value = true; }
 }
 async function confirmDelete() {
   if (!toDelete.value) return;
   deleting.value = true;
   try {
-    await machineService.remove(toDelete.value.id);
+    await shiftService.remove(toDelete.value.id);
     toast.success(t('toasts.deleted'));
     await table.fetch();
     confirmOpen.value = false; toDelete.value = null;
@@ -192,9 +213,6 @@ async function confirmDelete() {
 }
 function cancelDelete() { confirmOpen.value = false; toDelete.value = null; }
 
-const calendarOpen = ref(false);
-const calendarMachine = ref<MachineResponse | null>(null);
-
 onMounted(() => table.fetch());
 </script>
 
@@ -203,5 +221,5 @@ onMounted(() => table.fetch());
 .form-grid__full { grid-column: 1 / -1; }
 .pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; }
 .pill--ok { background: var(--color-success-soft, #d1fae5); color: var(--color-success, #065f46); }
-.pill--muted { background: var(--color-neutral-soft, #e5e7eb); color: var(--color-neutral-strong, #374151); }
+.pill--muted { background: var(--color-surface-sunken, #f3f4f6); color: var(--color-text-muted, #6b7280); }
 </style>
