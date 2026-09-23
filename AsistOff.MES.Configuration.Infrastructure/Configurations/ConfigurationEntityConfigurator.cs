@@ -13,6 +13,7 @@ public class ConfigurationEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<Department>();
         modelBuilder.Entity<Machine>();
         modelBuilder.Entity<Skill>();
+        modelBuilder.Entity<ReasonCode>();
         
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ConfigurationEntityConfigurator).Assembly);
         
