@@ -53,6 +53,7 @@ const pl = {
     machines: 'Maszyny',
     operators: 'Operatorzy',
     skills: 'Umiejętności',
+    reasonCodes: 'Kody przyczyn',
     operationTemplates: 'Wzorcowe operacje',
     settings: 'Ustawienia'
   },
@@ -262,6 +263,30 @@ const pl = {
     description: 'Opis',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
   },
+  reasonCodes: {
+    title: 'Kody przyczyn',
+    subtitle: 'Słownik przyczyn przestojów i braków',
+    create: 'Nowy kod przyczyny',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    category: 'Kategoria',
+    sortIndex: 'Kolejność',
+    isActive: 'Aktywny',
+    filters: {
+      code: 'Kod zawiera…',
+      name: 'Nazwa zawiera…',
+      category: 'Kategoria',
+      status: 'Status'
+    },
+    categories: {
+      1: 'Przestój',
+      2: 'Braki',
+      3: 'Jakość',
+      4: 'Przygotowanie',
+      5: 'Inne'
+    }
+  },
   scanBy: { 1: 'EAN', 2: 'Kod' },
   stubs: {
     title: 'Moduł w przygotowaniu',
@@ -339,6 +364,7 @@ const en: typeof pl = {
     machines: 'Machines',
     operators: 'Operators',
     skills: 'Skills',
+    reasonCodes: 'Reason codes',
     operationTemplates: 'Operation templates',
     settings: 'Settings'
   },
@@ -547,6 +573,30 @@ const en: typeof pl = {
     name: 'Name',
     description: 'Description',
     filters: { code: 'Code contains…', name: 'Name contains…' }
+  },
+  reasonCodes: {
+    title: 'Reason codes',
+    subtitle: 'Dictionary of downtime and scrap causes',
+    create: 'New reason code',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    category: 'Category',
+    sortIndex: 'Sort index',
+    isActive: 'Active',
+    filters: {
+      code: 'Code contains…',
+      name: 'Name contains…',
+      category: 'Category',
+      status: 'Status'
+    },
+    categories: {
+      1: 'Downtime',
+      2: 'Scrap',
+      3: 'Quality',
+      4: 'Setup',
+      5: 'Other'
+    }
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
   stubs: {

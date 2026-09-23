@@ -420,4 +420,7 @@ FodyWeavers.xsd
 
 # Source code folders accidentally matched by VS build-output patterns (e.g. [Rr]elease/).
 !**/Features/**/Release/
-!**/Features/**/Release/**
+!**/Features/**/Release/
+
+# Playwright MCP artifacts
+.playwright-mcp/**
