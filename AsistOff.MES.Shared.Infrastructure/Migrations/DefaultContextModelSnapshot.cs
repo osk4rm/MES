@@ -272,7 +272,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("DepartmentId")
                     b.Property<Guid?>("DepartmentId")
                         .HasColumnType("uuid");
 
@@ -871,7 +870,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Property<DateTime?>("EndedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("MachineId")
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
