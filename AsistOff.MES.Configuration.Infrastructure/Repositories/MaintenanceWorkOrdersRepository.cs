@@ -1,4 +1,5 @@
 using AsistOff.MES.Configuration.Domain.Entities;
+using AsistOff.MES.Configuration.Domain.Enums;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Extensions;
 using AsistOff.MES.Shared.Abstractions.Pagination;
@@ -40,6 +41,19 @@ internal sealed class MaintenanceWorkOrdersRepository(DefaultContext context) : 
             query = query.Where(x => x.Id != excludeId.Value);
         return await query.AnyAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyCollection<MaintenanceWorkOrder>> ListDoneInWindowAsync(
+        Guid machineId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
+        => await context.Set<MaintenanceWorkOrder>()
+            .AsNoTracking()
+            .Where(x => x.MachineId == machineId
+                && x.Status == MaintenanceWorkOrderStatus.Done
+                && x.CompletedAt != null
+                && x.CompletedAt >= fromUtc
+                && x.CompletedAt <= toUtc)
+            .OrderBy(x => x.CompletedAt)
+            .ThenBy(x => x.Id)
+            .ToListAsync(cancellationToken);
 
     public async Task<MaintenanceWorkOrder> AddAsync(
         MaintenanceWorkOrder workOrder, CancellationToken cancellationToken = default)

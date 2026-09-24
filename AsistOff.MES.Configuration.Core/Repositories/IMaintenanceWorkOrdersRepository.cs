@@ -15,6 +15,14 @@ public interface IMaintenanceWorkOrdersRepository
         CancellationToken cancellationToken = default);
 
     Task<MaintenanceWorkOrder?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Done work orders of one Work Center whose <c>CompletedAt</c> falls
+    /// inside the window (inclusive). Runs under the tenant global query
+    /// filter. Non-Done rows and rows with null <c>CompletedAt</c> never
+    /// count toward repair KPIs.
+    /// </summary>
+    Task<IReadOnlyCollection<MaintenanceWorkOrder>> ListDoneInWindowAsync(
+        Guid machineId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
     Task<bool> CodeExistsAsync(string code, Guid? excludeId, CancellationToken cancellationToken = default);
     Task<MaintenanceWorkOrder> AddAsync(MaintenanceWorkOrder workOrder, CancellationToken cancellationToken = default);
     Task UpdateAsync(MaintenanceWorkOrder workOrder, CancellationToken cancellationToken = default);

@@ -351,6 +351,20 @@ public sealed record OeeLossesDto(
     decimal TotalScrapQuantity,
     IReadOnlyCollection<ScrapParetoEntryDto> ScrapPareto);
 
+/// <summary>Shape of the reliability snapshot returned by <c>/api/reliability/snapshot</c>.</summary>
+public sealed record ReliabilitySnapshotDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    int FailureCount,
+    int RepairCount,
+    double WindowMinutes,
+    double UptimeMinutes,
+    double TotalDowntimeMinutes,
+    double? MtbfMinutes,
+    double? MttrMinutes,
+    double? AvgRepairMinutes);
+
 /// <summary>Shape of an OPC UA connection as returned by <c>/api/opcua-connections</c>.</summary>
 public sealed record OpcUaConnectionDto(
     Guid Id,
