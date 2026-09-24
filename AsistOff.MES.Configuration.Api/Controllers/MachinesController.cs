@@ -4,6 +4,9 @@ using AsistOff.MES.Configuration.Application.Features.Machines.Delete;
 using AsistOff.MES.Configuration.Application.Features.Machines.Get;
 using AsistOff.MES.Configuration.Application.Features.Machines.Responses;
 using AsistOff.MES.Configuration.Application.Features.Machines.Update;
+using AsistOff.MES.Configuration.Application.Features.WorkCenterCalendars.Get;
+using AsistOff.MES.Configuration.Application.Features.WorkCenterCalendars.Responses;
+using AsistOff.MES.Configuration.Application.Features.WorkCenterCalendars.Save;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Infrastructure.Controllers;
 using MediatR;
@@ -48,4 +51,25 @@ public class MachinesController(ISender sender) : ApiController
         await sender.Send(new DeleteMachineRequest(id), cancellationToken);
         return NoContent();
     }
+
+    /// <summary>
+    /// Returns the weekly calendar of a Work Center. A Work Center without a
+    /// calendar yet yields an empty entry collection rather than a 404; an
+    /// unknown Work Center yields 404.
+    /// </summary>
+    [HttpGet("{id:guid}/calendar")]
+    public async Task<ActionResult<WorkCenterCalendarResponse>> GetCalendarAsync(
+        [FromRoute] Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new GetWorkCenterCalendarRequest(id), cancellationToken));
+
+    /// <summary>
+    /// Creates or replaces the weekly calendar of a Work Center in one atomic
+    /// operation and returns the stored calendar.
+    /// </summary>
+    [HttpPut("{id:guid}/calendar")]
+    public async Task<ActionResult<WorkCenterCalendarResponse>> SaveCalendarAsync(
+        [FromRoute] Guid id,
+        [FromBody] SaveWorkCenterCalendarRequest request,
+        CancellationToken cancellationToken)
+        => Ok(await sender.Send(request with { MachineId = id }, cancellationToken));
 }

@@ -3,6 +3,7 @@ using System;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AsistOff.MES.Shared.Infrastructure.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    partial class DefaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260923215120_AddWorkCenterCalendarsAndShifts")]
+    partial class AddWorkCenterCalendarsAndShifts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -213,7 +216,8 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("DepartmentId")
+                    b.Property<Guid?>("DepartmentId")
+                        .IsRequired()
                         .HasColumnType("uuid");
 
                     b.Property<string>("FirstName")
@@ -1118,52 +1122,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("ResourceRequirements", "production");
-                });
-
-            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.ScrapEvent", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("MachineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Guid?>("ProductionOrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("numeric(14,4)");
-
-                    b.Property<Guid>("ReasonCodeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("ReportedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ReportedByOperatorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex("TenantId", "MachineId", "ReportedAt");
-
-                    b.ToTable("ScrapEvents", "production");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Users.Core.Entities.User", b =>

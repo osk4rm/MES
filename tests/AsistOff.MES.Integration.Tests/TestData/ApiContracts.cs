@@ -16,6 +16,41 @@ public sealed record PagedResponseDto<T>(
     int TotalPages,
     IReadOnlyCollection<T> Items);
 
+/// <summary>Shape of a shift as returned by <c>/api/shifts</c>. Times are ISO 8601 <c>HH:mm:ss</c>.</summary>
+public sealed record ShiftDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string? Description,
+    string StartTime,
+    string EndTime,
+    bool IsActive);
+
+/// <summary>One weekly window returned by <c>/api/machines/{id}/calendar</c>.</summary>
+public sealed record WorkCenterCalendarEntryDto(
+    Guid Id,
+    int DayOfWeek,
+    string StartTime,
+    string EndTime,
+    Guid? ShiftId,
+    bool IsWorking);
+
+/// <summary>Shape of a Work Center calendar as returned by <c>/api/machines/{id}/calendar</c>.</summary>
+public sealed record WorkCenterCalendarDto(
+    Guid Id,
+    Guid MachineId,
+    string MachineCode,
+    string MachineName,
+    IReadOnlyCollection<WorkCenterCalendarEntryDto> Entries);
+
+/// <summary>Shape of a Work Center as returned by <c>/api/machines</c>.</summary>
+public sealed record MachineDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string? Description,
+    bool IsActive);
+
 /// <summary>Shape of a scrap event as returned by <c>/api/scrap-events</c>.</summary>
 public sealed record ScrapEventDto(
     Guid Id,
