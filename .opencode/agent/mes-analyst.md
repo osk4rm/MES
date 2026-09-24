@@ -44,14 +44,24 @@ tracker row to spec.
    `done`. Dependencies are named in the `Notes` column prefixed with
    `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`); skip a row
    while any named dependency is not `done`.
+3b. **Slice subsystem-sized gaps.** If the gap is a whole subsystem (review
+   would take >30 min, touches >1 area, or needs >1 migration), split it into
+   2-4 sequential vertical slices per the Sizing section of the
+   **mes-issue-spec** skill (`(1/3)` numbering, `depends on #<prev>`, at most
+   one migration-bearing slice — the first). Create all slice issues in this
+   run but add `ai:implement` ONLY to the first unblocked one; the rest wait
+   as unlabeled proposals for future runs (oldest first).
 4. Draft the issue following the **mes-issue-spec** skill exactly.
 5. Create it with `gh issue create`, then add the `ai:implement` label so the
-   orchestrator can pick it up.
+   orchestrator can pick it up (single-slice gaps) or label only the first
+   slice (series — see 3b).
 6. Report back the issue number, title, and the tracker row it came from.
 
 ## Rules
 
-- One work item per run. Do not batch.
+- One series per run: a single gap, sliced into at most 4 linked issues when
+  large. Label only the first actionable issue `ai:implement`; never label
+  blocked follow-ups.
 - Use the domain glossary vocabulary (Production Order, Work Center, OEE,
   Genealogy, ...). Never invent synonyms.
 - Acceptance criteria must be objectively verifiable and testable.
