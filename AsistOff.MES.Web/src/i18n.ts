@@ -111,7 +111,14 @@ const pl = {
     group: 'Grupa',
     isActive: 'Aktywny',
     syncId: 'Sync ID',
-    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…', group: 'Grupa', isActive: 'Stan' }
+    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…', group: 'Grupa', isActive: 'Stan' },
+    scan: {
+      title: 'Skanowanie',
+      placeholder: 'Zeskanuj kod / EAN…',
+      search: 'Znajdź',
+      matched: 'Znaleziony produkt',
+      notFound: 'Nie znaleziono aktywnego produktu dla zeskanowanego kodu.'
+    }
   },
   productGroups: {
     title: 'Grupy produktów',
@@ -835,7 +842,14 @@ const en: typeof pl = {
     group: 'Group',
     isActive: 'Active',
     syncId: 'Sync ID',
-    filters: { code: 'Code contains…', name: 'Name contains…', group: 'Group', isActive: 'State' }
+    filters: { code: 'Code contains…', name: 'Name contains…', group: 'Group', isActive: 'State' },
+    scan: {
+      title: 'Scanning',
+      placeholder: 'Scan code / EAN…',
+      search: 'Find',
+      matched: 'Matched product',
+      notFound: 'No active product found for the scanned value.'
+    }
   },
   productGroups: {
     title: 'Product groups',

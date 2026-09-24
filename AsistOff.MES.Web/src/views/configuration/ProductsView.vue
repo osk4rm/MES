@@ -26,6 +26,41 @@
       />
     </AppFilterBar>
 
+    <AppCard :title="$t('products.scan.title')" class="scan-card">
+      <div class="scan-row">
+        <AppInput
+          v-model="scanValue"
+          :placeholder="$t('products.scan.placeholder')"
+          prefix-icon="pi pi-barcode"
+          clearable
+          :disabled="scanLoading"
+          @enter="lookupScan"
+        />
+        <AppButton variant="secondary" icon="pi pi-search" :loading="scanLoading" @click="lookupScan">
+          {{ $t('products.scan.search') }}
+        </AppButton>
+      </div>
+      <div v-if="scanLoading" class="scan-state"><AppSpinner /></div>
+      <div v-else-if="scanResult" class="scan-result">
+        <div class="scan-result__main">
+          <strong>{{ scanResult.code }}</strong>
+          <span>{{ scanResult.name }}</span>
+        </div>
+        <div class="scan-result__meta">
+          <span v-if="scanResult.ean">EAN: {{ scanResult.ean }}</span>
+          <span v-if="scanResult.barcode">{{ $t('products.barcode') }}: {{ scanResult.barcode }}</span>
+          <AppBadge :variant="scanResult.isActive ? 'success' : 'idle'" dot>
+            {{ scanResult.isActive ? $t('common.active') : $t('common.inactive') }}
+          </AppBadge>
+        </div>
+      </div>
+      <AppEmptyState
+        v-else-if="scanNotFound"
+        icon="pi pi-barcode"
+        :title="$t('products.scan.notFound')"
+      />
+    </AppCard>
+
     <AppTable
       :items="table.items.value"
       :columns="columns"
@@ -109,6 +144,9 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppFilterBar from '../../components/ui/AppFilterBar.vue';
+import AppCard from '../../components/ui/AppCard.vue';
+import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppSpinner from '../../components/ui/AppSpinner.vue';
 import AppInput from '../../components/ui/AppInput.vue';
 import AppSelect from '../../components/ui/AppSelect.vue';
 import AppTable from '../../components/ui/AppTable.vue';
@@ -185,6 +223,32 @@ function clearFilters() {
   codeFilter.value = ''; nameFilter.value = '';
   groupFilter.value = null; activeFilter.value = null;
   table.resetFilters();
+}
+
+// shopfloor scan lookup
+const scanValue = ref('');
+const scanLoading = ref(false);
+const scanResult = ref<ProductResponse | null>(null);
+const scanNotFound = ref(false);
+
+async function lookupScan() {
+  const value = scanValue.value.trim();
+  scanResult.value = null;
+  scanNotFound.value = false;
+  if (!value) return;
+  scanLoading.value = true;
+  try {
+    scanResult.value = await productService.getByScan(value);
+  } catch (err) {
+    const status = (err as { response?: { status?: number } }).response?.status;
+    if (status === 404) {
+      scanNotFound.value = true;
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
+  } finally {
+    scanLoading.value = false;
+  }
 }
 
 // modal
@@ -276,4 +340,12 @@ onMounted(async () => {
 <style scoped>
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+.scan-card { margin-bottom: var(--space-4); }
+.scan-row { display: flex; gap: var(--space-2); align-items: center; }
+.scan-row > :first-child { flex: 1; }
+.scan-state { display: flex; justify-content: center; padding: var(--space-4); }
+.scan-result { display: flex; flex-direction: column; gap: var(--space-1); padding-top: var(--space-3); }
+.scan-result__main { display: flex; gap: var(--space-2); align-items: baseline; }
+.scan-result__meta { display: flex; gap: var(--space-3); align-items: center; color: var(--color-text-muted); }
+.scan-card :deep(.app-empty-state) { min-height: 0; padding: var(--space-4) var(--space-2) var(--space-1); }
 </style>

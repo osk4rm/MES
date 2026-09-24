@@ -1,4 +1,5 @@
 using AsistOff.MES.Configuration.Application.Features.Products.Browse;
+using AsistOff.MES.Configuration.Application.Features.Products.ByScan;
 using AsistOff.MES.Configuration.Application.Features.Products.Create;
 using AsistOff.MES.Configuration.Application.Features.Products.Delete;
 using AsistOff.MES.Configuration.Application.Features.Products.Get;
@@ -21,6 +22,16 @@ public class ProductsController(ISender sender) : ApiController
     {
         var result = await sender.Send(request, cancellationToken);
         return result;
+    }
+
+    [HttpGet("by-scan")]
+    public async Task<ActionResult<ProductResponse>> GetByScanAsync(
+        [FromQuery] string? value,
+        CancellationToken cancellationToken)
+    {
+        var request = new GetProductByScanRequest(value);
+        var result = await sender.Send(request, cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
