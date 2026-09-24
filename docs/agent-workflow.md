@@ -437,10 +437,12 @@ Zasady:
     implementacji. Odpalanie aplikacji/DB w sesji implementera spalało budżet
     (króliki CORS/env) i agent kończył pracę bez brancha. E2E to osobny etap
     z `nohup`-owanym stackiem.
-  - **Cache**: `setup-dotnet` z `cache: true` w `ci.yml` i `ai-swarm.yml`
-    (NuGet), `setup-node` z cache npm (bez zmian), binarka `opencode` w
-    `actions/cache` przez composite `.github/actions/setup-opencode`
-    (koniec z `curl | bash` w każdym jobie).
+  - **Cache**: `~/.nuget/packages` w `actions/cache` (klucz z hasha
+    `**/*.csproj`) w `ci.yml` i jobach `ai-swarm.yml` — `setup-dotnet`
+    z `cache: true` wymaga `packages.lock.json`, którego repo nie ma, i
+    wywala job na starcie. `setup-node` z cache npm (bez zmian), binarka
+    `opencode` w `actions/cache` przez composite
+    `.github/actions/setup-opencode` (koniec z `curl | bash` w każdym jobie).
   - **Jedna retry-tura przed `ai:blocked`**: implementer bez brancha
     (sesja gwiazdkowana/koniec limitu) zostawia `ai:implement` do ponowienia
     przez sweep (max 2 próby), dopiero potem eskalacja.

@@ -95,7 +95,12 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-          cache: true
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -396,13 +401,19 @@ jobs:
         if: steps.pr.outputs.skip != 'true'
         with:
           dotnet-version: '10.0.x'
-          cache: true
       - uses: actions/setup-node@v6
         if: steps.pr.outputs.skip != 'true'
         with:
           node-version: 20
       - uses: ./.github/actions/setup-opencode
         if: steps.pr.outputs.skip != 'true'
+      - name: Cache NuGet packages
+        if: steps.pr.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - name: Verify tests prove the acceptance criteria
         if: steps.pr.outputs.skip != 'true'
         run: |
@@ -476,10 +487,15 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-          cache: true
       - uses: actions/setup-node@v6
         with:
           node-version: 20
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - uses: ./.github/actions/setup-opencode
       - name: Fix and push to the same branch
         run: |
@@ -613,13 +629,19 @@ jobs:
         if: steps.pr.outputs.skip != 'true'
         with:
           dotnet-version: '10.0.x'
-          cache: true
       - uses: actions/setup-node@v6
         if: steps.pr.outputs.skip != 'true'
         with:
           node-version: 20
       - uses: ./.github/actions/setup-opencode
         if: steps.pr.outputs.skip != 'true'
+      - name: Cache NuGet packages
+        if: steps.pr.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - name: Install Playwright browsers
         if: steps.pr.outputs.skip != 'true'
         run: |
