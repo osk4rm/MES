@@ -1,3 +1,4 @@
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.TelemetryReadings;
 using AsistOff.MES.Production.Application.Features.TelemetryReadings.Export;
 using AsistOff.MES.Production.Domain.Entities;
@@ -85,6 +86,15 @@ public class ExportTelemetryReadingsRequestHandlerTests
     private readonly Mock<ITelemetryReadingsRepository> _repository = new();
 
     private ExportTelemetryReadingsRequestHandler CreateSut() => new(_repository.Object);
+
+    [Fact]
+    public void Request_ImplementsTenantRequest_AndNotAnonymous()
+    {
+        // Assert - CSV export must stay tenant-scoped like the trend query
+        typeof(ITenantRequest<string>)
+            .IsAssignableFrom(typeof(ExportTelemetryReadingsRequest)).Should().BeTrue();
+        typeof(IAllowAnonymousRequest).IsAssignableFrom(typeof(ExportTelemetryReadingsRequest)).Should().BeFalse();
+    }
 
     [Fact]
     public async Task Handle_BuildsPredicateFromFilters_AndCapsRowsAtMaxRows()

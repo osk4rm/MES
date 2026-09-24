@@ -445,6 +445,45 @@ public sealed class TelemetryEndpointTests(MesApplicationFixture fixture) : Inte
         csv.Should().NotContain(other.Id.ToString());
     }
 
+    [Fact]
+    public async Task BrowseCsv_WithoutToken_Returns401()
+    {
+        using var client = Fixture.CreateClient();
+        using var csvRequest = new HttpRequestMessage(HttpMethod.Get, $"{ReadingsUrl}?tagId={Guid.NewGuid()}");
+        csvRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/csv"));
+
+        var response = await client.SendAsync(csvRequest);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task BrowseCsv_CrossTenantTag_ReturnsHeaderOnly_WithoutLeak()
+    {
+        // Arrange - a reading owned by a brand-new tenant
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var otherTag = await CreateTagAsync(otherTenantClient);
+        await SubmitAsync(otherTenantClient, otherTag.Id, DateTime.UtcNow.AddMinutes(-5), 77.7);
+
+        // Act - requested as the seeded dev tenant, filtered to the foreign tag
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+        using var csvRequest = new HttpRequestMessage(HttpMethod.Get, $"{ReadingsUrl}?tagId={otherTag.Id}");
+        csvRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/csv"));
+        var response = await devClient.SendAsync(csvRequest);
+
+        // Assert - CSV export is filter-based (not a single-tag lookup like
+        // trend), so the foreign tag yields an empty export, never its rows
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("text/csv");
+        var csv = await response.Content.ReadAsStringAsync();
+        var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        lines.Should().HaveCount(1);
+        lines[0].Trim().Should().Be("Id,TagId,MachineId,ReadAt,DoubleValue,StringValue,Quality");
+        csv.Should().NotContain(otherTag.Id.ToString());
+        csv.Should().NotContain("77.7");
+    }
+
     private static async Task<Guid> CreateMachineAsync(HttpClient client)
     {
         var code = $"TL-M-{Guid.NewGuid():N}"[..12];
