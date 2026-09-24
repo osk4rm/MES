@@ -311,15 +311,13 @@ swarm_sync_master() { # merge origin/<default> into HEAD; rc 0 clean, 2 conflict
   return 2
 }
 
-swarm_finish_merge_if_pending() { # commit a resolved merge; rc 1 when paths unmerged
+swarm_finish_merge_if_pending() { # commit a (possibly agent-resolved) merge
   if [ ! -f .git/MERGE_HEAD ]; then
     return 0
   fi
-  if git diff --name-only --diff-filter=U | grep -q .; then
-    echo 'merge still has unresolved paths:'
-    git diff --name-only --diff-filter=U
-    return 1
-  fi
+  # Stage everything first: agents often resolve files but forget `git add`.
+  # Conflict markers in bad resolutions are caught by
+  # swarm_check_conflict_markers right after this call.
   git add -A
   git commit --no-edit
 }
@@ -408,6 +406,18 @@ swarm_require_auth() {
     echo "::error::OPENCODE_API_KEY secret is not set. Add an OpenCode API key (opencode.ai/auth) to repo Settings > Secrets and variables > Actions, then re-add the trigger label."
     return 1
   fi
+}
+
+swarm_stage_lib() { # copy this lib to $RUNNER_TEMP — source THAT copy in later steps
+  # Jobs that check out a PR head/merge ref OVERWRITE the workspace, so a later
+  # `source scripts/ci/swarm-lib.sh` would load the PR branch's (possibly stale)
+  # copy and "command not found" the newer helpers. The workflow file always
+  # comes from the default branch, so pin its matching lib before switching.
+  # Call as: `source scripts/ci/swarm-lib.sh && swarm_stage_lib` right after the
+  # first (default-branch) checkout; later steps use:
+  # `source "$RUNNER_TEMP/swarm-lib.sh"`.
+  cp scripts/ci/swarm-lib.sh "${RUNNER_TEMP:-/tmp}/swarm-lib.sh"
+  echo "swarm-lib pinned at ${RUNNER_TEMP:-/tmp}/swarm-lib.sh"
 }
 
 swarm_run_agent() { # <agent> <prompt> <logfile> — never fails the step by itself

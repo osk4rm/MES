@@ -129,7 +129,7 @@ jobs:
           git config user.email 'mes-swarm@users.noreply.github.com'
           swarm_use_pat_remote "${{ secrets.SWARM_PAT }}"
           swarm_run_agent mes-implementer \
-            "Implement GitHub issue #$ISSUE. Read it with 'gh issue view $ISSUE --comments'. Follow AGENT.md and the area instructions. Write tests, run 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build', then push branch ai/issue-$ISSUE-<slug> and open a PR that closes #$ISSUE. Keep the branch current with master: before the final push run 'git fetch origin master && git merge origin/master' and resolve any conflicts (never leave conflict markers; never hand-merge Migrations/DefaultContextModelSnapshot.cs — regenerate the migration with 'dotnet ef migrations remove/add --project AsistOff.MES.Shared.Infrastructure --startup-project AsistOff.MES.Gateway --context DefaultContext'; in i18n.ts, sitemap.ts and ApiContracts.cs keep the union of both sides). Do not add or remove ai:* labels." \
+            "Implement GitHub issue #$ISSUE. Read it with 'gh issue view $ISSUE --comments'. Follow AGENT.md and the area instructions. Write tests and verify with 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build' only — do NOT start the application, any database or docker (that burned whole sessions; Playwright e2e runs in a later pipeline stage). Push branch ai/issue-$ISSUE-<slug> and open a PR that closes #$ISSUE. Keep the branch current with master: before the final push run 'git fetch origin master && git merge origin/master' and resolve any conflicts (never leave conflict markers; never hand-merge Migrations/DefaultContextModelSnapshot.cs — regenerate the migration with 'dotnet ef migrations remove/add --project AsistOff.MES.Shared.Infrastructure --startup-project AsistOff.MES.Gateway --context DefaultContext'; in i18n.ts, sitemap.ts and ApiContracts.cs keep the union of both sides). Do not add or remove ai:* labels." \
             implement.log
           BRANCH=$(swarm_branch_for_issue "$ISSUE")
           if [ -n "$BRANCH" ]; then
@@ -193,9 +193,16 @@ jobs:
               fi
               rm -f "$BODY"
             else
+              # No branch at all: a starved/crashed agent session. Retry once
+              # via the sweeper before escalating to a human.
+              TRIES=$(swarm_comments_body issue "$ISSUE" | grep -c 'implementer produced no branch' || true)
+              if [ "$TRIES" -lt 2 ]; then
+                swarm_say issue "$ISSUE" "Agent flow (CI): implementer produced no branch (attempt $((TRIES+1))/2). Keeping ai:implement — the sweeper will retry."
+                exit 0
+              fi
               swarm_remove_label issue "$ISSUE" ai:implement
               swarm_add_label issue "$ISSUE" ai:blocked
-              swarm_say issue "$ISSUE" 'Agent flow (CI): implementer did not open a PR. Needs human attention.'
+              swarm_say issue "$ISSUE" 'Agent flow (CI): implementer produced no branch after 2 attempts. Needs human attention.'
               exit 1
             fi
           fi
@@ -240,6 +247,7 @@ jobs:
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
+          swarm_stage_lib
           PR=''
           if [ '${{ github.event_name }}' = workflow_run ]; then
             PR=$(swarm_pr_for_sha '${{ github.event.workflow_run.head_sha }}')
@@ -283,7 +291,7 @@ jobs:
         if: steps.pr.outputs.skip != 'true'
         run: |
           # shellcheck disable=SC1091
-          source scripts/ci/swarm-lib.sh
+          source "$RUNNER_TEMP/swarm-lib.sh"
           PR='${{ steps.pr.outputs.number }}'
           swarm_require_auth
           if [ '${{ github.event.pull_request.draft }}' = true ]; then
@@ -353,6 +361,7 @@ jobs:
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
+          swarm_stage_lib
           PR='${{ github.event.pull_request.number || inputs.number }}'
           echo "number=$PR" >>"$GITHUB_OUTPUT"
           if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
@@ -385,7 +394,7 @@ jobs:
         if: steps.pr.outputs.skip != 'true'
         run: |
           # shellcheck disable=SC1091
-          source scripts/ci/swarm-lib.sh
+          source "$RUNNER_TEMP/swarm-lib.sh"
           PR='${{ steps.pr.outputs.number }}'
           swarm_require_auth
           # Lost race for the lock: exit green — the holder does the work.
@@ -437,6 +446,7 @@ jobs:
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
+          swarm_stage_lib
           PR='${{ github.event.pull_request.number || inputs.number }}'
           HEAD_REF=$(gh pr view "$PR" --json headRefName --jq .headRefName)
           echo "number=$PR" >>"$GITHUB_OUTPUT"
@@ -464,7 +474,10 @@ jobs:
       - name: Fix and push to the same branch
         run: |
           # shellcheck disable=SC1091
-          source scripts/ci/swarm-lib.sh
+          # ALWAYS source the pinned lib: the PR head checkout below has
+          # overwritten the workspace and its swarm-lib.sh may predate the
+          # helpers this workflow calls (they were "command not found").
+          source "$RUNNER_TEMP/swarm-lib.sh"
           PR='${{ steps.pr.outputs.number }}'
           HEAD_REF='${{ steps.pr.outputs.head }}'
           swarm_require_auth
@@ -494,8 +507,10 @@ jobs:
           fi
           # CI has no session affinity (unlike the local dispatcher): the fix
           # prompt points at the PR comments so a fresh session can continue.
+          # Do NOT let the agent boot the app or a database — that burned whole
+          # sessions (CORS/env rabbit holes) and starved the actual fixes.
           swarm_run_agent mes-implementer \
-            "Review/e2e feedback on PR #$PR requested changes. Read it with 'gh pr view $PR --comments'. Fix every point, re-run 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build', then push to the same branch and reply. Never commit merge-conflict markers. $CONFLICT_NOTE Do not add or remove ai:* labels." \
+            "Review/e2e feedback on PR #$PR requested changes. Read it with 'gh pr view $PR --comments'. Fix every point, re-run 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build', then push to the same branch and reply. Never commit merge-conflict markers. Do not start the application, any database or docker — verification is build + tests + npm build only (e2e runs in a later pipeline stage). $CONFLICT_NOTE Do not add or remove ai:* labels." \
             fix.log
           if ! swarm_finish_merge_if_pending; then
             swarm_remove_label pr "$PR" ai:changes
@@ -564,6 +579,7 @@ jobs:
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
+          swarm_stage_lib
           PR='${{ github.event.pull_request.number || inputs.number }}'
           echo "number=$PR" >>"$GITHUB_OUTPUT"
           if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
@@ -600,7 +616,7 @@ jobs:
         if: steps.pr.outputs.skip != 'true'
         run: |
           # shellcheck disable=SC1091
-          source scripts/ci/swarm-lib.sh
+          source "$RUNNER_TEMP/swarm-lib.sh"
           PR='${{ steps.pr.outputs.number }}'
           swarm_require_auth
           # Lost race for the lock: exit green — the holder does the work.
