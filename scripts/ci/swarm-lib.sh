@@ -201,6 +201,56 @@ swarm_has_actionable_gap() { # 0 when an unlabeled proposal or a tracker gap row
   grep -qE '\| *gap *\|' docs/feature-tracker.md 2>/dev/null
 }
 
+swarm_cleanup_stale_locks() { # release ai:running locks older than ${STALE_LOCK_MINUTES:-45}
+  # Called from the sweep job. A crashed/lost job leaves ai:running forever,
+  # blocking a MAX_PARALLEL slot. We timestamp locks via label creation time
+  # and clear anything older than the threshold.
+  local ttl="${STALE_LOCK_MINUTES:-45}" now
+  now=$(date +%s)
+  for kind in pr issue; do
+    local list
+    if [ "$kind" = pr ]; then
+      list=$(gh pr list --state open --limit 50 --json number,labels \
+        --jq '[.[] | select(.labels | map(.name) | index("ai:running"))] | .[].number' 2>/dev/null || true)
+    else
+      list=$(gh issue list --state open --limit 50 --json number,labels \
+        --jq '[.[] | select(.labels | map(.name) | index("ai:running"))] | .[].number' 2>/dev/null || true)
+    fi
+    for num in $list; do
+      local added age
+      added=$(gh api "repos/${GITHUB_REPOSITORY}/issues/$num/timeline" --paginate \
+        --jq '[.[] | select(.event == "labeled" and .label.name == "ai:running")] | last | .created_at' 2>/dev/null || true)
+      if [ -z "$added" ]; then continue; fi
+      age=$(( (now - $(date -d "$added" +%s 2>/dev/null || echo "$now")) / 60 ))
+      if [ "$age" -ge "$ttl" ]; then
+        echo "stale lock: $kind #$num (ai:running for ${age}m >= ${ttl}m) — releasing"
+        swarm_remove_label "$kind" "$num" ai:running
+        swarm_add_label "$kind" "$num" ai:blocked
+        swarm_say "$kind" "$num" "Agent flow (CI): stale lock auto-cleared after ${age}m. The job that held it is gone. Re-add the work label to retry."
+      fi
+    done
+  done
+}
+
+swarm_pr_touches_migrations() { # <pr> -> 0 when PR changes EF migration files
+  gh pr diff "$1" --name-only 2>/dev/null | tr -d '\r' \
+    | grep -qE 'Migrations/.*\.cs$' || return 1
+  return 0
+}
+
+swarm_in_flight_migration_pr() { # -> PR number with a migration in flight, or empty
+  # Serialization guard: two PRs with EF migrations conflict on
+  # DefaultContextModelSnapshot.cs. At most one migration PR in flight.
+  local pr
+  for pr in $(gh pr list --state open --limit 50 --json number --jq '.[].number' 2>/dev/null); do
+    if swarm_pr_touches_migrations "$pr"; then
+      echo "$pr"
+      return 0
+    fi
+  done
+  return 0
+}
+
 swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
   # Mirrors Get-CiState in agent-dispatcher.ps1.
   # Watches ONLY the `ci` workflow runs for the PR head SHA. ai-swarm's own

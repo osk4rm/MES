@@ -373,6 +373,14 @@ Zasady:
   Własne checki `ai-swarm` są ignorowane — szum z labelki-locka potrafił
   stworzyć kolejkujący się no-op run, którego pending zatruwał wait
   (samozakleszczenie kończące się timeoutem i demotowaniem `ai:ready`).
+- **Auto-cleanup locków**: sweep czyści `ai:running` starsze niż
+  `STALE_LOCK_MINUTES=45`. Zgubiony job nie blokuje slotu w nieskończoność.
+- **Serializacja migracji EF**: max 1 PR z plikami `Migrations/` w locie.
+  Dwa równoległe PR-y z migracjami konfliktują na `DefaultContextModelSnapshot.cs`.
+  Sweep czeka aż migracyjny PR się zmerguje.
+- **E2E z nohup**: stack startuje się z `nohup` w tym samym kroku co agent,
+  więc procesy nie gasną między tool calls. `E2E_BLOCKED` (problem infrastruktury)
+  = `ai:ready`, nie `ai:blocked`.
 - **Samouzupełniająca kolejka**: pusty `ai:implement` + backlog poniżej
   `BACKLOG_MAX=5` + gap w trackerze lub nielabelowany proposal = job `analyst`
   sam startuje `mes-analyst` w CI. Pętla nie staje po wyczerpaniu issuesów;

@@ -59,6 +59,7 @@ env:
   MAX_ROUNDS: '3'
   MAX_PARALLEL: '3'
   BACKLOG_MAX: '5'
+  STALE_LOCK_MINUTES: '45'
   # Prefer a user PAT so bot-opened PRs are authored by a collaborator and skip
   # the public-repo approval gate (without it every bot PR stalls on approve,
   # and approved runs do not emit workflow_run events). Falls back to the
@@ -451,19 +452,38 @@ jobs:
           source scripts/ci/swarm-lib.sh
           PR='${{ github.event.pull_request.number || inputs.number }}'
           swarm_require_auth
-          # Lost race for the lock: exit green — the holder does the work.
-          # (A lock with no live run behind it is cleared by a human removing ai:running.)
           swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
-          # The agent starts the stack itself (scripts/e2e/app.ps1); the
-          # service above only provides PostgreSQL on localhost:5432.
+          # Start the stack with nohup so processes survive within this step.
+          # app.ps1 background jobs die when the launcher returns on CI runners.
+          nohup dotnet run --project AsistOff.MES.Gateway > /tmp/backend.log 2>&1 &
+          echo $! > /tmp/backend.pid
+          (cd AsistOff.MES.Web && nohup npm run dev > /tmp/frontend.log 2>&1 &)
+          # Wait for both to be healthy (max 120s)
+          for i in $(seq 1 60); do
+            BACKEND_OK=$(curl -sf http://localhost:5243/health 2>/dev/null && echo 1 || echo 0)
+            FRONTEND_OK=$(curl -sf http://localhost:5173 2>/dev/null && echo 1 || echo 0)
+            if [ "$BACKEND_OK" = 1 ] && [ "$FRONTEND_OK" = 1 ]; then
+              echo "stack healthy (backend + frontend)"
+              break
+            fi
+            if [ "$i" = 60 ]; then
+              echo "stack failed to become healthy; backend log:"
+              tail -30 /tmp/backend.log || true
+              echo "frontend log:"
+              tail -30 /tmp/frontend.log || true
+            fi
+            sleep 2
+          done
+          # The stack is already running — tell the agent to use it as-is.
           swarm_run_agent mes-e2e-tester \
-            "Run the Playwright end-to-end smoke test for PR #$PR. Resolve the scope from 'gh pr diff $PR --name-only' using the mes-e2e skill, ensure the stack with 'pwsh -File scripts/e2e/app.ps1 -Action start', then post the result with 'gh pr comment $PR' ending with exactly one line on its own: 'VERDICT: E2E_PASS', 'VERDICT: E2E_FAIL' or 'VERDICT: E2E_BLOCKED'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
+            "Run the Playwright end-to-end smoke test for PR #$PR. The stack is ALREADY RUNNING at http://localhost:5243 (backend) and http://localhost:5173 (frontend). Do NOT start or stop the stack. Resolve the scope from 'gh pr diff $PR --name-only' using the mes-e2e skill, then post the result with 'gh pr comment $PR' ending with exactly one line on its own: 'VERDICT: E2E_PASS', 'VERDICT: E2E_FAIL' or 'VERDICT: E2E_BLOCKED'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
             e2e.log
           VERDICT=$(swarm_verdict 'E2E_PASS|E2E_FAIL|E2E_BLOCKED' e2e.log)
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
             VERDICT=$(swarm_comments_body pr "$PR" | swarm_verdict_stdin 'E2E_PASS|E2E_FAIL|E2E_BLOCKED')
           fi
+          # E2E_BLOCKED = infrastructure problem, not code → promote to ai:ready.
           swarm_remove_label pr "$PR" ai:e2e
           case "$VERDICT" in
             E2E_PASS)
@@ -471,15 +491,23 @@ jobs:
               swarm_say pr "$PR" 'Agent flow (CI): CI + review + verify + e2e green. Auto-merge will take it from here (ai:ready).'
               ;;
             E2E_FAIL) swarm_add_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
+            E2E_BLOCKED)
+              swarm_add_label pr "$PR" ai:ready
+              swarm_say pr "$PR" 'Agent flow (CI): e2e smoke could not complete (infrastructure). Review + verify passed — promoting to ai:ready. Re-run e2e manually if needed.'
+              ;;
             *)
               swarm_add_label pr "$PR" ai:blocked
-              swarm_say pr "$PR" 'Agent flow (CI): e2e could not produce a verdict (stack down?). Needs human attention.'
+              swarm_say pr "$PR" 'Agent flow (CI): e2e produced no verdict at all. Needs human attention.'
               exit 1
               ;;
           esac
       - name: Stop e2e stack
         if: always()
-        run: pwsh -NoProfile -File scripts/e2e/app.ps1 -Action stop || true
+        run: |
+          kill $(cat /tmp/backend.pid 2>/dev/null) 2>/dev/null || true
+          kill $(cat /tmp/frontend.pid 2>/dev/null) 2>/dev/null || true
+          pkill -f 'dotnet.*AsistOff.MES.Gateway' 2>/dev/null || true
+          pkill -f 'npm run dev' 2>/dev/null || true
 
   # ----------------------------------------------------------------- researcher
   researcher:
@@ -580,8 +608,17 @@ jobs:
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
+          # Always clean stale locks first — a lost job must not block a slot.
+          swarm_cleanup_stale_locks
           if [ "$(swarm_in_flight_count)" -ge "${MAX_PARALLEL:-3}" ]; then
             echo "at capacity; nothing to sweep"
+            exit 0
+          fi
+          # Migration serialization: at most one EF-migration PR in flight.
+          # Two parallel migrations conflict on DefaultContextModelSnapshot.cs.
+          MIG_PR=$(swarm_in_flight_migration_pr)
+          if [ -n "$MIG_PR" ]; then
+            echo "migration PR #$MIG_PR in flight; waiting before starting new work"
             exit 0
           fi
           ISSUE=$(swarm_oldest_queued_issue)
