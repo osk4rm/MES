@@ -1,0 +1,55 @@
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Production.Application.Features.ScrapEvents.Browse;
+using AsistOff.MES.Production.Domain.Entities;
+using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
+using AsistOff.MES.Shared.Abstractions.Providers;
+using MediatR;
+
+namespace AsistOff.MES.Production.Application.Features.ScrapEvents.Create;
+
+internal sealed class CreateScrapEventRequestHandler(
+    IScrapEventsRepository repository,
+    IGuidProvider guidProvider,
+    IDateTimeProvider dateTimeProvider,
+    ITenantContext tenantContext)
+    : IRequestHandler<CreateScrapEventRequest, ScrapEventResponse>
+{
+    public async Task<ScrapEventResponse> Handle(CreateScrapEventRequest request, CancellationToken cancellationToken)
+    {
+        if (request.MachineId == Guid.Empty)
+            throw new ValidationException(nameof(request.MachineId), "Machine is required.");
+
+        if (request.ReasonCodeId == Guid.Empty)
+            throw new ValidationException(nameof(request.ReasonCodeId), "Reason code is required.");
+
+        if (request.Quantity <= 0)
+            throw new ValidationException(nameof(request.Quantity), "Quantity must be greater than zero.");
+
+        if (request.ReportedAt == default)
+            throw new ValidationException(nameof(request.ReportedAt), "Reported at is required.");
+
+        if (request.ReportedAt.ToUniversalTime() > dateTimeProvider.UtcNow.AddMinutes(1))
+            throw new ValidationException(nameof(request.ReportedAt), "Reported at cannot be in the future.");
+
+        if (request.ProductionOrderId.HasValue)
+            throw new ValidationException(nameof(request.ProductionOrderId), "Linking scrap to a production order is not supported in this increment.");
+
+        var scrapEvent = new ScrapEvent
+        {
+            Id = guidProvider.NewGuid(),
+            TenantId = tenantContext.TenantId,
+            MachineId = request.MachineId,
+            ReasonCodeId = request.ReasonCodeId,
+            Quantity = request.Quantity,
+            ReportedAt = request.ReportedAt.ToUniversalTime(),
+            Notes = request.Notes,
+            ReportedByOperatorId = request.ReportedByOperatorId,
+            ProductionOrderId = null,
+            CreatedAt = dateTimeProvider.UtcNow
+        };
+
+        await repository.AddAsync(scrapEvent, cancellationToken);
+        return BrowseScrapEventsRequestHandler.Map(scrapEvent);
+    }
+}
