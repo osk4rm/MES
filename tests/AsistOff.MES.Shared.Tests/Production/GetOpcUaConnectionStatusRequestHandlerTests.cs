@@ -21,8 +21,11 @@ public class GetOpcUaConnectionStatusRequestHandlerTests
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly DateTime _now = new(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc);
 
-    private readonly Guid _machineA = Guid.NewGuid();
-    private readonly Guid _machineB = Guid.NewGuid();
+    // Fixed Guids with known sort order (_machineA < _machineB): the handler
+    // orders by MachineId then endpoint, so seeded rows must use deterministic
+    // ids — Guid.NewGuid() made the stable-order assertion flaky (~50%).
+    private readonly Guid _machineA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private readonly Guid _machineB = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     private readonly Guid _liveId = Guid.NewGuid();
     private readonly Guid _staleId = Guid.NewGuid();

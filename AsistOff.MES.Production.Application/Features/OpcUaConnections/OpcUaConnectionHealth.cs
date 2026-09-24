@@ -1,3 +1,4 @@
+using AsistOff.MES.Production.Application.Features.MachineTelemetryTags;
 using AsistOff.MES.Production.Domain.Entities;
 
 namespace AsistOff.MES.Production.Application.Features.OpcUaConnections;
@@ -39,7 +40,7 @@ public static class OpcUaConnectionHealth
     {
         if (lastReadAt is null)
             return false;
-        var threshold = TimeSpan.FromSeconds(2L * Math.Clamp(tag.PollIntervalSeconds, 1, 3600));
+        var threshold = TimeSpan.FromSeconds(2L * Math.Clamp(tag.PollIntervalSeconds, MachineTelemetryTagRules.MinPollIntervalSeconds, MachineTelemetryTagRules.MaxPollIntervalSeconds));
         return now - lastReadAt.Value <= threshold;
     }
 }
