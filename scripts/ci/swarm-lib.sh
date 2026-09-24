@@ -202,31 +202,59 @@ swarm_has_actionable_gap() { # 0 when an unlabeled proposal or a tracker gap row
 }
 
 swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
-  # Mirrors Get-CiState in agent-dispatcher.ps1. No checks at all -> pass.
-  local pr="$1" timeout="$2" waited=0 states
+  # Mirrors Get-CiState in agent-dispatcher.ps1.
+  # Watches ONLY the `ci` workflow runs for the PR head SHA. ai-swarm's own
+  # check runs are ignored on purpose: lock-label churn spawns no-op runs
+  # that queue behind the lock holder (same concurrency group), and their
+  # pending checks used to poison this wait into timeouts (self-deadlock
+  # that demoted ai:ready PRs back to ai:review).
+  local pr="$1" timeout="$2" waited=0 sha first upper
+  sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
+  if [ -z "$sha" ]; then
+    echo pass
+    return 0
+  fi
   while [ "$waited" -lt "$timeout" ]; do
-    states=$(gh pr checks "$pr" --json state --jq '[.[].state] | join(",")' 2>/dev/null || echo PENDING)
-    if [ -z "$states" ]; then
-      echo pass
-      return 0
-    fi
-    upper=$(printf '%s' "$states" | tr '[:lower:]' '[:upper:]')
+    # Newest ci run for this SHA first (gh sorts runs newest-first).
+    first=$(gh run list --workflow ci --commit "$sha" --limit 5 --json status,conclusion \
+      --jq 'if length == 0 then "none" else "\(.[0].status)/\(.[0].conclusion)" end' 2>/dev/null || echo 'unknown/unknown')
+    upper=$(printf '%s' "$first" | tr '[:lower:]' '[:upper:]')
     case "$upper" in
-      *FAILURE* | *ERROR* | *CANCELLED* | *TIMED_OUT* | *ACTION_REQUIRED* | *STARTUP_FAILURE*)
-        echo fail
-        return 0
+      NONE)
+        # No ci run (yet) — give CI a minute to appear before assuming absent.
+        if [ "$waited" -ge 60 ]; then
+          echo pass
+          return 0
+        fi
         ;;
-      *PENDING* | *QUEUED* | *IN_PROGRESS* | *STALE* | *EXPECTED*)
-        sleep 30
-        waited=$((waited + 30))
-        ;;
-      *)
+      COMPLETED/SUCCESS | COMPLETED/SKIPPED | COMPLETED/NEUTRAL)
         echo pass
         return 0
         ;;
+      COMPLETED/FAILURE | COMPLETED/TIMED_OUT | COMPLETED/CANCELLED | COMPLETED/STARTUP_FAILURE | COMPLETED/STALE)
+        echo fail
+        return 0
+        ;;
+      *) ;; # running, queued, action_required (a human may still approve), unknown
     esac
+    sleep 30
+    waited=$((waited + 30))
   done
   echo timeout
+}
+
+swarm_use_pat_remote() { # [$pat] — push as a collaborator, not as github-actions[bot]
+  # Pushes authenticated with GITHUB_TOKEN are actor github-actions[bot]; on a
+  # public repo every pull_request CI run they trigger waits for manual
+  # approval (action_required) and swarm_wait_ci never sees green. Rewiring
+  # origin to SWARM_PAT makes the pusher a collaborator so CI starts at once.
+  local pat="${1:-}"
+  if [ -z "$pat" ]; then
+    echo 'SWARM_PAT absent; pushes use GITHUB_TOKEN (CI may need approval)'
+    return 0
+  fi
+  git remote set-url origin "https://x-access-token:${pat}@github.com/${GITHUB_REPOSITORY}.git"
+  echo 'origin rewired to SWARM_PAT credentials'
 }
 
 swarm_require_auth() {
