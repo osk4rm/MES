@@ -2,6 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using AsistOff.MES.Integration.Tests.Infrastructure;
 using AsistOff.MES.Integration.Tests.TestData;
+using AsistOff.MES.Production.Domain.Entities;
+using AsistOff.MES.Production.Domain.Enums;
+using AsistOff.MES.Shared.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AsistOff.MES.Integration.Tests.Endpoints;
 
@@ -185,6 +190,120 @@ public sealed class ProductionConfirmationsEndpointTests(MesApplicationFixture f
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task Browse_FiltersByMachineId()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var order = await CreateReleasedOrderAsync(client);
+        var machineA = Guid.NewGuid();
+        var machineB = Guid.NewGuid();
+        var createA = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(order.Id, machineId: machineA));
+        createA.StatusCode.Should().Be(HttpStatusCode.Created);
+        var createdA = await ReadAsync<ProductionConfirmationDto>(createA);
+        var createB = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(order.Id, machineId: machineB));
+        createB.StatusCode.Should().Be(HttpStatusCode.Created);
+        var createdB = await ReadAsync<ProductionConfirmationDto>(createB);
+
+        var response = await client.GetAsync($"{BaseUrl}?machineId={machineA}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var page = await ReadAsync<PagedResponseDto<ProductionConfirmationDto>>(response);
+        page.Items.Should().ContainSingle(item => item.Id == createdA.Id);
+        page.Items.Should().NotContain(item => item.Id == createdB.Id);
+    }
+
+    [Fact]
+    public async Task Browse_FiltersByReportedAtRange()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var before = DateTime.UtcNow;
+        var order = await CreateReleasedOrderAsync(client);
+        var create = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(order.Id));
+        create.StatusCode.Should().Be(HttpStatusCode.Created);
+        var created = await ReadAsync<ProductionConfirmationDto>(create);
+
+        var inRange = await client.GetAsync(
+            $"{BaseUrl}?from={Uri.EscapeDataString(before.AddHours(-1).ToString("O"))}&to={Uri.EscapeDataString(before.AddHours(1).ToString("O"))}");
+
+        inRange.StatusCode.Should().Be(HttpStatusCode.OK);
+        var inRangePage = await ReadAsync<PagedResponseDto<ProductionConfirmationDto>>(inRange);
+        inRangePage.Items.Should().Contain(item => item.Id == created.Id);
+
+        var afterRange = await client.GetAsync(
+            $"{BaseUrl}?from={Uri.EscapeDataString(before.AddHours(2).ToString("O"))}");
+
+        afterRange.StatusCode.Should().Be(HttpStatusCode.OK);
+        var afterRangePage = await ReadAsync<PagedResponseDto<ProductionConfirmationDto>>(afterRange);
+        afterRangePage.Items.Should().NotContain(item => item.Id == created.Id);
+
+        var beforeRange = await client.GetAsync(
+            $"{BaseUrl}?to={Uri.EscapeDataString(before.AddHours(-2).ToString("O"))}");
+
+        beforeRange.StatusCode.Should().Be(HttpStatusCode.OK);
+        var beforeRangePage = await ReadAsync<PagedResponseDto<ProductionConfirmationDto>>(beforeRange);
+        beforeRangePage.Items.Should().NotContain(item => item.Id == created.Id);
+    }
+
+    [Fact]
+    public async Task Browse_SupportsPaging()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var order = await CreateReleasedOrderAsync(client);
+        for (var i = 0; i < 3; i++)
+        {
+            var create = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(order.Id));
+            create.StatusCode.Should().Be(HttpStatusCode.Created);
+        }
+
+        var firstPage = await client.GetAsync($"{BaseUrl}?pageNumber=1&pageSize=2");
+
+        firstPage.StatusCode.Should().Be(HttpStatusCode.OK);
+        var first = await ReadAsync<PagedResponseDto<ProductionConfirmationDto>>(firstPage);
+        first.TotalCount.Should().Be(3);
+        first.TotalPages.Should().Be(2);
+        first.Items.Should().HaveCount(2);
+
+        var secondPage = await client.GetAsync($"{BaseUrl}?pageNumber=2&pageSize=2");
+
+        secondPage.StatusCode.Should().Be(HttpStatusCode.OK);
+        var second = await ReadAsync<PagedResponseDto<ProductionConfirmationDto>>(secondPage);
+        second.Items.Should().HaveCount(1);
+    }
+
+    [Theory]
+    [InlineData(ProductionOrderStatus.Completed)]
+    [InlineData(ProductionOrderStatus.Closed)]
+    public async Task Create_FinalOrder_Returns400(ProductionOrderStatus status)
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var order = await CreateReleasedOrderAsync(client);
+        await SetOrderStatusAsync(order.Id, status);
+
+        var response = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(order.Id));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Theory]
+    [InlineData(ProductionOrderStatus.Completed)]
+    [InlineData(ProductionOrderStatus.Closed)]
+    public async Task Delete_FinalOrder_Returns409(ProductionOrderStatus status)
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var order = await CreateReleasedOrderAsync(client);
+        var create = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(order.Id));
+        create.StatusCode.Should().Be(HttpStatusCode.Created);
+        var created = await ReadAsync<ProductionConfirmationDto>(create);
+        await SetOrderStatusAsync(order.Id, status);
+
+        var response = await client.DeleteAsync($"{BaseUrl}/{created.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
     private static object ConfirmPayload(
         Guid productionOrderId,
         Guid? machineId = null,
@@ -202,6 +321,23 @@ public sealed class ProductionConfirmationsEndpointTests(MesApplicationFixture f
         };
 
     private static string UniqueCode() => $"PO-{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+
+    /// <summary>
+    /// Moves an order straight to a final status via the database. There is no
+    /// Complete/Close endpoint in this slice, so the final-state create/delete
+    /// rejections are otherwise unreachable over HTTP.
+    /// </summary>
+    private async Task SetOrderStatusAsync(Guid orderId, ProductionOrderStatus status)
+    {
+        using var scope = Fixture.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
+        var order = await context.Set<ProductionOrder>()
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == orderId);
+        order.Should().NotBeNull();
+        order!.Status = status;
+        await context.SaveChangesAsync();
+    }
 
     private async Task<ProductionOrderDto> CreateOrderAsync(
         HttpClient client, Guid? recipeId = null, Guid? recipeVersionId = null)
