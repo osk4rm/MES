@@ -4,8 +4,13 @@ name: ai-swarm
 #
 # Mirrors the label state machine owned locally by scripts/agent-dispatcher.ps1:
 #   issue[ai:implement] -> implement -> PR[ai:review] -> review -> PR[ai:verify]
-#   -> verify -> PR[ai:e2e] -> e2e -> PR[ai:ready] (human merges)
+#   -> verify -> PR[ai:e2e] -> e2e -> PR[ai:ready] -> merge (squash, automatic)
 #   any failure verdict -> PR[ai:changes] -> fix -> PR[ai:review]
+#   docs-only PRs: review APPROVED -> PR[ai:ready] (verify/e2e skipped)
+#
+# Throughput: at most MAX_PARALLEL (default 3) items hold ai:running at once;
+# the sweep job re-fires queued ai:implement issues on push-to-default and
+# every 30 min, so refused work retries instead of stalling.
 #
 # The local dispatcher stays as fallback/debug; both sides honor ai:running
 # as the cross-runner lock and ai:blocked as the human-escalation state.
@@ -23,9 +28,12 @@ on:
   workflow_run:
     workflows: [ci]
     types: [completed]
+  push:
+    branches: [master, main] # sweep wake-up after every merge
   schedule:
     - cron: '0 6 * * 1' # researcher: Mondays 06:00 UTC
     - cron: '30 5 * * *' # tracker: daily 05:30 UTC
+    - cron: '*/30 * * * *' # sweep: re-fire queued ai:implement when a slot is free
   workflow_dispatch:
     inputs:
       agent:
@@ -49,7 +57,13 @@ concurrency:
 
 env:
   MAX_ROUNDS: '3'
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MAX_PARALLEL: '3'
+  BACKLOG_MAX: '5'
+  # Prefer a user PAT so bot-opened PRs are authored by a collaborator and skip
+  # the public-repo approval gate (without it every bot PR stalls on approve,
+  # and approved runs do not emit workflow_run events). Falls back to the
+  # automatic token when the secret is absent.
+  GH_TOKEN: ${{ secrets.SWARM_PAT || secrets.GITHUB_TOKEN }}
   OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
 
 jobs:
@@ -91,7 +105,13 @@ jobs:
             exit 1
           fi
           swarm_require_auth
-          swarm_acquire_lock issue "$ISSUE" || exit 1
+          if [ "$(swarm_in_flight_count)" -ge "${MAX_PARALLEL:-3}" ]; then
+            echo "at capacity ($(swarm_in_flight_count) in flight >= ${MAX_PARALLEL:-3}); leaving ai:implement for the sweeper"
+            exit 0
+          fi
+          # Lost race for the lock: exit green — the holder does the work.
+          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          swarm_acquire_lock issue "$ISSUE" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release issue "$ISSUE"
           git config user.name 'MES Agent Swarm'
           git config user.email 'mes-swarm@users.noreply.github.com'
@@ -209,9 +229,11 @@ jobs:
             echo 'Draft PR; skipping.'
             exit 0
           fi
-          swarm_acquire_lock pr "$PR" || exit 1
+          # Lost race for the lock: exit green — the holder does the work.
+          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
-          CI=$(swarm_wait_ci "$PR" 1200)
+          CI=$(swarm_wait_ci "$PR" 600)
           echo "ci=$CI"
           if [ "$CI" = fail ]; then
             swarm_remove_label pr "$PR" ai:review
@@ -220,7 +242,7 @@ jobs:
             exit 0
           fi
           if [ "$CI" = timeout ]; then
-            swarm_say pr "$PR" 'Agent flow (CI): CI was still pending after 20m; keeping ai:review. The ci-completed event will retrigger this job.'
+            swarm_say pr "$PR" 'Agent flow (CI): CI was still pending after 10m; keeping ai:review. The ci-completed event will retrigger this job.'
             exit 0
           fi
           swarm_run_agent mes-reviewer \
@@ -232,7 +254,16 @@ jobs:
           fi
           swarm_remove_label pr "$PR" ai:review
           case "$VERDICT" in
-            APPROVED) swarm_add_label pr "$PR" ai:verify; echo '-> ai:verify' ;;
+            APPROVED)
+              # Docs-only fast-path (e.g. tracker sync): no runtime to verify
+              # or smoke-test, so skip verify/e2e straight to ai:ready.
+              if swarm_is_docs_only "$PR"; then
+                swarm_add_label pr "$PR" ai:ready
+                swarm_say pr "$PR" 'Agent flow (CI): review APPROVED and the diff is docs-only — skipping verify/e2e straight to ai:ready.'
+                echo '-> ai:ready (docs-only fast-path)'
+              else
+                swarm_add_label pr "$PR" ai:verify; echo '-> ai:verify'
+              fi ;;
             CHANGES_REQUESTED) swarm_add_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
             *)
               swarm_add_label pr "$PR" ai:blocked
@@ -277,7 +308,9 @@ jobs:
           source scripts/ci/swarm-lib.sh
           PR='${{ github.event.pull_request.number || inputs.number }}'
           swarm_require_auth
-          swarm_acquire_lock pr "$PR" || exit 1
+          # Lost race for the lock: exit green — the holder does the work.
+          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
           swarm_run_agent mes-verifier \
             "Verify that the tests in PR #$PR genuinely prove the acceptance criteria. Read-only audit: inspect the diff with 'gh pr diff $PR', map each criterion to the test(s) that prove it, check for weakened tests. DO NOT write files, commit, or push. Post the report with 'gh pr comment $PR' ending with exactly one verdict on its own line: 'VERDICT: TESTS_SOUND' or 'VERDICT: TESTS_INSUFFICIENT'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
@@ -337,7 +370,9 @@ jobs:
           source scripts/ci/swarm-lib.sh
           PR='${{ github.event.pull_request.number || inputs.number }}'
           swarm_require_auth
-          swarm_acquire_lock pr "$PR" || exit 1
+          # Lost race for the lock: exit green — the holder does the work.
+          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
           FAILS=$(swarm_fail_count "$PR")
           if [ "$FAILS" -ge "${MAX_ROUNDS:-3}" ]; then
@@ -348,6 +383,7 @@ jobs:
           fi
           git config user.name 'MES Agent Swarm'
           git config user.email 'mes-swarm@users.noreply.github.com'
+          swarm_use_pat_remote "${{ secrets.SWARM_PAT }}"
           HEAD_REF=$(gh pr view "$PR" --json headRefName --jq .headRefName)
           git fetch origin "$HEAD_REF"
           git checkout "$HEAD_REF"
@@ -415,7 +451,9 @@ jobs:
           source scripts/ci/swarm-lib.sh
           PR='${{ github.event.pull_request.number || inputs.number }}'
           swarm_require_auth
-          swarm_acquire_lock pr "$PR" || exit 1
+          # Lost race for the lock: exit green — the holder does the work.
+          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
           # The agent starts the stack itself (scripts/e2e/app.ps1); the
           # service above only provides PostgreSQL on localhost:5432.
@@ -430,7 +468,7 @@ jobs:
           case "$VERDICT" in
             E2E_PASS)
               swarm_add_label pr "$PR" ai:ready
-              swarm_say pr "$PR" 'Agent flow (CI): CI + review + verify + e2e green. Ready for a human merge.'
+              swarm_say pr "$PR" 'Agent flow (CI): CI + review + verify + e2e green. Auto-merge will take it from here (ai:ready).'
               ;;
             E2E_FAIL) swarm_add_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
             *)
@@ -521,3 +559,123 @@ jobs:
           swarm_run_agent mes-tracker \
             "Reconcile docs/feature-tracker.md with GitHub issues/PRs and the codebase, then publish the update on branch ai/tracker-sync (based on $DEFAULT) and open or update a PR. Abort if the working tree is dirty." \
             tracker.log
+
+  # ---------------------------------------------------------------------- sweep
+  sweep:
+    name: sweep queued issues
+    # Wakes up on every merge (push) and every 30 min. Re-fires the labeled
+    # event for the oldest queued issue when a parallel slot is free, so work
+    # refused by the MAX_PARALLEL gate retries instead of stalling.
+    if: >
+      github.event_name == 'schedule' &&
+      github.event.schedule == '*/30 * * * *' ||
+      github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Re-fire oldest queued issue when a slot is free
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          if [ "$(swarm_in_flight_count)" -ge "${MAX_PARALLEL:-3}" ]; then
+            echo "at capacity; nothing to sweep"
+            exit 0
+          fi
+          ISSUE=$(swarm_oldest_queued_issue)
+          if [ -z "$ISSUE" ]; then
+            echo 'queue empty; nothing to sweep'
+            exit 0
+          fi
+          swarm_remove_label issue "$ISSUE" ai:implement
+          swarm_add_label issue "$ISSUE" ai:implement
+          echo "re-fired ai:implement on issue #$ISSUE"
+
+  # ---------------------------------------------------------------------- merge
+  merge:
+    name: auto-merge ready PR
+    if: >
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.draft == false &&
+      github.event.label.name == 'ai:ready'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Merge when CI is green
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          PR='${{ github.event.pull_request.number }}'
+          swarm_require_auth
+          # Lost race for the lock: exit green — the holder does the work.
+          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
+          swarm_auto_release pr "$PR"
+          CI=$(swarm_wait_ci "$PR" 600)
+          if [ "$CI" != pass ]; then
+            swarm_remove_label pr "$PR" ai:ready
+            swarm_add_label pr "$PR" ai:review
+            swarm_say pr "$PR" "Agent flow (CI): ai:ready arrived but CI is $CI — back to ai:review for a fresh pass."
+            exit 0
+          fi
+          if gh pr merge "$PR" --squash --delete-branch; then
+            swarm_say pr "$PR" 'Agent flow (CI): merged to the default branch (squash).'
+          else
+            swarm_remove_label pr "$PR" ai:ready
+            swarm_add_label pr "$PR" ai:blocked
+            swarm_say pr "$PR" 'Agent flow (CI): auto-merge failed (conflict?). Needs human attention.'
+            exit 1
+          fi
+
+  # -------------------------------------------------------------------- analyst
+  analyst:
+    name: analyst (queue refill)
+    # Same wake-ups as sweep. Starts mes-analyst only when the implement queue
+    # is empty, the backlog is small, and a cheap pre-check promises actionable
+    # work (unlabeled proposal or tracker gap row) — otherwise exits green
+    # without spending an agent session.
+    if: >
+      github.event_name == 'schedule' &&
+      github.event.schedule == '*/30 * * * *' ||
+      github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: ai-swarm-analyst
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Install opencode
+        run: |
+          if ! command -v opencode >/dev/null 2>&1; then
+            curl -fsSL https://opencode.ai/install | bash
+            # GITHUB_PATH applies to the NEXT step only; export now for this one.
+            export PATH="$HOME/.opencode/bin:$PATH"
+          fi
+          opencode --version
+      - name: Spec next work when the queue is empty
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          if [ -n "$(swarm_oldest_queued_issue)" ]; then
+            echo 'implement queue not empty; nothing to spec'
+            exit 0
+          fi
+          if [ "$(swarm_backlog_count)" -ge "${BACKLOG_MAX:-5}" ]; then
+            echo 'backlog full; nothing to spec'
+            exit 0
+          fi
+          if ! swarm_has_actionable_gap; then
+            echo 'no unlabeled proposals and no tracker gap rows; queue truly done'
+            exit 0
+          fi
+          swarm_require_auth
+          swarm_run_agent mes-analyst \
+            'The implement queue is empty. Adopt the oldest unlabeled open proposal or spec the first actionable tracker gap (slice subsystem-sized gaps per the Sizing section of the mes-issue-spec skill). Create the issue(s) with gh issue create and add ai:implement ONLY to the first unblocked one.' \
+            analyst.log

@@ -16,7 +16,7 @@ public static class DependencyInjection
         services.AddScoped<IChildEntitiesRepository, ChildEntitiesRepository>();
         services.AddScoped<IOperationDependenciesRepository, OperationDependenciesRepository>();
         services.AddScoped<IOperationTemplatesRepository, OperationTemplatesRepository>();
-        services.AddScoped<IAndonSignalsRepository, AndonSignalsRepository>();
+        services.AddScoped<IScrapEventsRepository, ScrapEventsRepository>();
 
         services.AddScoped<IEntityConfigurator, ProductionEntityConfigurator>();
 

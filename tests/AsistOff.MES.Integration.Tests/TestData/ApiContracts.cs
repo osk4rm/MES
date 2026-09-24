@@ -31,3 +31,14 @@ public sealed record PagedResponseDto<T>(
     int TotalCount,
     int TotalPages,
     IReadOnlyCollection<T> Items);
+
+/// <summary>Shape of a scrap event as returned by <c>/api/scrap-events</c>.</summary>
+public sealed record ScrapEventDto(
+    Guid Id,
+    Guid MachineId,
+    Guid ReasonCodeId,
+    decimal Quantity,
+    DateTime ReportedAt,
+    string? Notes,
+    Guid? ReportedByOperatorId,
+    Guid? ProductionOrderId);
