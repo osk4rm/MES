@@ -15,3 +15,30 @@ public sealed record PagedResponseDto<T>(
     int TotalCount,
     int TotalPages,
     IReadOnlyCollection<T> Items);
+
+/// <summary>Shape of a machine as returned by <c>/api/machines</c>.</summary>
+public sealed record MachineDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string? Description,
+    bool IsActive,
+    Guid? DepartmentId,
+    string? DepartmentCode,
+    string? DepartmentName,
+    string? SyncId);
+
+/// <summary>Shape of a maintenance work order as returned by <c>/api/maintenance-work-orders</c>.</summary>
+public sealed record MaintenanceWorkOrderDto(
+    Guid Id,
+    string Code,
+    string Title,
+    string? Description,
+    Guid MachineId,
+    string? MachineCode,
+    short Priority,
+    short Status,
+    DateTime ReportedAt,
+    DateTime? StartedAt,
+    DateTime? CompletedAt,
+    string? ResolutionNotes);
