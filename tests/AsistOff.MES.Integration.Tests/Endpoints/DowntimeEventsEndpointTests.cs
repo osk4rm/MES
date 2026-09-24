@@ -248,6 +248,113 @@ public sealed class DowntimeEventsEndpointTests(MesApplicationFixture fixture) :
     }
 
     [Fact]
+    public async Task Get_ClosedEvent_ReturnsComputedDuration()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var (machineId, reasonCodeId) = await CreateMachineAndReasonAsync(client);
+        var startedAt = DateTime.UtcNow.AddHours(-3);
+        var created = await StartAsync(client, machineId, reasonCodeId, startedAt);
+        var endedAt = startedAt.AddMinutes(90);
+        var close = await client.PostAsJsonAsync($"{BaseUrl}/{created.Id}/close", new { endedAt });
+        close.EnsureSuccessStatusCode();
+
+        var getResponse = await client.GetAsync($"{BaseUrl}/{created.Id}");
+
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var fetched = await ReadAsync<DowntimeEventDto>(getResponse);
+        fetched.EndedAt.Should().BeCloseTo(endedAt, TimeSpan.FromSeconds(1));
+        fetched.Status.Should().Be((short)2); // Closed
+        fetched.DurationMinutes.Should().NotBeNull();
+        fetched.DurationMinutes!.Value.Should().BeApproximately(90, 0.5);
+    }
+
+    [Fact]
+    public async Task Browse_FiltersByReasonCode()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var (machineA, reasonA) = await CreateMachineAndReasonAsync(client);
+        var (machineB, reasonB) = await CreateMachineAndReasonAsync(client);
+        var eventA = await StartAsync(client, machineA, reasonA, DateTime.UtcNow.AddHours(-2));
+        var eventB = await StartAsync(client, machineB, reasonB, DateTime.UtcNow.AddHours(-2));
+
+        var response = await client.GetAsync($"{BaseUrl}?reasonCodeId={reasonA}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var page = await ReadAsync<PagedResponseDto<DowntimeEventDto>>(response);
+        page.Items.Should().Contain(item => item.Id == eventA.Id);
+        page.Items.Should().NotContain(item => item.Id == eventB.Id);
+    }
+
+    [Fact]
+    public async Task Browse_FiltersByClosedStatus()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var (machineA, reasonCodeId) = await CreateMachineAndReasonAsync(client);
+        var (machineB, _) = await CreateMachineAndReasonAsync(client);
+        var openEvent = await StartAsync(client, machineA, reasonCodeId, DateTime.UtcNow.AddHours(-4));
+        var toClose = await StartAsync(client, machineB, reasonCodeId, DateTime.UtcNow.AddHours(-4));
+        var close = await client.PostAsJsonAsync($"{BaseUrl}/{toClose.Id}/close", new { endedAt = DateTime.UtcNow.AddHours(-1) });
+        close.EnsureSuccessStatusCode();
+
+        var response = await client.GetAsync($"{BaseUrl}?status=2");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var page = await ReadAsync<PagedResponseDto<DowntimeEventDto>>(response);
+        page.Items.Should().Contain(item => item.Id == toClose.Id);
+        page.Items.Should().NotContain(item => item.Id == openEvent.Id);
+    }
+
+    [Fact]
+    public async Task Browse_FiltersByStartedAtRange()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var (machineOld, reasonOld) = await CreateMachineAndReasonAsync(client);
+        var (machineRecent, reasonRecent) = await CreateMachineAndReasonAsync(client);
+        var oldEvent = await StartAsync(client, machineOld, reasonOld, DateTime.UtcNow.AddDays(-30));
+        var recentEvent = await StartAsync(client, machineRecent, reasonRecent, DateTime.UtcNow.AddHours(-1));
+        var from = Uri.EscapeDataString(DateTime.UtcNow.AddDays(-7).ToString("O"));
+        var to = Uri.EscapeDataString(DateTime.UtcNow.ToString("O"));
+
+        var response = await client.GetAsync($"{BaseUrl}?startedFrom={from}&startedTo={to}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var page = await ReadAsync<PagedResponseDto<DowntimeEventDto>>(response);
+        page.Items.Should().Contain(item => item.Id == recentEvent.Id);
+        page.Items.Should().NotContain(item => item.Id == oldEvent.Id);
+    }
+
+    [Fact]
+    public async Task Browse_SupportsPaging()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var (machineA, reasonA) = await CreateMachineAndReasonAsync(client);
+        var (machineB, reasonB) = await CreateMachineAndReasonAsync(client);
+        var (machineC, reasonC) = await CreateMachineAndReasonAsync(client);
+        await StartAsync(client, machineA, reasonA, DateTime.UtcNow.AddHours(-3));
+        await StartAsync(client, machineB, reasonB, DateTime.UtcNow.AddHours(-2));
+        await StartAsync(client, machineC, reasonC, DateTime.UtcNow.AddHours(-1));
+
+        var firstPage = await client.GetAsync($"{BaseUrl}?pageNumber=1&pageSize=2");
+
+        firstPage.StatusCode.Should().Be(HttpStatusCode.OK);
+        var first = await ReadAsync<PagedResponseDto<DowntimeEventDto>>(firstPage);
+        first.TotalCount.Should().Be(3);
+        first.TotalPages.Should().Be(2);
+        first.Items.Should().HaveCount(2);
+
+        var secondPage = await client.GetAsync($"{BaseUrl}?pageNumber=2&pageSize=2");
+
+        secondPage.StatusCode.Should().Be(HttpStatusCode.OK);
+        var second = await ReadAsync<PagedResponseDto<DowntimeEventDto>>(secondPage);
+        second.TotalCount.Should().Be(3);
+        second.Items.Should().HaveCount(1);
+    }
+
+    [Fact]
     public async Task Browse_DoesNotLeakEventsFromAnotherTenant()
     {
         var (email, password) = await Fixture.CreateTenantAsync();
