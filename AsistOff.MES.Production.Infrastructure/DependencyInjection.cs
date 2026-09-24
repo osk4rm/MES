@@ -31,11 +31,16 @@ public static class DependencyInjection
         services.AddScoped<ITelemetryReadingsRepository, TelemetryReadingsRepository>();
         services.AddScoped<IKanbanLoopsRepository, KanbanLoopsRepository>();
         services.AddScoped<IKanbanCardsRepository, KanbanCardsRepository>();
+        services.AddScoped<IOpcUaConnectionsRepository, OpcUaConnectionsRepository>();
 
         services.AddScoped<IEntityConfigurator, ProductionEntityConfigurator>();
 
         services.Configure<TelemetryOptions>(configuration.GetSection(TelemetryOptions.SectionName));
         services.AddHostedService<TelemetrySimulatorService>();
+
+        services.Configure<OpcUaPollingOptions>(configuration.GetSection(OpcUaPollingOptions.SectionName));
+        services.AddScoped<IOpcUaReader, SimulatorBackedOpcUaReader>();
+        services.AddHostedService<OpcUaPollingService>();
 
         return services;
     }
