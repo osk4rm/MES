@@ -232,3 +232,11 @@ public sealed record TelemetryStatusDto(
     bool SimulatorEnabled,
     int SimulatorIntervalSeconds,
     IReadOnlyCollection<TelemetryTagStatusDto> Tags);
+
+/// <summary>Shape of one RW/PW movement preview line returned by the movements endpoints.</summary>
+public sealed record MovementPreviewLineDto(
+    string MovementType,
+    Guid ProductId,
+    decimal Quantity,
+    Guid? MeasureUnitId,
+    Guid? PreferredWarehouseId);

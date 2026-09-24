@@ -1,6 +1,7 @@
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.DowntimeEvents.Browse;
 using AsistOff.MES.Production.Domain.Entities;
+using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
@@ -10,6 +11,7 @@ namespace AsistOff.MES.Production.Application.Features.DowntimeEvents.Start;
 
 internal sealed class StartDowntimeEventRequestHandler(
     IDowntimeEventsRepository repository,
+    IProductionOrdersRepository ordersRepository,
     IGuidProvider guidProvider,
     IDateTimeProvider dateTimeProvider,
     ITenantContext tenantContext)
@@ -29,6 +31,20 @@ internal sealed class StartDowntimeEventRequestHandler(
         if (await repository.HasOpenEventAsync(request.MachineId, null, cancellationToken))
             throw new ConflictException("The Work Center already has an open downtime event.");
 
+        Guid? productionOrderId = null;
+        if (request.ProductionOrderId.HasValue)
+        {
+            var order = await ordersRepository.GetAsync(request.ProductionOrderId.Value, cancellationToken)
+                ?? throw new NotFoundException("ProductionOrder", request.ProductionOrderId.Value);
+
+            if (order.Status is not (ProductionOrderStatus.Released or ProductionOrderStatus.InProgress))
+                throw new ValidationException(
+                    nameof(request.ProductionOrderId),
+                    "Downtime can only be linked to Released or InProgress orders.");
+
+            productionOrderId = order.Id;
+        }
+
         var now = dateTimeProvider.UtcNow;
         var entity = new DowntimeEvent
         {
@@ -40,7 +56,7 @@ internal sealed class StartDowntimeEventRequestHandler(
             EndedAt = null,
             Notes = request.Notes,
             ReportedByOperatorId = request.ReportedByOperatorId,
-            ProductionOrderId = null,
+            ProductionOrderId = productionOrderId,
             CreatedAt = now
         };
 

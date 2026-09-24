@@ -37,6 +37,7 @@ export interface StartDowntimeEventRequest {
   startedAt: string;
   notes?: string | null;
   reportedByOperatorId?: string | null;
+  productionOrderId?: string | null;
 }
 
 export interface UpdateDowntimeEventRequest {

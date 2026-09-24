@@ -22,5 +22,12 @@ public interface IChildEntitiesRepository
     Task RemoveOperationOutputAsync(Guid id, CancellationToken cancellationToken = default);
     Task RemoveResourceRequirementAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Every BOM item in the given recipe version (across all its operations),
+    /// ordered for preview display. Runs under the tenant global query filter.
+    /// </summary>
+    Task<IReadOnlyCollection<BomItem>> ListBomItemsForVersionAsync(
+        Guid recipeVersionId, CancellationToken cancellationToken = default);
+
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

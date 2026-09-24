@@ -6,8 +6,9 @@ namespace AsistOff.MES.Production.Domain.Entities;
 /// <summary>
 /// A runtime record of scrap reported against a Work Center (Machine) with a
 /// reason code, a quantity and a timestamp. The optional
-/// <see cref="ProductionOrderId"/> link is reserved for a future increment and
-/// must stay null for now.
+/// <see cref="ProductionOrderId"/> links the scrap to a Released or
+/// InProgress Production Order, or stays null when reported outside order
+/// context.
 /// </summary>
 public class ScrapEvent : IEntity, ISaasy, IAuditable
 {
@@ -30,7 +31,7 @@ public class ScrapEvent : IEntity, ISaasy, IAuditable
     /// <summary>Operator that reported the scrap. Optional, stored as a loose Guid.</summary>
     public Guid? ReportedByOperatorId { get; set; }
 
-    /// <summary>Reserved link to a Production Order. Never set in this increment.</summary>
+    /// <summary>Optional link to a Released or InProgress Production Order.</summary>
     public Guid? ProductionOrderId { get; set; }
 
     public DateTime CreatedAt { get; set; }

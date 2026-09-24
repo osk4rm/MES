@@ -5,6 +5,7 @@ using AsistOff.MES.Production.Application.Features.ProductionOrders.Complete;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Create;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Delete;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Get;
+using AsistOff.MES.Production.Application.Features.ProductionOrders.Movements;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Release;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Update;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
@@ -65,4 +66,10 @@ public class ProductionOrdersController(ISender sender) : ApiController
     public async Task<ActionResult<ProductionOrderResponse>> CloseAsync(
         [FromRoute] Guid id, CancellationToken cancellationToken)
         => Ok(await sender.Send(new CloseProductionOrderRequest(id), cancellationToken));
+
+    /// <summary>Read-only RW/PW movement preview aggregated per order.</summary>
+    [HttpGet("{id:guid}/movements")]
+    public async Task<ActionResult<IReadOnlyList<MovementPreviewLine>>> GetMovementsAsync(
+        [FromRoute] Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new BrowseOrderMovementsRequest(id), cancellationToken));
 }

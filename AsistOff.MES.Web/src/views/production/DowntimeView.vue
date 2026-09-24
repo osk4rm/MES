@@ -92,6 +92,11 @@
             <AppInput :id="id" v-model="startForm.startedAt" type="datetime-local" required :invalid="invalid" />
           </template>
         </AppFormField>
+        <AppFormField :label="$t('downtime.order')" class="form-grid__full">
+          <template #default="{ id }">
+            <AppSelect :id="id" v-model="startForm.productionOrderId" :options="orderOptions" :placeholder="$t('downtime.selectOrder')" />
+          </template>
+        </AppFormField>
         <AppFormField :label="$t('downtime.notes')" class="form-grid__full">
           <template #default="{ id }">
             <AppTextarea :id="id" v-model="startForm.notes" :rows="2" />
@@ -172,6 +177,7 @@ import {
 } from '../../services/downtimeEventService';
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { reasonCodeService, type ReasonCodeResponse } from '../../services/reasonCodeService';
+import { productionOrderService, ProductionOrderStatus, type ProductionOrderResponse } from '../../services/productionOrderService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -203,11 +209,18 @@ const columns = computed(() => [
 
 const machines = ref<MachineResponse[]>([]);
 const reasons = ref<ReasonCodeResponse[]>([]);
+const orders = ref<ProductionOrderResponse[]>([]);
 
 const machineOptions = computed<SelectOption[]>(() =>
   machines.value.map(m => ({ value: m.id, label: `${m.code} — ${m.name}` })));
 const reasonOptions = computed<SelectOption[]>(() =>
   reasons.value.map(r => ({ value: r.id, label: `${r.code} — ${r.name}` })));
+const orderOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('downtime.selectOrder') },
+  ...orders.value
+    .filter(o => o.status === ProductionOrderStatus.Released || o.status === ProductionOrderStatus.InProgress)
+    .map(o => ({ value: o.id, label: o.code }))
+]);
 
 const machineFilterOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('downtime.filters.machine') },
@@ -296,11 +309,12 @@ const startForm = reactive({
   machineId: null as string | number | null,
   reasonCodeId: null as string | number | null,
   startedAt: '',
+  productionOrderId: null as string | number | null,
   notes: ''
 });
 
 function openStart(): void {
-  Object.assign(startForm, { machineId: null, reasonCodeId: null, startedAt: toLocalInput(new Date()), notes: '' });
+  Object.assign(startForm, { machineId: null, reasonCodeId: null, startedAt: toLocalInput(new Date()), productionOrderId: null, notes: '' });
   startOpen.value = true;
 }
 function closeStart(): void {
@@ -315,7 +329,8 @@ async function onStartSave(): Promise<void> {
       machineId: String(startForm.machineId),
       reasonCodeId: String(startForm.reasonCodeId),
       startedAt: fromLocalInput(startForm.startedAt),
-      notes: startForm.notes || null
+      notes: startForm.notes || null,
+      productionOrderId: startForm.productionOrderId === null ? null : String(startForm.productionOrderId)
     });
     toast.success(t('toasts.created'));
     await table.fetch();
@@ -427,12 +442,14 @@ function cancelDelete(): void {
 
 onMounted(async () => {
   try {
-    const [m, r] = await Promise.all([
+    const [m, r, o] = await Promise.all([
       machineService.browse({ pageSize: 500 }),
-      reasonCodeService.browse({ pageSize: 500 })
+      reasonCodeService.browse({ pageSize: 500 }),
+      productionOrderService.browse({ pageNumber: 1, pageSize: 200 })
     ]);
     machines.value = m.items;
     reasons.value = r.items;
+    orders.value = o.items;
   } catch {
     // lookups stay empty; ids are still rendered raw
   }

@@ -1,6 +1,7 @@
 import http from './http';
 import type { IPagedRequest, IPagedResponse } from '../models/pagedModels';
 import { buildPagedParams } from './tenantService';
+import type { MovementPreviewLine } from './productionConfirmationService';
 
 export const ProductionOrderStatus = {
   Planned: 1,
@@ -94,6 +95,10 @@ export const productionOrderService = {
   },
   async close(id: string): Promise<ProductionOrderResponse> {
     const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/close`);
+    return data;
+  },
+  async getMovements(id: string): Promise<MovementPreviewLine[]> {
+    const { data } = await http.get<MovementPreviewLine[]>(`${BASE}/${id}/movements`);
     return data;
   }
 };

@@ -105,6 +105,43 @@
     </AppCard>
 
     <section class="confirmations-section">
+      <div class="section-header">
+        <h3>{{ $t('movements.title') }}</h3>
+        <AppButton variant="ghost" icon="pi pi-refresh" :loading="movementsLoading" @click="loadMovements">
+          {{ $t('common.refresh') }}
+        </AppButton>
+      </div>
+      <p class="section-subtitle">{{ $t('movements.subtitle') }}</p>
+
+      <AppTable
+        :items="movements"
+        :columns="movementColumns"
+        :loading="movementsLoading"
+      >
+        <template #cell-movementType="{ value }">
+          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" dot>
+            {{ value }}
+          </AppBadge>
+        </template>
+        <template #cell-productId="{ value }">
+          {{ productLabel(value) }}
+        </template>
+        <template #cell-quantity="{ value }">
+          {{ formatQuantity(value) }}
+        </template>
+        <template #cell-preferredWarehouseId="{ value }">
+          {{ warehouseLabel(value) }}
+        </template>
+      </AppTable>
+
+      <AppEmptyState
+        v-if="!movementsLoading && movements.length === 0"
+        icon="pi pi-list"
+        :title="$t('movements.empty')"
+      />
+    </section>
+
+    <section class="confirmations-section">
       <h3>{{ $t('productionConfirmations.title') }}</h3>
 
       <AppTable
@@ -132,10 +169,7 @@
         </template>
         <template #cell-actions="{ item }">
           <AppRowActions
-            v-if="canReport"
-            :actions="[
-              { key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger' }
-            ]"
+            :actions="confirmationActions(item)"
             @action="(k) => onRowAction(k, item)"
           />
         </template>
@@ -224,6 +258,37 @@
       @confirm="confirmLifecycle"
       @cancel="cancelLifecycle"
     />
+
+    <AppModal :open="movementsModalOpen" :title="$t('movements.perConfirmationTitle')" @close="closeMovementsModal">
+      <AppTable
+        :items="confirmationMovements"
+        :columns="movementColumns"
+        :loading="confirmationMovementsLoading"
+      >
+        <template #cell-movementType="{ value }">
+          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" dot>
+            {{ value }}
+          </AppBadge>
+        </template>
+        <template #cell-productId="{ value }">
+          {{ productLabel(value) }}
+        </template>
+        <template #cell-quantity="{ value }">
+          {{ formatQuantity(value) }}
+        </template>
+        <template #cell-preferredWarehouseId="{ value }">
+          {{ warehouseLabel(value) }}
+        </template>
+      </AppTable>
+      <AppEmptyState
+        v-if="!confirmationMovementsLoading && confirmationMovements.length === 0"
+        icon="pi pi-list"
+        :title="$t('movements.empty')"
+      />
+      <template #footer>
+        <AppButton variant="ghost" @click="closeMovementsModal">{{ $t('common.close') }}</AppButton>
+      </template>
+    </AppModal>
   </div>
   <div v-else-if="loading" class="loading"><i class="pi pi-spin pi-spinner" /> {{ $t('common.loading') }}</div>
   <div v-else class="loading">{{ $t('common.notFound') }}</div>
@@ -256,10 +321,13 @@ import {
 } from '../../services/productionOrderService';
 import {
   productionConfirmationService,
+  type MovementPreviewLine,
   type ProductionConfirmationResponse
 } from '../../services/productionConfirmationService';
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { operatorService, type OperatorResponse } from '../../services/operatorService';
+import { productService, type ProductResponse } from '../../services/productService';
+import { warehouseService, type WarehouseResponse } from '../../services/warehouseService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -346,6 +414,8 @@ function formatQuantity(v: number): string {
 
 const machines = ref<MachineResponse[]>([]);
 const operators = ref<OperatorResponse[]>([]);
+const products = ref<ProductResponse[]>([]);
+const warehouses = ref<WarehouseResponse[]>([]);
 
 const machineOptions = computed(() => machines.value.map(m => ({ value: m.id, label: `${m.code} — ${m.name}` })));
 const operatorFilterOptions = computed(() => [
@@ -364,6 +434,17 @@ function operatorLabel(id: string | null | undefined): string {
   return o ? `${o.identifier} — ${o.firstName} ${o.lastName}` : id;
 }
 
+function productLabel(id: string): string {
+  const p = products.value.find(x => x.id === id);
+  return p ? `${p.code} — ${p.name}` : id;
+}
+
+function warehouseLabel(id: string | null | undefined): string {
+  if (!id) return '—';
+  const w = warehouses.value.find(x => x.id === id);
+  return w ? w.name : id;
+}
+
 async function loadOrder(): Promise<void> {
   loading.value = true;
   try {
@@ -377,12 +458,16 @@ async function loadOrder(): Promise<void> {
 
 async function loadLookups(): Promise<void> {
   try {
-    const [m, o] = await Promise.all([
+    const [m, o, p, w] = await Promise.all([
       machineService.browse({ pageNumber: 1, pageSize: 500 }),
-      operatorService.browse({ pageNumber: 1, pageSize: 500 })
+      operatorService.browse({ pageNumber: 1, pageSize: 500 }),
+      productService.browse({ pageNumber: 1, pageSize: 500 }),
+      warehouseService.browse({ pageNumber: 1, pageSize: 500 })
     ]);
     machines.value = m.items;
     operators.value = o.items;
+    products.value = p.items;
+    warehouses.value = w.items;
   } catch {
     /* ignore — table still renders */
   }
@@ -459,8 +544,8 @@ async function onSave(): Promise<void> {
     });
     toast.success(t('toasts.created'));
     modalOpen.value = false;
-    // First confirmation moves the order to InProgress — refresh header and list in place.
-    await Promise.all([loadOrder(), table.fetch()]);
+    // First confirmation moves the order to InProgress — refresh header, list and movements in place.
+    await Promise.all([loadOrder(), table.fetch(), loadMovements()]);
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.saveFailed')));
   } finally {
@@ -475,8 +560,65 @@ const deleteMessage = computed(() => confirmTarget.value
   ? `${t('common.delete')}: ${formatDateTime(confirmTarget.value.reportedAt)}`
   : '');
 
+const movements = ref<MovementPreviewLine[]>([]);
+const movementsLoading = ref(false);
+const movementColumns = computed(() => [
+  { key: 'movementType', label: t('movements.type'), width: '90px' },
+  { key: 'productId', label: t('movements.product') },
+  { key: 'quantity', label: t('movements.quantity'), align: 'right' as const },
+  { key: 'preferredWarehouseId', label: t('movements.warehouseHint') }
+]);
+
+async function loadMovements(): Promise<void> {
+  movementsLoading.value = true;
+  try {
+    movements.value = await productionOrderService.getMovements(orderId);
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  } finally {
+    movementsLoading.value = false;
+  }
+}
+
+const movementsModalOpen = ref(false);
+const confirmationMovements = ref<MovementPreviewLine[]>([]);
+const confirmationMovementsLoading = ref(false);
+
+async function openConfirmationMovements(item: ProductionConfirmationResponse): Promise<void> {
+  movementsModalOpen.value = true;
+  confirmationMovements.value = [];
+  confirmationMovementsLoading.value = true;
+  try {
+    confirmationMovements.value = await productionConfirmationService.getMovements(item.id);
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    movementsModalOpen.value = false;
+  } finally {
+    confirmationMovementsLoading.value = false;
+  }
+}
+
+function closeMovementsModal(): void {
+  if (confirmationMovementsLoading.value) return;
+  movementsModalOpen.value = false;
+}
+
+interface RowAction { key: string; label: string; icon: string; variant?: 'danger' }
+
+function confirmationActions(_item: ProductionConfirmationResponse): RowAction[] {
+  const actions: RowAction[] = [
+    { key: 'movements', label: t('movements.show'), icon: 'pi-list' }
+  ];
+  if (canReport.value) {
+    actions.push({ key: 'delete', label: t('common.delete'), icon: 'pi-trash', variant: 'danger' });
+  }
+  return actions;
+}
+
 function onRowAction(key: string, item: ProductionConfirmationResponse): void {
-  if (key === 'delete') {
+  if (key === 'movements') {
+    void openConfirmationMovements(item);
+  } else if (key === 'delete') {
     confirmTarget.value = item;
     confirmOpen.value = true;
   }
@@ -490,7 +632,7 @@ async function confirmDelete(): Promise<void> {
     toast.success(t('toasts.deleted'));
     confirmOpen.value = false;
     confirmTarget.value = null;
-    await table.fetch();
+    await Promise.all([table.fetch(), loadMovements()]);
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.saveFailed')));
   } finally {
@@ -554,6 +696,7 @@ onMounted(() => {
   void loadOrder();
   void loadLookups();
   void table.fetch();
+  void loadMovements();
 });
 </script>
 
@@ -587,6 +730,20 @@ onMounted(() => {
 }
 .confirmations-section h3 {
   margin: 0;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.section-header h3 {
+  margin: 0;
+}
+.section-subtitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 .progress {
   height: 8px;

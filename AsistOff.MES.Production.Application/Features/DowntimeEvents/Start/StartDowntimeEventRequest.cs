@@ -7,4 +7,5 @@ public record StartDowntimeEventRequest(
     Guid ReasonCodeId,
     DateTime StartedAt,
     string? Notes,
-    Guid? ReportedByOperatorId) : ITenantRequest<DowntimeEventResponse>;
+    Guid? ReportedByOperatorId,
+    Guid? ProductionOrderId = null) : ITenantRequest<DowntimeEventResponse>;

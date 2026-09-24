@@ -10,6 +10,12 @@ public interface IProductionConfirmationsRepository
     Task<IReadOnlyCollection<ProductionConfirmation>> BrowseAsync(Paginator<ProductionConfirmation> paginator, CancellationToken cancellationToken = default);
     Task<int> CountAsync(ExpressionStarter<ProductionConfirmation> predicate, CancellationToken cancellationToken = default);
     Task<ProductionConfirmation?> GetAsync(Guid id, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// All confirmations reported against one order, oldest first.
+    /// Runs under the tenant global query filter.
+    /// </summary>
+    Task<IReadOnlyCollection<ProductionConfirmation>> ListForOrderAsync(
+        Guid productionOrderId, CancellationToken cancellationToken = default);
     Task<ProductionConfirmation> AddAsync(ProductionConfirmation entity, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     /// <summary>
