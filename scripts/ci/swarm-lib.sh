@@ -130,11 +130,32 @@ swarm_comments_body() { # <issue|pr> <number> -> joined comment bodies
   gh "$1" view "$2" --json comments --jq '.comments[].body' 2>/dev/null || true
 }
 
+swarm_last_verdict() { # <alternation> <file> -> value | UNKNOWN
+  # Like swarm_verdict but returns the LAST verdict instead of AMBIGUOUS when
+  # several rounds left different verdicts in the log/comments. A PR that was
+  # CHANGES_REQUESTED and is now APPROVED must count as APPROVED, not blocked.
+  local pattern="VERDICT:[[:space:]]*($1)" file="$2" last
+  last=$(grep -oE "$pattern" "$file" 2>/dev/null | sed -E 's/.*VERDICT:[[:space:]]*//' | tail -n 1 || true)
+  if [ -z "$last" ]; then
+    echo UNKNOWN
+  else
+    echo "$last"
+  fi
+}
+
 swarm_verdict_stdin() { # <alternation> — same as swarm_verdict but reads stdin
   local pattern="$1" tmp
   tmp=$(mktemp)
   cat >"$tmp"
   swarm_verdict "$pattern" "$tmp"
+  rm -f "$tmp"
+}
+
+swarm_last_verdict_stdin() { # <alternation> — same as swarm_last_verdict but reads stdin
+  local pattern="$1" tmp
+  tmp=$(mktemp)
+  cat >"$tmp"
+  swarm_last_verdict "$pattern" "$tmp"
   rm -f "$tmp"
 }
 
@@ -199,6 +220,131 @@ swarm_has_actionable_gap() { # 0 when an unlabeled proposal or a tracker gap row
     return 0
   fi
   grep -qE '\| *gap *\|' docs/feature-tracker.md 2>/dev/null
+}
+
+swarm_cleanup_stale_locks() { # release ai:running locks older than ${STALE_LOCK_MINUTES:-45}
+  # Called from the sweep job. A crashed/lost job leaves ai:running forever,
+  # blocking a MAX_PARALLEL slot. Lock age comes from the label timeline event.
+  local ttl="${STALE_LOCK_MINUTES:-45}" now kind list num added age
+  now=$(date +%s)
+  for kind in pr issue; do
+    if [ "$kind" = pr ]; then
+      list=$(gh pr list --state open --limit 50 --json number,labels \
+        --jq '[.[] | select(.labels | map(.name) | index("ai:running"))] | .[].number' 2>/dev/null || true)
+    else
+      list=$(gh issue list --state open --limit 50 --json number,labels \
+        --jq '[.[] | select(.labels | map(.name) | index("ai:running"))] | .[].number' 2>/dev/null || true)
+    fi
+    for num in $list; do
+      added=$(gh api "repos/${GITHUB_REPOSITORY}/issues/$num/timeline" --paginate \
+        --jq '[.[] | select(.event == "labeled" and .label.name == "ai:running")] | last | .created_at' 2>/dev/null || true)
+      if [ -z "$added" ]; then
+        continue
+      fi
+      age=$(( (now - $(date -d "$added" +%s 2>/dev/null || echo "$now")) / 60 ))
+      if [ "$age" -ge "$ttl" ]; then
+        echo "stale lock: $kind #$num (ai:running for ${age}m >= ${ttl}m) — releasing"
+        swarm_remove_label "$kind" "$num" ai:running
+        swarm_add_label "$kind" "$num" ai:blocked
+        swarm_say "$kind" "$num" "Agent flow (CI): stale lock auto-cleared after ${age}m — the job that held it is gone. Re-add the work label to retry."
+      fi
+    done
+  done
+}
+
+swarm_pr_touches_migrations() { # <pr> -> 0 when PR changes EF migration files
+  gh pr diff "$1" --name-only 2>/dev/null | tr -d '\r' \
+    | grep -qE 'Migrations/.*\.cs$' || return 1
+  return 0
+}
+
+swarm_in_flight_migration_pr() { # -> PR number with a migration in flight, or empty
+  # Serialization guard: two PRs with EF migrations conflict on
+  # DefaultContextModelSnapshot.cs. At most one migration PR in flight.
+  # ai:blocked PRs are skipped — a human owns those, they must not stall the queue.
+  local pr
+  for pr in $(gh pr list --state open --limit 50 --json number,labels \
+    --jq '[.[] | select((.labels | map(.name) | index("ai:blocked") | not))] | .[].number' 2>/dev/null); do
+    if swarm_pr_touches_migrations "$pr"; then
+      echo "$pr"
+      return 0
+    fi
+  done
+  return 0
+}
+
+swarm_check_conflict_markers() { # -> 0 when clean, 1 when conflict markers exist
+  # Guards against the classic agent failure mode: "resolving" a merge and
+  # committing `<<<<<<<` / `=======` / `>>>>>>>` leftovers into the tree.
+  # Setext headings in markdown use `=======` legitimately, so angle markers
+  # are checked everywhere and the `=======` line only outside markdown.
+  local hits
+  hits=$( {
+    git grep -nE '^(<<<<<<< |=======$|>>>>>>> )' -- . ':(exclude)*.md' 2>/dev/null || true
+    git grep -nE '^(<<<<<<< |>>>>>>> )' -- '*.md' 2>/dev/null || true
+  } | sed '/^$/d' )
+  if [ -n "$hits" ]; then
+    echo 'ERROR: unresolved merge-conflict markers in the working tree:'
+    printf '%s\n' "$hits"
+    return 1
+  fi
+  echo 'no merge-conflict markers'
+  return 0
+}
+
+swarm_sync_master() { # merge origin/<default> into HEAD; rc 0 clean, 2 conflicts
+  # Always fetch before merging: on a shallow clone the merge-base is missing
+  # and git invents bogus conflicts ("weird conflicts with master").
+  local base
+  base=$(swarm_default_branch)
+  git fetch origin "$base" 2>/dev/null || true
+  if git merge-base --is-ancestor "origin/$base" HEAD 2>/dev/null; then
+    echo "up to date with origin/$base"
+    return 0
+  fi
+  if git merge --no-edit "origin/$base"; then
+    echo "merged origin/$base into $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+    return 0
+  fi
+  echo "MERGE CONFLICTS with origin/$base in:"
+  git diff --name-only --diff-filter=U
+  return 2
+}
+
+swarm_finish_merge_if_pending() { # commit a resolved merge; rc 1 when paths unmerged
+  if [ ! -f .git/MERGE_HEAD ]; then
+    return 0
+  fi
+  if git diff --name-only --diff-filter=U | grep -q .; then
+    echo 'merge still has unresolved paths:'
+    git diff --name-only --diff-filter=U
+    return 1
+  fi
+  git add -A
+  git commit --no-edit
+}
+
+swarm_pr_mergeable() { # <pr> -> MERGEABLE | CONFLICTING | UNKNOWN
+  # GitHub computes mergeability asynchronously; retry past UNKNOWN.
+  local pr="$1" state i
+  for i in 1 2 3 4 5 6; do
+    state=$(gh pr view "$pr" --json mergeable --jq '.mergeable // "UNKNOWN"' 2>/dev/null || echo UNKNOWN)
+    state=$(printf '%s' "$state" | tr '[:lower:]' '[:upper:]')
+    case "$state" in
+      MERGEABLE | CONFLICTING)
+        echo "$state"
+        return 0
+        ;;
+    esac
+    sleep 5
+  done
+  echo UNKNOWN
+}
+
+swarm_conflict_rules() { # prints the conflict-resolution contract for agent prompts
+  cat <<'EOF'
+A merge of master into the branch is IN PROGRESS with conflicts. Resolve every conflict, then `git add -A` and `git commit --no-edit` to complete the merge. Hard rules: NEVER leave conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) in any file. For `AsistOff.MES.Shared.Infrastructure/Migrations/DefaultContextModelSnapshot.cs` or any `*Designer.cs` NEVER hand-merge — run `git checkout origin/master -- AsistOff.MES.Shared.Infrastructure/Migrations/` to take master's migration state, delete your own migration files for this feature if present, then recreate the migration with `dotnet ef migrations add <Name> --project AsistOff.MES.Shared.Infrastructure --startup-project AsistOff.MES.Gateway --context DefaultContext`. For shared registry files (`AsistOff.MES.Web/src/i18n.ts`, `AsistOff.MES.Web/src/sitemap.ts`, `tests/AsistOff.MES.Integration.Tests/TestData/ApiContracts.cs`) keep the UNION of both sides and make sure the syntax stays valid — never drop the other side's entries. Finish with `dotnet build AsistOff.MES.sln` and `npm --prefix AsistOff.MES.Web run build` green.
+EOF
 }
 
 swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
