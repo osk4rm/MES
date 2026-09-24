@@ -1,8 +1,11 @@
 using AsistOff.MES.Production.Application.Features.Kanban;
 using AsistOff.MES.Production.Application.Features.Kanban.Cards.Browse;
+using AsistOff.MES.Production.Application.Features.Kanban.Cards.Consume;
 using AsistOff.MES.Production.Application.Features.Kanban.Cards.Create;
 using AsistOff.MES.Production.Application.Features.Kanban.Cards.Delete;
 using AsistOff.MES.Production.Application.Features.Kanban.Cards.Get;
+using AsistOff.MES.Production.Application.Features.Kanban.Cards.Order;
+using AsistOff.MES.Production.Application.Features.Kanban.Cards.Replenish;
 using AsistOff.MES.Production.Application.Features.Kanban.Loops.Browse;
 using AsistOff.MES.Production.Application.Features.Kanban.Loops.Create;
 using AsistOff.MES.Production.Application.Features.Kanban.Loops.Delete;
@@ -91,6 +94,21 @@ public class KanbanController(ISender sender) : ApiController
         await sender.Send(new DeleteKanbanCardRequest(id), cancellationToken);
         return NoContent();
     }
+
+    [HttpPost("cards/{id:guid}/consume")]
+    public async Task<ActionResult<KanbanCardResponse>> ConsumeCardAsync(
+        [FromRoute] Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new ConsumeKanbanCardRequest(id), cancellationToken));
+
+    [HttpPost("cards/{id:guid}/order")]
+    public async Task<ActionResult<KanbanCardResponse>> OrderCardAsync(
+        [FromRoute] Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new OrderKanbanCardRequest(id), cancellationToken));
+
+    [HttpPost("cards/{id:guid}/replenish")]
+    public async Task<ActionResult<KanbanCardResponse>> ReplenishCardAsync(
+        [FromRoute] Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new ReplenishKanbanCardRequest(id), cancellationToken));
 
     public sealed record UpdateKanbanLoopBody(
         decimal CardQuantity,

@@ -17,7 +17,13 @@ internal sealed class BrowseKanbanCardsRequestHandler(IKanbanCardsRepository rep
 
         if (request.LoopId.HasValue)
             predicate = predicate.And(x => x.LoopId == request.LoopId.Value);
-        if (request.Status.HasValue)
+
+        // Unknown or cross-tenant loop ids intentionally return zero rows, not 404:
+        // the global tenant filter hides foreign loops and there is no loop lookup here.
+        var statuses = request.Statuses;
+        if (statuses is { Count: > 0 })
+            predicate = predicate.And(x => statuses.Contains(x.Status));
+        else if (request.Status.HasValue)
             predicate = predicate.And(x => x.Status == request.Status.Value);
 
         var totalCount = await repository.CountAsync(predicate, cancellationToken);
