@@ -48,7 +48,8 @@ export const sitemap: NavItem[] = [
       { label: 'nav.skills', icon: 'pi pi-star', route: '/configuration/skills' },
       { label: 'nav.shifts', icon: 'pi pi-clock', route: '/configuration/shifts' },
       { label: 'nav.reasonCodes', icon: 'pi pi-exclamation-circle', route: '/configuration/reason-codes' },
-      { label: 'nav.operationTemplates', icon: 'pi pi-copy', route: '/configuration/operation-templates' }
+      { label: 'nav.operationTemplates', icon: 'pi pi-copy', route: '/configuration/operation-templates' },
+      { label: 'nav.maintenance', icon: 'pi pi-wrench', route: '/configuration/maintenance' }
     ]
   },
   { label: 'nav.settings', icon: 'pi pi-cog', route: '/settings' }
