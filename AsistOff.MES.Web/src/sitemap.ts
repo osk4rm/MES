@@ -30,7 +30,8 @@ export const sitemap: NavItem[] = [
     label: 'nav.reports',
     icon: 'pi pi-chart-bar',
     children: [
-      { label: 'nav.oeeDashboard', icon: 'pi pi-chart-bar', route: '/reports/oee' }
+      { label: 'nav.oeeDashboard', icon: 'pi pi-chart-bar', route: '/reports/oee' },
+      { label: 'nav.reliabilityDashboard', icon: 'pi pi-wrench', route: '/reports/reliability' }
     ]
   },
   {
