@@ -1,8 +1,10 @@
 using AsistOff.MES.Production.Application.Features.LotGenealogy;
 using AsistOff.MES.Production.Application.Features.LotGenealogy.Browse;
 using AsistOff.MES.Production.Application.Features.LotGenealogy.Delete;
+using AsistOff.MES.Production.Application.Features.LotGenealogy.Downstream;
 using AsistOff.MES.Production.Application.Features.LotGenealogy.Get;
 using AsistOff.MES.Production.Application.Features.LotGenealogy.Record;
+using AsistOff.MES.Production.Application.Features.LotGenealogy.Upstream;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Infrastructure.Controllers;
 using MediatR;
@@ -38,4 +40,14 @@ public class LotGenealogyController(ISender sender) : ApiController
         await sender.Send(new DeleteLotGenealogyEdgeRequest(id), cancellationToken);
         return NoContent();
     }
+
+    [HttpGet("upstream/{lotId:guid}")]
+    public async Task<ActionResult<LotTraceabilityResponse>> UpstreamAsync(
+        [FromRoute] Guid lotId, [FromQuery] int? maxDepth, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new GetUpstreamTraceabilityRequest(lotId, maxDepth), cancellationToken));
+
+    [HttpGet("downstream/{lotId:guid}")]
+    public async Task<ActionResult<LotTraceabilityResponse>> DownstreamAsync(
+        [FromRoute] Guid lotId, [FromQuery] int? maxDepth, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new GetDownstreamTraceabilityRequest(lotId, maxDepth), cancellationToken));
 }
