@@ -233,6 +233,17 @@ const pl = {
     empty: 'Brak potwierdzeń dla tego zlecenia',
     positiveQuantityRequired: 'Przynajmniej jedna ilość (dobra lub braków) musi być większa od zera'
   },
+  movements: {
+    title: 'Podgląd ruchów RW / PW',
+    subtitle: 'Planowane przyjęcie wyrobu (PW) i rozchody materiałowe (RW) — bez księgowania stanów magazynowych',
+    type: 'Typ',
+    product: 'Produkt',
+    quantity: 'Ilość',
+    warehouseHint: 'Magazyn (podpowiedź)',
+    empty: 'Brak linii ruchów do wyświetlenia',
+    show: 'Ruchy',
+    perConfirmationTitle: 'Ruchy potwierdzenia'
+  },
   recipes: {
     title: 'Receptury',
     subtitle: 'Definicje procesu wytwarzania produktów',
@@ -464,6 +475,8 @@ const pl = {
     notes: 'Notatki',
     selectMachine: 'Wybierz stanowisko…',
     selectReason: 'Wybierz przyczynę…',
+    order: 'Zlecenie (opcjonalnie)',
+    selectOrder: 'Wybierz zlecenie…',
     status: { open: 'Otwarty', closed: 'Zamknięty' },
     filters: { machine: 'Stanowisko', reason: 'Przyczyna' }
   },
@@ -557,6 +570,8 @@ const pl = {
     notes: 'Uwagi',
     selectMachine: 'Wybierz maszynę…',
     selectReason: 'Wybierz przyczynę…',
+    order: 'Zlecenie (opcjonalnie)',
+    selectOrder: 'Wybierz zlecenie…',
     filters: {
       machine: 'Maszyna',
       reasonCode: 'Kod przyczyny'
@@ -819,6 +834,17 @@ const en: typeof pl = {
     empty: 'No confirmations for this order yet',
     positiveQuantityRequired: 'At least one quantity (good or scrap) must be greater than zero'
   },
+  movements: {
+    title: 'RW / PW movement preview',
+    subtitle: 'Planned finished-goods receipt (PW) and material issues (RW) — no inventory posting',
+    type: 'Type',
+    product: 'Product',
+    quantity: 'Quantity',
+    warehouseHint: 'Warehouse (hint)',
+    empty: 'No movement lines to display',
+    show: 'Movements',
+    perConfirmationTitle: 'Confirmation movements'
+  },
   recipes: {
     title: 'Recipes',
     subtitle: 'Production process definitions',
@@ -1050,6 +1076,8 @@ const en: typeof pl = {
     notes: 'Notes',
     selectMachine: 'Select a work center…',
     selectReason: 'Select a reason…',
+    order: 'Order (optional)',
+    selectOrder: 'Select an order…',
     status: { open: 'Open', closed: 'Closed' },
     filters: { machine: 'Work center', reason: 'Reason' }
   },
@@ -1143,6 +1171,8 @@ const en: typeof pl = {
     notes: 'Notes',
     selectMachine: 'Select a machine…',
     selectReason: 'Select a reason…',
+    order: 'Order (optional)',
+    selectOrder: 'Select an order…',
     filters: {
       machine: 'Machine',
       reasonCode: 'Reason code'

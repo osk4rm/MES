@@ -6,9 +6,10 @@ namespace AsistOff.MES.Production.Domain.Entities;
 
 /// <summary>
 /// A downtime event recorded against a Work Center (Machine), classified by a
-/// reason code. Downtime is a property of the Work Center, independent of any
-/// production order — <see cref="ProductionOrderId"/> is reserved for a future
-/// increment and is never populated here.
+/// reason code. Downtime is a property of the Work Center; the optional
+/// <see cref="ProductionOrderId"/> links it to a Released or InProgress
+/// production order when the stop happened in order context, otherwise it
+/// stays null.
 /// </summary>
 public class DowntimeEvent : IEntity, ISaasy, IAuditable
 {
@@ -30,7 +31,7 @@ public class DowntimeEvent : IEntity, ISaasy, IAuditable
 
     public Guid? ReportedByOperatorId { get; set; }
 
-    /// <summary>Reserved for a future increment — never set in this increment.</summary>
+    /// <summary>Optional link to a Released or InProgress Production Order.</summary>
     public Guid? ProductionOrderId { get; set; }
 
     public DateTime CreatedAt { get; set; }

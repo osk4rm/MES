@@ -74,14 +74,14 @@ public sealed class ScrapEventsEndpointTests(MesApplicationFixture fixture) : In
     }
 
     [Fact]
-    public async Task Create_WithProductionOrderId_Returns400()
+    public async Task Create_WithUnknownProductionOrderId_Returns404()
     {
         using var client = await Fixture.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync(
             BaseUrl, CreatePayload(productionOrderId: Guid.NewGuid()));
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]

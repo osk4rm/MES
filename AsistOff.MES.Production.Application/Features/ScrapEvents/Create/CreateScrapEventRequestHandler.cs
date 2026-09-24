@@ -1,6 +1,7 @@
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.ScrapEvents.Browse;
 using AsistOff.MES.Production.Domain.Entities;
+using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
@@ -10,6 +11,7 @@ namespace AsistOff.MES.Production.Application.Features.ScrapEvents.Create;
 
 internal sealed class CreateScrapEventRequestHandler(
     IScrapEventsRepository repository,
+    IProductionOrdersRepository ordersRepository,
     IGuidProvider guidProvider,
     IDateTimeProvider dateTimeProvider,
     ITenantContext tenantContext)
@@ -32,8 +34,19 @@ internal sealed class CreateScrapEventRequestHandler(
         if (request.ReportedAt.ToUniversalTime() > dateTimeProvider.UtcNow.AddMinutes(1))
             throw new ValidationException(nameof(request.ReportedAt), "Reported at cannot be in the future.");
 
+        Guid? productionOrderId = null;
         if (request.ProductionOrderId.HasValue)
-            throw new ValidationException(nameof(request.ProductionOrderId), "Linking scrap to a production order is not supported in this increment.");
+        {
+            var order = await ordersRepository.GetAsync(request.ProductionOrderId.Value, cancellationToken)
+                ?? throw new NotFoundException("ProductionOrder", request.ProductionOrderId.Value);
+
+            if (order.Status is not (ProductionOrderStatus.Released or ProductionOrderStatus.InProgress))
+                throw new ValidationException(
+                    nameof(request.ProductionOrderId),
+                    "Scrap can only be linked to Released or InProgress orders.");
+
+            productionOrderId = order.Id;
+        }
 
         var scrapEvent = new ScrapEvent
         {
@@ -45,7 +58,7 @@ internal sealed class CreateScrapEventRequestHandler(
             ReportedAt = request.ReportedAt.ToUniversalTime(),
             Notes = request.Notes,
             ReportedByOperatorId = request.ReportedByOperatorId,
-            ProductionOrderId = null,
+            ProductionOrderId = productionOrderId,
             CreatedAt = dateTimeProvider.UtcNow
         };
 
