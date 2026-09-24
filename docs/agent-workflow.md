@@ -411,8 +411,8 @@ Zasady:
   - **Jedna retry-tura przed `ai:blocked`**: implementer bez brancha
     (sesja gwiazdkowana/koniec limitu) zostawia `ai:implement` do ponowienia
     przez sweep (max 2 próby), dopiero potem eskalacja.
-  - `ai:ready` + `gh pr merge` z konfliktem = `ai:changes` (nie `ai:blocked`);
-    tylko nie-konfliktowe błędy mergu idą do człowieka.
+  - **`ai:ready` + `gh pr merge` z konfliktem = `ai:changes` (nie `ai:blocked`);
+    tylko nie-konfliktowe błędy mergu idą do człowieka.**
 - **Ostatni werdykt wygrywa**: fallback werdyktu z komentarzy PR-a bierze
   OSTATNI (`swarm_last_verdict_stdin`), nie „więcej niż jeden = AMBIGUOUS" —
   PR z `CHANGES_REQUESTED` w rundzie 1 i `APPROVED` w rundzie 2 jest
@@ -420,6 +420,17 @@ Zasady:
 - **Red CI wraca do pętli**: `review` nasłuchuje też `workflow_run` z
   `conclusion == failure` — wcześniej czerwone CI po timeoutcie waita
   zostawiało PR w `ai:review` na zawsze.
+- **Auto-approve `action_required`**: push tokenem bota (albo run od Copilota)
+  parkuje `pull_request` CI w `action_required` (mechanizm zgody jak dla
+  forków). `swarm_wait_ci` wykrywa ten stan i sam zatwierdza run przez
+  `POST /actions/runs/{id}/approve` (wymaga `actions: write`).
+  `swarm_use_pat_remote` czyści też `http....extraheader` z checkoutu —
+  bez tego pushe leciały jako `github-actions[bot]` mimo PAT-a w URL.
+- **Sweep leczy zablokowane etapy**: `workflow_run` NIE odpala się dla runów
+  aktora bota, więc „ci-completed retrigger" potrafił nie przyjść i PR stał
+  w `ai:review` z zielonym CI. `swarm_nudge_stuck_prs` (sweep, co 30 min +
+  przy pushu) przebija labela etapu na niezablokowanych PR-ach, gdy CI nie
+  jest w trakcie — etap przelicza się natychmiast.
 - **Samouzupełniająca kolejka**: pusty `ai:implement` + backlog poniżej
   `BACKLOG_MAX=5` + gap w trackerze lub nielabelowany proposal = job `analyst`
   sam startuje `mes-analyst` w CI. Pętla nie staje po wyczerpaniu issuesów;
