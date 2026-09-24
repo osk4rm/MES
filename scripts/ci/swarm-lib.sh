@@ -171,6 +171,26 @@ swarm_oldest_queued_issue() { # -> oldest open ai:implement issue without ai:run
     --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not))] | sort_by(.createdAt) | .[0].number // empty' 2>/dev/null || true
 }
 
+swarm_unlabeled_count() { # open issues with no ai:* label (proposals awaiting spec)
+  gh issue list --state open --limit 100 --json labels \
+    --jq '[.[] | select((.labels | map(.name) | map(select(startswith("ai:"))) | length) == 0)] | length' 2>/dev/null || echo 0
+}
+
+swarm_backlog_count() { # queued ai:implement issues + unlabeled proposals
+  local queued unlabeled
+  queued=$(gh issue list --state open --label ai:implement --json number --jq 'length' 2>/dev/null || echo 0)
+  unlabeled=$(swarm_unlabeled_count)
+  echo $((queued + unlabeled))
+}
+
+swarm_has_actionable_gap() { # 0 when an unlabeled proposal or a tracker gap row exists
+  # Cheap pre-check so the analyst agent only starts when there is real work.
+  if [ "$(swarm_unlabeled_count)" -gt 0 ]; then
+    return 0
+  fi
+  grep -qE '\| *gap *\|' docs/feature-tracker.md 2>/dev/null
+}
+
 swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
   # Mirrors Get-CiState in agent-dispatcher.ps1. No checks at all -> pass.
   local pr="$1" timeout="$2" waited=0 states
