@@ -9,7 +9,8 @@ public class BrowseKanbanCardsRequest
 {
     public Guid? LoopId { get; set; }
     public KanbanCardStatus? Status { get; set; }
-    public List<string> RawSort { get; set; } = new();
+    public List<KanbanCardStatus>? Statuses { get; set; }
+    public List<string> RawSort { get; set; } = ["CardNumber"];
     public IReadOnlyCollection<string> SupportedSortFields { get; } = ["CardNumber", "Status"];
     public int? PageNumber { get; set; } = 1;
     public int? PageSize { get; set; } = 50;
