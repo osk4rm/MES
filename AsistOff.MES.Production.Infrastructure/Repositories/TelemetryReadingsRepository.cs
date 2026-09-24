@@ -64,4 +64,44 @@ internal sealed class TelemetryReadingsRepository(DefaultContext context) : ITel
             .Select(r => r.TagId)
             .Distinct()
             .CountAsync(cancellationToken);
+
+    public async Task<IReadOnlyCollection<TelemetryReading>> BrowseTrendAsync(Guid tagId, int take, CancellationToken cancellationToken = default)
+    {
+        var newestFirst = await context.Set<TelemetryReading>()
+            .Where(x => x.TagId == tagId)
+            .OrderByDescending(x => x.ReadAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        // Charting consumes oldest-first; reversing in memory keeps the
+        // query itself a single TOP(take) scan.
+        newestFirst.Reverse();
+        return newestFirst;
+    }
+
+    public async Task<IReadOnlyCollection<TelemetryReading>> BrowseExportAsync(ExpressionStarter<TelemetryReading> predicate, bool latestOnly, int take, CancellationToken cancellationToken = default)
+    {
+        if (!latestOnly)
+            return await context.Set<TelemetryReading>()
+                .Where(predicate)
+                .OrderByDescending(x => x.ReadAt)
+                .Take(take)
+                .ToListAsync(cancellationToken);
+
+        var filtered = context.Set<TelemetryReading>().Where(predicate);
+        var latestPerTag = filtered
+            .GroupBy(r => r.TagId)
+            .Select(g => new { TagId = g.Key, ReadAt = g.Max(r => r.ReadAt) });
+
+        var query = filtered.Join(
+            latestPerTag,
+            reading => new { reading.TagId, reading.ReadAt },
+            latest => new { latest.TagId, latest.ReadAt },
+            (reading, _) => reading);
+
+        return await query
+            .OrderByDescending(x => x.ReadAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
 }

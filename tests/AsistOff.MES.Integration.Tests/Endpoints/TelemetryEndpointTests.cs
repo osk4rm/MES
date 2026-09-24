@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AsistOff.MES.Integration.Tests.Infrastructure;
 using AsistOff.MES.Integration.Tests.TestData;
@@ -307,6 +308,141 @@ public sealed class TelemetryEndpointTests(MesApplicationFixture fixture) : Inte
         silent.LastReadAt.Should().BeNull();
         silent.Stale.Should().BeFalse();
         silent.ReadingsLastHour.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Trend_WithoutToken_Returns401()
+    {
+        using var client = Fixture.CreateClient();
+
+        var response = await client.GetAsync($"{ReadingsUrl}/trend?tagId={Guid.NewGuid()}&take=10");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Trend_ReturnsAscendingReadings_ForCallerTenantOnly()
+    {
+        // Arrange - three readings submitted newest-last out of order
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var tag = await CreateTagAsync(client);
+        var oldestAt = DateTime.UtcNow.AddMinutes(-30);
+        var middleAt = DateTime.UtcNow.AddMinutes(-20);
+        var newestAt = DateTime.UtcNow.AddMinutes(-10);
+        await SubmitAsync(client, tag.Id, middleAt, 20.0);
+        await SubmitAsync(client, tag.Id, newestAt, 22.5);
+        await SubmitAsync(client, tag.Id, oldestAt, 18.0);
+
+        // Act
+        var response = await client.GetAsync($"{ReadingsUrl}/trend?tagId={tag.Id}&take=50");
+
+        // Assert - at most `take` readings, oldest first
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var trend = await ReadAsync<List<TelemetryReadingDto>>(response);
+        trend.Should().HaveCount(3);
+        trend.Select(r => r.DoubleValue).Should().ContainInOrder(18.0, 20.0, 22.5);
+        trend.Select(r => r.TagId).Should().AllBeEquivalentTo(tag.Id);
+        trend.Select(r => r.ReadAt).Should().BeInAscendingOrder();
+    }
+
+    [Fact]
+    public async Task Trend_TakeIsCapped_AndInvalidTakeReturns400()
+    {
+        // Arrange
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var tag = await CreateTagAsync(client);
+        await SubmitAsync(client, tag.Id, DateTime.UtcNow.AddMinutes(-10), 20.0);
+        await SubmitAsync(client, tag.Id, DateTime.UtcNow.AddMinutes(-5), 21.0);
+
+        // Act - take=1 returns only the newest reading
+        var capped = await client.GetAsync($"{ReadingsUrl}/trend?tagId={tag.Id}&take=1");
+
+        // Assert
+        capped.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadAsync<List<TelemetryReadingDto>>(capped))
+            .Should().ContainSingle().Which.DoubleValue.Should().Be(21.0);
+
+        // Act - take outside 1..200 is rejected
+        var zero = await client.GetAsync($"{ReadingsUrl}/trend?tagId={tag.Id}&take=0");
+        var tooLarge = await client.GetAsync($"{ReadingsUrl}/trend?tagId={tag.Id}&take=201");
+
+        // Assert
+        zero.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        tooLarge.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Trend_UnknownTag_Returns404()
+    {
+        // Arrange
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        // Act
+        var response = await client.GetAsync($"{ReadingsUrl}/trend?tagId={Guid.NewGuid()}&take=10");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Trend_CrossTenantTag_Returns404()
+    {
+        // Arrange - a tag under a brand-new tenant
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var otherTag = await CreateTagAsync(otherTenantClient);
+
+        // Act - requested as the seeded dev tenant
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+        var response = await devClient.GetAsync($"{ReadingsUrl}/trend?tagId={otherTag.Id}&take=10");
+
+        // Assert - the other tenant's tag is invisible, never leaked
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task BrowseCsv_ReturnsTextCsv_WithHeaderRow()
+    {
+        // Arrange
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var tag = await CreateTagAsync(client);
+        await SubmitAsync(client, tag.Id, DateTime.UtcNow.AddMinutes(-5), 21.5);
+        using var csvRequest = new HttpRequestMessage(HttpMethod.Get, $"{ReadingsUrl}?tagId={tag.Id}");
+        csvRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/csv"));
+
+        // Act
+        var response = await client.SendAsync(csvRequest);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("text/csv");
+        var csv = await response.Content.ReadAsStringAsync();
+        var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        lines.Should().HaveCountGreaterThanOrEqualTo(2);
+        lines[0].Trim().Should().Be("Id,TagId,MachineId,ReadAt,DoubleValue,StringValue,Quality");
+        csv.Should().Contain("21.5");
+    }
+
+    [Fact]
+    public async Task BrowseCsv_HonorsTagFilter()
+    {
+        // Arrange - readings on two tags, export filtered to one
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var wanted = await CreateTagAsync(client);
+        var other = await CreateTagAsync(client);
+        await SubmitAsync(client, wanted.Id, DateTime.UtcNow.AddMinutes(-5), 21.5);
+        await SubmitAsync(client, other.Id, DateTime.UtcNow.AddMinutes(-5), 99.9);
+        using var csvRequest = new HttpRequestMessage(HttpMethod.Get, $"{ReadingsUrl}?tagId={wanted.Id}");
+        csvRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/csv"));
+
+        // Act
+        var response = await client.SendAsync(csvRequest);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var csv = await response.Content.ReadAsStringAsync();
+        csv.Should().Contain(wanted.Id.ToString());
+        csv.Should().NotContain(other.Id.ToString());
     }
 
     private static async Task<Guid> CreateMachineAsync(HttpClient client)

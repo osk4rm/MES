@@ -6,6 +6,7 @@
           {{ simulatorEnabled === true ? $t('telemetry.simulator.enabled') : $t('telemetry.simulator.disabled') }}
         </AppBadge>
         <AppButton variant="secondary" icon="pi pi-refresh" @click="refreshAll">{{ $t('common.refresh') }}</AppButton>
+        <AppButton variant="secondary" icon="pi pi-chart-line" @click="goDashboard">{{ $t('telemetryDashboard.title') }}</AppButton>
         <AppButton variant="primary" icon="pi pi-plus" @click="openCreate">{{ $t('telemetry.create') }}</AppButton>
       </template>
     </AppPageHeader>
@@ -172,6 +173,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppFilterBar from '../../components/ui/AppFilterBar.vue';
 import AppInput from '../../components/ui/AppInput.vue';
@@ -204,6 +206,7 @@ import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const { t } = useI18n();
+const router = useRouter();
 const toast = useToastStore();
 
 interface Filters {
@@ -259,6 +262,10 @@ async function fetchStatus(): Promise<void> {
 
 async function refreshAll(): Promise<void> {
   await Promise.all([table.fetch(), fetchStatus()]);
+}
+
+function goDashboard(): void {
+  void router.push('/production/telemetry-dashboard');
 }
 const machineOptions = computed<SelectOption[]>(() =>
   machines.value.map(m => ({ value: m.id, label: `${m.code} — ${m.name}` })));
