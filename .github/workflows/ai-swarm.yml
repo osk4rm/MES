@@ -270,6 +270,9 @@ jobs:
             # refs/pull/N/merge does not exist while the PR conflicts — route
             # to the fixer instead of failing the checkout below.
             swarm_remove_label pr "$PR" ai:review
+            # Drop ai:changes first: a duplicate --add-label is a no-op that emits
+            # no `labeled` event, so the fixer would never wake on a re-route.
+            swarm_remove_label pr "$PR" ai:changes
             swarm_add_label pr "$PR" ai:changes
             swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
             echo "skip=true" >>"$GITHUB_OUTPUT"
@@ -367,6 +370,7 @@ jobs:
           echo "number=$PR" >>"$GITHUB_OUTPUT"
           if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
             swarm_remove_label pr "$PR" ai:verify
+            swarm_remove_label pr "$PR" ai:changes # drop first so re-adding fires the fixer
             swarm_add_label pr "$PR" ai:changes
             swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
             echo "skip=true" >>"$GITHUB_OUTPUT"
@@ -585,6 +589,7 @@ jobs:
           echo "number=$PR" >>"$GITHUB_OUTPUT"
           if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
             swarm_remove_label pr "$PR" ai:e2e
+            swarm_remove_label pr "$PR" ai:changes # drop first so re-adding fires the fixer
             swarm_add_label pr "$PR" ai:changes
             swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
             echo "skip=true" >>"$GITHUB_OUTPUT"
@@ -784,7 +789,7 @@ jobs:
           # Always clean stale locks first — a lost job must not block a slot.
           swarm_cleanup_stale_locks
           # Heal stage PRs whose retrigger event never fired (bot-actor runs
-          # emit no workflow_run) — re-fires ai:review/verify/e2e/ready labels.
+          # emit no workflow_run) — re-fires ai:review/verify/e2e/ready/changes labels.
           swarm_nudge_stuck_prs
           if [ "$(swarm_in_flight_count)" -ge "${MAX_PARALLEL:-3}" ]; then
             echo "at capacity; nothing to sweep"
@@ -841,6 +846,7 @@ jobs:
             swarm_remove_label pr "$PR" ai:ready
             if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
               # Not a human problem: the fixer rebases onto master and resolves.
+              swarm_remove_label pr "$PR" ai:changes # drop first so re-adding fires the fixer
               swarm_add_label pr "$PR" ai:changes
               swarm_say pr "$PR" 'Agent flow (CI): auto-merge hit a conflict with master — back to ai:changes so the fixer can rebase and resolve.'
             else
@@ -886,7 +892,11 @@ jobs:
             echo 'implement queue not empty; nothing to spec'
             exit 0
           fi
-          if [ "$(swarm_backlog_count)" -ge "${BACKLOG_MAX:-5}" ]; then
+          # The cap only limits NET-NEW work the analyst would create from a
+          # tracker gap. Adopting an existing unlabeled proposal is always
+          # allowed — those proposals COUNT toward the backlog, so gating on it
+          # deadlocks refill once the orphans reach BACKLOG_MAX.
+          if [ "$(swarm_unlabeled_count)" -eq 0 ] && [ "$(swarm_backlog_count)" -ge "${BACKLOG_MAX:-5}" ]; then
             echo 'backlog full; nothing to spec'
             exit 0
           fi
