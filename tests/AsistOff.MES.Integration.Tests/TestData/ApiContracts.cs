@@ -315,3 +315,38 @@ public sealed record OeeSnapshotDto(
     decimal TotalCount,
     decimal GoodCount,
     decimal ScrapCount);
+
+/// <summary>Shape of the OEE trend returned by <c>/api/oee/trend</c>.</summary>
+public sealed record OeeTrendDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    decimal IdealCycleTimeSeconds,
+    string Bucket,
+    IReadOnlyCollection<OeeSnapshotDto> Buckets);
+
+/// <summary>Shape of one downtime Pareto row returned by <c>/api/oee/losses</c>.</summary>
+public sealed record DowntimeParetoEntryDto(
+    Guid ReasonCodeId,
+    string? Code,
+    string? DisplayName,
+    double Minutes,
+    double Share);
+
+/// <summary>Shape of one scrap Pareto row returned by <c>/api/oee/losses</c>.</summary>
+public sealed record ScrapParetoEntryDto(
+    Guid ReasonCodeId,
+    string? Code,
+    string? DisplayName,
+    decimal Quantity,
+    double Share);
+
+/// <summary>Shape of the loss Pareto returned by <c>/api/oee/losses</c>.</summary>
+public sealed record OeeLossesDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    double TotalDowntimeMinutes,
+    IReadOnlyCollection<DowntimeParetoEntryDto> DowntimePareto,
+    decimal TotalScrapQuantity,
+    IReadOnlyCollection<ScrapParetoEntryDto> ScrapPareto);
