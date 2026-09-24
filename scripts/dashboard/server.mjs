@@ -122,10 +122,14 @@ async function getState() {
 
   const dispatcher = [...running.values()].find((r) => r.kind === 'dispatcher' && r.exitCode == null) || null
 
+  const queued = pipeline.filter((p) => p.stage === 'queued').length
+  const inFlight = pipeline.filter((p) => labelNames({ labels: p.labels }).includes('ai:running')).length
+
   return {
     root: ROOT,
     branch: branch || '(detached)',
     dirty,
+    queue: { queued, inFlight, limit: 3 },
     pipeline,
     dispatcher: dispatcher
       ? { id: dispatcher.id, pid: dispatcher.pid, startedAt: dispatcher.startedAt, logName: dispatcher.logName }

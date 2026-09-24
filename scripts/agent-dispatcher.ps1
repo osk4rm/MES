@@ -165,16 +165,21 @@ function Add-Comment {
 
 function Get-CiState {
     param($PrNumber)
-    $raw = Invoke-Gh @('pr', 'checks', "$PrNumber", '--json', 'name,state')
-    $checks = $null
-    try { $checks = $raw | ConvertFrom-Json } catch { $checks = @() }
-    if (-not $checks -or @($checks).Count -eq 0) { return 'none' }
-    $states = @($checks | ForEach-Object { $_.state })
-    $fail = @('FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE')
-    $pend = @('PENDING', 'QUEUED', 'IN_PROGRESS', 'STALE', 'EXPECTED')
-    if (@($states | Where-Object { $fail -contains $_ }).Count -gt 0) { return 'fail' }
-    if (@($states | Where-Object { $pend -contains $_ }).Count -gt 0) { return 'pending' }
-    return 'pass'
+    # Mirrors swarm_wait_ci: watches ONLY the `ci` workflow runs for the PR
+    # head SHA. ai-swarm's own check runs are ignored — lock-label churn
+    # spawns no-op runs that queue behind the lock holder, and their pending
+    # checks used to poison this wait into timeouts (self-deadlock).
+    $sha = Invoke-Gh @('pr', 'view', "$PrNumber", '--json', 'headRefOid', '--jq', '.headRefOid')
+    if (-not $sha) { return 'pass' }
+    $raw = Invoke-Gh @('run', 'list', '--workflow', 'ci', '--commit', "$sha", '--limit', '5', '--json', 'status,conclusion')
+    $runs = $null
+    try { $runs = $raw | ConvertFrom-Json } catch { $runs = @() }
+    if (-not $runs -or @($runs).Count -eq 0) { return 'none' }
+    $first = @($runs)[0]  # gh sorts newest-first
+    if ($first.status -ne 'completed') { return 'pending' }
+    if (@('failure', 'timed_out', 'cancelled', 'startup_failure', 'stale') -contains $first.conclusion) { return 'fail' }
+    if (@('success', 'skipped', 'neutral') -contains $first.conclusion) { return 'pass' }
+    return 'pending'  # action_required & co: a human may still approve
 }
 
 # ---------------------------------------------------------------------------

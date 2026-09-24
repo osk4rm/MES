@@ -17,6 +17,10 @@ public static class DependencyInjection
         services.AddScoped<IOperationDependenciesRepository, OperationDependenciesRepository>();
         services.AddScoped<IOperationTemplatesRepository, OperationTemplatesRepository>();
         services.AddScoped<IProductionOrdersRepository, ProductionOrdersRepository>();
+        services.AddScoped<ISpcCharacteristicsRepository, SpcCharacteristicsRepository>();
+        services.AddScoped<IDowntimeEventsRepository, DowntimeEventsRepository>();
+        services.AddScoped<ILotsRepository, LotsRepository>();
+        services.AddScoped<IScrapEventsRepository, ScrapEventsRepository>();
 
         services.AddScoped<IEntityConfigurator, ProductionEntityConfigurator>();
 

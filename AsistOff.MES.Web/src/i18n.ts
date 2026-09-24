@@ -41,7 +41,12 @@ const pl = {
     dashboard: 'Pulpit',
     production: 'Produkcja',
     productionOrders: 'Zlecenia produkcyjne',
+    productionAndon: 'Andon',
     productionRecipes: 'Receptury',
+    productionScrap: 'Braki',
+    spcCharacteristics: 'Charakterystyki SPC',
+    productionDowntime: 'Przestoje',
+    productionLots: 'Partie',
     schedule: 'Harmonogram',
     reports: 'Raporty',
     configuration: 'Konfiguracja',
@@ -53,6 +58,7 @@ const pl = {
     machines: 'Maszyny',
     operators: 'Operatorzy',
     skills: 'Umiejętności',
+    shifts: 'Zmiany',
     reasonCodes: 'Kody przyczyn',
     operationTemplates: 'Wzorcowe operacje',
     settings: 'Ustawienia'
@@ -168,6 +174,7 @@ const pl = {
     code: 'Kod',
     name: 'Nazwa',
     description: 'Opis',
+    calendar: 'Kalendarz',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
   },
   productionOrders: {
@@ -276,6 +283,42 @@ const pl = {
     description: 'Opis',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
   },
+  shifts: {
+    title: 'Zmiany',
+    subtitle: 'Słownik zmian roboczych',
+    create: 'Nowa zmiana',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    startTime: 'Początek',
+    endTime: 'Koniec',
+    isActive: 'Aktywna',
+    overnightHint: 'Zmiana nocna — koniec wypada po północy.',
+    overnightSeparator: '–',
+    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
+  },
+  calendar: {
+    title: 'Kalendarz stanowiska',
+    subtitle: 'Tygodniowe okna pracy',
+    addEntry: 'Dodaj wpis',
+    removeEntry: 'Usuń wpis',
+    empty: 'Brak wpisów — dodaj pierwsze okno pracy.',
+    dayOfWeek: 'Dzień tygodnia',
+    startTime: 'Początek',
+    endTime: 'Koniec',
+    shift: 'Zmiana',
+    noShift: 'Bez zmiany',
+    working: 'Praca',
+    days: {
+      0: 'Niedziela',
+      1: 'Poniedziałek',
+      2: 'Wtorek',
+      3: 'Środa',
+      4: 'Czwartek',
+      5: 'Piątek',
+      6: 'Sobota'
+    }
+  },
   operationTemplates: {
     title: 'Wzorcowe operacje',
     subtitle: 'Szablony do ponownego użycia podczas tworzenia receptur',
@@ -284,6 +327,37 @@ const pl = {
     name: 'Nazwa',
     description: 'Opis',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
+  },
+  andon: {
+    title: 'Andon',
+    subtitle: 'Sygnalizacja stanów awaryjnych na stanowiskach',
+    board: 'Aktywne sygnały',
+    boardEmpty: 'Brak aktywnych sygnałów — produkcja działa normalnie.',
+    raise: 'Zgłoś sygnał',
+    editSignal: 'Edytuj sygnał',
+    resolveSignal: 'Rozwiąż sygnał',
+    acknowledge: 'Potwierdź',
+    resolve: 'Rozwiąż',
+    machine: 'Stanowisko',
+    category: 'Kategoria',
+    raisedAt: 'Czas zgłoszenia',
+    resolvedAt: 'Czas rozwiązania',
+    notes: 'Uwagi',
+    filters: {
+      machine: 'Stanowisko',
+      category: 'Kategoria'
+    },
+    categories: {
+      1: 'Przestój',
+      2: 'Jakość',
+      3: 'Materiał',
+      4: 'Inne'
+    },
+    statuses: {
+      1: 'Aktywny',
+      2: 'Potwierdzony',
+      3: 'Rozwiązany'
+    }
   },
   reasonCodes: {
     title: 'Kody przyczyn',
@@ -307,6 +381,104 @@ const pl = {
       3: 'Jakość',
       4: 'Przygotowanie',
       5: 'Inne'
+    }
+  },
+  spcCharacteristics: {
+    title: 'Charakterystyki SPC',
+    subtitle: 'Słownik charakterystyk jakości ze specyfikacją i granicami kontrolnymi',
+    create: 'Nowa charakterystyka',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    chartType: 'Typ karty',
+    nominalValue: 'Wartość nominalna',
+    lowerSpecLimit: 'Dolna granica specyfikacji (LSL)',
+    upperSpecLimit: 'Górna granica specyfikacji (USL)',
+    lowerControlLimit: 'Dolna granica kontrolna (LCL)',
+    upperControlLimit: 'Górna granica kontrolna (UCL)',
+    sampleSize: 'Liczebność próbki',
+    unit: 'Jednostka',
+    product: 'Produkt',
+    machine: 'Stanowisko',
+    isActive: 'Aktywna',
+    filters: {
+      search: 'Szukaj po kodzie lub nazwie…',
+      product: 'Produkt',
+      machine: 'Stanowisko',
+      status: 'Status'
+    },
+    chartTypes: {
+      1: 'X-śr / R',
+      2: 'X-śr / S',
+      3: 'X / MR',
+      4: 'Karta p',
+      5: 'Karta c'
+  downtime: {
+    title: 'Przestoje',
+    subtitle: 'Zdarzenia przestojów stanowisk z kodami przyczyn',
+    start: 'Rozpocznij przestój',
+    close: 'Zamknij',
+    closeTitle: 'Zamknięcie przestoju',
+    machine: 'Stanowisko',
+    reasonCode: 'Kod przyczyny',
+    startedAt: 'Początek',
+    endedAt: 'Koniec',
+    duration: 'Czas trwania',
+    minutes: 'min',
+    notes: 'Notatki',
+    selectMachine: 'Wybierz stanowisko…',
+    selectReason: 'Wybierz przyczynę…',
+    status: { open: 'Otwarty', closed: 'Zamknięty' },
+    filters: { machine: 'Stanowisko', reason: 'Przyczyna' }
+  lots: {
+    title: 'Partie',
+    subtitle: 'Rejestr partii do śledzenia i identyfikacji',
+    create: 'Nowa partia',
+    code: 'Kod',
+    productId: 'ID produktu',
+    measureUnitId: 'ID jednostki',
+    quantity: 'Ilość',
+    supplierLotNumber: 'Numer partii dostawcy',
+    producedAt: 'Data produkcji',
+    expiryDate: 'Data ważności',
+    notes: 'Uwagi',
+    scan: 'Szukaj',
+    scanPlaceholder: 'Zeskanuj lub wpisz kod partii…',
+    scanHit: 'Znaleziono partię {code}',
+    filters: {
+      code: 'Kod zawiera…',
+      product: 'ID produktu…',
+      status: 'Status',
+      expiryFrom: 'Ważność od',
+      expiryTo: 'Ważność do'
+    },
+    statuses: {
+      1: 'Dostępna',
+      2: 'Wstrzymana',
+      3: 'Zużyta',
+      4: 'Złomowana',
+      5: 'Przeterminowana'
+    },
+    actions: {
+      hold: 'Wstrzymaj',
+      release: 'Przywróć',
+      scrap: 'Złomuj'
+    }
+  },
+  scrap: {
+    title: 'Braki',
+    subtitle: 'Ewidencja braków ze stanowisk z kodami przyczyn',
+    report: 'Zgłoś brak',
+    machine: 'Maszyna',
+    reasonCode: 'Kod przyczyny',
+    quantity: 'Ilość',
+    reportedAt: 'Data zgłoszenia',
+    notes: 'Uwagi',
+    selectMachine: 'Wybierz maszynę…',
+    selectReason: 'Wybierz przyczynę…',
+    filters: {
+      machine: 'Maszyna',
+      reasonCode: 'Kod przyczyny'
     }
   },
   scanBy: { 1: 'EAN', 2: 'Kod' },
@@ -374,7 +546,12 @@ const en: typeof pl = {
     dashboard: 'Dashboard',
     production: 'Production',
     productionOrders: 'Production orders',
+    productionAndon: 'Andon',
     productionRecipes: 'Recipes',
+    productionScrap: 'Scrap',
+    spcCharacteristics: 'SPC characteristics',
+    productionDowntime: 'Downtime',
+    productionLots: 'Lots',
     schedule: 'Schedule',
     reports: 'Reports',
     configuration: 'Configuration',
@@ -386,6 +563,7 @@ const en: typeof pl = {
     machines: 'Machines',
     operators: 'Operators',
     skills: 'Skills',
+    shifts: 'Shifts',
     reasonCodes: 'Reason codes',
     operationTemplates: 'Operation templates',
     settings: 'Settings'
@@ -501,6 +679,7 @@ const en: typeof pl = {
     code: 'Code',
     name: 'Name',
     description: 'Description',
+    calendar: 'Calendar',
     filters: { code: 'Code contains…', name: 'Name contains…' }
   },
   productionOrders: {
@@ -609,6 +788,42 @@ const en: typeof pl = {
     description: 'Description',
     filters: { code: 'Code contains…', name: 'Name contains…' }
   },
+  shifts: {
+    title: 'Shifts',
+    subtitle: 'Working-time dictionary',
+    create: 'New shift',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    startTime: 'Start',
+    endTime: 'End',
+    isActive: 'Active',
+    overnightHint: 'Overnight shift — ends after midnight.',
+    overnightSeparator: '–',
+    filters: { code: 'Code contains…', name: 'Name contains…' }
+  },
+  calendar: {
+    title: 'Work center calendar',
+    subtitle: 'Weekly working windows',
+    addEntry: 'Add entry',
+    removeEntry: 'Remove entry',
+    empty: 'No entries — add the first working window.',
+    dayOfWeek: 'Day of week',
+    startTime: 'Start',
+    endTime: 'End',
+    shift: 'Shift',
+    noShift: 'No shift',
+    working: 'Working',
+    days: {
+      0: 'Sunday',
+      1: 'Monday',
+      2: 'Tuesday',
+      3: 'Wednesday',
+      4: 'Thursday',
+      5: 'Friday',
+      6: 'Saturday'
+    }
+  },
   operationTemplates: {
     title: 'Operation templates',
     subtitle: 'Reusable templates for recipe operations',
@@ -617,6 +832,37 @@ const en: typeof pl = {
     name: 'Name',
     description: 'Description',
     filters: { code: 'Code contains…', name: 'Name contains…' }
+  },
+  andon: {
+    title: 'Andon',
+    subtitle: 'Work-center abnormal condition signals',
+    board: 'Active signals',
+    boardEmpty: 'No active signals — production is running normally.',
+    raise: 'Raise signal',
+    editSignal: 'Edit signal',
+    resolveSignal: 'Resolve signal',
+    acknowledge: 'Acknowledge',
+    resolve: 'Resolve',
+    machine: 'Work center',
+    category: 'Category',
+    raisedAt: 'Raised at',
+    resolvedAt: 'Resolved at',
+    notes: 'Notes',
+    filters: {
+      machine: 'Work center',
+      category: 'Category'
+    },
+    categories: {
+      1: 'Downtime',
+      2: 'Quality',
+      3: 'Material',
+      4: 'Other'
+    },
+    statuses: {
+      1: 'Active',
+      2: 'Acknowledged',
+      3: 'Resolved'
+    }
   },
   reasonCodes: {
     title: 'Reason codes',
@@ -641,6 +887,105 @@ const en: typeof pl = {
       4: 'Setup',
       5: 'Other'
     }
+  },
+  spcCharacteristics: {
+    title: 'SPC characteristics',
+    subtitle: 'Quality characteristic dictionary with spec and control limits',
+    create: 'New characteristic',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    chartType: 'Chart type',
+    nominalValue: 'Nominal value',
+    lowerSpecLimit: 'Lower spec limit (LSL)',
+    upperSpecLimit: 'Upper spec limit (USL)',
+    lowerControlLimit: 'Lower control limit (LCL)',
+    upperControlLimit: 'Upper control limit (UCL)',
+    sampleSize: 'Sample size',
+    unit: 'Unit',
+    product: 'Product',
+    machine: 'Work center',
+    isActive: 'Active',
+    filters: {
+      search: 'Search by code or name…',
+      product: 'Product',
+      machine: 'Work center',
+      status: 'Status'
+    },
+    chartTypes: {
+      1: 'X-bar / R',
+      2: 'X-bar / S',
+      3: 'X / MR',
+      4: 'p-chart',
+      5: 'c-chart'
+  downtime: {
+    title: 'Downtime',
+    subtitle: 'Work-center downtime events with reason codes',
+    start: 'Start downtime',
+    close: 'Close',
+    closeTitle: 'Close downtime event',
+    machine: 'Work center',
+    reasonCode: 'Reason code',
+    startedAt: 'Started at',
+    endedAt: 'Ended at',
+    duration: 'Duration',
+    minutes: 'min',
+    notes: 'Notes',
+    selectMachine: 'Select a work center…',
+    selectReason: 'Select a reason…',
+    status: { open: 'Open', closed: 'Closed' },
+    filters: { machine: 'Work center', reason: 'Reason' }
+  lots: {
+    title: 'Lots',
+    subtitle: 'Lot registry for traceability and lookup',
+    create: 'New lot',
+    code: 'Code',
+    productId: 'Product ID',
+    measureUnitId: 'Measure unit ID',
+    quantity: 'Quantity',
+    supplierLotNumber: 'Supplier lot number',
+    producedAt: 'Produced at',
+    expiryDate: 'Expiry date',
+    notes: 'Notes',
+    scan: 'Look up',
+    scanPlaceholder: 'Scan or enter a lot code…',
+    scanHit: 'Found lot {code}',
+    filters: {
+      code: 'Code contains…',
+      product: 'Product ID…',
+      status: 'Status',
+      expiryFrom: 'Expiry from',
+      expiryTo: 'Expiry to'
+    },
+    statuses: {
+      1: 'Available',
+      2: 'On hold',
+      3: 'Consumed',
+      4: 'Scrapped',
+      5: 'Expired'
+    },
+    actions: {
+      hold: 'Hold',
+      release: 'Release',
+      scrap: 'Scrap'
+    }
+  },
+  scrap: {
+    title: 'Scrap',
+    subtitle: 'Work-center scrap records with reason codes',
+    report: 'Report scrap',
+    machine: 'Machine',
+    reasonCode: 'Reason code',
+    quantity: 'Quantity',
+    reportedAt: 'Reported at',
+    notes: 'Notes',
+    selectMachine: 'Select a machine…',
+    selectReason: 'Select a reason…',
+    filters: {
+      machine: 'Machine',
+      reasonCode: 'Reason code'
+    }
+  },
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
   stubs: {

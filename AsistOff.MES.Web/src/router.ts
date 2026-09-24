@@ -15,8 +15,14 @@ const routes: RouteRecordRaw[] = [
       { path: 'dashboard', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
       { path: 'production', redirect: '/production/orders' },
       { path: 'production/orders', name: 'production-orders', component: () => import('./views/production/ProductionOrdersView.vue'), meta: { titleKey: 'nav.productionOrders', icon: 'pi pi-list' } },
+      { path: 'production/orders', name: 'production-orders', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.productionOrders', icon: 'pi pi-list' } },
+      { path: 'production/scrap', name: 'production-scrap', component: () => import('./views/production/ScrapView.vue'), meta: { titleKey: 'nav.productionScrap', icon: 'pi pi-trash' } },
+      { path: 'production/andon', name: 'production-andon', component: () => import('./views/production/AndonView.vue'), meta: { titleKey: 'nav.productionAndon', icon: 'pi pi-bell' } },
       { path: 'production/recipes', name: 'production-recipes', component: () => import('./views/production/RecipesView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
       { path: 'production/recipes/:id', name: 'recipe-detail', component: () => import('./views/production/RecipeDetailView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
+      { path: 'production/spc-characteristics', name: 'spc-characteristics', component: () => import('./views/production/SpcCharacteristicsView.vue'), meta: { titleKey: 'nav.spcCharacteristics', icon: 'pi pi-chart-line' } },
+      { path: 'production/downtime', name: 'production-downtime', component: () => import('./views/production/DowntimeView.vue'), meta: { titleKey: 'nav.productionDowntime', icon: 'pi pi-pause-circle' } },
+      { path: 'production/lots', name: 'production-lots', component: () => import('./views/production/LotsView.vue'), meta: { titleKey: 'nav.productionLots', icon: 'pi pi-box' } },
       { path: 'schedule', name: 'schedule', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.schedule', icon: 'pi pi-calendar' } },
       { path: 'reports', name: 'reports', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.reports', icon: 'pi pi-chart-bar' } },
       { path: 'settings', name: 'settings', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.settings', icon: 'pi pi-cog' } },
@@ -32,6 +38,7 @@ const routes: RouteRecordRaw[] = [
           { path: 'machines', name: 'machines', component: () => import('./views/configuration/MachinesView.vue') },
           { path: 'operators', name: 'operators', component: () => import('./views/configuration/OperatorsView.vue') },
           { path: 'skills', name: 'skills', component: () => import('./views/configuration/SkillsView.vue') },
+          { path: 'shifts', name: 'shifts', component: () => import('./views/configuration/ShiftsView.vue') },
           { path: 'reason-codes', name: 'reason-codes', component: () => import('./views/configuration/ReasonCodesView.vue') },
           { path: 'operation-templates', name: 'operation-templates', component: () => import('./views/configuration/OperationTemplatesView.vue') }
         ]

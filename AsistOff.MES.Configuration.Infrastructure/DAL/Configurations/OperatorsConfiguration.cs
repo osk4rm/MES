@@ -26,7 +26,8 @@ public class OperatorsConfiguration : IEntityTypeConfiguration<Operator>
         builder.HasOne(x => x.Department)
             .WithMany(x => x.Operators)
             .HasForeignKey(x => x.DepartmentId)
-            .IsRequired();
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
         
         builder.HasIndex(x => new { x.TenantId, x.Identifier }, "IX_Employees_TenantId_Identifier").IsUnique();
         builder.HasIndex(x => x.DepartmentId, "IX_Employees_DepartmentId");

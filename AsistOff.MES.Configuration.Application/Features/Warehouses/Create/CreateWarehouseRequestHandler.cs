@@ -2,6 +2,7 @@
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -18,11 +19,14 @@ internal sealed class CreateWarehouseRequestHandler(
     public async Task<WarehouseResult> Handle(CreateWarehouseRequest request,
         CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Name))
+            throw new ValidationException(nameof(request.Name), "Name is required.");
+
         var warehouse = new Warehouse
         {
             Id = guidProvider.NewGuid(),
             Name = request.Name,
-            SyncId = request.SyncId,
+            SyncId = string.IsNullOrWhiteSpace(request.SyncId) ? null : request.SyncId,
             TenantId = tenantContext.TenantId
         };
 

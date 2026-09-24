@@ -14,6 +14,7 @@
         </AppButton>
       </div>
     </div>
+    <p v-if="releaseError" class="rv-editor__error" role="alert">{{ releaseError }}</p>
 
     <div class="rv-editor__layout">
       <aside class="rv-editor__sidebar">
@@ -334,6 +335,7 @@ const { t } = useI18n();
 const toast = useToastStore();
 
 const releasing = ref(false);
+const releaseError = ref<string | null>(null);
 
 // ─── lookup data ──────────────────────────────────────────────────────────────
 const products = ref<ProductResponse[]>([]);
@@ -533,12 +535,15 @@ async function deleteOperation() {
 // release
 async function releaseVersion() {
   releasing.value = true;
+  releaseError.value = null;
   try {
     await recipeVersionService.release(props.version.id);
     toast.success(t('recipes.detail.releasedToast'));
     emit('refresh');
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    const message = extractErrorMessage(err, t('errors.saveFailed'));
+    releaseError.value = message;
+    toast.error(message);
   } finally {
     releasing.value = false;
   }
@@ -795,6 +800,7 @@ async function removeResource(id: string) {
 .rv-editor__title { display: flex; align-items: center; gap: var(--space-2); }
 .rv-editor__title h2 { margin: 0; font-size: 1.25rem; }
 .rv-editor__actions { display: flex; gap: var(--space-2); }
+.rv-editor__error { margin: 0; padding: var(--space-2) var(--space-4); color: var(--color-danger, #b91c1c); background: color-mix(in srgb, var(--color-danger, #b91c1c) 8%, transparent); border-bottom: 1px solid var(--color-border, #e5e7eb); font-size: 0.9rem; }
 .rv-editor__layout { display: grid; grid-template-columns: 260px 1fr; min-height: 500px; }
 .rv-editor__sidebar { border-right: 1px solid var(--color-border, #e5e7eb); padding: var(--space-3); }
 .rv-editor__sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }

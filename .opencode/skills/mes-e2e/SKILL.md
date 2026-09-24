@@ -5,6 +5,14 @@ description: Use when the mes-e2e-tester agent runs Playwright smoke tests for a
 
 # MES end-to-end smoke testing
 
+## Prerequisites (single source of truth)
+
+Local DB + stack setup lives in **`docs/e2e-local-setup.md`** — read it first.
+One-command DB: `docker compose up -d postgres` (mes / admin / root on
+`localhost:5432`). Without it the backend exits at migration time and the
+verdict is `E2E_BLOCKED`. `postgres__connectionString` env overrides user
+secrets by design.
+
 ## Environment
 
 | Thing | Value |
