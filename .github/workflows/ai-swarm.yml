@@ -373,6 +373,7 @@ jobs:
           fi
           git config user.name 'MES Agent Swarm'
           git config user.email 'mes-swarm@users.noreply.github.com'
+          swarm_use_pat_remote "${{ secrets.SWARM_PAT }}"
           HEAD_REF=$(gh pr view "$PR" --json headRefName --jq .headRefName)
           git fetch origin "$HEAD_REF"
           git checkout "$HEAD_REF"

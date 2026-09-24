@@ -358,6 +358,16 @@ Zasady:
   (badge „kolejka"). Lokalny dyspozytor limitu nie egzekwuje — to rola CI.
 - **Auto-merge**: `ai:ready` + zielone CI = squash-merge z kasowaniem brancha,
   bez człowieka. Dashboard pokazuje `ready` do momentu mergu.
+- **Fast-path dla docs-only**: review `APPROVED` + diff tylko `docs/**`/`*.md`
+  = prosto do `ai:ready` (bez verify/e2e — nie ma runtime'u do testowania).
+- **Puszujący to współpracownik, nie bot**: joby implement/fix przepinają
+  `origin` na `SWARM_PAT`, bo push tokenem `GITHUB_TOKEN` (aktor
+  `github-actions[bot]`) zawiesza każdy run CI w `action_required`
+  (wymaga kliknięcia approve) i pętla fixów nigdy nie widzi zielonego.
+- **Czekanie na CI patrzy tylko na workflow `ci`** dla head SHA danego PR-a.
+  Własne checki `ai-swarm` są ignorowane — szum z labelki-locka potrafił
+  stworzyć kolejkujący się no-op run, którego pending zatruwał wait
+  (samozakleszczenie kończące się timeoutem i demotowaniem `ai:ready`).
 - **Samouzupełniająca kolejka**: pusty `ai:implement` + backlog poniżej
   `BACKLOG_MAX=5` + gap w trackerze lub nielabelowany proposal = job `analyst`
   sam startuje `mes-analyst` w CI. Pętla nie staje po wyczerpaniu issuesów;
