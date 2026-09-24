@@ -52,20 +52,26 @@ permissions:
   checks: read
   actions: write # approve bot-triggered ci runs stuck in action_required
 
+# Label name is part of the group so ai:review and ai:verify can run together.
+# Same label on the same item still queues (cancel-in-progress: false).
 concurrency:
-  group: ai-swarm-${{ github.event.issue.number || github.event.pull_request.number || inputs.number || github.run_id }}
+  group: ai-swarm-${{ github.event.issue.number || github.event.pull_request.number || inputs.number || github.event.workflow_run.head_sha || github.run_id }}-${{ github.event.label.name || github.event_name }}
   cancel-in-progress: false
 
 env:
   MAX_ROUNDS: '3'
   MAX_PARALLEL: '3'
   BACKLOG_MAX: '5'
+  QUEUE_TARGET: '2'
   STALE_LOCK_MINUTES: '45'
   # Prefer a user PAT so bot-opened PRs are authored by a collaborator and skip
   # the public-repo approval gate (without it every bot PR stalls on approve,
   # and approved runs do not emit workflow_run events). Falls back to the
   # automatic token when the secret is absent.
   GH_TOKEN: ${{ secrets.SWARM_PAT || secrets.GITHUB_TOKEN }}
+  # Approve action_required ci runs. SWARM_PAT has no Actions scope; this token
+  # does (permissions.actions: write). Do not point gh itself at it.
+  ACTIONS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
 
 jobs:
@@ -89,17 +95,11 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+          cache: true
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-      - name: Install opencode
-        run: |
-          if ! command -v opencode >/dev/null 2>&1; then
-            curl -fsSL https://opencode.ai/install | bash
-            # GITHUB_PATH applies to the NEXT step only; export now for this one.
-            export PATH="$HOME/.opencode/bin:$PATH"
-          fi
-          opencode --version
+      - uses: ./.github/actions/setup-opencode
       - name: Implement and open PR
         run: |
           # shellcheck disable=SC1091
@@ -130,7 +130,7 @@ jobs:
           git config user.email 'mes-swarm@users.noreply.github.com'
           swarm_use_pat_remote "${{ secrets.SWARM_PAT }}"
           swarm_run_agent mes-implementer \
-            "Implement GitHub issue #$ISSUE. Read it with 'gh issue view $ISSUE --comments'. Follow AGENT.md and the area instructions. Write tests and verify with 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build' only — do NOT start the application, any database or docker (that burned whole sessions; Playwright e2e runs in a later pipeline stage). Push branch ai/issue-$ISSUE-<slug> and open a PR that closes #$ISSUE. Keep the branch current with master: before the final push run 'git fetch origin master && git merge origin/master' and resolve any conflicts (never leave conflict markers; never hand-merge Migrations/DefaultContextModelSnapshot.cs — regenerate the migration with 'dotnet ef migrations remove/add --project AsistOff.MES.Shared.Infrastructure --startup-project AsistOff.MES.Gateway --context DefaultContext'; in i18n.ts, sitemap.ts and ApiContracts.cs keep the union of both sides). Do not add or remove ai:* labels." \
+            "Implement GitHub issue #$ISSUE. Read it with 'gh issue view $ISSUE --comments'. Follow AGENT.md and the area instructions. Write unit tests AND endpoint integration tests, but only RUN 'dotnet build AsistOff.MES.sln', 'dotnet test tests/AsistOff.MES.Shared.Tests' and 'npm --prefix AsistOff.MES.Web run build'. Do NOT run tests/AsistOff.MES.Integration.Tests and do NOT start the application, any database or docker (CI runs integration tests; Playwright e2e is a later stage). Push branch ai/issue-$ISSUE-<slug> and open a PR that closes #$ISSUE. Keep the branch current with master: before the final push run 'git fetch origin master && git merge origin/master' and resolve any conflicts (never leave conflict markers; never hand-merge Migrations/DefaultContextModelSnapshot.cs — regenerate the migration with 'dotnet ef migrations remove/add --project AsistOff.MES.Shared.Infrastructure --startup-project AsistOff.MES.Gateway --context DefaultContext'; in i18n.ts, sitemap.ts and ApiContracts.cs keep the union of both sides). Do not add or remove ai:* labels." \
             implement.log
           BRANCH=$(swarm_branch_for_issue "$ISSUE")
           if [ -n "$BRANCH" ]; then
@@ -211,8 +211,8 @@ jobs:
             gh pr ready "$PR" >/dev/null
           fi
           swarm_remove_label issue "$ISSUE" ai:implement
-          swarm_add_label pr "$PR" ai:review
-          echo "PR #$PR -> ai:review"
+          swarm_open_gates "$PR"
+          echo "PR #$PR gates opened"
 
   # -------------------------------------------------------------------- review
   review:
@@ -270,27 +270,24 @@ jobs:
             # refs/pull/N/merge does not exist while the PR conflicts — route
             # to the fixer instead of failing the checkout below.
             swarm_remove_label pr "$PR" ai:review
-            # Drop ai:changes first: a duplicate --add-label is a no-op that emits
-            # no `labeled` event, so the fixer would never wake on a re-route.
-            swarm_remove_label pr "$PR" ai:changes
-            swarm_add_label pr "$PR" ai:changes
+            swarm_refire_label pr "$PR" ai:changes
             swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
             echo "skip=true" >>"$GITHUB_OUTPUT"
+          elif [ -n "$PR" ] && swarm_success_covers_head "$PR" APPROVED 'APPROVED|CHANGES_REQUESTED'; then
+            state=$(swarm_ci_state_once "$PR")
+            if [ "$state" = pass ] || [ "$state" = none ]; then
+              echo 'APPROVED covers this head SHA and CI is green; skipping reviewer'
+              swarm_after_review_approved "$PR"
+              echo "skip=true" >>"$GITHUB_OUTPUT"
+            fi
           fi
       - uses: actions/checkout@v6
         if: steps.pr.outputs.skip != 'true'
         with:
           repository: ${{ github.repository }}
           ref: refs/pull/${{ steps.pr.outputs.number }}/merge
-      - name: Install opencode
+      - uses: ./.github/actions/setup-opencode
         if: steps.pr.outputs.skip != 'true'
-        run: |
-          if ! command -v opencode >/dev/null 2>&1; then
-            curl -fsSL https://opencode.ai/install | bash
-            # GITHUB_PATH applies to the NEXT step only; export now for this one.
-            export PATH="$HOME/.opencode/bin:$PATH"
-          fi
-          opencode --version
       - name: Wait for CI, then review
         if: steps.pr.outputs.skip != 'true'
         run: |
@@ -302,20 +299,36 @@ jobs:
             echo 'Draft PR; skipping.'
             exit 0
           fi
-          # Lost race for the lock: exit green — the holder does the work.
-          # (A lock with no live run behind it is cleared by a human removing ai:running.)
-          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
-          swarm_auto_release pr "$PR"
-          CI=$(swarm_wait_ci "$PR" 600)
+          # Read-only stage: do not take ai:running. That lock is for mutating
+          # jobs and used to burn a MAX_PARALLEL slot during the CI wait, and
+          # it blocked the parallel verify job.
+          CI=$(swarm_wait_ci "$PR" 600 | tail -n 1)
           echo "ci=$CI"
-          if [ "$CI" = fail ]; then
-            swarm_remove_label pr "$PR" ai:review
-            swarm_add_label pr "$PR" ai:changes
-            swarm_say pr "$PR" 'Agent flow (CI): CI is red — implementer will fix (see failing checks).'
-            exit 0
-          fi
-          if [ "$CI" = timeout ]; then
-            swarm_say pr "$PR" 'Agent flow (CI): CI was still pending after 10m; keeping ai:review. The ci-completed event will retrigger this job.'
+          case "$CI" in
+            fail)
+              swarm_remove_label pr "$PR" ai:review
+              swarm_remove_label pr "$PR" ai:verify
+              swarm_refire_label pr "$PR" ai:changes
+              swarm_say pr "$PR" 'Agent flow (CI): CI is red — implementer will fix (see failing checks).'
+              exit 0
+              ;;
+            approval)
+              swarm_block_for_approval "$PR" ai:review
+              exit 0
+              ;;
+            timeout)
+              swarm_say pr "$PR" 'Agent flow (CI): CI was still pending after 10m; keeping ai:review. The ci-completed event will retrigger this job.'
+              exit 0
+              ;;
+            pass) ;;
+            *)
+              swarm_say pr "$PR" "Agent flow (CI): unexpected CI state '$CI'; keeping ai:review."
+              exit 0
+              ;;
+          esac
+          if swarm_success_covers_head "$PR" APPROVED 'APPROVED|CHANGES_REQUESTED'; then
+            echo 'APPROVED already covers this head SHA; skipping reviewer'
+            swarm_after_review_approved "$PR"
             exit 0
           fi
           swarm_run_agent mes-reviewer \
@@ -325,20 +338,16 @@ jobs:
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
             VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'APPROVED|CHANGES_REQUESTED')
           fi
-          swarm_remove_label pr "$PR" ai:review
           case "$VERDICT" in
-            APPROVED)
-              # Docs-only fast-path (e.g. tracker sync): no runtime to verify
-              # or smoke-test, so skip verify/e2e straight to ai:ready.
-              if swarm_is_docs_only "$PR"; then
-                swarm_add_label pr "$PR" ai:ready
-                swarm_say pr "$PR" 'Agent flow (CI): review APPROVED and the diff is docs-only — skipping verify/e2e straight to ai:ready.'
-                echo '-> ai:ready (docs-only fast-path)'
-              else
-                swarm_add_label pr "$PR" ai:verify; echo '-> ai:verify'
-              fi ;;
-            CHANGES_REQUESTED) swarm_add_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
+            APPROVED) swarm_after_review_approved "$PR" ;;
+            CHANGES_REQUESTED)
+              swarm_remove_label pr "$PR" ai:review
+              swarm_remove_label pr "$PR" ai:verify
+              swarm_refire_label pr "$PR" ai:changes
+              echo '-> ai:changes'
+              ;;
             *)
+              swarm_remove_label pr "$PR" ai:review
               swarm_add_label pr "$PR" ai:blocked
               swarm_say pr "$PR" 'Agent flow (CI): reviewer produced no unambiguous verdict. Needs human attention.'
               exit 1
@@ -370,9 +379,12 @@ jobs:
           echo "number=$PR" >>"$GITHUB_OUTPUT"
           if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
             swarm_remove_label pr "$PR" ai:verify
-            swarm_remove_label pr "$PR" ai:changes # drop first so re-adding fires the fixer
-            swarm_add_label pr "$PR" ai:changes
+            swarm_refire_label pr "$PR" ai:changes
             swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+          elif swarm_success_covers_head "$PR" TESTS_SOUND 'TESTS_SOUND|TESTS_INSUFFICIENT'; then
+            echo 'TESTS_SOUND covers this head SHA; skipping verifier'
+            swarm_after_verify_sound "$PR"
             echo "skip=true" >>"$GITHUB_OUTPUT"
           fi
       - uses: actions/checkout@v6
@@ -381,20 +393,16 @@ jobs:
           repository: ${{ github.repository }}
           ref: refs/pull/${{ steps.pr.outputs.number }}/merge
       - uses: actions/setup-dotnet@v5
+        if: steps.pr.outputs.skip != 'true'
         with:
           dotnet-version: '10.0.x'
+          cache: true
       - uses: actions/setup-node@v6
+        if: steps.pr.outputs.skip != 'true'
         with:
           node-version: 20
-      - name: Install opencode
+      - uses: ./.github/actions/setup-opencode
         if: steps.pr.outputs.skip != 'true'
-        run: |
-          if ! command -v opencode >/dev/null 2>&1; then
-            curl -fsSL https://opencode.ai/install | bash
-            # GITHUB_PATH applies to the NEXT step only; export now for this one.
-            export PATH="$HOME/.opencode/bin:$PATH"
-          fi
-          opencode --version
       - name: Verify tests prove the acceptance criteria
         if: steps.pr.outputs.skip != 'true'
         run: |
@@ -402,10 +410,11 @@ jobs:
           source "$RUNNER_TEMP/swarm-lib.sh"
           PR='${{ steps.pr.outputs.number }}'
           swarm_require_auth
-          # Lost race for the lock: exit green — the holder does the work.
-          # (A lock with no live run behind it is cleared by a human removing ai:running.)
-          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
-          swarm_auto_release pr "$PR"
+          if swarm_success_covers_head "$PR" TESTS_SOUND 'TESTS_SOUND|TESTS_INSUFFICIENT'; then
+            echo 'TESTS_SOUND already covers this head SHA; skipping verifier'
+            swarm_after_verify_sound "$PR"
+            exit 0
+          fi
           swarm_run_agent mes-verifier \
             "Verify that the tests in PR #$PR genuinely prove the acceptance criteria. Read-only audit: inspect the diff with 'gh pr diff $PR', map each criterion to the test(s) that prove it, check for weakened tests. DO NOT write files, commit, or push. Post the report with 'gh pr comment $PR' ending with exactly one verdict on its own line: 'VERDICT: TESTS_SOUND' or 'VERDICT: TESTS_INSUFFICIENT'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
             verify.log
@@ -413,14 +422,16 @@ jobs:
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
             VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'TESTS_SOUND|TESTS_INSUFFICIENT')
           fi
-          swarm_remove_label pr "$PR" ai:verify
           case "$VERDICT" in
-            TESTS_SOUND) swarm_add_label pr "$PR" ai:e2e; echo '-> ai:e2e' ;;
+            TESTS_SOUND) swarm_after_verify_sound "$PR" ;;
             TESTS_INSUFFICIENT)
-              swarm_add_label pr "$PR" ai:changes
+              swarm_remove_label pr "$PR" ai:verify
+              swarm_remove_label pr "$PR" ai:review
+              swarm_refire_label pr "$PR" ai:changes
               swarm_say pr "$PR" 'Agent flow (CI): verifier found untested criteria or weakened tests (see verification report). Implementer must add real tests.'
               ;;
             *)
+              swarm_remove_label pr "$PR" ai:verify
               swarm_add_label pr "$PR" ai:blocked
               swarm_say pr "$PR" 'Agent flow (CI): verifier produced no unambiguous verdict. Needs human attention.'
               exit 1
@@ -465,17 +476,11 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+          cache: true
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-      - name: Install opencode
-        run: |
-          if ! command -v opencode >/dev/null 2>&1; then
-            curl -fsSL https://opencode.ai/install | bash
-            # GITHUB_PATH applies to the NEXT step only; export now for this one.
-            export PATH="$HOME/.opencode/bin:$PATH"
-          fi
-          opencode --version
+      - uses: ./.github/actions/setup-opencode
       - name: Fix and push to the same branch
         run: |
           # shellcheck disable=SC1091
@@ -515,7 +520,7 @@ jobs:
           # Do NOT let the agent boot the app or a database — that burned whole
           # sessions (CORS/env rabbit holes) and starved the actual fixes.
           swarm_run_agent mes-implementer \
-            "Review/e2e feedback on PR #$PR requested changes. Read it with 'gh pr view $PR --comments'. Fix every point, re-run 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build', then push to the same branch and reply. Never commit merge-conflict markers. Do not start the application, any database or docker — verification is build + tests + npm build only (e2e runs in a later pipeline stage). $CONFLICT_NOTE Do not add or remove ai:* labels." \
+            "Review/e2e feedback on PR #$PR requested changes. Read it with 'gh pr view $PR --comments'. Fix every point, re-run 'dotnet build AsistOff.MES.sln', 'dotnet test tests/AsistOff.MES.Shared.Tests' and 'npm --prefix AsistOff.MES.Web run build', then push to the same branch and reply. Do NOT run tests/AsistOff.MES.Integration.Tests. Never commit merge-conflict markers. Do not start the application, any database or docker — CI runs integration tests; e2e is a later stage. $CONFLICT_NOTE Do not add or remove ai:* labels." \
             fix.log
           if ! swarm_finish_merge_if_pending; then
             swarm_remove_label pr "$PR" ai:changes
@@ -544,8 +549,8 @@ jobs:
             fi
           fi
           swarm_remove_label pr "$PR" ai:changes
-          swarm_add_label pr "$PR" ai:review
-          echo '-> ai:review'
+          swarm_open_gates "$PR"
+          echo 'gates reopened'
 
   # ------------------------------------------------------------------------ e2e
   e2e:
@@ -589,9 +594,14 @@ jobs:
           echo "number=$PR" >>"$GITHUB_OUTPUT"
           if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
             swarm_remove_label pr "$PR" ai:e2e
-            swarm_remove_label pr "$PR" ai:changes # drop first so re-adding fires the fixer
-            swarm_add_label pr "$PR" ai:changes
+            swarm_refire_label pr "$PR" ai:changes
             swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+          elif swarm_success_covers_head "$PR" E2E_PASS 'E2E_PASS|E2E_FAIL|E2E_BLOCKED'; then
+            echo 'E2E_PASS already covers this head SHA; skipping smoke'
+            swarm_remove_label pr "$PR" ai:e2e
+            swarm_add_label pr "$PR" ai:ready
+            swarm_say pr "$PR" 'Agent flow (CI): e2e already passed for this head SHA. Auto-merge will take it from here (ai:ready).'
             echo "skip=true" >>"$GITHUB_OUTPUT"
           fi
       - uses: actions/checkout@v6
@@ -603,19 +613,16 @@ jobs:
         if: steps.pr.outputs.skip != 'true'
         with:
           dotnet-version: '10.0.x'
+          cache: true
       - uses: actions/setup-node@v6
         if: steps.pr.outputs.skip != 'true'
         with:
           node-version: 20
-      - name: Install opencode and Playwright browsers
+      - uses: ./.github/actions/setup-opencode
+        if: steps.pr.outputs.skip != 'true'
+      - name: Install Playwright browsers
         if: steps.pr.outputs.skip != 'true'
         run: |
-          if ! command -v opencode >/dev/null 2>&1; then
-            curl -fsSL https://opencode.ai/install | bash
-            # GITHUB_PATH applies to the NEXT step only; export now for this one.
-            export PATH="$HOME/.opencode/bin:$PATH"
-          fi
-          opencode --version
           npm --prefix AsistOff.MES.Web ci
           npx --yes playwright@latest install --with-deps chromium
       - name: Run Playwright smoke via agent
@@ -629,6 +636,13 @@ jobs:
           # (A lock with no live run behind it is cleared by the stale-lock sweep.)
           swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
+          if swarm_success_covers_head "$PR" E2E_PASS 'E2E_PASS|E2E_FAIL|E2E_BLOCKED'; then
+            echo 'E2E_PASS already covers this head SHA; skipping smoke'
+            swarm_remove_label pr "$PR" ai:e2e
+            swarm_add_label pr "$PR" ai:ready
+            swarm_say pr "$PR" 'Agent flow (CI): e2e already passed for this head SHA. Auto-merge will take it from here (ai:ready).'
+            exit 0
+          fi
           # Start the stack with nohup in THIS step: app.ps1 background jobs
           # are killed when their launcher returns on CI runners. The service
           # above only provides PostgreSQL on localhost:5432.
@@ -664,7 +678,7 @@ jobs:
               swarm_add_label pr "$PR" ai:ready
               swarm_say pr "$PR" 'Agent flow (CI): CI + review + verify + e2e green. Auto-merge will take it from here (ai:ready).'
               ;;
-            E2E_FAIL) swarm_add_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
+            E2E_FAIL) swarm_refire_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
             E2E_BLOCKED)
               # Infrastructure problem (stack/DB/browser), not a code failure:
               # review + verify already passed — promote instead of stalling.
@@ -699,14 +713,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.repository.default_branch }}
-      - name: Install opencode
-        run: |
-          if ! command -v opencode >/dev/null 2>&1; then
-            curl -fsSL https://opencode.ai/install | bash
-            # GITHUB_PATH applies to the NEXT step only; export now for this one.
-            export PATH="$HOME/.opencode/bin:$PATH"
-          fi
-          opencode --version
+      - uses: ./.github/actions/setup-opencode
       - name: Append gap rows and open PR
         run: |
           # shellcheck disable=SC1091
@@ -727,9 +734,10 @@ jobs:
           git add docs/feature-tracker.md
           git commit -m 'docs: researcher gap rows'
           git push -u origin "$BRANCH"
-          if ! gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
-            gh pr create --title 'docs: researcher gap rows' --body 'Weekly mes-researcher run. Human merges; mes-analyst turns gaps into ai:implement issues.'
+          if ! gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' | grep -q .; then
+            gh pr create --title 'docs: researcher gap rows' --body 'Weekly mes-researcher run. Review fast-path auto-merges docs-only PRs; mes-analyst turns gaps into ai:implement issues.'
           fi
+          swarm_label_docs_pr "$BRANCH"
 
   # -------------------------------------------------------------------- tracker
   tracker:
@@ -745,14 +753,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.repository.default_branch }}
-      - name: Install opencode
-        run: |
-          if ! command -v opencode >/dev/null 2>&1; then
-            curl -fsSL https://opencode.ai/install | bash
-            # GITHUB_PATH applies to the NEXT step only; export now for this one.
-            export PATH="$HOME/.opencode/bin:$PATH"
-          fi
-          opencode --version
+      - uses: ./.github/actions/setup-opencode
       - name: Reconcile feature tracker
         run: |
           # shellcheck disable=SC1091
@@ -765,6 +766,7 @@ jobs:
           swarm_run_agent mes-tracker \
             "Reconcile docs/feature-tracker.md with GitHub issues/PRs and the codebase, then publish the update on branch ai/tracker-sync (based on $DEFAULT) and open or update a PR. Abort if the working tree is dirty." \
             tracker.log
+          swarm_label_docs_pr ai/tracker-sync
 
   # ---------------------------------------------------------------------- sweep
   sweep:
@@ -829,25 +831,40 @@ jobs:
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
           PR='${{ github.event.pull_request.number }}'
-          swarm_require_auth
-          # Lost race for the lock: exit green — the holder does the work.
+          # Merge does not run an agent. Do not require OPENCODE_API_KEY.
           swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
-          CI=$(swarm_wait_ci "$PR" 600)
-          if [ "$CI" != pass ]; then
-            swarm_remove_label pr "$PR" ai:ready
-            swarm_add_label pr "$PR" ai:review
-            swarm_say pr "$PR" "Agent flow (CI): ai:ready arrived but CI is $CI — back to ai:review for a fresh pass."
-            exit 0
-          fi
+          CI=$(swarm_wait_ci "$PR" 600 | tail -n 1)
+          echo "ci=$CI"
+          case "$CI" in
+            pass) ;;
+            fail)
+              swarm_remove_label pr "$PR" ai:ready
+              swarm_refire_label pr "$PR" ai:changes
+              swarm_say pr "$PR" 'Agent flow (CI): ai:ready but CI is red — back to ai:changes for a fix, not a re-review.'
+              exit 0
+              ;;
+            approval)
+              swarm_block_for_approval "$PR" ai:ready
+              exit 0
+              ;;
+            timeout)
+              swarm_say pr "$PR" 'Agent flow (CI): CI still pending at merge time. Keeping ai:ready; the ci-completed event will retry. Not re-reviewing.'
+              exit 0
+              ;;
+            *)
+              swarm_remove_label pr "$PR" ai:ready
+              swarm_add_label pr "$PR" ai:blocked
+              swarm_say pr "$PR" "Agent flow (CI): unexpected CI state '$CI' at merge. Needs human attention."
+              exit 1
+              ;;
+          esac
           if gh pr merge "$PR" --squash --delete-branch; then
             swarm_say pr "$PR" 'Agent flow (CI): merged to the default branch (squash).'
           else
             swarm_remove_label pr "$PR" ai:ready
             if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
-              # Not a human problem: the fixer rebases onto master and resolves.
-              swarm_remove_label pr "$PR" ai:changes # drop first so re-adding fires the fixer
-              swarm_add_label pr "$PR" ai:changes
+              swarm_refire_label pr "$PR" ai:changes
               swarm_say pr "$PR" 'Agent flow (CI): auto-merge hit a conflict with master — back to ai:changes so the fixer can rebase and resolve.'
             else
               swarm_add_label pr "$PR" ai:blocked
@@ -859,10 +876,9 @@ jobs:
   # -------------------------------------------------------------------- analyst
   analyst:
     name: analyst (queue refill)
-    # Same wake-ups as sweep. Starts mes-analyst only when the implement queue
-    # is empty, the backlog is small, and a cheap pre-check promises actionable
-    # work (unlabeled proposal or tracker gap row) — otherwise exits green
-    # without spending an agent session.
+    # Same wake-ups as sweep. Keeps QUEUE_TARGET unblocked ai:implement issues
+    # ready so the line does not go idle between slices. Exits green without an
+    # agent session when the queue is warm, the backlog is full, or nothing is actionable.
     if: >
       github.event_name == 'schedule' &&
       github.event.schedule == '*/30 * * * *' ||
@@ -876,20 +892,14 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.repository.default_branch }}
-      - name: Install opencode
-        run: |
-          if ! command -v opencode >/dev/null 2>&1; then
-            curl -fsSL https://opencode.ai/install | bash
-            # GITHUB_PATH applies to the NEXT step only; export now for this one.
-            export PATH="$HOME/.opencode/bin:$PATH"
-          fi
-          opencode --version
-      - name: Spec next work when the queue is empty
+      - uses: ./.github/actions/setup-opencode
+      - name: Spec next work when the queue is thin
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
-          if [ -n "$(swarm_oldest_queued_issue)" ]; then
-            echo 'implement queue not empty; nothing to spec'
+          QUEUED=$(swarm_queued_count)
+          if [ "$QUEUED" -ge "${QUEUE_TARGET:-2}" ]; then
+            echo "implement queue has $QUEUED >= target; nothing to spec"
             exit 0
           fi
           # The cap only limits NET-NEW work the analyst would create from a
@@ -906,5 +916,5 @@ jobs:
           fi
           swarm_require_auth
           swarm_run_agent mes-analyst \
-            'The implement queue is empty. Adopt the oldest unlabeled open proposal or spec the first actionable tracker gap (slice subsystem-sized gaps per the Sizing section of the mes-issue-spec skill). Create the issue(s) with gh issue create and add ai:implement ONLY to the first unblocked one.' \
+            "The implement queue has fewer than ${QUEUE_TARGET:-2} unblocked ai:implement issues. Adopt the oldest unlabeled open proposal or spec the next actionable tracker gap (slice subsystem-sized gaps per the Sizing section of the mes-issue-spec skill). Create the issue(s) with gh issue create and add ai:implement to every unblocked slice until ${QUEUE_TARGET:-2} issues hold ai:implement, or you run out of unblocked work. Do not label a slice whose dependency is still open." \
             analyst.log

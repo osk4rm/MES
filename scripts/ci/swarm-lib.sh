@@ -43,6 +43,17 @@ swarm_add_label() { # <issue|pr> <number> <label>
   swarm_retry 3 10 gh "$1" edit "$2" --add-label "$3" >/dev/null
 }
 
+swarm_refire_label() { # <issue|pr> <number> <label>
+  # A duplicate --add-label is a no-op and emits no `labeled` event, so a
+  # re-route onto a label the item already has never wakes the next job.
+  swarm_remove_label "$1" "$2" "$3"
+  swarm_add_label "$1" "$2" "$3"
+}
+
+swarm_log() { # diagnostics — stderr only, so $(swarm_*) captures stay clean
+  echo "$*" >&2
+}
+
 swarm_remove_label() { # <issue|pr> <number> <label> (never fails the step)
   swarm_retry 3 10 gh "$1" edit "$2" --remove-label "$3" >/dev/null 2>&1 || true
 }
@@ -224,7 +235,7 @@ swarm_has_actionable_gap() { # 0 when an unlabeled proposal or a tracker gap row
 
 swarm_ci_state_once() { # <pr> -> pass | fail | approval | running | none
   # Single-shot classification of the newest `ci` run for the PR head SHA.
-  local sha first upper
+  local pr="$1" sha first upper
   sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
   if [ -z "$sha" ]; then
     echo none
@@ -258,10 +269,14 @@ swarm_nudge_stuck_prs() { # re-fire stage labels on PRs that lost their trigger
     for label in ai:review ai:verify ai:e2e ai:ready ai:changes; do
       if swarm_has_label pr "$pr" "$label"; then
         state=$(swarm_ci_state_once "$pr")
-        if [ "$state" != running ]; then
+        # approval: the run is parked and re-firing the stage just burns another
+        # agent session. A human approves the ci run; the next sweep (state=pass)
+        # re-fires. running: a live job owns it.
+        if [ "$state" = running ] || [ "$state" = approval ]; then
+          echo "PR #$pr $label ci=$state — not re-firing"
+        else
           echo "stuck $label PR #$pr (ci=$state) — re-firing the label"
-          swarm_remove_label pr "$pr" "$label"
-          swarm_add_label pr "$pr" "$label"
+          swarm_refire_label pr "$pr" "$label"
         fi
         break
       fi
@@ -392,13 +407,27 @@ A merge of master into the branch is IN PROGRESS with conflicts. Resolve every c
 EOF
 }
 
-swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
-  # Mirrors Get-CiState in agent-dispatcher.ps1.
-  # Watches ONLY the `ci` workflow runs for the PR head SHA. ai-swarm's own
-  # check runs are ignored on purpose: lock-label churn spawns no-op runs
-  # that queue behind the lock holder (same concurrency group), and their
-  # pending checks used to poison this wait into timeouts (self-deadlock
-  # that demoted ai:ready PRs back to ai:review).
+swarm_approve_run() { # <run-id> -> 0 when the approve API accepts the call
+  # GH_TOKEN is SWARM_PAT, which has no Actions scope, so gh api approve fails
+  # and the old caller treated that stdout as a CI failure (re-review loop).
+  # ACTIONS_TOKEN is the workflow GITHUB_TOKEN (permissions: actions: write).
+  local run_id="$1" token
+  token="${ACTIONS_TOKEN:-}"
+  if [ -z "$token" ]; then
+    swarm_log "ACTIONS_TOKEN is unset; cannot approve ci run $run_id"
+    return 1
+  fi
+  GH_TOKEN="$token" gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/approve" >/dev/null
+}
+
+swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout | approval
+  # Stdout is ONLY the result token. Diagnostics go to stderr — callers capture
+  # this with $(...) and compare it to "pass". A leaked log line used to demote
+  # ai:ready PRs back through review even when CI was green.
+  #
+  # Watches ONLY the `ci` workflow for the PR head SHA. ai-swarm's own checks
+  # are ignored: lock-label churn spawns no-op runs whose pending state used
+  # to poison this wait (self-deadlock).
   local pr="$1" timeout="$2" waited=0 sha first upper run_id approved=""
   sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
   if [ -z "$sha" ]; then
@@ -406,13 +435,11 @@ swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
     return 0
   fi
   while [ "$waited" -lt "$timeout" ]; do
-    # Newest ci run for this SHA first (gh sorts runs newest-first).
     first=$(gh run list --workflow ci --commit "$sha" --limit 5 --json status,conclusion \
       --jq 'if length == 0 then "none" else "\(.[0].status)/\(.[0].conclusion)" end' 2>/dev/null || echo 'unknown/unknown')
     upper=$(printf '%s' "$first" | tr '[:lower:]' '[:upper:]')
     case "$upper" in
       NONE)
-        # No ci run (yet) — give CI a minute to appear before assuming absent.
         if [ "$waited" -ge 60 ]; then
           echo pass
           return 0
@@ -427,20 +454,23 @@ swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
         return 0
         ;;
       COMPLETED/ACTION_REQUIRED | WAITING/* | REQUESTED/*)
-        # Bot/Copilot-triggered runs park in action_required until a writer
-        # approves them (same mechanism as fork-PR approvals). Approve via the
-        # API so the loop is autonomous; one attempt is enough.
-        if [ -z "$approved" ]; then
-          run_id=$(gh run list --workflow ci --commit "$sha" --limit 1 --json databaseId \
-            --jq '.[0].databaseId // empty' 2>/dev/null || true)
-          if [ -n "$run_id" ]; then
-            echo "ci run $run_id needs approval — approving via API"
-            if ! gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/approve" >/dev/null 2>&1; then
-              echo "approve API failed for run $run_id — a human with write access must approve it"
-            fi
-          fi
-          approved=1
+        if [ -n "$approved" ]; then
+          echo approval
+          return 0
         fi
+        run_id=$(gh run list --workflow ci --commit "$sha" --limit 1 --json databaseId \
+          --jq '.[0].databaseId // empty' 2>/dev/null || true)
+        if [ -z "$run_id" ]; then
+          echo approval
+          return 0
+        fi
+        swarm_log "ci run $run_id needs approval — approving via ACTIONS_TOKEN"
+        if ! swarm_approve_run "$run_id"; then
+          swarm_log "approve API failed for run $run_id"
+          echo approval
+          return 0
+        fi
+        approved=1
         ;;
       *) ;; # running, queued, pending, unknown
     esac
@@ -448,6 +478,116 @@ swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
     waited=$((waited + 30))
   done
   echo timeout
+}
+
+swarm_success_covers_head() { # <pr> <success-verdict> <alternation> -> 0 when latest verdict is that success and is newer than head
+  # Skips a repeat LLM pass when the head SHA was already judged. A new commit
+  # is older than the verdict comment only if the comment came after it.
+  local pr="$1" success="$2" pattern="$3" result
+  result=$(gh pr view "$pr" --json commits,comments --jq --arg success "$success" --arg pattern "$pattern" '
+    ($commits | last | .committedDate // "") as $head
+    | if $head == "" then "stale"
+      else
+        ([.comments[]
+          | select(.body | test("VERDICT:\\s*(" + $pattern + ")"))
+          | {at:.createdAt, v:(.body | capture("VERDICT:\\s*(?<v>" + $pattern + ")").v)}
+        ] | last) as $last
+        | if $last == null then "stale"
+          elif $last.v != $success then "stale"
+          elif $last.at >= $head then "fresh"
+          else "stale" end
+      end
+  ' 2>/dev/null || echo stale)
+  [ "$result" = fresh ]
+}
+
+swarm_open_gates() { # <pr> — wake review, and verify in parallel unless docs-only
+  local pr="$1"
+  swarm_refire_label pr "$pr" ai:review
+  if swarm_is_docs_only "$pr"; then
+    echo "docs-only PR #$pr; review gate only"
+    return 0
+  fi
+  swarm_refire_label pr "$pr" ai:verify
+  echo "PR #$pr gates: ai:review + ai:verify"
+}
+
+swarm_after_review_approved() { # <pr> — drop the review gate; advance only if verify is done or not required
+  local pr="$1"
+  swarm_remove_label pr "$pr" ai:review
+  if swarm_is_docs_only "$pr"; then
+    swarm_remove_label pr "$pr" ai:verify
+    swarm_add_label pr "$pr" ai:ready
+    swarm_say pr "$pr" 'Agent flow (CI): review APPROVED and the diff is docs-only — skipping verify/e2e straight to ai:ready.'
+    echo '-> ai:ready (docs-only fast-path)'
+    return 0
+  fi
+  if swarm_has_label pr "$pr" ai:changes || swarm_has_label pr "$pr" ai:blocked; then
+    echo 'changes or blocked already set; not advancing'
+    return 0
+  fi
+  if swarm_has_label pr "$pr" ai:verify; then
+    echo 'verify still open; waiting for it'
+    return 0
+  fi
+  if swarm_success_covers_head "$pr" TESTS_SOUND 'TESTS_SOUND|TESTS_INSUFFICIENT' \
+    || swarm_has_label pr "$pr" ai:e2e \
+    || swarm_has_label pr "$pr" ai:ready; then
+    if ! swarm_has_label pr "$pr" ai:e2e && ! swarm_has_label pr "$pr" ai:ready; then
+      swarm_add_label pr "$pr" ai:e2e
+      echo '-> ai:e2e'
+    fi
+    return 0
+  fi
+  # In-flight PR from before parallel gates: verify was never opened.
+  swarm_refire_label pr "$pr" ai:verify
+  echo '-> ai:verify (serial fallback)'
+}
+
+swarm_after_verify_sound() { # <pr> — drop the verify gate; advance when review is also done
+  local pr="$1"
+  swarm_remove_label pr "$pr" ai:verify
+  if swarm_has_label pr "$pr" ai:changes || swarm_has_label pr "$pr" ai:blocked; then
+    echo 'changes or blocked already set; not advancing'
+    return 0
+  fi
+  if swarm_has_label pr "$pr" ai:review; then
+    echo 'review still open; waiting for it'
+    return 0
+  fi
+  if swarm_has_label pr "$pr" ai:e2e || swarm_has_label pr "$pr" ai:ready; then
+    echo 'already advanced'
+    return 0
+  fi
+  swarm_add_label pr "$pr" ai:e2e
+  echo '-> ai:e2e'
+}
+
+swarm_block_for_approval() { # <pr> <stage-label>
+  local pr="$1" stage="$2"
+  swarm_remove_label pr "$pr" "$stage"
+  swarm_add_label pr "$pr" ai:blocked
+  swarm_say pr "$pr" "Agent flow (CI): CI is waiting for approval and ACTIONS_TOKEN could not approve the run. Needs one human approve on the ci run, then remove ai:blocked and re-add ${stage}. Not sending this back through the agents."
+}
+
+swarm_queued_count() { # open ai:implement issues that are not locked
+  gh issue list --state open --label ai:implement --json number,labels \
+    --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not))] | length' 2>/dev/null || echo 0
+}
+
+swarm_label_docs_pr() { # <head-branch> — put a docs PR onto the review fast-path
+  local branch="$1" pr
+  pr=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
+  if [ -z "$pr" ]; then
+    echo "no open PR for $branch"
+    return 0
+  fi
+  if swarm_has_label pr "$pr" ai:ready || swarm_has_label pr "$pr" ai:blocked || swarm_has_label pr "$pr" ai:review; then
+    echo "PR #$pr already gated"
+    return 0
+  fi
+  swarm_add_label pr "$pr" ai:review
+  echo "docs PR #$pr -> ai:review"
 }
 
 swarm_use_pat_remote() { # [$pat] — push as a collaborator, not as github-actions[bot]

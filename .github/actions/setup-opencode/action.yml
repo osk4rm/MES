@@ -1,0 +1,21 @@
+name: Setup opencode
+description: Install the opencode CLI, restoring a cached binary when one is already present.
+runs:
+  using: composite
+  steps:
+    - name: Restore opencode
+      uses: actions/cache@v4
+      with:
+        path: ~/.opencode
+        key: opencode-${{ runner.os }}-v1
+    - name: Install opencode if the cache missed
+      shell: bash
+      run: |
+        set -euo pipefail
+        export PATH="$HOME/.opencode/bin:$PATH"
+        if [ ! -x "$HOME/.opencode/bin/opencode" ]; then
+          curl -fsSL https://opencode.ai/install | bash
+          export PATH="$HOME/.opencode/bin:$PATH"
+        fi
+        echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+        opencode --version

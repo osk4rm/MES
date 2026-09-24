@@ -112,6 +112,11 @@ Trik kontekstowy: implementer wraca do **tej samej sesji** przy poprawkach
 (`--session`, mapa issue→sessionID w stanie dyspozytora); reviewer, verifier
 i e2e zawsze startują świeżo (niezależność).
 
+W CI diagram jest równoległy: implement/fix otwierają `ai:review` **i**
+`ai:verify` naraz, a join (`swarm_after_review_approved` /
+`swarm_after_verify_sound`) puszcza dalej tego, kto zejdzie drugi.
+Lokalny dyspozytor zostaje szeregowy (prostszy do debugowania).
+
 Werdykty są ścisłe: dyspozytor parsuje `VERDICT: ...` i wymaga **jednoznaczności**
 — brak werdyktu albo kilka różnych werdyktów w jednym output/komentarzu
 (`AMBIGUOUS`) eskaluje do `ai:blocked`. Agenci mają pisać werdykt w osobnej linii
@@ -250,8 +255,9 @@ docker compose logs -f swarm
 - Nigdy push do `main`/`master` — zawsze branch + PR (default branch to `master`).
 - Bramka obiektywna = CI (`ci.yml`: `dotnet build/test` + `npm run build`),
   potem review (subiektywna) i e2e (obserwacja UI).
-- Bramka człowieka = merge PR `ai:ready`. `ai:auto-merge` jest zarezerwowany na
-  przyszłość.
+- Bramka człowieka = wyłącznie `ai:blocked`. `ai:ready` merguje się sam
+  (squash, kasowanie brancha); `ai:auto-merge` nie jest już potrzebny jako
+  osobna labelka.
 - `--auto` tylko na izolowanym klonie/runnerze.
 - Reviewer i e2e dostają tylko artefakt (diff/PR), nie historię implementera.
 
@@ -260,7 +266,8 @@ docker compose logs -f swarm
 1. ~~Faza 1 — ręcznie.~~ 2. ~~Faza 2 — półautomat `agent-loop.ps1`.~~
 3. ~~Faza 3 — dyspozytor po labelach, e2e, autonomiczny tracker.~~
 4. **Faza 4 (obecna) — GitHub Actions event-driven (patrz §13), lokalny
-   dyspozytor jako fallback/debug, merge za zgodą człowieka.**
+   dyspozytor jako fallback/debug, auto-merge `ai:ready`, człowiek tylko na
+   `ai:blocked`.**
 
 ## 11. Pliki
 
@@ -282,6 +289,7 @@ docker/swarm/entrypoint.sh                     # klon wolumenu + auth + start
 .env.example                                   # GH_TOKEN i overrides dla compose
 .github/workflows/ci.yml                       # bramka CI
 .github/workflows/ai-swarm.yml                 # faza 4: implement/review/verify/fix/e2e + cron researcher/tracker
+.github/actions/setup-opencode/action.yml      # composite: cache + instalacja CLI opencode
 scripts/ci/swarm-lib.sh                        # wspólne helpery CI (locki, labele, werdykty, CI wait)
 ```
 
@@ -316,22 +324,25 @@ werdykty, czekanie na CI) żyją w `scripts/ci/swarm-lib.sh`.
 
 | Event | Job | Efekt |
 |---|---|---|
-| issue `labeled ai:implement` | `implement` | implementer → PR + `ai:review` (brak PR → `ai:blocked`) |
-| PR `labeled ai:review` / `synchronize` z `ai:review` / koniec CI (`workflow_run`) | `review` | czeka na CI (max 10 min) → reviewer → `ai:verify` / `ai:changes` |
-| PR `labeled ai:verify` | `verify` | verifier read-only → `ai:e2e` / `ai:changes` |
-| PR `labeled ai:changes` | `fix` | guard rund (liczy failure-verdykty w komentarzach, limit `MAX_ROUNDS=3`) → implementer fix → `ai:review` |
-| PR `labeled ai:e2e` | `e2e` | Postgres service + stack + tester → `ai:ready` / `ai:changes` / `ai:blocked` |
-| PR `labeled ai:ready` | `merge` | czeka na CI → squash-merge + delete-branch (czerwone CI → z powrotem `ai:review`, konflikt → `ai:blocked`) |
+| issue `labeled ai:implement` | `implement` | implementer → PR + bramki `ai:review` + `ai:verify` równolegle (docs-only: samo `ai:review`); brak PR → retry przez sweep (max 2 próby), potem `ai:blocked` |
+| PR `labeled ai:review` / `synchronize` z `ai:review` / koniec CI (`workflow_run`) | `review` | czeka na CI (max 10 min) → reviewer → join (`swarm_after_review_approved`): `ai:e2e` gdy verify done, `ai:changes` przy odrzuceniu; świeży `APPROVED` na tym samym head SHA = skip bez sesji |
+| PR `labeled ai:verify` | `verify` | verifier read-only, równolegle z review → join (`swarm_after_verify_sound`); świeży `TESTS_SOUND` na tym samym head SHA = skip bez sesji |
+| PR `labeled ai:changes` | `fix` | guard rund (liczy failure-verdykty w komentarzach, limit `MAX_ROUNDS=3`) → implementer fix → bramki `ai:review` + `ai:verify` od nowa |
+| PR `labeled ai:e2e` | `e2e` | Postgres service + stack + tester → `ai:ready` / `ai:changes` / `ai:blocked`; świeży `E2E_PASS` na tym samym head SHA = skip |
+| PR `labeled ai:ready` | `merge` | czeka na CI → squash-merge + delete-branch (czerwone CI → `ai:changes`, pending → trzyma `ai:ready`, konflikt mergu → `ai:changes`, `action_required` bez approve → `ai:blocked` raz) |
 | push na default / cron co 30 min | `sweep` | najstarszy `ai:implement` bez locka wraca do kolejki, gdy jest wolny slot |
-| push na default / cron co 30 min | `analyst` | pusta kolejka + backlog < `BACKLOG_MAX=5` + gap/proposal w zasięgu = `mes-analyst` specuje następną pracę (labeluje tylko pierwszy odblokowany); inaczej zielone wyjście bez sesji agenta |
-| cron pn 06:00 UTC | `researcher` | gap rows → zwykły PR do mergu przez człowieka |
-| cron codziennie 05:30 UTC | `tracker` | sync trackera → PR `ai/tracker-sync` |
+| push na default / cron co 30 min | `analyst` | kolejka < `QUEUE_TARGET=2` + backlog < `BACKLOG_MAX=5` + gap/proposal w zasięgu = `mes-analyst` dospecowuje do 2 odblokowanych `ai:implement`; inaczej zielone wyjście bez sesji agenta |
+| cron pn 06:00 UTC | `researcher` | gap rows → PR + auto-label `ai:review` (docs fast-path; review APPROVED → `ai:ready` → auto-merge) |
+| cron codziennie 05:30 UTC | `tracker` | sync trackera → PR `ai/tracker-sync` + auto-label `ai:review` |
 | `workflow_dispatch` | dowolny | ręczny trigger (zastępuje przyciski dashboardu w CI) |
 
 Zasady:
 
 - **Sekrety**: `OPENCODE_API_KEY` (opencode.ai/auth) w Settings → Secrets →
-  Actions. Bez niego joby padają z jawnym błędem. `GITHUB_TOKEN` jest automatyczny.
+  Actions. Bez niego joby agentowe padają z jawnym błędem (`merge` nie wymaga
+  klucza — nie startuje agenta). `GITHUB_TOKEN` jest automatyczny; workflow
+  wystawia go też jako `ACTIONS_TOKEN` do zatwierdzania runów `action_required`
+  (PAT go nie ma — patrz niżej).
 - **`SWARM_PAT` (zdecydowanie zalecane w publicznym repo)**: fine-grained PAT
   (Settings → Developer settings → Personal access tokens → Fine-grained,
   tylko to repo: Contents read+write, Pull requests read+write, Issues
@@ -350,10 +361,13 @@ Zasady:
   implement/researcher/tracker nie otworzą PR-a (API odmawia
   `createPullRequest`). Gdy brakuje, job sam przechodzi w `ai:blocked`
   z instrukcją, a nie wiesza się ani nie mieli minut.
-- **Concurrency**: jedna kolejka na issue/PR (`cancel-in-progress: false`) —
-  odpowiednik jednowątkowego dyspozytora. `ai:running` jest lockiem między
-  runnerem CI a lokalnym dyspozytorem: przegrany wyścig kończy się zielono
-  (`exit 0` z notką), ponawiasz go zdejmując i dokładając label-trigger.
+- **Concurrency**: jedna kolejka na issue/PR **i labelkę**
+  (`ai-swarm-<nr>-<label>`, `cancel-in-progress: false`) — ten sam etap dalej
+  kolejkuje się jak jednowątkowy dyspozytor, ale `ai:review` i `ai:verify`
+  lecą równolegle. `ai:running` biorą tylko joby mutujące (implement/fix/e2e/merge);
+  etapy read-only (review/verify) locka nie biorą, żeby nie zjadać slotów
+  `MAX_PARALLEL` w czasie czekania na CI. Przegrany wyścig o lock kończy się
+  zielono (`exit 0` z notką), ponawiasz go zdejmując i dokładając label-trigger.
 - **Limit równoległości (`MAX_PARALLEL=3`)**: implement i sweep odmawiają nowej
   pracy, gdy ≥3 itemy trzymają `ai:running`. Odmowa to zielone wyjście —
   labelka `ai:implement` zostaje, a sweep (push na default + cron co 30 min)
@@ -404,10 +418,29 @@ Zasady:
     `scripts/ci/swarm-lib.sh` po checkoucie gałęzi PR-a wczytywało STARĄ
     kopię z gałęzi (sprzed nowych helperów) i nowe funkcje ginęły jako
     „command not found" (fix job fałszywie wchodził w `ai:blocked`).
+  - **Równoległe bramki + join**: implement/fix otwierają `ai:review` i
+    `ai:verify` naraz (`swarm_open_gates`; docs-only: samo review). Zamknięcie
+    bramki robi `swarm_after_review_approved` / `swarm_after_verify_sound`:
+    do `ai:e2e` przechodzi dopiero ten, kto zejdzie drugi (albo serial-fallback
+    `ai:verify`, gdy PR powstał przed tą zmianą). Odrzucenie z dowolnej bramki
+    czyści obie i robi `swarm_refire_label ai:changes` (remove+add, żeby event
+    `labeled` na pewno się wyemitował).
+  - **Świeży werdykt = skip**: `swarm_success_covers_head` porównuje czas
+    ostatniego werdyktu z `committedDate` heada. PR zdemotowany do re-review
+    bez nowego commita (stary bug merge joba) nie pali kolejnej sesji LLM —
+    resolve-step przeskakuje etap i woła join bezpośrednio. To samo dla e2e.
   - **Agenci nie startują stacku**: implement/fix weryfikują tylko
-    `dotnet build/test` + `npm run build`. Odpalanie aplikacji/DB w sesji
-    implementera spalało budżet (króliki CORS/env) i agent kończył pracę
-    bez brancha. E2E to osobny etap z `nohup`-owanym stackiem.
+    `dotnet build AsistOff.MES.sln`, `dotnet test
+    tests/AsistOff.MES.Shared.Tests` i `npm --prefix AsistOff.MES.Web run
+    build`. Suite integracyjną (`tests/AsistOff.MES.Integration.Tests`) i tak
+    odpala CI na świeżo — puszczanie jej w sesji agenta podwajało czas
+    implementacji. Odpalanie aplikacji/DB w sesji implementera spalało budżet
+    (króliki CORS/env) i agent kończył pracę bez brancha. E2E to osobny etap
+    z `nohup`-owanym stackiem.
+  - **Cache**: `setup-dotnet` z `cache: true` w `ci.yml` i `ai-swarm.yml`
+    (NuGet), `setup-node` z cache npm (bez zmian), binarka `opencode` w
+    `actions/cache` przez composite `.github/actions/setup-opencode`
+    (koniec z `curl | bash` w każdym jobie).
   - **Jedna retry-tura przed `ai:blocked`**: implementer bez brancha
     (sesja gwiazdkowana/koniec limitu) zostawia `ai:implement` do ponowienia
     przez sweep (max 2 próby), dopiero potem eskalacja.
@@ -422,8 +455,18 @@ Zasady:
   zostawiało PR w `ai:review` na zawsze.
 - **Auto-approve `action_required`**: push tokenem bota (albo run od Copilota)
   parkuje `pull_request` CI w `action_required` (mechanizm zgody jak dla
-  forków). `swarm_wait_ci` wykrywa ten stan i sam zatwierdza run przez
-  `POST /actions/runs/{id}/approve` (wymaga `actions: write`).
+  forków). `swarm_wait_ci` wykrywa ten stan i zatwierdza run przez
+  `POST /actions/runs/{id}/approve` tokenem `ACTIONS_TOKEN` (= `GITHUB_TOKEN`,
+  workflow ma `permissions.actions: write`). `SWARM_PAT` celowo NIE jest do
+  tego używany — fine-grained PAT bez scope `Actions` dostawał 403, a tekst
+  diagnostyczny lądował w `$(...)` i fałszował wynik na „nie-pass", co
+  demotowało `ai:ready` do ponownego review w kółko (przypadek PR #149).
+  Dlatego: stdout `swarm_wait_ci` to wyłącznie `pass|fail|timeout|approval`
+  (logi na stderr, wołający dokleja `| tail -n 1`), a nieudany approve kończy
+  się **jednorazowym** `ai:blocked` z instrukcją dla człowieka — nigdy powrotem
+  przez review/verify/e2e. `swarm_nudge_stuck_prs` PR-ów w stanie `approval`
+  nie tyka (re-fire tylko spaliłby kolejną sesję agenta); po ręcznym approve
+  najbliższy sweep widzi `pass` i etap sam rusza dalej.
   `swarm_use_pat_remote` czyści też `http....extraheader` z checkoutu —
   bez tego pushe leciały jako `github-actions[bot]` mimo PAT-a w URL.
 - **Przekierowanie do `ai:changes` musi zdjąć labelkę przed dodaniem**: duplikat
@@ -442,11 +485,20 @@ Zasady:
   w `ai:review` z zielonym CI. `swarm_nudge_stuck_prs` (sweep, co 30 min +
   przy pushu) przebija labela etapu (review/verify/e2e/ready/**changes**) na
   niezablokowanych PR-ach, gdy CI nie jest w trakcie — etap przelicza się natychmiast.
-- **Samouzupełniająca kolejka**: pusty `ai:implement` + backlog poniżej
-  `BACKLOG_MAX=5` + gap w trackerze lub nielabelowany proposal = job `analyst`
-  sam startuje `mes-analyst` w CI. Pętla nie staje po wyczerpaniu issuesów;
+- **Samouzupełniająca kolejka**: mniej niż `QUEUE_TARGET=2` odblokowanych
+  `ai:implement` + backlog poniżej `BACKLOG_MAX=5` + gap w trackerze lub
+  nielabelowany proposal = job `analyst` sam startuje `mes-analyst` w CI
+  i dospecowuje kolejkę do 2 (labeluje każdy odblokowany slice, nie tylko
+  pierwszy — slice z otwartą zależnością labelki nie dostaje). Pętla nie
+  staje po wyczerpaniu issuesów i nie idzie na jałowo między slicami;
   gdy tracker nie ma gapów ani proposali, job kończy się zielono bez odpalania
   agenta (tania bramka w bashu, nie sesja).
+- **Researcher/tracker wchodzą do maszyny same**: oba joby po publikacji
+  wołają `swarm_label_docs_pr`, więc ich PR-y lądują od razu na `ai:review`
+  i jadą docs fast-pathem do auto-mergu (wcześniej wisiały bez labeli poza
+  maszyną). Researcher otwiera PR przez `gh pr list --head` zamiast
+  `gh pr view <branch>` (to drugie przyjmuje tylko numer i zawsze pudłowało,
+  dublując PR-y).
 - **Krojenie issuesów** (reguły w `mes-issue-spec` + `mes-analyst`): jeden issue
   = jeden PR do zreviewowania w <30 min. Duże tematy to serie `(1/3)` z
   `depends on`, jedna migracja EF na serię (pierwszy slice) — równoległe PR-y

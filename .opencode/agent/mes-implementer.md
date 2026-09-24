@@ -66,13 +66,13 @@ owns those transitions. Just implement and open/update the PR.
    module test project) **and** endpoint integration tests in
    `tests/AsistOff.MES.Integration.Tests/Endpoints/` (extend
    `IntegrationTestBase`, use the existing `MesApplicationFixture`). Cover the
-   happy path and the failure paths (`401`/`400`/`404`/`409`). For UI-facing
-   changes, also click the changed flow through with Playwright on the local
-   stack and record the steps/result in the PR body.
-6. Verify locally and fix everything (Docker must be running for integration tests):
-   - `dotnet build AsistOff.MES.sln`
-   - `dotnet test AsistOff.MES.sln`
-   - `cd AsistOff.MES.Web; npm run build`
+    happy path and the failure paths (`401`/`400`/`404`/`409`). Do not boot the
+    app or run Playwright — the e2e stage owns that.
+ 6. Verify with the fast commands only. CI runs integration tests; do not
+    start Docker, the app, or a database:
+    - `dotnet build AsistOff.MES.sln`
+    - `dotnet test tests/AsistOff.MES.Shared.Tests`
+    - `cd AsistOff.MES.Web; npm run build`
 7. Commit with a conventional message (`feat:`, `fix:`, `test:`, ...) and push
    the branch.
 8. Open a PR with `gh pr create`, using `.github/pull_request_template.md`,
@@ -99,5 +99,5 @@ owns those transitions. Just implement and open/update the PR.
 
 When invoked again on an existing PR, you are continuing the **same** branch and
 session. Read the review with `gh pr view <N> --comments`, address every point,
-re-run the three verification commands, push to the same branch, and reply to
-the review explaining what you changed.
+re-run the three verification commands from step 6 (not the integration suite),
+push to the same branch, and reply to the review explaining what you changed.
