@@ -174,6 +174,19 @@ public sealed record ScrapEventDto(
     Guid? ReportedByOperatorId,
     Guid? ProductionOrderId);
 
+/// <summary>Shape of a production confirmation as returned by <c>/api/production-confirmations</c>.</summary>
+public sealed record ProductionConfirmationDto(
+    Guid Id,
+    Guid ProductionOrderId,
+    Guid MachineId,
+    Guid? ReportedByOperatorId,
+    DateTime ReportedAt,
+    decimal GoodQuantity,
+    decimal ScrapQuantity,
+    string? Notes,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
 /// <summary>Shape of a telemetry tag as returned by <c>/api/telemetry-tags</c>.</summary>
 public sealed record MachineTelemetryTagDto(
     Guid Id,

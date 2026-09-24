@@ -198,7 +198,26 @@ const pl = {
     release: 'Wydaj',
     releasedToast: 'Zlecenie wydane',
     filters: { code: 'Kod zawiera…', status: 'Status' },
-    status: { planned: 'Planowane', released: 'Wydane', inProgress: 'W realizacji', completed: 'Zakończone', closed: 'Zamknięte' }
+    status: { planned: 'Planowane', released: 'Wydane', inProgress: 'W realizacji', completed: 'Zakończone', closed: 'Zamknięte' },
+    detail: {
+      subtitle: 'Szczegóły zlecenia i potwierdzenia wykonania',
+      summary: 'Podsumowanie',
+      releasedAt: 'Data wydania'
+    }
+  },
+  productionConfirmations: {
+    title: 'Potwierdzenia',
+    report: 'Zgłoś wykonanie',
+    machine: 'Stanowisko',
+    selectMachine: 'Wybierz stanowisko…',
+    operator: 'Operator',
+    selectOperator: 'Wybierz operatora…',
+    reportedAt: 'Czas wykonania',
+    goodQuantity: 'Ilość dobra',
+    scrapQuantity: 'Ilość braków',
+    notes: 'Uwagi',
+    empty: 'Brak potwierdzeń dla tego zlecenia',
+    positiveQuantityRequired: 'Przynajmniej jedna ilość (dobra lub braków) musi być większa od zera'
   },
   recipes: {
     title: 'Receptury',
@@ -735,7 +754,26 @@ const en: typeof pl = {
     release: 'Release',
     releasedToast: 'Order released',
     filters: { code: 'Code contains…', status: 'Status' },
-    status: { planned: 'Planned', released: 'Released', inProgress: 'In progress', completed: 'Completed', closed: 'Closed' }
+    status: { planned: 'Planned', released: 'Released', inProgress: 'In progress', completed: 'Completed', closed: 'Closed' },
+    detail: {
+      subtitle: 'Order details and execution confirmations',
+      summary: 'Summary',
+      releasedAt: 'Released at'
+    }
+  },
+  productionConfirmations: {
+    title: 'Confirmations',
+    report: 'Report execution',
+    machine: 'Work Center',
+    selectMachine: 'Select Work Center…',
+    operator: 'Operator',
+    selectOperator: 'Select operator…',
+    reportedAt: 'Reported at',
+    goodQuantity: 'Good quantity',
+    scrapQuantity: 'Scrap quantity',
+    notes: 'Notes',
+    empty: 'No confirmations for this order yet',
+    positiveQuantityRequired: 'At least one quantity (good or scrap) must be greater than zero'
   },
   recipes: {
     title: 'Recipes',
