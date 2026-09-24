@@ -16,6 +16,7 @@ export const sitemap: NavItem[] = [
       { label: 'nav.productionScrap', icon: 'pi pi-trash', route: '/production/scrap' },
       { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' },
       { label: 'nav.productionDowntime', icon: 'pi pi-pause-circle', route: '/production/downtime' }
+      { label: 'nav.productionLots', icon: 'pi pi-box', route: '/production/lots' }
     ]
   },
   { label: 'nav.schedule', icon: 'pi pi-calendar', route: '/schedule' },
@@ -32,6 +33,7 @@ export const sitemap: NavItem[] = [
       { label: 'nav.machines', icon: 'pi pi-cog', route: '/configuration/machines' },
       { label: 'nav.operators', icon: 'pi pi-id-card', route: '/configuration/operators' },
       { label: 'nav.skills', icon: 'pi pi-star', route: '/configuration/skills' },
+      { label: 'nav.shifts', icon: 'pi pi-clock', route: '/configuration/shifts' },
       { label: 'nav.reasonCodes', icon: 'pi pi-exclamation-circle', route: '/configuration/reason-codes' },
       { label: 'nav.operationTemplates', icon: 'pi pi-copy', route: '/configuration/operation-templates' }
     ]
