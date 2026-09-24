@@ -293,13 +293,14 @@ public sealed class OeeEndpointTests(MesApplicationFixture fixture) : Integratio
             productionOrderId = order.Id,
             machineId = machine.Id,
             reportedByOperatorId = (Guid?)null,
-            reportedAt = DateTime.UtcNow.AddHours(-5),
+            reportedAt = DateTime.UtcNow,
             goodQuantity = 80m,
             scrapQuantity = 20m,
             notes = (string?)null
         });
         confirmResponse.EnsureSuccessStatusCode();
-        var toUtc = DateTime.UtcNow.AddMinutes(1);
+        var confirmation = await ReadAsync<ProductionConfirmationDto>(confirmResponse);
+        var toUtc = confirmation.ReportedAt.AddMinutes(1);
 
         var trendResponse = await client.GetAsync(
             $"{TrendUrl}?machineId={machine.Id}&fromUtc={Qs(fromUtc)}&toUtc={Qs(toUtc)}&idealCycleTimeSeconds=60&bucket=Day");
