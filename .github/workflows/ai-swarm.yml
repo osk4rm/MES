@@ -6,6 +6,7 @@ name: ai-swarm
 #   issue[ai:implement] -> implement -> PR[ai:review] -> review -> PR[ai:verify]
 #   -> verify -> PR[ai:e2e] -> e2e -> PR[ai:ready] -> merge (squash, automatic)
 #   any failure verdict -> PR[ai:changes] -> fix -> PR[ai:review]
+#   docs-only PRs: review APPROVED -> PR[ai:ready] (verify/e2e skipped)
 #
 # Throughput: at most MAX_PARALLEL (default 3) items hold ai:running at once;
 # the sweep job re-fires queued ai:implement issues on push-to-default and
@@ -253,7 +254,16 @@ jobs:
           fi
           swarm_remove_label pr "$PR" ai:review
           case "$VERDICT" in
-            APPROVED) swarm_add_label pr "$PR" ai:verify; echo '-> ai:verify' ;;
+            APPROVED)
+              # Docs-only fast-path (e.g. tracker sync): no runtime to verify
+              # or smoke-test, so skip verify/e2e straight to ai:ready.
+              if swarm_is_docs_only "$PR"; then
+                swarm_add_label pr "$PR" ai:ready
+                swarm_say pr "$PR" 'Agent flow (CI): review APPROVED and the diff is docs-only — skipping verify/e2e straight to ai:ready.'
+                echo '-> ai:ready (docs-only fast-path)'
+              else
+                swarm_add_label pr "$PR" ai:verify; echo '-> ai:verify'
+              fi ;;
             CHANGES_REQUESTED) swarm_add_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
             *)
               swarm_add_label pr "$PR" ai:blocked

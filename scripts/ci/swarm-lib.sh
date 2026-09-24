@@ -183,6 +183,16 @@ swarm_backlog_count() { # queued ai:implement issues + unlabeled proposals
   echo $((queued + unlabeled))
 }
 
+swarm_is_docs_only() { # <pr> -> 0 when every changed file is docs/markdown
+  # Docs-only PRs skip verify/e2e after an APPROVED review: no runtime to test.
+  # Kept tight on purpose — workflow/script changes still take the full path.
+  local files non_docs
+  files=$(gh pr diff "$1" --name-only 2>/dev/null | tr -d '\r' | grep -v '^$' || true)
+  [ -n "$files" ] || return 1
+  non_docs=$(printf '%s\n' "$files" | grep -vE '(^docs/|\.md$)' || true)
+  [ -z "$non_docs" ]
+}
+
 swarm_has_actionable_gap() { # 0 when an unlabeled proposal or a tracker gap row exists
   # Cheap pre-check so the analyst agent only starts when there is real work.
   if [ "$(swarm_unlabeled_count)" -gt 0 ]; then
