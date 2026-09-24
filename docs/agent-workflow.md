@@ -324,8 +324,21 @@ werdykty, czekanie na CI) żyją w `scripts/ci/swarm-lib.sh`.
 
 Zasady:
 
-- **Sekret**: `OPENCODE_API_KEY` (opencode.ai/auth) w Settings → Secrets →
+- **Sekrety**: `OPENCODE_API_KEY` (opencode.ai/auth) w Settings → Secrets →
   Actions. Bez niego joby padają z jawnym błędem. `GITHUB_TOKEN` jest automatyczny.
+- **`SWARM_PAT` (zdecydowanie zalecane w publicznym repo)**: fine-grained PAT
+  (Settings → Developer settings → Personal access tokens → Fine-grained,
+  tylko to repo: Contents read+write, Pull requests read+write, Issues
+  read+write) zapisany jako sekret `SWARM_PAT`. Workflow używa go do operacji
+  `gh` (`GH_TOKEN: SWARM_PAT || GITHUB_TOKEN`), więc PR-y otwiera collaborator,
+  a nie `github-actions[bot]` — bez tego każdy bot-PR staje na „Approve and
+  run", a runy po approve **nie emitują eventów `workflow_run`**, więc kolejka
+  cichnie (review czeka → timeout → stoi). Bez sekretu wszystko dalej działa,
+  tylko z ręcznym approve.
+- **Przegrany wyścig o lock wychodzi na zielono**: dwa joby na ten sam
+  item (np. `labeled` + koniec CI naraz) — posiadacz locka pracuje, drugi kończy
+  `exit 0` z notką w logu. Jeśli coś wisi w `ai:running` bez żywego runa,
+  człowiek zdejmuje labelkę i dokłada trigger z powrotem.
 - **Checkbox**: Settings → Actions → General → Workflow permissions → zaznacz
   **„Allow GitHub Actions to create and approve pull requests"**. Bez tego
   implement/researcher/tracker nie otworzą PR-a (API odmawia
