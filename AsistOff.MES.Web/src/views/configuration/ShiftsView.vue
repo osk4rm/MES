@@ -25,7 +25,7 @@
         <code>{{ item.code }}</code>
       </template>
       <template #cell-startTime="{ value }">
-        <span class="shift-window">{{ value }} – {{ $t('shifts.overnightSeparator') }}</span>
+        <span class="shift-window">{{ value }}</span>
       </template>
       <template #cell-isActive="{ value }">
         <AppBadge :variant="value ? 'success' : 'idle'" dot>

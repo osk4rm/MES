@@ -213,7 +213,8 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("DepartmentId")
+                    b.Property<Guid?>("DepartmentId")
+                        .IsRequired()
                         .HasColumnType("uuid");
 
                     b.Property<string>("FirstName")

@@ -42,6 +42,19 @@ public sealed class WorkCenterCalendarEndpointTests(MesApplicationFixture fixtur
     }
 
     [Fact]
+    public async Task Put_WithoutToken_Returns401()
+    {
+        using var client = Fixture.CreateClient();
+
+        var response = await client.PutAsJsonAsync($"{MachinesUrl}/{Guid.NewGuid()}/calendar", new
+        {
+            entries = Array.Empty<object>()
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Get_MachineWithoutCalendar_ReturnsEmptyCalendar()
     {
         using var client = await Fixture.CreateAuthenticatedClientAsync();

@@ -1,5 +1,6 @@
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,7 +31,8 @@ internal sealed class WorkCenterCalendarsRepository(DefaultContext context) : IW
     {
         var calendar = await context.Set<WorkCenterCalendar>()
             .Include(x => x.Entries)
-            .FirstAsync(x => x.Id == calendarId, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == calendarId, cancellationToken)
+            ?? throw new NotFoundException("WorkCenterCalendar", calendarId);
 
         // Delete + insert are flushed in a single SaveChanges, i.e. one
         // transaction, so a failed validation can never leave a half-written week.
