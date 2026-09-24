@@ -66,6 +66,7 @@ const pl = {
     shifts: 'Zmiany',
     reasonCodes: 'Kody przyczyn',
     operationTemplates: 'Wzorcowe operacje',
+    maintenance: 'Utrzymanie ruchu',
     settings: 'Ustawienia'
   },
   auth: {
@@ -395,6 +396,30 @@ const pl = {
     name: 'Nazwa',
     description: 'Opis',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
+  },
+  maintenance: {
+    title: 'Utrzymanie ruchu',
+    subtitle: 'Zlecenia corrective maintenance dla stanowisk — zgłoś, rozpocznij i zamknij',
+    create: 'Nowe zlecenie',
+    code: 'Kod',
+    orderTitle: 'Tytuł',
+    description: 'Opis',
+    machine: 'Stanowisko',
+    selectMachine: 'Wybierz stanowisko…',
+    priority: 'Priorytet',
+    selectPriority: 'Wybierz priorytet…',
+    reportedAt: 'Zgłoszono',
+    startedAt: 'Rozpoczęto',
+    completedAt: 'Zakończono',
+    resolutionNotes: 'Notatki z realizacji',
+    resolutionNotesPlaceholder: 'Opisz wykonaną naprawę…',
+    start: 'Rozpocznij',
+    complete: 'Zakończ',
+    completeTitle: 'Zakończenie zlecenia',
+    cancelOrder: 'Anuluj zlecenie',
+    statuses: { open: 'Otwarte', inProgress: 'W realizacji', done: 'Zakończone', cancelled: 'Anulowane' },
+    priorities: { low: 'Niski', medium: 'Średni', high: 'Wysoki', critical: 'Krytyczny' },
+    filters: { machine: 'Stanowisko', status: 'Status' }
   },
   andon: {
     title: 'Andon',
@@ -810,6 +835,7 @@ const en: typeof pl = {
     shifts: 'Shifts',
     reasonCodes: 'Reason codes',
     operationTemplates: 'Operation templates',
+    maintenance: 'Maintenance',
     settings: 'Settings'
   },
   auth: {
@@ -1139,6 +1165,30 @@ const en: typeof pl = {
     name: 'Name',
     description: 'Description',
     filters: { code: 'Code contains…', name: 'Name contains…' }
+  },
+  maintenance: {
+    title: 'Maintenance',
+    subtitle: 'Corrective maintenance work orders for work centers — raise, start and close',
+    create: 'New work order',
+    code: 'Code',
+    orderTitle: 'Title',
+    description: 'Description',
+    machine: 'Work center',
+    selectMachine: 'Select a work center…',
+    priority: 'Priority',
+    selectPriority: 'Select a priority…',
+    reportedAt: 'Reported at',
+    startedAt: 'Started at',
+    completedAt: 'Completed at',
+    resolutionNotes: 'Resolution notes',
+    resolutionNotesPlaceholder: 'Describe the repair performed…',
+    start: 'Start',
+    complete: 'Complete',
+    completeTitle: 'Complete work order',
+    cancelOrder: 'Cancel work order',
+    statuses: { open: 'Open', inProgress: 'In progress', done: 'Done', cancelled: 'Cancelled' },
+    priorities: { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' },
+    filters: { machine: 'Work center', status: 'Status' }
   },
   andon: {
     title: 'Andon',
