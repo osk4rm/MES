@@ -25,7 +25,13 @@ export const sitemap: NavItem[] = [
     ]
   },
   { label: 'nav.schedule', icon: 'pi pi-calendar', route: '/schedule' },
-  { label: 'nav.reports', icon: 'pi pi-chart-bar', route: '/reports' },
+  {
+    label: 'nav.reports',
+    icon: 'pi pi-chart-bar',
+    children: [
+      { label: 'nav.oeeDashboard', icon: 'pi pi-chart-bar', route: '/reports/oee' }
+    ]
+  },
   {
     label: 'nav.configuration',
     icon: 'pi pi-sliders-h',
