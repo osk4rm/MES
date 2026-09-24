@@ -556,7 +556,26 @@ const pl = {
     actions: {
       hold: 'Wstrzymaj',
       release: 'Przywróć',
-      scrap: 'Złomuj'
+      scrap: 'Złomuj',
+      details: 'Szczegóły i genealogia'
+    },
+    tabs: {
+      details: 'Szczegóły',
+      genealogy: 'Genealogia'
+    },
+    genealogy: {
+      depth: 'Głębokość',
+      level: 'Poziom',
+      quantity: 'Ilość',
+      order: 'Zlecenie',
+      workCenter: 'Stanowisko',
+      occurredAt: 'Data zdarzenia',
+      upstream: 'Pochodzenie (upstream) — skąd pochodzi',
+      downstream: 'Wykorzystanie (downstream) — gdzie użyto',
+      empty: 'Brak powiązanych partii',
+      truncated: 'Wyniki przycięte — zawęź głębokość lub zmień partię główną',
+      switchRoot: 'Ustaw jako główną',
+      notFound: 'Nie znaleziono partii lub brak dostępu'
     }
   },
   scrap: {
@@ -1157,7 +1176,26 @@ const en: typeof pl = {
     actions: {
       hold: 'Hold',
       release: 'Release',
-      scrap: 'Scrap'
+      scrap: 'Scrap',
+      details: 'Details & genealogy'
+    },
+    tabs: {
+      details: 'Details',
+      genealogy: 'Genealogy'
+    },
+    genealogy: {
+      depth: 'Depth',
+      level: 'Level',
+      quantity: 'Quantity',
+      order: 'Order',
+      workCenter: 'Work Center',
+      occurredAt: 'Occurred at',
+      upstream: 'Origin (upstream) — where from',
+      downstream: 'Where used (downstream)',
+      empty: 'No related lots',
+      truncated: 'Results truncated — narrow the depth or change the root lot',
+      switchRoot: 'Set as root',
+      notFound: 'Lot not found or access denied'
     }
   },
   scrap: {
