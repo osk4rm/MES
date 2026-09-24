@@ -358,6 +358,10 @@ Zasady:
   (badge „kolejka"). Lokalny dyspozytor limitu nie egzekwuje — to rola CI.
 - **Auto-merge**: `ai:ready` + zielone CI = squash-merge z kasowaniem brancha,
   bez człowieka. Dashboard pokazuje `ready` do momentu mergu.
+- **Fast-path dla docs-only**: review `APPROVED` + diff tylko `docs/**`/`*.md`
+  = prosto do `ai:ready` (bez verify/e2e — nie ma runtime'u do testowania).
+  Weryfikator i tester słusznie odmawiają klepnięcia pustki (`E2E_BLOCKED`),
+  więc takie PR-y nie jadą dalej torem kodowym.
 - **Samouzupełniająca kolejka**: pusty `ai:implement` + backlog poniżej
   `BACKLOG_MAX=5` + gap w trackerze lub nielabelowany proposal = job `analyst`
   sam startuje `mes-analyst` w CI. Pętla nie staje po wyczerpaniu issuesów;
