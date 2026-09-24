@@ -117,7 +117,7 @@
             :empty-label="$t('oeeDashboard.downtimeEmpty')"
           >
             <template #cell-reason="{ item }">{{ paretoRowLabel(item) }}</template>
-            <template #cell-share="{ value }">{{ formatOeeShare(Number(value)) }}</template>
+            <template #cell-share="{ value }">{{ formatOeeShare(toNullableNumber(value)) }}</template>
           </AppTable>
         </AppCard>
 
@@ -133,7 +133,7 @@
             :empty-label="$t('oeeDashboard.scrapEmpty')"
           >
             <template #cell-reason="{ item }">{{ paretoRowLabel(item) }}</template>
-            <template #cell-share="{ value }">{{ formatOeeShare(Number(value)) }}</template>
+            <template #cell-share="{ value }">{{ formatOeeShare(toNullableNumber(value)) }}</template>
           </AppTable>
         </AppCard>
       </div>
@@ -353,22 +353,37 @@ function readValidatedQuery(): ValidatedQuery | null {
 }
 
 function syncQuery(q: ValidatedQuery): void {
+  const next = {
+    machineId: q.snapshot.machineId,
+    from: q.snapshot.fromUtc,
+    to: q.snapshot.toUtc,
+    ideal: String(q.snapshot.idealCycleTimeSeconds),
+    bucket: bucket.value
+  };
+  const cur = route.query as Record<string, unknown>;
+  // Guard the replace when the query already matches: clicking Apply twice
+  // (or a watch echo) must not push a redundant navigation.
+  if (
+    String(cur.machineId ?? '') === next.machineId &&
+    String(cur.from ?? '') === next.from &&
+    String(cur.to ?? '') === next.to &&
+    String(cur.ideal ?? '') === next.ideal &&
+    String(cur.bucket ?? '') === next.bucket
+  ) {
+    return;
+  }
+  // Remember the key we just synced so the query watcher can swallow its
+  // own echo instead of fetching every panel a second time.
+  lastAppliedKey = [next.machineId, next.from, next.to, next.ideal, next.bucket].join('|');
   void router.replace({
     query: {
       ...route.query,
-      machineId: q.snapshot.machineId,
-      from: q.snapshot.fromUtc,
-      to: q.snapshot.toUtc,
-      ideal: String(q.snapshot.idealCycleTimeSeconds),
-      bucket: bucket.value
+      ...next
     }
   });
 }
 
-async function refresh(): Promise<void> {
-  const q = readValidatedQuery();
-  if (!q) return;
-  syncQuery(q);
+async function loadPanels(q: ValidatedQuery): Promise<void> {
   loading.value = true;
   notFound.value = false;
   try {
@@ -395,6 +410,13 @@ async function refresh(): Promise<void> {
   } finally {
     loading.value = false;
   }
+}
+
+async function refresh(): Promise<void> {
+  const q = readValidatedQuery();
+  if (!q) return;
+  syncQuery(q);
+  await loadPanels(q);
 }
 
 function clearPanels(): void {
@@ -457,7 +479,16 @@ function queryKey(): string {
   return [q.machineId, q.from, q.to, q.ideal, q.bucket].map((v) => String(v ?? '')).join('|');
 }
 
+// Key of the last query we pushed via syncQuery. The query watcher swallows
+// the echo of our own replace instead of fetching every panel twice.
+let lastAppliedKey: string | null = null;
+
 watch(queryKey, () => {
+  if (lastAppliedKey !== null && queryKey() === lastAppliedKey) {
+    lastAppliedKey = null;
+    return;
+  }
+  lastAppliedKey = null;
   readStateFromQuery();
   if (machineId.value) void refresh();
 });

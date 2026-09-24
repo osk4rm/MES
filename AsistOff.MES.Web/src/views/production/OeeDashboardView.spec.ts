@@ -189,13 +189,15 @@ describe('OeeDashboardView', () => {
     expect(wrapper.text()).toContain('66.7%');
 
     // All three panels were refreshed for the deep-linked work center and
-    // window; the URL state is synced via router.replace (no full reload).
+    // window; the URL already matches so no redundant replace is pushed
+    // (sync guard). URL re-sync on change is covered by the work-center
+    // switch test via router.replace (no full reload).
     expect(snapshotMock).toHaveBeenCalledWith(
       expect.objectContaining({ machineId: 'machine-1', idealCycleTimeSeconds: 60 })
     );
     expect(trendMock).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'machine-1', bucket: 'Day' }));
     expect(lossesMock).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'machine-1' }));
-    expect(mockReplace).toHaveBeenCalledWith({ query: expect.objectContaining({ machineId: 'machine-1' }) });
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it('shows the null-factor notice, not zeros or an error, for a window with no planned time', async () => {
@@ -256,10 +258,12 @@ describe('OeeDashboardView', () => {
     expect(snapshotMock).toHaveBeenCalledTimes(1);
 
     // Changing the window refreshes every panel without a page reload.
+    // Note: setValue on the native datetime input already fires the change
+    // event through AppInput, so no explicit trigger('change') — that would
+    // double-fire onWindowChange and fetch twice.
     const from = wrapper.findAll('input[type="datetime-local"]')[0];
     expect(from).toBeDefined();
     await from?.setValue('2026-09-24T07:00');
-    await from?.trigger('change');
     await flushPromises();
 
     expect(snapshotMock).toHaveBeenCalledTimes(2);
@@ -267,6 +271,46 @@ describe('OeeDashboardView', () => {
     expect(lossesMock).toHaveBeenCalledTimes(2);
     const secondCall = snapshotMock.mock.calls[1]?.[0] as { fromUtc: string };
     expect(secondCall.fromUtc).not.toBe((snapshotMock.mock.calls[0]?.[0] as { fromUtc: string }).fromUtc);
+  });
+
+  it('changing the ideal cycle time to a valid value refreshes all panels', async () => {
+    seedDeepLink();
+
+    const wrapper = mountDashboard();
+    await flushPromises();
+    expect(snapshotMock).toHaveBeenCalledTimes(1);
+
+    const ideal = wrapper.find('input[type="number"]');
+    expect(ideal.exists()).toBe(true);
+    await ideal.setValue('90');
+    await ideal.trigger('blur');
+    await flushPromises();
+
+    expect(snapshotMock).toHaveBeenCalledTimes(2);
+    expect(trendMock).toHaveBeenCalledTimes(2);
+    expect(lossesMock).toHaveBeenCalledTimes(2);
+    expect(snapshotMock).toHaveBeenLastCalledWith(expect.objectContaining({ idealCycleTimeSeconds: 90 }));
+    expect(trendMock).toHaveBeenLastCalledWith(expect.objectContaining({ idealCycleTimeSeconds: 90 }));
+  });
+
+  it('switching the bucket granularity refreshes the trend with the new bucket', async () => {
+    seedDeepLink();
+
+    const wrapper = mountDashboard();
+    await flushPromises();
+    expect(trendMock).toHaveBeenCalledWith(expect.objectContaining({ bucket: 'Day' }));
+
+    // The second select is the Day/Week bucket selector (the first is the
+    // Work Center selector). setValue already fires change via AppSelect.
+    const selects = wrapper.findAll('select');
+    expect(selects).toHaveLength(2);
+    await selects[1]?.setValue('Week');
+    await flushPromises();
+
+    expect(snapshotMock).toHaveBeenCalledTimes(2);
+    expect(trendMock).toHaveBeenCalledTimes(2);
+    expect(lossesMock).toHaveBeenCalledTimes(2);
+    expect(trendMock).toHaveBeenLastCalledWith(expect.objectContaining({ bucket: 'Week' }));
   });
 
   it('switching the work center reloads the panels and re-syncs the URL', async () => {
