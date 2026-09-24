@@ -80,7 +80,7 @@
         <template #cell-shift="{ item }">{{ item.shiftName || item.shiftCode || item.shiftId }}</template>
         <template #cell-actions="{ item }">
           <AppRowActions
-            :actions="[{ key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger' }]"
+            :actions="[{ key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger', disabled: removingRosterId === item.id }]"
             @action="(k) => onRosterAction(k, item)"
           />
         </template>
@@ -311,7 +311,9 @@ async function loadRosterLookups() {
     ]);
     rosterOperators.value = operators.items;
     rosterShifts.value = shifts.items;
-  } catch { /* ignore */ }
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  }
 }
 async function loadRoster() {
   if (!rosterDate.value) { rosterItems.value = []; return; }
@@ -348,6 +350,7 @@ function onRosterAction(key: string, item: OperatorShiftAssignmentResponse) {
   if (key === 'delete') void removeRoster(item);
 }
 async function removeRoster(item: OperatorShiftAssignmentResponse) {
+  if (removingRosterId.value) return;
   removingRosterId.value = item.id;
   try {
     await operatorShiftAssignmentService.remove(item.id);
