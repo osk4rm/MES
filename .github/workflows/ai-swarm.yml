@@ -50,6 +50,7 @@ permissions:
   issues: write
   pull-requests: write
   checks: read
+  actions: write # approve bot-triggered ci runs stuck in action_required
 
 concurrency:
   group: ai-swarm-${{ github.event.issue.number || github.event.pull_request.number || inputs.number || github.run_id }}

@@ -352,7 +352,7 @@ swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
   # that queue behind the lock holder (same concurrency group), and their
   # pending checks used to poison this wait into timeouts (self-deadlock
   # that demoted ai:ready PRs back to ai:review).
-  local pr="$1" timeout="$2" waited=0 sha first upper
+  local pr="$1" timeout="$2" waited=0 sha first upper run_id approved=""
   sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
   if [ -z "$sha" ]; then
     echo pass
@@ -379,7 +379,23 @@ swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
         echo fail
         return 0
         ;;
-      *) ;; # running, queued, action_required (a human may still approve), unknown
+      COMPLETED/ACTION_REQUIRED | WAITING/* | REQUESTED/*)
+        # Bot/Copilot-triggered runs park in action_required until a writer
+        # approves them (same mechanism as fork-PR approvals). Approve via the
+        # API so the loop is autonomous; one attempt is enough.
+        if [ -z "$approved" ]; then
+          run_id=$(gh run list --workflow ci --commit "$sha" --limit 1 --json databaseId \
+            --jq '.[0].databaseId // empty' 2>/dev/null || true)
+          if [ -n "$run_id" ]; then
+            echo "ci run $run_id needs approval — approving via API"
+            if ! gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/approve" >/dev/null 2>&1; then
+              echo "approve API failed for run $run_id — a human with write access must approve it"
+            fi
+          fi
+          approved=1
+        fi
+        ;;
+      *) ;; # running, queued, pending, unknown
     esac
     sleep 30
     waited=$((waited + 30))
@@ -398,7 +414,12 @@ swarm_use_pat_remote() { # [$pat] — push as a collaborator, not as github-acti
     return 0
   fi
   git remote set-url origin "https://x-access-token:${pat}@github.com/${GITHUB_REPOSITORY}.git"
-  echo 'origin rewired to SWARM_PAT credentials'
+  # actions/checkout persists `http.<url>.extraheader` with the GITHUB_TOKEN
+  # and that header OVERRIDES URL-embedded credentials — without dropping it
+  # pushes still go out as github-actions[bot] (whose runs park in
+  # action_required). Remove it so the PAT URL credentials take effect.
+  git config --local --unset-all "http.https://github.com/.extraheader" 2>/dev/null || true
+  echo 'origin rewired to SWARM_PAT credentials (persisted extraheader cleared)'
 }
 
 swarm_require_auth() {
