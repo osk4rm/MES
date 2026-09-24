@@ -2,7 +2,10 @@
   <div>
     <AppPageHeader :title="$t('telemetry.title')" :subtitle="$t('telemetry.subtitle')" icon="pi pi-wave-pulse">
       <template #actions>
-        <AppButton variant="secondary" icon="pi pi-refresh" @click="table.fetch">{{ $t('common.refresh') }}</AppButton>
+        <AppBadge :variant="simulatorEnabled === true ? 'success' : 'idle'" dot>
+          {{ simulatorEnabled === true ? $t('telemetry.simulator.enabled') : $t('telemetry.simulator.disabled') }}
+        </AppBadge>
+        <AppButton variant="secondary" icon="pi pi-refresh" @click="refreshAll">{{ $t('common.refresh') }}</AppButton>
         <AppButton variant="primary" icon="pi pi-plus" @click="openCreate">{{ $t('telemetry.create') }}</AppButton>
       </template>
     </AppPageHeader>
@@ -49,6 +52,11 @@
       <template #cell-isEnabled="{ value }">
         <AppBadge :variant="value ? 'success' : 'idle'" dot>
           {{ value ? $t('telemetry.enabled') : $t('telemetry.disabled') }}
+        </AppBadge>
+      </template>
+      <template #cell-connection="{ item }">
+        <AppBadge :variant="connectionVariant(item.id)" dot>
+          {{ connectionLabel(item.id) }}
         </AppBadge>
       </template>
       <template #cell-actions="{ item }">
@@ -188,7 +196,8 @@ import {
   TelemetryDataType,
   TelemetryQuality,
   type MachineTelemetryTagResponse,
-  type TelemetryReadingResponse
+  type TelemetryReadingResponse,
+  type TelemetryTagStatusEntry
 } from '../../services/telemetryService';
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { useToastStore } from '../../stores/toastStore';
@@ -215,10 +224,42 @@ const columns = computed(() => [
   { key: 'dataType', label: t('telemetry.dataType'), sortable: false, width: '110px' },
   { key: 'pollIntervalSeconds', label: t('telemetry.pollInterval'), sortable: false, align: 'right' as const, width: '110px' },
   { key: 'isEnabled', label: t('common.status'), sortable: false, width: '120px' },
+  { key: 'connection', label: t('telemetry.connection'), sortable: false, width: '130px' },
   { key: 'actions', label: t('common.actions'), width: '90px' }
 ]);
 
 const machines = ref<MachineResponse[]>([]);
+const statusByTag = ref<Map<string, TelemetryTagStatusEntry>>(new Map());
+const simulatorEnabled = ref<boolean | null>(null);
+
+function connectionEntry(id: string): TelemetryTagStatusEntry | undefined {
+  return statusByTag.value.get(id);
+}
+function connectionVariant(id: string): 'success' | 'warning' | 'idle' {
+  const entry = connectionEntry(id);
+  if (!entry || !entry.lastReadAt) return 'idle';
+  return entry.stale ? 'warning' : 'success';
+}
+function connectionLabel(id: string): string {
+  const entry = connectionEntry(id);
+  if (!entry || !entry.lastReadAt) return t('telemetry.status.never');
+  return entry.stale ? t('telemetry.status.stale') : t('telemetry.status.recent');
+}
+
+async function fetchStatus(): Promise<void> {
+  try {
+    const status = await telemetryTagService.getStatus();
+    simulatorEnabled.value = status.simulatorEnabled;
+    statusByTag.value = new Map(status.tags.map((e) => [e.tagId, e]));
+  } catch {
+    simulatorEnabled.value = null;
+    statusByTag.value = new Map();
+  }
+}
+
+async function refreshAll(): Promise<void> {
+  await Promise.all([table.fetch(), fetchStatus()]);
+}
 const machineOptions = computed<SelectOption[]>(() =>
   machines.value.map(m => ({ value: m.id, label: `${m.code} — ${m.name}` })));
 const machineFilterOptions = computed<SelectOption[]>(() => [
@@ -364,7 +405,7 @@ async function onFormSave(): Promise<void> {
       });
       toast.success(t('toasts.created'));
     }
-    await table.fetch();
+    await refreshAll();
     formOpen.value = false;
     editing.value = null;
   } catch (err) {
@@ -378,7 +419,7 @@ async function onToggle(item: MachineTelemetryTagResponse): Promise<void> {
   try {
     await telemetryTagService.toggle(item.id);
     toast.success(t('toasts.updated'));
-    await table.fetch();
+    await refreshAll();
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.saveFailed')));
   }
@@ -401,7 +442,7 @@ async function doDelete(): Promise<void> {
   try {
     await telemetryTagService.remove(toDelete.value.id);
     toast.success(t('toasts.deleted'));
-    await table.fetch();
+    await refreshAll();
     confirmOpen.value = false;
     toDelete.value = null;
   } catch (err) {
@@ -490,7 +531,7 @@ onMounted(async () => {
   } catch {
     // lookups stay empty; ids are still rendered raw
   }
-  await table.fetch();
+  await refreshAll();
 });
 </script>
 

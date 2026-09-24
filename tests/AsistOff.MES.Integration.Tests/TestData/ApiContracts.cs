@@ -196,3 +196,20 @@ public sealed record TelemetryReadingDto(
     double? DoubleValue,
     string? StringValue,
     short Quality);
+
+/// <summary>Shape of one per-tag entry returned by <c>/api/telemetry-tags/status</c>.</summary>
+public sealed record TelemetryTagStatusDto(
+    Guid TagId,
+    Guid MachineId,
+    string NodeId,
+    string DisplayName,
+    bool IsEnabled,
+    DateTime? LastReadAt,
+    int ReadingsLastHour,
+    bool Stale);
+
+/// <summary>Shape of the connection-status readout returned by <c>/api/telemetry-tags/status</c>.</summary>
+public sealed record TelemetryStatusDto(
+    bool SimulatorEnabled,
+    int SimulatorIntervalSeconds,
+    IReadOnlyCollection<TelemetryTagStatusDto> Tags);

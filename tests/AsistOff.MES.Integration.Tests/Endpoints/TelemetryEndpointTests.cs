@@ -249,6 +249,66 @@ public sealed class TelemetryEndpointTests(MesApplicationFixture fixture) : Inte
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
     }
 
+    [Fact]
+    public async Task GetStatus_WithoutToken_Returns401()
+    {
+        using var client = Fixture.CreateClient();
+
+        var response = await client.GetAsync($"{TagsUrl}/status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task GetStatus_ReturnsOnlyCallerTenantEntries()
+    {
+        // Arrange - a tag under a brand-new tenant plus one under the seeded dev tenant
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var otherTag = await CreateTagAsync(otherTenantClient);
+
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+        var ownTag = await CreateTagAsync(devClient);
+
+        // Act
+        var response = await devClient.GetAsync($"{TagsUrl}/status");
+
+        // Assert - own tag present, other-tenant tag invisible
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var status = await ReadAsync<TelemetryStatusDto>(response);
+        status.Tags.Should().ContainSingle(t => t.TagId == ownTag.Id);
+        status.Tags.Should().NotContain(t => t.TagId == otherTag.Id);
+    }
+
+    [Fact]
+    public async Task SubmitThenStatus_ShowsRecentReading_AndNeverReadTag()
+    {
+        // Arrange - staleness threshold in the integration host is 2x30s,
+        // so the reported reading must be seconds (not minutes) old.
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var reportedTag = await CreateTagAsync(client);
+        var silentTag = await CreateTagAsync(client);
+        await SubmitAsync(client, reportedTag.Id, DateTime.UtcNow.AddSeconds(-20), 21.5);
+
+        // Act
+        var response = await client.GetAsync($"{TagsUrl}/status");
+
+        // Assert - simulator is disabled in the integration host
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var status = await ReadAsync<TelemetryStatusDto>(response);
+        status.SimulatorEnabled.Should().BeFalse();
+
+        var reported = status.Tags.Should().ContainSingle(t => t.TagId == reportedTag.Id).Subject;
+        reported.Stale.Should().BeFalse();
+        reported.LastReadAt.Should().BeCloseTo(DateTime.UtcNow.AddSeconds(-20), TimeSpan.FromMinutes(1));
+        reported.ReadingsLastHour.Should().BeGreaterThanOrEqualTo(1);
+
+        var silent = status.Tags.Should().ContainSingle(t => t.TagId == silentTag.Id).Subject;
+        silent.LastReadAt.Should().BeNull();
+        silent.Stale.Should().BeFalse();
+        silent.ReadingsLastHour.Should().Be(0);
+    }
+
     private static async Task<Guid> CreateMachineAsync(HttpClient client)
     {
         var code = $"TL-M-{Guid.NewGuid():N}"[..12];

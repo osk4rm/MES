@@ -11,6 +11,12 @@ public interface ITelemetryReadingsRepository
     Task<TelemetryReading?> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<TelemetryReading> AddAsync(TelemetryReading entity, CancellationToken cancellationToken = default);
 
+    /// <summary>Newest reading for one tag of the ambient tenant, if any.</summary>
+    Task<TelemetryReading?> GetLatestAsync(Guid tagId, CancellationToken cancellationToken = default);
+
+    /// <summary>Number of readings for one tag stored at or after <paramref name="since"/>.</summary>
+    Task<int> CountSinceAsync(Guid tagId, DateTime since, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Returns the latest reading per tag from the filtered set (used by the
     /// latest-only browse mode). Readings sharing the same (tag, timestamp)

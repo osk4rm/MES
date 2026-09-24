@@ -1,4 +1,5 @@
 using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Production.Application.Telemetry;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -14,7 +15,9 @@ namespace AsistOff.MES.Integration.Tests.Infrastructure;
 /// Boots the real Gateway host (<see cref="Program"/>) against a Testcontainers
 /// PostgreSQL database. The application starts exactly as it does locally
 /// (Development environment, dev seeder, appsettings.Development.json) - the
-/// only change is that both EF Core contexts are pointed at the container.
+/// only changes are that both EF Core contexts are pointed at the container
+/// and the telemetry simulator poller is disabled so background writes can
+/// never make endpoint assertions flaky.
 /// </summary>
 public sealed class MesWebApplicationFactory(string connectionString) : WebApplicationFactory<Program>
 {
@@ -36,6 +39,10 @@ public sealed class MesWebApplicationFactory(string connectionString) : WebAppli
                     sp.GetRequiredService<PublishDomainEventsInterceptor>(),
                     sp.GetRequiredService<AuditableEntityInterceptor>());
             });
+
+            // Runs after the production Telemetry section binding, so the
+            // poller stays off for the whole integration run.
+            services.Configure<TelemetryOptions>(options => options.SimulatorEnabled = false);
         });
     }
 
