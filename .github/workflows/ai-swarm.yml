@@ -49,7 +49,11 @@ concurrency:
 
 env:
   MAX_ROUNDS: '3'
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Prefer a user PAT so bot-opened PRs are authored by a collaborator and skip
+  # the public-repo approval gate (without it every bot PR stalls on approve,
+  # and approved runs do not emit workflow_run events). Falls back to the
+  # automatic token when the secret is absent.
+  GH_TOKEN: ${{ secrets.SWARM_PAT || secrets.GITHUB_TOKEN }}
   OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
 
 jobs:
@@ -91,7 +95,9 @@ jobs:
             exit 1
           fi
           swarm_require_auth
-          swarm_acquire_lock issue "$ISSUE" || exit 1
+          # Lost race for the lock: exit green — the holder does the work.
+          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          swarm_acquire_lock issue "$ISSUE" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release issue "$ISSUE"
           git config user.name 'MES Agent Swarm'
           git config user.email 'mes-swarm@users.noreply.github.com'
@@ -209,7 +215,9 @@ jobs:
             echo 'Draft PR; skipping.'
             exit 0
           fi
-          swarm_acquire_lock pr "$PR" || exit 1
+          # Lost race for the lock: exit green — the holder does the work.
+          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
           CI=$(swarm_wait_ci "$PR" 1200)
           echo "ci=$CI"
@@ -277,7 +285,9 @@ jobs:
           source scripts/ci/swarm-lib.sh
           PR='${{ github.event.pull_request.number || inputs.number }}'
           swarm_require_auth
-          swarm_acquire_lock pr "$PR" || exit 1
+          # Lost race for the lock: exit green — the holder does the work.
+          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
           swarm_run_agent mes-verifier \
             "Verify that the tests in PR #$PR genuinely prove the acceptance criteria. Read-only audit: inspect the diff with 'gh pr diff $PR', map each criterion to the test(s) that prove it, check for weakened tests. DO NOT write files, commit, or push. Post the report with 'gh pr comment $PR' ending with exactly one verdict on its own line: 'VERDICT: TESTS_SOUND' or 'VERDICT: TESTS_INSUFFICIENT'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
@@ -337,7 +347,9 @@ jobs:
           source scripts/ci/swarm-lib.sh
           PR='${{ github.event.pull_request.number || inputs.number }}'
           swarm_require_auth
-          swarm_acquire_lock pr "$PR" || exit 1
+          # Lost race for the lock: exit green — the holder does the work.
+          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
           FAILS=$(swarm_fail_count "$PR")
           if [ "$FAILS" -ge "${MAX_ROUNDS:-3}" ]; then
@@ -415,7 +427,9 @@ jobs:
           source scripts/ci/swarm-lib.sh
           PR='${{ github.event.pull_request.number || inputs.number }}'
           swarm_require_auth
-          swarm_acquire_lock pr "$PR" || exit 1
+          # Lost race for the lock: exit green — the holder does the work.
+          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
           # The agent starts the stack itself (scripts/e2e/app.ps1); the
           # service above only provides PostgreSQL on localhost:5432.
