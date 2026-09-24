@@ -10,6 +10,22 @@ public sealed record ReasonCodeDto(
     bool IsActive,
     int SortIndex);
 
+/// <summary>Shape of an Andon signal as returned by <c>/api/andon-signals</c>.</summary>
+public sealed record AndonSignalDto(
+    Guid Id,
+    Guid MachineId,
+    short Category,
+    Guid? ReasonCodeId,
+    short Status,
+    DateTime RaisedAt,
+    DateTime? AcknowledgedAt,
+    DateTime? ResolvedAt,
+    string? Notes,
+    Guid? RaisedByOperatorId,
+    Guid? ProductionOrderId,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
 /// <summary>Shape of the paged responses returned by browse endpoints.</summary>
 public sealed record PagedResponseDto<T>(
     int TotalCount,

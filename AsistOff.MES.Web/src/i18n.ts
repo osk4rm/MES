@@ -41,6 +41,7 @@ const pl = {
     dashboard: 'Pulpit',
     production: 'Produkcja',
     productionOrders: 'Zlecenia produkcyjne',
+    productionAndon: 'Andon',
     productionRecipes: 'Receptury',
     schedule: 'Harmonogram',
     reports: 'Raporty',
@@ -263,6 +264,37 @@ const pl = {
     description: 'Opis',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
   },
+  andon: {
+    title: 'Andon',
+    subtitle: 'Sygnalizacja stanów awaryjnych na stanowiskach',
+    board: 'Aktywne sygnały',
+    boardEmpty: 'Brak aktywnych sygnałów — produkcja działa normalnie.',
+    raise: 'Zgłoś sygnał',
+    editSignal: 'Edytuj sygnał',
+    resolveSignal: 'Rozwiąż sygnał',
+    acknowledge: 'Potwierdź',
+    resolve: 'Rozwiąż',
+    machine: 'Stanowisko',
+    category: 'Kategoria',
+    raisedAt: 'Czas zgłoszenia',
+    resolvedAt: 'Czas rozwiązania',
+    notes: 'Uwagi',
+    filters: {
+      machine: 'Stanowisko',
+      category: 'Kategoria'
+    },
+    categories: {
+      1: 'Przestój',
+      2: 'Jakość',
+      3: 'Materiał',
+      4: 'Inne'
+    },
+    statuses: {
+      1: 'Aktywny',
+      2: 'Potwierdzony',
+      3: 'Rozwiązany'
+    }
+  },
   reasonCodes: {
     title: 'Kody przyczyn',
     subtitle: 'Słownik przyczyn przestojów i braków',
@@ -352,6 +384,7 @@ const en: typeof pl = {
     dashboard: 'Dashboard',
     production: 'Production',
     productionOrders: 'Production orders',
+    productionAndon: 'Andon',
     productionRecipes: 'Recipes',
     schedule: 'Schedule',
     reports: 'Reports',
@@ -573,6 +606,37 @@ const en: typeof pl = {
     name: 'Name',
     description: 'Description',
     filters: { code: 'Code contains…', name: 'Name contains…' }
+  },
+  andon: {
+    title: 'Andon',
+    subtitle: 'Work-center abnormal condition signals',
+    board: 'Active signals',
+    boardEmpty: 'No active signals — production is running normally.',
+    raise: 'Raise signal',
+    editSignal: 'Edit signal',
+    resolveSignal: 'Resolve signal',
+    acknowledge: 'Acknowledge',
+    resolve: 'Resolve',
+    machine: 'Work center',
+    category: 'Category',
+    raisedAt: 'Raised at',
+    resolvedAt: 'Resolved at',
+    notes: 'Notes',
+    filters: {
+      machine: 'Work center',
+      category: 'Category'
+    },
+    categories: {
+      1: 'Downtime',
+      2: 'Quality',
+      3: 'Material',
+      4: 'Other'
+    },
+    statuses: {
+      1: 'Active',
+      2: 'Acknowledged',
+      3: 'Resolved'
+    }
   },
   reasonCodes: {
     title: 'Reason codes',
