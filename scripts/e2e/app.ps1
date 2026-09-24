@@ -4,7 +4,12 @@
 
 .DESCRIPTION
     Backend  : dotnet run --project AsistOff.MES.Gateway  (http profile, :5243)
-    Frontend : npm run dev                                (:5173)
+    Frontend : npm run dev                                (:5173, strictPort,
+               VITE_API_BASE_URL forced to the backend URL above)
+
+    The frontend always calls the backend this script started: `start` exports
+    VITE_API_BASE_URL=http://localhost:5243/ for the vite child process
+    (process env wins over AsistOff.MES.Web/.env.development).
 
     Processes are started detached and their PIDs are recorded in a state file so
     that `-Action stop` and `-Action status` can find them. Logs go to
@@ -20,7 +25,10 @@
     How long to wait for both health endpoints after `start`. Default 90.
 
 .NOTES
-    The backend needs PostgreSQL (see AsistOff.MES.Gateway/appsettings.Development.json).
+    Database prerequisite (single source of truth): docs/e2e-local-setup.md.
+    One-command setup: `docker compose up -d postgres` (DB mes, user admin,
+    password root on localhost:5432, matching the compose defaults and the
+    documented postgres__connectionString).
     If the database is not reachable the backend will exit and `start` reports the
     failure, which the e2e agent surfaces as VERDICT: E2E_BLOCKED.
 #>
@@ -42,19 +50,26 @@ $LogDir = Join-Path $Tmp 'opencode'
 $StateFile = Join-Path $LogDir 'e2e-app-state.json'
 $BackendPort = 5243
 $FrontendPort = 5173
+$DbPort = 5432
+# Backend URL the script starts (http launch profile). Exported as
+# VITE_API_BASE_URL for the vite child process so the frontend always calls
+# the backend this run started (process env wins over .env.development).
+$BackendUrl = "http://localhost:$BackendPort"
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
 function Test-Port {
     param([int]$Port)
-    try {
-        $client = New-Object System.Net.Sockets.TcpClient
-        $client.Connect('127.0.0.1', $Port)
-        $client.Close()
-        return $true
-    } catch {
-        return $false
+    # Try IPv4 loopback first, then `localhost` (vite may bind ::1 only).
+    foreach ($target in @('127.0.0.1', 'localhost')) {
+        try {
+            $client = New-Object System.Net.Sockets.TcpClient
+            $client.Connect($target, $Port)
+            $client.Close()
+            return $true
+        } catch { }
     }
+    return $false
 }
 
 function Get-State {
@@ -124,7 +139,16 @@ switch ($Action) {
     'start' {
         $state = Get-State
 
-        if (-not (Test-Port $BackendPort)) {
+        if (-not (Test-Port $DbPort)) {
+            Write-Host ''
+            Write-Host "WARNING: nothing is listening on :$DbPort (PostgreSQL)."
+            Write-Host '  The backend will exit at migration time without a database.'
+            Write-Host '  One-command setup (see docs/e2e-local-setup.md): docker compose up -d postgres'
+        }
+
+        if (Test-Port $BackendPort) {
+            Write-Host "backend already up on :$BackendPort"
+        } else {
             $beOut = Join-Path $LogDir 'e2e-backend.log'
             $beErr = Join-Path $LogDir 'e2e-backend.err.log'
             $be = Start-Detached -File 'dotnet' `
@@ -132,20 +156,23 @@ switch ($Action) {
                 -WorkDir $Root -OutFile $beOut -ErrFile $beErr
             $state.backendPid = $be.Id
             Write-Host "backend started (pid $($be.Id)) -> $beOut"
-        } else {
-            Write-Host "backend already up on :$BackendPort"
         }
 
-        if (-not (Test-Port $FrontendPort)) {
+        if (Test-Port $FrontendPort) {
+            Write-Host "frontend already up on :$FrontendPort"
+            Write-Host '  (vite uses strictPort: if this port is held by another process,'
+            Write-Host '  stop it first - vite will not silently move to :5174.)'
+        } else {
             $feOut = Join-Path $LogDir 'e2e-frontend.log'
             $feErr = Join-Path $LogDir 'e2e-frontend.err.log'
+            # Force the API base for this run so the UI never calls a stale URL
+            # (e.g. a baked https://localhost:7245 from .env.development).
+            $env:VITE_API_BASE_URL = "$BackendUrl/"
             $fe = Start-Detached -File $npm `
                 -ArgList @('run', 'dev') `
                 -WorkDir (Join-Path $Root 'AsistOff.MES.Web') -OutFile $feOut -ErrFile $feErr
             $state.frontendPid = $fe.Id
-            Write-Host "frontend started (pid $($fe.Id)) -> $feOut"
-        } else {
-            Write-Host "frontend already up on :$FrontendPort"
+            Write-Host "frontend started (pid $($fe.Id)) -> $feOut (VITE_API_BASE_URL=$env:VITE_API_BASE_URL)"
         }
 
         Save-State $state
