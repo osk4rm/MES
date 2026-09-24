@@ -233,6 +233,26 @@ public sealed record TelemetryStatusDto(
     int SimulatorIntervalSeconds,
     IReadOnlyCollection<TelemetryTagStatusDto> Tags);
 
+/// <summary>Shape of a kanban loop as returned by <c>/api/kanban/loops</c>.</summary>
+public sealed record KanbanLoopDto(
+    Guid Id,
+    string Code,
+    Guid ProductId,
+    Guid ConsumingMachineId,
+    Guid SupplyingWarehouseId,
+    decimal CardQuantity,
+    int CardsInCirculation,
+    bool IsActive,
+    string? Notes);
+
+/// <summary>Shape of a kanban card as returned by <c>/api/kanban/loops/{loopId}/cards</c>.</summary>
+public sealed record KanbanCardDto(
+    Guid Id,
+    Guid LoopId,
+    string CardNumber,
+    short Status,
+    string? Notes);
+
 /// <summary>Shape of one RW/PW movement preview line returned by the movements endpoints.</summary>
 public sealed record MovementPreviewLineDto(
     string MovementType,

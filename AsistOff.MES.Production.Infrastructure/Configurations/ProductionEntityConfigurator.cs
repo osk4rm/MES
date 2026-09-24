@@ -24,6 +24,8 @@ public class ProductionEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<ScrapEvent>();
         modelBuilder.Entity<MachineTelemetryTag>();
         modelBuilder.Entity<TelemetryReading>();
+        modelBuilder.Entity<KanbanLoop>();
+        modelBuilder.Entity<KanbanCard>();
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProductionEntityConfigurator).Assembly);
     }

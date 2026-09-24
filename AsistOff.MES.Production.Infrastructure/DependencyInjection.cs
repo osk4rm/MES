@@ -28,6 +28,8 @@ public static class DependencyInjection
         services.AddScoped<IScrapEventsRepository, ScrapEventsRepository>();
         services.AddScoped<IMachineTelemetryTagsRepository, MachineTelemetryTagsRepository>();
         services.AddScoped<ITelemetryReadingsRepository, TelemetryReadingsRepository>();
+        services.AddScoped<IKanbanLoopsRepository, KanbanLoopsRepository>();
+        services.AddScoped<IKanbanCardsRepository, KanbanCardsRepository>();
 
         services.AddScoped<IEntityConfigurator, ProductionEntityConfigurator>();
 
