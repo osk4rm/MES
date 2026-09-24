@@ -111,6 +111,41 @@ public sealed class MaintenanceWorkOrdersEndpointTests(MesApplicationFixture fix
     }
 
     [Fact]
+    public async Task Create_WithSameCodeInDifferentTenant_ReturnsCreatedInBoth()
+    {
+        var code = UniqueCode();
+
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+        var devMachineId = await CreateMachineAsync(devClient);
+        var devCreate = await devClient.PostAsJsonAsync(BaseUrl, new
+        {
+            code,
+            title = "Dev tenant order",
+            description = (string?)null,
+            machineId = devMachineId,
+            priority = 2
+        });
+
+        devCreate.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var otherMachineId = await CreateMachineAsync(otherTenantClient);
+        var otherCreate = await otherTenantClient.PostAsJsonAsync(BaseUrl, new
+        {
+            code,
+            title = "Other tenant order",
+            description = (string?)null,
+            machineId = otherMachineId,
+            priority = 2
+        });
+
+        otherCreate.StatusCode.Should().Be(HttpStatusCode.Created);
+        var otherCreated = await ReadAsync<MaintenanceWorkOrderDto>(otherCreate);
+        otherCreated.Code.Should().Be(code);
+    }
+
+    [Fact]
     public async Task Create_WithUnknownMachine_Returns404()
     {
         using var client = await Fixture.CreateAuthenticatedClientAsync();
