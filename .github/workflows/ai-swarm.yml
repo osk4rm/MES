@@ -4,8 +4,12 @@ name: ai-swarm
 #
 # Mirrors the label state machine owned locally by scripts/agent-dispatcher.ps1:
 #   issue[ai:implement] -> implement -> PR[ai:review] -> review -> PR[ai:verify]
-#   -> verify -> PR[ai:e2e] -> e2e -> PR[ai:ready] (human merges)
+#   -> verify -> PR[ai:e2e] -> e2e -> PR[ai:ready] -> merge (squash, automatic)
 #   any failure verdict -> PR[ai:changes] -> fix -> PR[ai:review]
+#
+# Throughput: at most MAX_PARALLEL (default 3) items hold ai:running at once;
+# the sweep job re-fires queued ai:implement issues on push-to-default and
+# every 30 min, so refused work retries instead of stalling.
 #
 # The local dispatcher stays as fallback/debug; both sides honor ai:running
 # as the cross-runner lock and ai:blocked as the human-escalation state.
@@ -23,9 +27,12 @@ on:
   workflow_run:
     workflows: [ci]
     types: [completed]
+  push:
+    branches: [master, main] # sweep wake-up after every merge
   schedule:
     - cron: '0 6 * * 1' # researcher: Mondays 06:00 UTC
     - cron: '30 5 * * *' # tracker: daily 05:30 UTC
+    - cron: '*/30 * * * *' # sweep: re-fire queued ai:implement when a slot is free
   workflow_dispatch:
     inputs:
       agent:
@@ -49,6 +56,7 @@ concurrency:
 
 env:
   MAX_ROUNDS: '3'
+  MAX_PARALLEL: '3'
   # Prefer a user PAT so bot-opened PRs are authored by a collaborator and skip
   # the public-repo approval gate (without it every bot PR stalls on approve,
   # and approved runs do not emit workflow_run events). Falls back to the
@@ -95,6 +103,10 @@ jobs:
             exit 1
           fi
           swarm_require_auth
+          if [ "$(swarm_in_flight_count)" -ge "${MAX_PARALLEL:-3}" ]; then
+            echo "at capacity ($(swarm_in_flight_count) in flight >= ${MAX_PARALLEL:-3}); leaving ai:implement for the sweeper"
+            exit 0
+          fi
           # Lost race for the lock: exit green — the holder does the work.
           # (A lock with no live run behind it is cleared by a human removing ai:running.)
           swarm_acquire_lock issue "$ISSUE" || { echo 'lock held by another runner; exiting green'; exit 0; }
@@ -219,7 +231,7 @@ jobs:
           # (A lock with no live run behind it is cleared by a human removing ai:running.)
           swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
-          CI=$(swarm_wait_ci "$PR" 1200)
+          CI=$(swarm_wait_ci "$PR" 600)
           echo "ci=$CI"
           if [ "$CI" = fail ]; then
             swarm_remove_label pr "$PR" ai:review
@@ -228,7 +240,7 @@ jobs:
             exit 0
           fi
           if [ "$CI" = timeout ]; then
-            swarm_say pr "$PR" 'Agent flow (CI): CI was still pending after 20m; keeping ai:review. The ci-completed event will retrigger this job.'
+            swarm_say pr "$PR" 'Agent flow (CI): CI was still pending after 10m; keeping ai:review. The ci-completed event will retrigger this job.'
             exit 0
           fi
           swarm_run_agent mes-reviewer \
@@ -444,7 +456,7 @@ jobs:
           case "$VERDICT" in
             E2E_PASS)
               swarm_add_label pr "$PR" ai:ready
-              swarm_say pr "$PR" 'Agent flow (CI): CI + review + verify + e2e green. Ready for a human merge.'
+              swarm_say pr "$PR" 'Agent flow (CI): CI + review + verify + e2e green. Auto-merge will take it from here (ai:ready).'
               ;;
             E2E_FAIL) swarm_add_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
             *)
@@ -535,3 +547,74 @@ jobs:
           swarm_run_agent mes-tracker \
             "Reconcile docs/feature-tracker.md with GitHub issues/PRs and the codebase, then publish the update on branch ai/tracker-sync (based on $DEFAULT) and open or update a PR. Abort if the working tree is dirty." \
             tracker.log
+
+  # ---------------------------------------------------------------------- sweep
+  sweep:
+    name: sweep queued issues
+    # Wakes up on every merge (push) and every 30 min. Re-fires the labeled
+    # event for the oldest queued issue when a parallel slot is free, so work
+    # refused by the MAX_PARALLEL gate retries instead of stalling.
+    if: >
+      github.event_name == 'schedule' &&
+      github.event.schedule == '*/30 * * * *' ||
+      github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Re-fire oldest queued issue when a slot is free
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          if [ "$(swarm_in_flight_count)" -ge "${MAX_PARALLEL:-3}" ]; then
+            echo "at capacity; nothing to sweep"
+            exit 0
+          fi
+          ISSUE=$(swarm_oldest_queued_issue)
+          if [ -z "$ISSUE" ]; then
+            echo 'queue empty; nothing to sweep'
+            exit 0
+          fi
+          swarm_remove_label issue "$ISSUE" ai:implement
+          swarm_add_label issue "$ISSUE" ai:implement
+          echo "re-fired ai:implement on issue #$ISSUE"
+
+  # ---------------------------------------------------------------------- merge
+  merge:
+    name: auto-merge ready PR
+    if: >
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.draft == false &&
+      github.event.label.name == 'ai:ready'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Merge when CI is green
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          PR='${{ github.event.pull_request.number }}'
+          swarm_require_auth
+          # Lost race for the lock: exit green — the holder does the work.
+          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
+          swarm_auto_release pr "$PR"
+          CI=$(swarm_wait_ci "$PR" 600)
+          if [ "$CI" != pass ]; then
+            swarm_remove_label pr "$PR" ai:ready
+            swarm_add_label pr "$PR" ai:review
+            swarm_say pr "$PR" "Agent flow (CI): ai:ready arrived but CI is $CI — back to ai:review for a fresh pass."
+            exit 0
+          fi
+          if gh pr merge "$PR" --squash --delete-branch; then
+            swarm_say pr "$PR" 'Agent flow (CI): merged to the default branch (squash).'
+          else
+            swarm_remove_label pr "$PR" ai:ready
+            swarm_add_label pr "$PR" ai:blocked
+            swarm_say pr "$PR" 'Agent flow (CI): auto-merge failed (conflict?). Needs human attention.'
+            exit 1
+          fi

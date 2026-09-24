@@ -4,7 +4,7 @@
 # Usage: source scripts/ci/swarm-lib.sh
 # Mirrors the label state machine owned locally by scripts/agent-dispatcher.ps1:
 #   issue[ai:implement] -> implement -> PR[ai:review] -> review -> PR[ai:verify]
-#   -> verify -> PR[ai:e2e] -> e2e -> PR[ai:ready] (human merges)
+#   -> verify -> PR[ai:e2e] -> e2e -> PR[ai:ready] -> merge (squash, automatic)
 #   any failure verdict -> PR[ai:changes] -> fix -> PR[ai:review]
 #
 # Conventions:
@@ -158,6 +158,17 @@ swarm_pr_for_sha() { # <sha> -> open PR number with that head SHA or empty
 
 swarm_default_branch() {
   gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null || echo master
+}
+
+swarm_in_flight_count() { # -> number of open issues/PRs holding ai:running
+  # Throughput guard: implement/sweep refuse new work at MAX_PARALLEL.
+  gh api search/issues -f q="repo:${GITHUB_REPOSITORY} label:ai:running state:open" \
+    --jq '.total_count' 2>/dev/null || echo 0
+}
+
+swarm_oldest_queued_issue() { # -> oldest open ai:implement issue without ai:running
+  gh issue list --state open --label ai:implement --json number,createdAt,labels \
+    --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not))] | sort_by(.createdAt) | .[0].number // empty' 2>/dev/null || true
 }
 
 swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
