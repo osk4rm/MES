@@ -66,6 +66,18 @@ changed flow on the local stack (recorded in the PR). Follow
 Backend module(s), API controller(s), frontend view(s), and whether an EF Core
 migration is required.
 
+## Sizing (one issue = one reviewable PR)
+
+- A slice must be reviewable in under ~30 minutes: one area, one coherent
+  deliverable, ideally under ~15 files changed.
+- Subsystem-sized topics arrive as numbered series: `<area>: <outcome> (1/3)`,
+  `(2/3)`, ... Each follow-up states `depends on #<previous>` in Context (the
+  first has no dependency) so implements sequence instead of colliding.
+- EF migrations: at most one slice per series adds a migration (the first);
+  follow-ups consume that schema. Parallel PRs with migrations conflict on the
+  model snapshot — never label two migration-bearing issues `ai:implement`
+  at once.
+
 ## Labelling
 
 - `mes-analyst` creates the issue and adds the `ai:implement` label so the
