@@ -16,6 +16,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'production', redirect: '/production/orders' },
       { path: 'production/orders', name: 'production-orders', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.productionOrders', icon: 'pi pi-list' } },
       { path: 'production/scrap', name: 'production-scrap', component: () => import('./views/production/ScrapView.vue'), meta: { titleKey: 'nav.productionScrap', icon: 'pi pi-trash' } },
+      { path: 'production/andon', name: 'production-andon', component: () => import('./views/production/AndonView.vue'), meta: { titleKey: 'nav.productionAndon', icon: 'pi pi-bell' } },
       { path: 'production/recipes', name: 'production-recipes', component: () => import('./views/production/RecipesView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
       { path: 'production/recipes/:id', name: 'recipe-detail', component: () => import('./views/production/RecipeDetailView.vue'), meta: { titleKey: 'nav.productionRecipes', icon: 'pi pi-book' } },
       { path: 'production/downtime', name: 'production-downtime', component: () => import('./views/production/DowntimeView.vue'), meta: { titleKey: 'nav.productionDowntime', icon: 'pi pi-pause-circle' } },

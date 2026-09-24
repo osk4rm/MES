@@ -16,6 +16,9 @@ export const sitemap: NavItem[] = [
       { label: 'nav.productionScrap', icon: 'pi pi-trash', route: '/production/scrap' },
       { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' },
       { label: 'nav.productionDowntime', icon: 'pi pi-pause-circle', route: '/production/downtime' }
+      { label: 'nav.productionAndon', icon: 'pi pi-bell', route: '/production/andon' },
+      { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' }
+>>>>>>> 43fc512647f96d44273316852d9ae6eb60824426
     ]
   },
   { label: 'nav.schedule', icon: 'pi pi-calendar', route: '/schedule' },
