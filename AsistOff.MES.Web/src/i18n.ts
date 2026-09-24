@@ -337,8 +337,6 @@ const pl = {
       reasonCode: 'Kod przyczyny'
     }
   },
-    }
-  },
   scanBy: { 1: 'EAN', 2: 'Kod' },
   stubs: {
     title: 'Moduł w przygotowaniu',
@@ -652,7 +650,6 @@ const en: typeof pl = {
       5: 'Other'
     }
   },
-<<<<<<< HEAD
   spcCharacteristics: {
     title: 'SPC characteristics',
     subtitle: 'Quality characteristic dictionary with spec and control limits',
@@ -683,7 +680,8 @@ const en: typeof pl = {
       3: 'X / MR',
       4: 'p-chart',
       5: 'c-chart'
-=======
+    }
+  },
   scrap: {
     title: 'Scrap',
     subtitle: 'Work-center scrap records with reason codes',
@@ -698,7 +696,6 @@ const en: typeof pl = {
     filters: {
       machine: 'Machine',
       reasonCode: 'Reason code'
->>>>>>> origin/master
     }
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
