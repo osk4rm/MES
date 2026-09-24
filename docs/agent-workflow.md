@@ -189,6 +189,9 @@ Nie odpalaj dwóch dyspozytorów na tym samym repo.
   zmiany w routerze / `http.ts` / layoutcie / auth → **cały system**;
 - stack: `pwsh -File scripts/e2e/app.ps1 -Action start|stop|status`
   (backend `:5243`, frontend `:5173`, login `admin@dev.local` / `Passw0rd!`);
+- wymagania lokalne (DB `docker compose up -d postgres`, porty, precedence
+  env > user secrets): **`docs/e2e-local-setup.md`** (single source of truth
+  dla skryptu i skilla);
 - werdykt w komentarzu PR: `VERDICT: E2E_PASS | E2E_FAIL | E2E_BLOCKED`.
 
 Jeśli backend nie wstanie (np. brak PostgreSQL), werdykt to `E2E_BLOCKED`, a
@@ -314,22 +317,75 @@ werdykty, czekanie na CI) żyją w `scripts/ci/swarm-lib.sh`.
 | Event | Job | Efekt |
 |---|---|---|
 | issue `labeled ai:implement` | `implement` | implementer → PR + `ai:review` (brak PR → `ai:blocked`) |
-| PR `labeled ai:review` / `synchronize` z `ai:review` / koniec CI (`workflow_run`) | `review` | czeka na CI (max 20 min) → reviewer → `ai:verify` / `ai:changes` |
+| PR `labeled ai:review` / `synchronize` z `ai:review` / koniec CI (`workflow_run`) | `review` | czeka na CI (max 10 min) → reviewer → `ai:verify` / `ai:changes` |
 | PR `labeled ai:verify` | `verify` | verifier read-only → `ai:e2e` / `ai:changes` |
 | PR `labeled ai:changes` | `fix` | guard rund (liczy failure-verdykty w komentarzach, limit `MAX_ROUNDS=3`) → implementer fix → `ai:review` |
 | PR `labeled ai:e2e` | `e2e` | Postgres service + stack + tester → `ai:ready` / `ai:changes` / `ai:blocked` |
+| PR `labeled ai:ready` | `merge` | czeka na CI → squash-merge + delete-branch (czerwone CI → z powrotem `ai:review`, konflikt → `ai:blocked`) |
+| push na default / cron co 30 min | `sweep` | najstarszy `ai:implement` bez locka wraca do kolejki, gdy jest wolny slot |
+| push na default / cron co 30 min | `analyst` | pusta kolejka + backlog < `BACKLOG_MAX=5` + gap/proposal w zasięgu = `mes-analyst` specuje następną pracę (labeluje tylko pierwszy odblokowany); inaczej zielone wyjście bez sesji agenta |
 | cron pn 06:00 UTC | `researcher` | gap rows → zwykły PR do mergu przez człowieka |
 | cron codziennie 05:30 UTC | `tracker` | sync trackera → PR `ai/tracker-sync` |
 | `workflow_dispatch` | dowolny | ręczny trigger (zastępuje przyciski dashboardu w CI) |
 
 Zasady:
 
-- **Sekret**: `OPENCODE_API_KEY` (opencode.ai/auth) w Settings → Secrets →
+- **Sekrety**: `OPENCODE_API_KEY` (opencode.ai/auth) w Settings → Secrets →
   Actions. Bez niego joby padają z jawnym błędem. `GITHUB_TOKEN` jest automatyczny.
+- **`SWARM_PAT` (zdecydowanie zalecane w publicznym repo)**: fine-grained PAT
+  (Settings → Developer settings → Personal access tokens → Fine-grained,
+  tylko to repo: Contents read+write, Pull requests read+write, Issues
+  read+write) zapisany jako sekret `SWARM_PAT`. Workflow używa go do operacji
+  `gh` (`GH_TOKEN: SWARM_PAT || GITHUB_TOKEN`), więc PR-y otwiera collaborator,
+  a nie `github-actions[bot]` — bez tego każdy bot-PR staje na „Approve and
+  run", a runy po approve **nie emitują eventów `workflow_run`**, więc kolejka
+  cichnie (review czeka → timeout → stoi). Bez sekretu wszystko dalej działa,
+  tylko z ręcznym approve.
+- **Przegrany wyścig o lock wychodzi na zielono**: dwa joby na ten sam
+  item (np. `labeled` + koniec CI naraz) — posiadacz locka pracuje, drugi kończy
+  `exit 0` z notką w logu. Jeśli coś wisi w `ai:running` bez żywego runa,
+  człowiek zdejmuje labelkę i dokłada trigger z powrotem.
+- **Checkbox**: Settings → Actions → General → Workflow permissions → zaznacz
+  **„Allow GitHub Actions to create and approve pull requests"**. Bez tego
+  implement/researcher/tracker nie otworzą PR-a (API odmawia
+  `createPullRequest`). Gdy brakuje, job sam przechodzi w `ai:blocked`
+  z instrukcją, a nie wiesza się ani nie mieli minut.
 - **Concurrency**: jedna kolejka na issue/PR (`cancel-in-progress: false`) —
   odpowiednik jednowątkowego dyspozytora. `ai:running` jest lockiem między
-  runnerem CI a lokalnym dyspozytorem: job widzący cudzy lock kończy się błędem,
-  ponawiasz go zdejmując i dokładając label-trigger.
+  runnerem CI a lokalnym dyspozytorem: przegrany wyścig kończy się zielono
+  (`exit 0` z notką), ponawiasz go zdejmując i dokładając label-trigger.
+- **Limit równoległości (`MAX_PARALLEL=3`)**: implement i sweep odmawiają nowej
+  pracy, gdy ≥3 itemy trzymają `ai:running`. Odmowa to zielone wyjście —
+  labelka `ai:implement` zostaje, a sweep (push na default + cron co 30 min)
+  dobiera najstarszy czekający issue bez locka. Limit widać w dashboardzie
+  (badge „kolejka"). Lokalny dyspozytor limitu nie egzekwuje — to rola CI.
+- **Auto-merge**: `ai:ready` + zielone CI = squash-merge z kasowaniem brancha,
+  bez człowieka. Dashboard pokazuje `ready` do momentu mergu.
+- **Fast-path dla docs-only**: review `APPROVED` + diff tylko `docs/**`/`*.md`
+  = prosto do `ai:ready` (bez verify/e2e — nie ma runtime'u do testowania).
+  Weryfikator i tester słusznie odmawiają klepnięcia pustki (`E2E_BLOCKED`),
+  więc takie PR-y nie jadą dalej torem kodowym.
+- **Puszujący to współpracownik, nie bot**: joby implement/fix przepinają
+  `origin` na `SWARM_PAT`, bo push tokenem `GITHUB_TOKEN` (aktor
+  `github-actions[bot]`) zawiesza każdy run CI w `action_required`
+  (wymaga kliknięcia approve) i pętla fixów nigdy nie widzi zielonego.
+- **Czekanie na CI patrzy tylko na workflow `ci`** dla head SHA danego PR-a.
+  Własne checki `ai-swarm` są ignorowane — szum z labelki-locka potrafił
+  stworzyć kolejkujący się no-op run, którego pending zatruwał wait
+  (samozakleszczenie kończące się timeoutem i demotowaniem `ai:ready`).
+- **Samouzupełniająca kolejka**: pusty `ai:implement` + backlog poniżej
+  `BACKLOG_MAX=5` + gap w trackerze lub nielabelowany proposal = job `analyst`
+  sam startuje `mes-analyst` w CI. Pętla nie staje po wyczerpaniu issuesów;
+  gdy tracker nie ma gapów ani proposali, job kończy się zielono bez odpalania
+  agenta (tania bramka w bashu, nie sesja).
+- **Krojenie issuesów** (reguły w `mes-issue-spec` + `mes-analyst`): jeden issue
+  = jeden PR do zreviewowania w <30 min. Duże tematy to serie `(1/3)` z
+  `depends on`, jedna migracja EF na serię (pierwszy slice) — równoległe PR-y
+  z migracjami konfliktują snapshot.
+- **CI fast-path**: PR-y tylko-dokumentacyjne (`*.md`, `docs/**`) skipują joby
+  backend/frontend przez `dorny/paths-filter` (run zielony w ~1 min);
+  `swarm_wait_ci` traktuje skip jako pass. `cancel-in-progress` kasuje
+  zdezaktualizowane runy po nowym pushu.
 - **`--auto`**: runnery CI to izolowane klony, więc agenci lecą z
   `opencode --auto` (permission files dalej bronią pusha na default branch).
 - **Brak session affinity w CI**: fix w CI startuje świeżą sesję z promptem
