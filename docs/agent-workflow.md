@@ -320,6 +320,7 @@ werdykty, czekanie na CI) żyją w `scripts/ci/swarm-lib.sh`.
 | PR `labeled ai:e2e` | `e2e` | Postgres service + stack + tester → `ai:ready` / `ai:changes` / `ai:blocked` |
 | PR `labeled ai:ready` | `merge` | czeka na CI → squash-merge + delete-branch (czerwone CI → z powrotem `ai:review`, konflikt → `ai:blocked`) |
 | push na default / cron co 30 min | `sweep` | najstarszy `ai:implement` bez locka wraca do kolejki, gdy jest wolny slot |
+| push na default / cron co 30 min | `analyst` | pusta kolejka + backlog < `BACKLOG_MAX=5` + gap/proposal w zasięgu = `mes-analyst` specuje następną pracę (labeluje tylko pierwszy odblokowany); inaczej zielone wyjście bez sesji agenta |
 | cron pn 06:00 UTC | `researcher` | gap rows → zwykły PR do mergu przez człowieka |
 | cron codziennie 05:30 UTC | `tracker` | sync trackera → PR `ai/tracker-sync` |
 | `workflow_dispatch` | dowolny | ręczny trigger (zastępuje przyciski dashboardu w CI) |
@@ -357,6 +358,11 @@ Zasady:
   (badge „kolejka"). Lokalny dyspozytor limitu nie egzekwuje — to rola CI.
 - **Auto-merge**: `ai:ready` + zielone CI = squash-merge z kasowaniem brancha,
   bez człowieka. Dashboard pokazuje `ready` do momentu mergu.
+- **Samouzupełniająca kolejka**: pusty `ai:implement` + backlog poniżej
+  `BACKLOG_MAX=5` + gap w trackerze lub nielabelowany proposal = job `analyst`
+  sam startuje `mes-analyst` w CI. Pętla nie staje po wyczerpaniu issuesów;
+  gdy tracker nie ma gapów ani proposali, job kończy się zielono bez odpalania
+  agenta (tania bramka w bashu, nie sesja).
 - **Krojenie issuesów** (reguły w `mes-issue-spec` + `mes-analyst`): jeden issue
   = jeden PR do zreviewowania w <30 min. Duże tematy to serie `(1/3)` z
   `depends on`, jedna migracja EF na serię (pierwszy slice) — równoległe PR-y

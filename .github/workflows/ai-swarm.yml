@@ -57,6 +57,7 @@ concurrency:
 env:
   MAX_ROUNDS: '3'
   MAX_PARALLEL: '3'
+  BACKLOG_MAX: '5'
   # Prefer a user PAT so bot-opened PRs are authored by a collaborator and skip
   # the public-repo approval gate (without it every bot PR stalls on approve,
   # and approved runs do not emit workflow_run events). Falls back to the
@@ -618,3 +619,52 @@ jobs:
             swarm_say pr "$PR" 'Agent flow (CI): auto-merge failed (conflict?). Needs human attention.'
             exit 1
           fi
+
+  # -------------------------------------------------------------------- analyst
+  analyst:
+    name: analyst (queue refill)
+    # Same wake-ups as sweep. Starts mes-analyst only when the implement queue
+    # is empty, the backlog is small, and a cheap pre-check promises actionable
+    # work (unlabeled proposal or tracker gap row) — otherwise exits green
+    # without spending an agent session.
+    if: >
+      github.event_name == 'schedule' &&
+      github.event.schedule == '*/30 * * * *' ||
+      github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: ai-swarm-analyst
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Install opencode
+        run: |
+          if ! command -v opencode >/dev/null 2>&1; then
+            curl -fsSL https://opencode.ai/install | bash
+            # GITHUB_PATH applies to the NEXT step only; export now for this one.
+            export PATH="$HOME/.opencode/bin:$PATH"
+          fi
+          opencode --version
+      - name: Spec next work when the queue is empty
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          if [ -n "$(swarm_oldest_queued_issue)" ]; then
+            echo 'implement queue not empty; nothing to spec'
+            exit 0
+          fi
+          if [ "$(swarm_backlog_count)" -ge "${BACKLOG_MAX:-5}" ]; then
+            echo 'backlog full; nothing to spec'
+            exit 0
+          fi
+          if ! swarm_has_actionable_gap; then
+            echo 'no unlabeled proposals and no tracker gap rows; queue truly done'
+            exit 0
+          fi
+          swarm_require_auth
+          swarm_run_agent mes-analyst \
+            'The implement queue is empty. Adopt the oldest unlabeled open proposal or spec the first actionable tracker gap (slice subsystem-sized gaps per the Sizing section of the mes-issue-spec skill). Create the issue(s) with gh issue create and add ai:implement ONLY to the first unblocked one.' \
+            analyst.log
