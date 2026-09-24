@@ -48,6 +48,7 @@ const pl = {
     productionDowntime: 'Przestoje',
     productionLots: 'Partie',
     productionTelemetry: 'Telemetria',
+    productionTelemetryDashboard: 'Panel telemetrii',
     schedule: 'Harmonogram',
     reports: 'Raporty',
     configuration: 'Konfiguracja',
@@ -462,6 +463,22 @@ const pl = {
     dataTypes: { 1: 'Logiczna', 2: 'Liczba', 3: 'Całkowita', 4: 'Tekst' },
     qualities: { 1: 'Dobra', 2: 'Zła', 3: 'Niepewna' }
   },
+  telemetryDashboard: {
+    title: 'Panel telemetrii',
+    subtitle: 'Aktualne wartości tagów hali produkcyjnej z wykrywaniem zastoju',
+    pause: 'Wstrzymaj',
+    resume: 'Wznów',
+    downloadCsv: 'Pobierz CSV',
+    allMachines: 'Wszystkie stanowiska',
+    noTags: 'Brak włączonych tagów',
+    noTagsHint: 'Włącz tagi w słowniku telemetrii, aby zobaczyć ich aktualne wartości.',
+    neverReported: 'Brak odczytów',
+    trend: 'Trend ostatnich odczytów',
+    noTrend: 'Za mało odczytów do wykresu',
+    ageSeconds: 'sprzed {n} s',
+    ageMinutes: 'sprzed {n} min',
+    ageHours: 'sprzed {n} godz.'
+  },
   lots: {
     title: 'Partie',
     subtitle: 'Rejestr partii do śledzenia i identyfikacji',
@@ -585,6 +602,7 @@ const en: typeof pl = {
     productionDowntime: 'Downtime',
     productionLots: 'Lots',
     productionTelemetry: 'Telemetry',
+    productionTelemetryDashboard: 'Telemetry dashboard',
     schedule: 'Schedule',
     reports: 'Reports',
     configuration: 'Configuration',
@@ -998,6 +1016,22 @@ const en: typeof pl = {
     filters: { machine: 'Work center', search: 'Search by node or name…' },
     dataTypes: { 1: 'Boolean', 2: 'Double', 3: 'Integer', 4: 'String' },
     qualities: { 1: 'Good', 2: 'Bad', 3: 'Uncertain' }
+  },
+  telemetryDashboard: {
+    title: 'Telemetry dashboard',
+    subtitle: 'Live shopfloor tag values with stale detection',
+    pause: 'Pause',
+    resume: 'Resume',
+    downloadCsv: 'Download CSV',
+    allMachines: 'All work centers',
+    noTags: 'No enabled tags',
+    noTagsHint: 'Enable tags in the telemetry dictionary to see their live values.',
+    neverReported: 'No readings',
+    trend: 'Recent readings trend',
+    noTrend: 'Not enough readings for a sparkline',
+    ageSeconds: '{n}s ago',
+    ageMinutes: '{n}m ago',
+    ageHours: '{n}h ago'
   },
   lots: {
     title: 'Lots',

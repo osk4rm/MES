@@ -24,4 +24,19 @@ public interface ITelemetryReadingsRepository
     /// </summary>
     Task<IReadOnlyCollection<TelemetryReading>> BrowseLatestAsync(ExpressionStarter<TelemetryReading> predicate, Paginator<TelemetryReading> paginator, CancellationToken cancellationToken = default);
     Task<int> CountLatestAsync(ExpressionStarter<TelemetryReading> predicate, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Last <paramref name="take"/> readings of one tag in ascending time
+    /// order (oldest first) for sparklines. The global tenant filter scopes
+    /// the result to the caller tenant.
+    /// </summary>
+    Task<IReadOnlyCollection<TelemetryReading>> BrowseTrendAsync(Guid tagId, int take, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Up to <paramref name="take"/> readings matching <paramref name="predicate"/>
+    /// in descending time order (newest first) for CSV export. When
+    /// <paramref name="latestOnly"/> is true only the latest reading per tag
+    /// is considered.
+    /// </summary>
+    Task<IReadOnlyCollection<TelemetryReading>> BrowseExportAsync(ExpressionStarter<TelemetryReading> predicate, bool latestOnly, int take, CancellationToken cancellationToken = default);
 }

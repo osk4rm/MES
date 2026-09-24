@@ -141,5 +141,17 @@ export const telemetryReadingService = {
   async submit(req: SubmitTelemetryReadingRequest): Promise<TelemetryReadingResponse> {
     const { data } = await http.post<TelemetryReadingResponse>(READINGS_BASE, req);
     return data;
+  },
+  async trend(tagId: string, take = 50): Promise<TelemetryReadingResponse[]> {
+    const { data } = await http.get<TelemetryReadingResponse[]>(`${READINGS_BASE}/trend`, { params: { tagId, take } });
+    return data;
+  },
+  async downloadCsv(req: BrowseTelemetryReadingsRequest): Promise<Blob> {
+    const { data } = await http.get<Blob>(READINGS_BASE, {
+      params: buildPagedParams(req),
+      headers: { Accept: 'text/csv' },
+      responseType: 'blob'
+    });
+    return data;
   }
 };
