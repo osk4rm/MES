@@ -28,6 +28,17 @@ internal sealed class DowntimeEventsRepository(DefaultContext context) : IDownti
         return entity;
     }
 
+    public async Task<IReadOnlyCollection<DowntimeEvent>> ListOverlappingAsync(
+        Guid machineId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
+        => await context.Set<DowntimeEvent>()
+            .AsNoTracking()
+            .Where(x => x.MachineId == machineId
+                && x.StartedAt < toUtc
+                && (x.EndedAt == null || x.EndedAt > fromUtc))
+            .OrderBy(x => x.StartedAt)
+            .ThenBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+
     public async Task UpdateAsync(DowntimeEvent entity, CancellationToken cancellationToken = default)
     {
         context.Set<DowntimeEvent>().Update(entity);
