@@ -28,6 +28,12 @@ export interface ProductionOrderResponse {
   syncId?: string | null;
   createdAt: string;
   updatedAt?: string | null;
+  producedQuantity: number;
+  scrappedQuantity: number;
+  remainingQuantity: number;
+  confirmationsCount: number;
+  completedAt?: string | null;
+  closedAt?: string | null;
 }
 
 export interface BrowseProductionOrdersRequest extends IPagedRequest {
@@ -80,6 +86,14 @@ export const productionOrderService = {
   },
   async release(id: string): Promise<ProductionOrderResponse> {
     const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/release`);
+    return data;
+  },
+  async complete(id: string): Promise<ProductionOrderResponse> {
+    const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/complete`);
+    return data;
+  },
+  async close(id: string): Promise<ProductionOrderResponse> {
+    const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/close`);
     return data;
   }
 };

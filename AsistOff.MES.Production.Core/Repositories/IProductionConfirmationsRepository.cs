@@ -12,4 +12,16 @@ public interface IProductionConfirmationsRepository
     Task<ProductionConfirmation?> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ProductionConfirmation> AddAsync(ProductionConfirmation entity, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Read-time aggregates for one order. Runs under the tenant global query
+    /// filter, so cross-tenant confirmations never affect the totals.
+    /// </summary>
+    Task<(decimal ProducedQuantity, decimal ScrappedQuantity, int ConfirmationsCount)> GetTotalsAsync(
+        Guid productionOrderId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Batch variant for browse pages: one grouped query for all order ids.
+    /// Orders without confirmations are absent from the dictionary.
+    /// </summary>
+    Task<Dictionary<Guid, (decimal ProducedQuantity, decimal ScrappedQuantity, int ConfirmationsCount)>> GetTotalsForOrdersAsync(
+        IReadOnlyCollection<Guid> productionOrderIds, CancellationToken cancellationToken = default);
 }

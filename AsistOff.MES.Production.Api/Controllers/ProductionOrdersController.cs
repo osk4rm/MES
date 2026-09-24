@@ -1,5 +1,7 @@
 using AsistOff.MES.Production.Application.Features.Common;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Browse;
+using AsistOff.MES.Production.Application.Features.ProductionOrders.Close;
+using AsistOff.MES.Production.Application.Features.ProductionOrders.Complete;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Create;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Delete;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Get;
@@ -53,4 +55,14 @@ public class ProductionOrdersController(ISender sender) : ApiController
     public async Task<ActionResult<ProductionOrderResponse>> ReleaseAsync(
         [FromRoute] Guid id, CancellationToken cancellationToken)
         => Ok(await sender.Send(new ReleaseProductionOrderRequest(id), cancellationToken));
+
+    [HttpPost("{id:guid}/complete")]
+    public async Task<ActionResult<ProductionOrderResponse>> CompleteAsync(
+        [FromRoute] Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new CompleteProductionOrderRequest(id), cancellationToken));
+
+    [HttpPost("{id:guid}/close")]
+    public async Task<ActionResult<ProductionOrderResponse>> CloseAsync(
+        [FromRoute] Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new CloseProductionOrderRequest(id), cancellationToken));
 }

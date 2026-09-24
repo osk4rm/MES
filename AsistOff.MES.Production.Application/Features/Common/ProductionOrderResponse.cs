@@ -18,4 +18,10 @@ public record ProductionOrderResponse(
     string? Notes,
     string? SyncId,
     DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    DateTime? UpdatedAt,
+    decimal ProducedQuantity,
+    decimal ScrappedQuantity,
+    decimal RemainingQuantity,
+    int ConfirmationsCount,
+    DateTime? CompletedAt,
+    DateTime? ClosedAt);

@@ -8,7 +8,9 @@ using MediatR;
 
 namespace AsistOff.MES.Production.Application.Features.ProductionOrders.Browse;
 
-internal sealed class BrowseProductionOrdersRequestHandler(IProductionOrdersRepository repository)
+internal sealed class BrowseProductionOrdersRequestHandler(
+    IProductionOrdersRepository ordersRepository,
+    IProductionConfirmationsRepository confirmationsRepository)
     : IRequestHandler<BrowseProductionOrdersRequest, PagedResponse<ProductionOrderResponse>>
 {
     public async Task<PagedResponse<ProductionOrderResponse>> Handle(BrowseProductionOrdersRequest request, CancellationToken cancellationToken)
@@ -28,10 +30,19 @@ internal sealed class BrowseProductionOrdersRequestHandler(IProductionOrdersRepo
         if (request.DueTo.HasValue)
             predicate = predicate.And(x => x.DueDate <= request.DueTo);
 
-        var total = await repository.CountAsync(predicate, cancellationToken);
+        var total = await ordersRepository.CountAsync(predicate, cancellationToken);
         var paginator = new Paginator<ProductionOrder>(predicate, request);
-        var items = await repository.BrowseAsync(paginator, cancellationToken);
+        var items = await ordersRepository.BrowseAsync(paginator, cancellationToken);
 
-        return new PagedProductionOrdersResponse(items.Select(ProductionOrderMappers.Map).ToList(), total, request.PageSize);
+        var ids = items.Select(x => x.Id).ToList();
+        var totals = await confirmationsRepository.GetTotalsForOrdersAsync(ids, cancellationToken);
+
+        var mapped = items.Select(order =>
+        {
+            totals.TryGetValue(order.Id, out var t);
+            return ProductionOrderMappers.Map(order, t.ProducedQuantity, t.ScrappedQuantity, t.ConfirmationsCount);
+        }).ToList();
+
+        return new PagedProductionOrdersResponse(mapped, total, request.PageSize);
     }
 }

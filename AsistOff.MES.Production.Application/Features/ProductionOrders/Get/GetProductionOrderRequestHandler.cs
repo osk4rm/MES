@@ -5,13 +5,16 @@ using MediatR;
 
 namespace AsistOff.MES.Production.Application.Features.ProductionOrders.Get;
 
-internal sealed class GetProductionOrderRequestHandler(IProductionOrdersRepository repository)
+internal sealed class GetProductionOrderRequestHandler(
+    IProductionOrdersRepository ordersRepository,
+    IProductionConfirmationsRepository confirmationsRepository)
     : IRequestHandler<GetProductionOrderRequest, ProductionOrderResponse>
 {
     public async Task<ProductionOrderResponse> Handle(GetProductionOrderRequest request, CancellationToken cancellationToken)
     {
-        var order = await repository.GetAsync(request.Id, cancellationToken)
+        var order = await ordersRepository.GetAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException("ProductionOrder", request.Id);
-        return ProductionOrderMappers.Map(order);
+        var (produced, scrapped, count) = await confirmationsRepository.GetTotalsAsync(order.Id, cancellationToken);
+        return ProductionOrderMappers.Map(order, produced, scrapped, count);
     }
 }

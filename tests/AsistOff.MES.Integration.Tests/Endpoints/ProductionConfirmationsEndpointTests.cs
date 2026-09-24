@@ -276,7 +276,7 @@ public sealed class ProductionConfirmationsEndpointTests(MesApplicationFixture f
     [Theory]
     [InlineData(ProductionOrderStatus.Completed)]
     [InlineData(ProductionOrderStatus.Closed)]
-    public async Task Create_FinalOrder_Returns400(ProductionOrderStatus status)
+    public async Task Create_FinalOrder_Returns409(ProductionOrderStatus status)
     {
         using var client = await Fixture.CreateAuthenticatedClientAsync();
         var order = await CreateReleasedOrderAsync(client);
@@ -284,7 +284,7 @@ public sealed class ProductionConfirmationsEndpointTests(MesApplicationFixture f
 
         var response = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(order.Id));
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
     [Theory]

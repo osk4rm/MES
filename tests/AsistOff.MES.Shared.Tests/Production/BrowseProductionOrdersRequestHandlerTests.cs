@@ -13,6 +13,7 @@ namespace AsistOff.MES.Shared.Tests.Production;
 public class BrowseProductionOrdersRequestHandlerTests
 {
     private readonly Mock<IProductionOrdersRepository> _orders = new();
+    private readonly Mock<IProductionConfirmationsRepository> _confirmations = new();
     private ExpressionStarter<ProductionOrder> _captured = null!;
 
     public BrowseProductionOrdersRequestHandlerTests()
@@ -22,9 +23,12 @@ public class BrowseProductionOrdersRequestHandlerTests
             .ReturnsAsync(0);
         _orders.Setup(r => r.BrowseAsync(It.IsAny<Paginator<ProductionOrder>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ProductionOrder>());
+        _confirmations.Setup(r => r.GetTotalsForOrdersAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, (decimal, decimal, int)>());
     }
 
-    private BrowseProductionOrdersRequestHandler CreateSut() => new(_orders.Object);
+    private BrowseProductionOrdersRequestHandler CreateSut() => new(_orders.Object, _confirmations.Object);
 
     private bool Matches(ProductionOrder order)
     {

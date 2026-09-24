@@ -102,7 +102,7 @@ public class CreateProductionConfirmationRequestHandlerTests
     }
 
     [Fact]
-    public async Task Handle_CompletedOrder_ThrowsValidationException()
+    public async Task Handle_CompletedOrder_ThrowsConflictException()
     {
         var order = ReleasedOrder();
         order.Status = ProductionOrderStatus.Completed;
@@ -110,11 +110,11 @@ public class CreateProductionConfirmationRequestHandlerTests
 
         var act = () => CreateSut().Handle(ValidRequest(order.Id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ValidationException>();
+        await act.Should().ThrowAsync<ConflictException>();
     }
 
     [Fact]
-    public async Task Handle_ClosedOrder_ThrowsValidationException()
+    public async Task Handle_ClosedOrder_ThrowsConflictException()
     {
         var order = ReleasedOrder();
         order.Status = ProductionOrderStatus.Closed;
@@ -122,7 +122,7 @@ public class CreateProductionConfirmationRequestHandlerTests
 
         var act = () => CreateSut().Handle(ValidRequest(order.Id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ValidationException>();
+        await act.Should().ThrowAsync<ConflictException>();
     }
 
     [Fact]
