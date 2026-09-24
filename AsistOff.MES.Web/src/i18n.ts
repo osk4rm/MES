@@ -47,6 +47,7 @@ const pl = {
     spcCharacteristics: 'Charakterystyki SPC',
     productionDowntime: 'Przestoje',
     productionLots: 'Partie',
+    productionTelemetry: 'Telemetria',
     schedule: 'Harmonogram',
     reports: 'Raporty',
     configuration: 'Konfiguracja',
@@ -413,6 +414,8 @@ const pl = {
       3: 'X / MR',
       4: 'Karta p',
       5: 'Karta c'
+    }
+  },
   downtime: {
     title: 'Przestoje',
     subtitle: 'Zdarzenia przestojów stanowisk z kodami przyczyn',
@@ -430,6 +433,32 @@ const pl = {
     selectReason: 'Wybierz przyczynę…',
     status: { open: 'Otwarty', closed: 'Zamknięty' },
     filters: { machine: 'Stanowisko', reason: 'Przyczyna' }
+  },
+  telemetry: {
+    title: 'Telemetria',
+    subtitle: 'Słownik tagów OPC UA i dziennik odczytów ze stanowisk',
+    create: 'Nowy tag',
+    machine: 'Stanowisko',
+    nodeId: 'NodeId (OPC UA)',
+    displayName: 'Nazwa wyświetlana',
+    dataType: 'Typ danych',
+    pollInterval: 'Okres odpytywania [s]',
+    description: 'Opis',
+    enabled: 'Włączony',
+    disabled: 'Wyłączony',
+    enable: 'Włącz',
+    disable: 'Wyłącz',
+    readings: 'Odczyty',
+    readAt: 'Czas odczytu',
+    value: 'Wartość',
+    quality: 'Jakość',
+    submitReading: 'Zapisz odczyt',
+    noReadings: 'Brak odczytów dla tego tagu',
+    selectMachine: 'Wybierz stanowisko…',
+    filters: { machine: 'Stanowisko', search: 'Szukaj po node lub nazwie…' },
+    dataTypes: { 1: 'Logiczna', 2: 'Liczba', 3: 'Całkowita', 4: 'Tekst' },
+    qualities: { 1: 'Dobra', 2: 'Zła', 3: 'Niepewna' }
+  },
   lots: {
     title: 'Partie',
     subtitle: 'Rejestr partii do śledzenia i identyfikacji',
@@ -552,6 +581,7 @@ const en: typeof pl = {
     spcCharacteristics: 'SPC characteristics',
     productionDowntime: 'Downtime',
     productionLots: 'Lots',
+    productionTelemetry: 'Telemetry',
     schedule: 'Schedule',
     reports: 'Reports',
     configuration: 'Configuration',
@@ -918,6 +948,8 @@ const en: typeof pl = {
       3: 'X / MR',
       4: 'p-chart',
       5: 'c-chart'
+    }
+  },
   downtime: {
     title: 'Downtime',
     subtitle: 'Work-center downtime events with reason codes',
@@ -935,6 +967,32 @@ const en: typeof pl = {
     selectReason: 'Select a reason…',
     status: { open: 'Open', closed: 'Closed' },
     filters: { machine: 'Work center', reason: 'Reason' }
+  },
+  telemetry: {
+    title: 'Telemetry',
+    subtitle: 'OPC UA tag dictionary and work-center reading log',
+    create: 'New tag',
+    machine: 'Work center',
+    nodeId: 'NodeId (OPC UA)',
+    displayName: 'Display name',
+    dataType: 'Data type',
+    pollInterval: 'Poll interval [s]',
+    description: 'Description',
+    enabled: 'Enabled',
+    disabled: 'Disabled',
+    enable: 'Enable',
+    disable: 'Disable',
+    readings: 'Readings',
+    readAt: 'Read at',
+    value: 'Value',
+    quality: 'Quality',
+    submitReading: 'Submit reading',
+    noReadings: 'No readings for this tag yet',
+    selectMachine: 'Select a work center…',
+    filters: { machine: 'Work center', search: 'Search by node or name…' },
+    dataTypes: { 1: 'Boolean', 2: 'Double', 3: 'Integer', 4: 'String' },
+    qualities: { 1: 'Good', 2: 'Bad', 3: 'Uncertain' }
+  },
   lots: {
     title: 'Lots',
     subtitle: 'Lot registry for traceability and lookup',
@@ -985,7 +1043,6 @@ const en: typeof pl = {
       machine: 'Machine',
       reasonCode: 'Reason code'
     }
-  },
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
   stubs: {

@@ -65,6 +65,22 @@ public sealed record RecipeVersionDto(
     short Status);
 /// <summary>Shape of an SPC characteristic as returned by <c>/api/spc-characteristics</c>.</summary>
 public sealed record SpcCharacteristicDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string? Description,
+    Guid? ProductId,
+    Guid? MachineId,
+    short ChartType,
+    decimal? NominalValue,
+    decimal? LowerSpecLimit,
+    decimal? UpperSpecLimit,
+    decimal? LowerControlLimit,
+    decimal? UpperControlLimit,
+    int SampleSize,
+    string? Unit,
+    bool IsActive);
+
 /// <summary>Shape of a downtime event as returned by <c>/api/downtime-events</c>.</summary>
 public sealed record DowntimeEventDto(
     Guid Id,
@@ -80,12 +96,16 @@ public sealed record DowntimeEventDto(
     DateTime CreatedAt,
     DateTime? UpdatedAt);
 
-/// <summary>Shape of a machine as returned by <c>/api/machines</c>.</summary>
-public sealed record MachineDto(
+/// <summary>Shape of a shift as returned by <c>/api/shifts</c>. Times are ISO 8601 <c>HH:mm:ss</c>.</summary>
+public sealed record ShiftDto(
     Guid Id,
     string Code,
-    string Name);
-/// <summary>Shape of a machine as returned by <c>/api/machines</c>.</summary>
+    string Name,
+    string? Description,
+    string StartTime,
+    string EndTime,
+    bool IsActive);
+
 /// <summary>Shape of a lot as returned by <c>/api/lots</c>.</summary>
 public sealed record LotDto(
     Guid Id,
@@ -98,26 +118,6 @@ public sealed record LotDto(
     DateTime? ProducedAt,
     DateTime? ExpiryDate,
     string? Notes);
-
-/// <summary>Shape of a shift as returned by <c>/api/shifts</c>. Times are ISO 8601 <c>HH:mm:ss</c>.</summary>
-public sealed record ShiftDto(
-    Guid Id,
-    string Code,
-    string Name,
-    string? Description,
-    Guid? ProductId,
-    Guid? MachineId,
-    short ChartType,
-    decimal? NominalValue,
-    decimal? LowerSpecLimit,
-    decimal? UpperSpecLimit,
-    decimal? LowerControlLimit,
-    decimal? UpperControlLimit,
-    int SampleSize,
-    string? Unit,
-    string StartTime,
-    string EndTime,
-    bool IsActive);
 
 /// <summary>One weekly window returned by <c>/api/machines/{id}/calendar</c>.</summary>
 public sealed record WorkCenterCalendarEntryDto(
@@ -162,7 +162,6 @@ public sealed record MaintenanceWorkOrderDto(
     DateTime? StartedAt,
     DateTime? CompletedAt,
     string? ResolutionNotes);
-    bool IsActive);
 
 /// <summary>Shape of a scrap event as returned by <c>/api/scrap-events</c>.</summary>
 public sealed record ScrapEventDto(
@@ -174,3 +173,26 @@ public sealed record ScrapEventDto(
     string? Notes,
     Guid? ReportedByOperatorId,
     Guid? ProductionOrderId);
+
+/// <summary>Shape of a telemetry tag as returned by <c>/api/telemetry-tags</c>.</summary>
+public sealed record MachineTelemetryTagDto(
+    Guid Id,
+    Guid MachineId,
+    string NodeId,
+    string DisplayName,
+    short DataType,
+    int PollIntervalSeconds,
+    bool IsEnabled,
+    string? Description,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>Shape of a telemetry reading as returned by <c>/api/telemetry-readings</c>.</summary>
+public sealed record TelemetryReadingDto(
+    Guid Id,
+    Guid TagId,
+    Guid MachineId,
+    DateTime ReadAt,
+    double? DoubleValue,
+    string? StringValue,
+    short Quality);
