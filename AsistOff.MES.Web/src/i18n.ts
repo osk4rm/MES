@@ -323,7 +323,6 @@ const pl = {
       reasonCode: 'Kod przyczyny'
     }
   },
-  },
   scanBy: { 1: 'EAN', 2: 'Kod' },
   stubs: {
     title: 'Moduł w przygotowaniu',
