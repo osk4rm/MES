@@ -120,6 +120,147 @@
       </template>
     </AppModal>
 
+    <AppModal :open="detailOpen" size="xl" :title="detailLot ? detailLot.code : $t('common.notFound')" @close="closeDetail">
+      <div v-if="detailLoading" class="loading"><i class="pi pi-spin pi-spinner" /> {{ $t('common.loading') }}</div>
+      <div v-else-if="detailNotFound || !detailLot">
+        <AppEmptyState icon="pi pi-exclamation-circle" :title="$t('lots.genealogy.notFound')" />
+      </div>
+      <div v-else>
+        <nav class="tabs">
+          <button
+            type="button"
+            :class="['tab', detailTab === 'details' && 'tab--active']"
+            @click="setDetailTab('details')"
+          >
+            {{ $t('lots.tabs.details') }}
+          </button>
+          <button
+            type="button"
+            :class="['tab', detailTab === 'genealogy' && 'tab--active']"
+            @click="setDetailTab('genealogy')"
+          >
+            {{ $t('lots.tabs.genealogy') }}
+          </button>
+        </nav>
+
+        <div v-if="detailTab === 'details'" class="tab-body">
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-item__label">{{ $t('common.status') }}</span>
+              <AppBadge :variant="statusVariant(detailLot.status)" dot>
+                {{ statusLabel(detailLot.status) }}
+              </AppBadge>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">{{ $t('lots.productId') }}</span>
+              <span>{{ detailLot.productId }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">{{ $t('lots.measureUnitId') }}</span>
+              <span>{{ detailLot.measureUnitId }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">{{ $t('lots.quantity') }}</span>
+              <span>{{ detailLot.quantity }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">{{ $t('lots.supplierLotNumber') }}</span>
+              <span>{{ detailLot.supplierLotNumber ?? '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">{{ $t('lots.producedAt') }}</span>
+              <span>{{ formatDateTime(detailLot.producedAt) }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">{{ $t('lots.expiryDate') }}</span>
+              <span>{{ formatDateTime(detailLot.expiryDate) }}</span>
+            </div>
+            <div v-if="detailLot.notes" class="detail-item detail-item--full">
+              <span class="detail-item__label">{{ $t('lots.notes') }}</span>
+              <span>{{ detailLot.notes }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="tab-body">
+          <div class="genealogy-toolbar">
+            <AppFormField :label="$t('lots.genealogy.depth')">
+              <template #default="{ id }">
+                <AppSelect
+                  :id="id"
+                  :model-value="depth"
+                  :options="depthOptions"
+                  @change="onDepthChange"
+                />
+              </template>
+            </AppFormField>
+            <AppButton variant="secondary" icon="pi pi-refresh" :loading="genealogyLoading" @click="loadGenealogy">
+              {{ $t('common.refresh') }}
+            </AppButton>
+          </div>
+
+          <div class="genealogy-grid">
+            <section class="genealogy-pane">
+              <h4>{{ $t('lots.genealogy.upstream') }}</h4>
+              <p v-if="upstream?.truncated" class="truncation-notice">
+                <AppBadge variant="warning" dot>{{ $t('lots.genealogy.truncated') }}</AppBadge>
+              </p>
+              <AppTable
+                :items="upstream?.nodes ?? []"
+                :columns="genealogyColumns"
+                :loading="genealogyLoading"
+                row-key="lotId"
+                :empty-label="$t('lots.genealogy.empty')"
+              >
+                <template #cell-consumedQuantity="{ value }">
+                  {{ formatQuantity(value) }}
+                </template>
+                <template #cell-occurredAt="{ value }">
+                  {{ formatDateTime(value) }}
+                </template>
+                <template #cell-actions="{ item }">
+                  <AppRowActions
+                    :actions="genealogyRowActions()"
+                    @action="(k) => onGenealogyRowAction(k, item)"
+                  />
+                </template>
+              </AppTable>
+            </section>
+
+            <section class="genealogy-pane">
+              <h4>{{ $t('lots.genealogy.downstream') }}</h4>
+              <p v-if="downstream?.truncated" class="truncation-notice">
+                <AppBadge variant="warning" dot>{{ $t('lots.genealogy.truncated') }}</AppBadge>
+              </p>
+              <AppTable
+                :items="downstream?.nodes ?? []"
+                :columns="genealogyColumns"
+                :loading="genealogyLoading"
+                row-key="lotId"
+                :empty-label="$t('lots.genealogy.empty')"
+              >
+                <template #cell-consumedQuantity="{ value }">
+                  {{ formatQuantity(value) }}
+                </template>
+                <template #cell-occurredAt="{ value }">
+                  {{ formatDateTime(value) }}
+                </template>
+                <template #cell-actions="{ item }">
+                  <AppRowActions
+                    :actions="genealogyRowActions()"
+                    @action="(k) => onGenealogyRowAction(k, item)"
+                  />
+                </template>
+              </AppTable>
+            </section>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <AppButton variant="ghost" @click="closeDetail">{{ $t('common.close') }}</AppButton>
+      </template>
+    </AppModal>
+
     <AppConfirmDialog
       :open="confirmOpen"
       :title="$t('common.delete')"
@@ -134,6 +275,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppCard from '../../components/ui/AppCard.vue';
 import AppFilterBar from '../../components/ui/AppFilterBar.vue';
@@ -145,17 +287,27 @@ import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
+import AppEmptyState from '../../components/ui/AppEmptyState.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import { lotService, LotStatus, type LotResponse } from '../../services/lotService';
+import {
+  LotGenealogyDepth,
+  lotGenealogyService,
+  normalizeGenealogyDepth,
+  type LotTraceabilityNode,
+  type LotTraceabilityResponse
+} from '../../services/lotGenealogyService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const { t, tm } = useI18n();
 const toast = useToastStore();
+const route = useRoute();
+const router = useRouter();
 
 interface Filters {
   code?: string;
@@ -205,6 +357,7 @@ const statusFilterOptions = computed(() => [
 
 function rowActions(item: LotResponse): Array<{ key: string; label: string; icon: string; variant?: 'danger' }> {
   const actions: Array<{ key: string; label: string; icon: string; variant?: 'danger' }> = [
+    { key: 'details', label: t('lots.actions.details'), icon: 'pi-sitemap' },
     { key: 'edit', label: t('common.edit'), icon: 'pi-pencil' }
   ];
   if (item.status === LotStatus.Available) {
@@ -371,7 +524,8 @@ const deleting = ref(false);
 const deleteMessage = computed(() => toDelete.value ? `${t('common.delete')}: ${toDelete.value.code}` : '');
 
 function onRowAction(key: string, item: LotResponse): void {
-  if (key === 'edit') openEdit(item);
+  if (key === 'details') openDetail(item);
+  else if (key === 'edit') openEdit(item);
   else if (key === 'hold') void changeStatus(item, LotStatus.OnHold);
   else if (key === 'release') void changeStatus(item, LotStatus.Available);
   else if (key === 'scrap') void changeStatus(item, LotStatus.Scrapped);
@@ -397,7 +551,163 @@ function cancelDelete(): void {
   toDelete.value = null;
 }
 
-onMounted(() => { void table.fetch(); });
+// Lot detail with genealogy tab (deep-linkable via ?lotId=<id>&tab=details|genealogy)
+type DetailTab = 'details' | 'genealogy';
+
+const detailOpen = ref(false);
+const detailTab = ref<DetailTab>('details');
+const detailLot = ref<LotResponse | null>(null);
+const detailLoading = ref(false);
+const detailNotFound = ref(false);
+const depth = ref<number>(LotGenealogyDepth.default);
+const upstream = ref<LotTraceabilityResponse | null>(null);
+const downstream = ref<LotTraceabilityResponse | null>(null);
+const genealogyLoading = ref(false);
+
+const depthOptions = computed(() => {
+  const options: Array<{ value: number; label: string }> = [];
+  for (let d = LotGenealogyDepth.min; d <= LotGenealogyDepth.max; d++) {
+    options.push({ value: d, label: String(d) });
+  }
+  return options;
+});
+
+const genealogyColumns = computed(() => [
+  { key: 'depth', label: t('lots.genealogy.level'), width: '70px' },
+  { key: 'lotCode', label: t('lots.code') },
+  { key: 'consumedQuantity', label: t('lots.genealogy.quantity'), align: 'right' as const },
+  { key: 'productionOrderCode', label: t('lots.genealogy.order') },
+  { key: 'machineId', label: t('lots.genealogy.workCenter') },
+  { key: 'occurredAt', label: t('lots.genealogy.occurredAt') },
+  { key: 'actions', label: t('common.actions'), width: '80px' }
+]);
+
+function formatDateTime(v: string | null | undefined): string {
+  if (!v) return '—';
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString();
+}
+
+function formatQuantity(v: number): string {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(v);
+}
+
+function isNotFoundError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const response = (err as { response?: { status?: unknown } }).response;
+  return response?.status === 404;
+}
+
+function syncDetailQuery(): void {
+  const query = { ...route.query };
+  if (detailOpen.value && detailLot.value) {
+    query.lotId = detailLot.value.id;
+    query.tab = detailTab.value;
+  } else {
+    delete query.lotId;
+    delete query.tab;
+  }
+  void router.replace({ query });
+}
+
+async function loadGenealogy(): Promise<void> {
+  if (!detailLot.value) return;
+  const lotId = detailLot.value.id;
+  const currentDepth = depth.value;
+  genealogyLoading.value = true;
+  try {
+    const [up, down] = await Promise.all([
+      lotGenealogyService.getUpstream(lotId, currentDepth),
+      lotGenealogyService.getDownstream(lotId, currentDepth)
+    ]);
+    upstream.value = up;
+    downstream.value = down;
+  } catch (err) {
+    upstream.value = null;
+    downstream.value = null;
+    if (isNotFoundError(err)) {
+      // Cross-tenant or deleted lot: the API hides it behind 404.
+      detailNotFound.value = true;
+    }
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  } finally {
+    genealogyLoading.value = false;
+  }
+}
+
+function onDepthChange(v: string | number | null): void {
+  depth.value = normalizeGenealogyDepth(typeof v === 'number' ? v : Number(v));
+  void loadGenealogy();
+}
+
+function openDetail(item: LotResponse, tab: DetailTab = 'details'): void {
+  detailLot.value = item;
+  detailNotFound.value = false;
+  detailTab.value = tab;
+  detailOpen.value = true;
+  upstream.value = null;
+  downstream.value = null;
+  syncDetailQuery();
+  if (tab === 'genealogy') void loadGenealogy();
+}
+
+function setDetailTab(tab: DetailTab): void {
+  detailTab.value = tab;
+  syncDetailQuery();
+  if (tab === 'genealogy' && !upstream.value && !genealogyLoading.value) void loadGenealogy();
+}
+
+function closeDetail(): void {
+  detailOpen.value = false;
+  syncDetailQuery();
+}
+
+function genealogyRowActions(): Array<{ key: string; label: string; icon: string }> {
+  return [{ key: 'open', label: t('lots.genealogy.switchRoot'), icon: 'pi-arrow-right' }];
+}
+
+async function onGenealogyRowAction(key: string, node: LotTraceabilityNode): Promise<void> {
+  if (key !== 'open') return;
+  genealogyLoading.value = true;
+  try {
+    const lot = await lotService.get(node.lotId);
+    detailLot.value = lot;
+    detailNotFound.value = false;
+    upstream.value = null;
+    downstream.value = null;
+    syncDetailQuery();
+    await loadGenealogy();
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  } finally {
+    genealogyLoading.value = false;
+  }
+}
+
+async function initFromQuery(): Promise<void> {
+  const lotId = route.query.lotId;
+  if (typeof lotId !== 'string' || !lotId) return;
+  const tab: DetailTab = route.query.tab === 'genealogy' ? 'genealogy' : 'details';
+  detailLoading.value = true;
+  try {
+    detailLot.value = await lotService.get(lotId);
+    detailNotFound.value = false;
+    detailTab.value = tab;
+    detailOpen.value = true;
+    syncDetailQuery();
+    if (tab === 'genealogy') await loadGenealogy();
+  } catch (err) {
+    detailLot.value = null;
+    detailNotFound.value = true;
+    detailTab.value = tab;
+    detailOpen.value = true;
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+onMounted(() => { void table.fetch(); void initFromQuery(); });
 </script>
 
 <style scoped>
@@ -408,4 +718,21 @@ onMounted(() => { void table.fetch(); });
 .scan-hit { color: var(--color-success, #065f46); margin: var(--space-2) 0 0; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+.loading { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-6); }
+.tabs { display: flex; border-bottom: 1px solid var(--color-border, #e5e7eb); margin-bottom: var(--space-3); }
+.tab { background: none; border: none; padding: 10px 16px; cursor: pointer; font: inherit; color: var(--color-text-muted, #6b7280); border-bottom: 2px solid transparent; }
+.tab--active { color: var(--color-primary, #2563eb); border-bottom-color: var(--color-primary, #2563eb); }
+.tab-body { padding-top: var(--space-2); }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); }
+.detail-item { display: flex; flex-direction: column; gap: var(--space-1); }
+.detail-item--full { grid-column: 1 / -1; }
+.detail-item__label { font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.genealogy-toolbar { display: flex; gap: var(--space-3); align-items: flex-end; margin-bottom: var(--space-3); }
+.genealogy-toolbar > :first-child { width: 160px; }
+.genealogy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.genealogy-pane h4 { margin: 0 0 var(--space-2); }
+.truncation-notice { margin: 0 0 var(--space-2); }
+@media (max-width: 900px) {
+  .genealogy-grid { grid-template-columns: 1fr; }
+}
 </style>
