@@ -42,6 +42,7 @@ const pl = {
     production: 'Produkcja',
     productionOrders: 'Zlecenia produkcyjne',
     productionRecipes: 'Receptury',
+    productionScrap: 'Braki',
     spcCharacteristics: 'Charakterystyki SPC',
     schedule: 'Harmonogram',
     reports: 'Raporty',
@@ -320,6 +321,24 @@ const pl = {
       5: 'Karta c'
     }
   },
+  scrap: {
+    title: 'Braki',
+    subtitle: 'Ewidencja braków ze stanowisk z kodami przyczyn',
+    report: 'Zgłoś brak',
+    machine: 'Maszyna',
+    reasonCode: 'Kod przyczyny',
+    quantity: 'Ilość',
+    reportedAt: 'Data zgłoszenia',
+    notes: 'Uwagi',
+    selectMachine: 'Wybierz maszynę…',
+    selectReason: 'Wybierz przyczynę…',
+    filters: {
+      machine: 'Maszyna',
+      reasonCode: 'Kod przyczyny'
+    }
+  },
+    }
+  },
   scanBy: { 1: 'EAN', 2: 'Kod' },
   stubs: {
     title: 'Moduł w przygotowaniu',
@@ -386,6 +405,7 @@ const en: typeof pl = {
     production: 'Production',
     productionOrders: 'Production orders',
     productionRecipes: 'Recipes',
+    productionScrap: 'Scrap',
     spcCharacteristics: 'SPC characteristics',
     schedule: 'Schedule',
     reports: 'Reports',
@@ -632,6 +652,7 @@ const en: typeof pl = {
       5: 'Other'
     }
   },
+<<<<<<< HEAD
   spcCharacteristics: {
     title: 'SPC characteristics',
     subtitle: 'Quality characteristic dictionary with spec and control limits',
@@ -662,6 +683,22 @@ const en: typeof pl = {
       3: 'X / MR',
       4: 'p-chart',
       5: 'c-chart'
+=======
+  scrap: {
+    title: 'Scrap',
+    subtitle: 'Work-center scrap records with reason codes',
+    report: 'Report scrap',
+    machine: 'Machine',
+    reasonCode: 'Reason code',
+    quantity: 'Quantity',
+    reportedAt: 'Reported at',
+    notes: 'Notes',
+    selectMachine: 'Select a machine…',
+    selectReason: 'Select a reason…',
+    filters: {
+      machine: 'Machine',
+      reasonCode: 'Reason code'
+>>>>>>> origin/master
     }
   },
   scanBy: { 1: 'EAN', 2: 'Code' },

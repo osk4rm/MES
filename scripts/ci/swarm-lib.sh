@@ -4,7 +4,7 @@
 # Usage: source scripts/ci/swarm-lib.sh
 # Mirrors the label state machine owned locally by scripts/agent-dispatcher.ps1:
 #   issue[ai:implement] -> implement -> PR[ai:review] -> review -> PR[ai:verify]
-#   -> verify -> PR[ai:e2e] -> e2e -> PR[ai:ready] (human merges)
+#   -> verify -> PR[ai:e2e] -> e2e -> PR[ai:ready] -> merge (squash, automatic)
 #   any failure verdict -> PR[ai:changes] -> fix -> PR[ai:review]
 #
 # Conventions:
@@ -160,32 +160,101 @@ swarm_default_branch() {
   gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null || echo master
 }
 
+swarm_in_flight_count() { # -> number of open issues/PRs holding ai:running
+  # Throughput guard: implement/sweep refuse new work at MAX_PARALLEL.
+  gh api search/issues -f q="repo:${GITHUB_REPOSITORY} label:ai:running state:open" \
+    --jq '.total_count' 2>/dev/null || echo 0
+}
+
+swarm_oldest_queued_issue() { # -> oldest open ai:implement issue without ai:running
+  gh issue list --state open --label ai:implement --json number,createdAt,labels \
+    --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not))] | sort_by(.createdAt) | .[0].number // empty' 2>/dev/null || true
+}
+
+swarm_unlabeled_count() { # open issues with no ai:* label (proposals awaiting spec)
+  gh issue list --state open --limit 100 --json labels \
+    --jq '[.[] | select((.labels | map(.name) | map(select(startswith("ai:"))) | length) == 0)] | length' 2>/dev/null || echo 0
+}
+
+swarm_backlog_count() { # queued ai:implement issues + unlabeled proposals
+  local queued unlabeled
+  queued=$(gh issue list --state open --label ai:implement --json number --jq 'length' 2>/dev/null || echo 0)
+  unlabeled=$(swarm_unlabeled_count)
+  echo $((queued + unlabeled))
+}
+
+swarm_is_docs_only() { # <pr> -> 0 when every changed file is docs/markdown
+  # Docs-only PRs skip verify/e2e after an APPROVED review: no runtime to test.
+  # Kept tight on purpose — workflow/script changes still take the full path.
+  local files non_docs
+  files=$(gh pr diff "$1" --name-only 2>/dev/null | tr -d '\r' | grep -v '^$' || true)
+  [ -n "$files" ] || return 1
+  non_docs=$(printf '%s\n' "$files" | grep -vE '(^docs/|\.md$)' || true)
+  [ -z "$non_docs" ]
+}
+
+swarm_has_actionable_gap() { # 0 when an unlabeled proposal or a tracker gap row exists
+  # Cheap pre-check so the analyst agent only starts when there is real work.
+  if [ "$(swarm_unlabeled_count)" -gt 0 ]; then
+    return 0
+  fi
+  grep -qE '\| *gap *\|' docs/feature-tracker.md 2>/dev/null
+}
+
 swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout
-  # Mirrors Get-CiState in agent-dispatcher.ps1. No checks at all -> pass.
-  local pr="$1" timeout="$2" waited=0 states
+  # Mirrors Get-CiState in agent-dispatcher.ps1.
+  # Watches ONLY the `ci` workflow runs for the PR head SHA. ai-swarm's own
+  # check runs are ignored on purpose: lock-label churn spawns no-op runs
+  # that queue behind the lock holder (same concurrency group), and their
+  # pending checks used to poison this wait into timeouts (self-deadlock
+  # that demoted ai:ready PRs back to ai:review).
+  local pr="$1" timeout="$2" waited=0 sha first upper
+  sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
+  if [ -z "$sha" ]; then
+    echo pass
+    return 0
+  fi
   while [ "$waited" -lt "$timeout" ]; do
-    states=$(gh pr checks "$pr" --json state --jq '[.[].state] | join(",")' 2>/dev/null || echo PENDING)
-    if [ -z "$states" ]; then
-      echo pass
-      return 0
-    fi
-    upper=$(printf '%s' "$states" | tr '[:lower:]' '[:upper:]')
+    # Newest ci run for this SHA first (gh sorts runs newest-first).
+    first=$(gh run list --workflow ci --commit "$sha" --limit 5 --json status,conclusion \
+      --jq 'if length == 0 then "none" else "\(.[0].status)/\(.[0].conclusion)" end' 2>/dev/null || echo 'unknown/unknown')
+    upper=$(printf '%s' "$first" | tr '[:lower:]' '[:upper:]')
     case "$upper" in
-      *FAILURE* | *ERROR* | *CANCELLED* | *TIMED_OUT* | *ACTION_REQUIRED* | *STARTUP_FAILURE*)
-        echo fail
-        return 0
+      NONE)
+        # No ci run (yet) — give CI a minute to appear before assuming absent.
+        if [ "$waited" -ge 60 ]; then
+          echo pass
+          return 0
+        fi
         ;;
-      *PENDING* | *QUEUED* | *IN_PROGRESS* | *STALE* | *EXPECTED*)
-        sleep 30
-        waited=$((waited + 30))
-        ;;
-      *)
+      COMPLETED/SUCCESS | COMPLETED/SKIPPED | COMPLETED/NEUTRAL)
         echo pass
         return 0
         ;;
+      COMPLETED/FAILURE | COMPLETED/TIMED_OUT | COMPLETED/CANCELLED | COMPLETED/STARTUP_FAILURE | COMPLETED/STALE)
+        echo fail
+        return 0
+        ;;
+      *) ;; # running, queued, action_required (a human may still approve), unknown
     esac
+    sleep 30
+    waited=$((waited + 30))
   done
   echo timeout
+}
+
+swarm_use_pat_remote() { # [$pat] — push as a collaborator, not as github-actions[bot]
+  # Pushes authenticated with GITHUB_TOKEN are actor github-actions[bot]; on a
+  # public repo every pull_request CI run they trigger waits for manual
+  # approval (action_required) and swarm_wait_ci never sees green. Rewiring
+  # origin to SWARM_PAT makes the pusher a collaborator so CI starts at once.
+  local pat="${1:-}"
+  if [ -z "$pat" ]; then
+    echo 'SWARM_PAT absent; pushes use GITHUB_TOKEN (CI may need approval)'
+    return 0
+  fi
+  git remote set-url origin "https://x-access-token:${pat}@github.com/${GITHUB_REPOSITORY}.git"
+  echo 'origin rewired to SWARM_PAT credentials'
 }
 
 swarm_require_auth() {
