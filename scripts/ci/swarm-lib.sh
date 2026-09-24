@@ -222,6 +222,51 @@ swarm_has_actionable_gap() { # 0 when an unlabeled proposal or a tracker gap row
   grep -qE '\| *gap *\|' docs/feature-tracker.md 2>/dev/null
 }
 
+swarm_ci_state_once() { # <pr> -> pass | fail | approval | running | none
+  # Single-shot classification of the newest `ci` run for the PR head SHA.
+  local sha first upper
+  sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
+  if [ -z "$sha" ]; then
+    echo none
+    return 0
+  fi
+  first=$(gh run list --workflow ci --commit "$sha" --limit 5 --json status,conclusion \
+    --jq 'if length == 0 then "none" else "\(.[0].status)/\(.[0].conclusion)" end' 2>/dev/null || echo 'unknown/unknown')
+  upper=$(printf '%s' "$first" | tr '[:lower:]' '[:upper:]')
+  case "$upper" in
+    NONE) echo none ;;
+    COMPLETED/SUCCESS | COMPLETED/SKIPPED | COMPLETED/NEUTRAL) echo pass ;;
+    COMPLETED/FAILURE | COMPLETED/TIMED_OUT | COMPLETED/CANCELLED | COMPLETED/STARTUP_FAILURE | COMPLETED/STALE) echo fail ;;
+    COMPLETED/ACTION_REQUIRED | WAITING/* | REQUESTED/*) echo approval ;;
+    *) echo running ;;
+  esac
+}
+
+swarm_nudge_stuck_prs() { # re-fire stage labels on PRs that lost their trigger
+  # A stage job that times out waiting for CI keeps its label and relies on
+  # the ci-completed event to retrigger — but workflow_run does not fire for
+  # bot-actor runs, so the PR stalls forever. Re-fire the label (remove+add)
+  # on any unlocked stage PR whose ci is not still running; the stage job then
+  # re-evaluates immediately (and its wait loop auto-approvals covers
+  # action_required runs). Only PRs WITHOUT ai:running (no live job) and
+  # without ai:blocked (human owns those) are touched.
+  local pr label state
+  for pr in $(gh pr list --state open --limit 50 --json number,labels \
+    --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not) and (.labels | map(.name) | index("ai:blocked") | not))] | .[].number' 2>/dev/null); do
+    for label in ai:review ai:verify ai:e2e ai:ready; do
+      if swarm_has_label pr "$pr" "$label"; then
+        state=$(swarm_ci_state_once "$pr")
+        if [ "$state" != running ]; then
+          echo "stuck $label PR #$pr (ci=$state) — re-firing the label"
+          swarm_remove_label pr "$pr" "$label"
+          swarm_add_label pr "$pr" "$label"
+        fi
+        break
+      fi
+    done
+  done
+}
+
 swarm_cleanup_stale_locks() { # release ai:running locks older than ${STALE_LOCK_MINUTES:-45}
   # Called from the sweep job. A crashed/lost job leaves ai:running forever,
   # blocking a MAX_PARALLEL slot. Lock age comes from the label timeline event.
