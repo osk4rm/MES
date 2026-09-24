@@ -20,6 +20,18 @@ try
 
     builder.Host.ConfigureModules();
     builder.Configuration.AddUserSecrets<Program>();
+    // Configuration precedence (last source wins): appsettings < user secrets
+    // < environment variables < command line. WebApplication.CreateBuilder
+    // already added env vars before this point, so re-adding them after
+    // AddUserSecrets restores the intended order: `postgres__connectionString`
+    // and other `__`-separated env overrides take effect over user secrets.
+    // This is what lets `docker compose` / CI / e2e export a connection string
+    // without editing local secrets. Command-line args stay highest.
+    builder.Configuration.AddEnvironmentVariables();
+    if (args.Length > 0)
+    {
+        builder.Configuration.AddCommandLine(args);
+    }
 
     // Pull all logging configuration from appsettings (Serilog section). Sinks,
     // minimum levels, enrichers, and Seq URL are all declarative — no code

@@ -189,6 +189,9 @@ Nie odpalaj dwóch dyspozytorów na tym samym repo.
   zmiany w routerze / `http.ts` / layoutcie / auth → **cały system**;
 - stack: `pwsh -File scripts/e2e/app.ps1 -Action start|stop|status`
   (backend `:5243`, frontend `:5173`, login `admin@dev.local` / `Passw0rd!`);
+- wymagania lokalne (DB `docker compose up -d postgres`, porty, precedence
+  env > user secrets): **`docs/e2e-local-setup.md`** (single source of truth
+  dla skryptu i skilla);
 - werdykt w komentarzu PR: `VERDICT: E2E_PASS | E2E_FAIL | E2E_BLOCKED`.
 
 Jeśli backend nie wstanie (np. brak PostgreSQL), werdykt to `E2E_BLOCKED`, a
