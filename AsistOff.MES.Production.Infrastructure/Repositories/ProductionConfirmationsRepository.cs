@@ -30,6 +30,17 @@ internal sealed class ProductionConfirmationsRepository(DefaultContext context) 
             .ThenBy(x => x.Id)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyCollection<ProductionConfirmation>> ListForMachineInWindowAsync(
+        Guid machineId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
+        => await context.Set<ProductionConfirmation>()
+            .AsNoTracking()
+            .Where(x => x.MachineId == machineId
+                && x.ReportedAt >= fromUtc
+                && x.ReportedAt <= toUtc)
+            .OrderBy(x => x.ReportedAt)
+            .ThenBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+
     public async Task<ProductionConfirmation> AddAsync(ProductionConfirmation entity, CancellationToken cancellationToken = default)
     {
         context.Set<ProductionConfirmation>().Add(entity);
