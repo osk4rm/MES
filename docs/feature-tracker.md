@@ -53,7 +53,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Units of measure | Unit of Measure | Configuration | done | — | `MeasureUnit`, `ProductMeasureUnit` |
 | Warehouses | RW / PW (future) | Configuration | done | — | `Warehouse`; stock movements not implemented |
 | Departments | — | Configuration | done | — | `Department` |
-| Machines / resources | Work Center | Configuration | partial | — | `Machine`; no calendar / capacity / efficiency |
+| Machines / resources | Work Center | Configuration | partial | — | `Machine`; calendar done (#83); no capacity / efficiency |
 | Operators | Operator | Configuration | done | — | `Operator` (code / RFID) |
 | Skills | — | Configuration | done | — | `Skill` |
 
@@ -73,13 +73,13 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 
 | Capability | Glossary | Module | Status | Work item | Notes |
 |---|---|---|---|---|---|
-| Production Order | Production Order | Production | in-progress | #80 | header + `Planned -> Released` only; PR #91 |
-| Operator confirmations (RW / PW) | Confirmation | Production | gap | — | depends on #80 |
-| Scrap capture | Quality | Production | in-progress | #97 | PR #101; reason-code linked |
-| Downtime capture | Downtime | Production | in-progress | #84 | PR #92; reason-code linked |
-| Reason codes | Reason code | Configuration | done | #81 | dictionary only (PR #82); no event capture yet |
-| Work-center calendar / shifts | Shift | Configuration | in-progress | #83 | `Machine` has no calendar; PR #105 |
-| Lot / Serial tracking | Lot / Serial | Production | in-progress | #85 | PR #93 |
+| Production Order | Production Order | Production | done | #80, #129, #130 | Planned -> Released -> InProgress -> Completed -> Closed; totals from confirmations |
+| Operator confirmations (RW / PW) | Confirmation | Production | partial | #131 | confirmations done (#129, #130); RW/PW movement preview open (#131) |
+| Scrap capture | Quality | Production | done | #97 | reason-code linked |
+| Downtime capture | Downtime | Production | done | #84 | reason-code linked |
+| Reason codes | Reason code | Configuration | done | #81 | dictionary (PR #82); linked by scrap / downtime capture |
+| Work-center calendar / shifts | Shift | Configuration | done | #83 | calendar + entries per machine; shifts dictionary (PR #105) |
+| Lot / Serial tracking | Lot / Serial | Production | done | #85 | `Lot` registry (PR #93) |
 | Genealogy / traceability | Genealogy | Production | gap | — | depends on lot/serial + confirmations |
 
 ## Analytics / integration
@@ -87,10 +87,10 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Capability | Glossary | Module | Status | Work item | Notes |
 |---|---|---|---|---|---|
 | OEE | OEE | — | gap | — | needs execution + downtime data |
-| Andon | Andon | — | in-progress | #98 | PR #104 |
-| SPC | SPC | — | in-progress | #99 | PR #103 |
-| CMMS | CMMS | — | in-progress | #100 | corrective work orders; PR #102 |
-| OPC UA / SCADA telemetry | OPC UA | — | gap | — | |
+| Andon | Andon | Production | done | #98 | signals for abnormal conditions (PR #104) |
+| SPC | SPC | Production | done | #99 | characteristic dictionary; spec + control limits (PR #103) |
+| CMMS | CMMS | Configuration | done | #100 | corrective work orders (PR #102) |
+| OPC UA / SCADA telemetry | OPC UA | Production | done | #114, #115, #116 | tag dictionary + readings; simulator + stale dashboard (PRs #118, #127, #132) |
 | Kanban | Kanban | — | gap | — | |
 
-_Last reconciled: 2026-09-24 — #81 done (PR #82 merged); #80/#83/#84/#85/#97/#98/#99/#100 in-progress via open PRs; #88/#89 are fixes with no capability rows._
+_Last reconciled: 2026-09-24 — #80/#83/#84/#85/#97/#98/#99/#100/#114/#115/#116/#129/#130 done (PRs merged); confirmations partial, RW/PW preview open (#131); #88/#89 are fixes with no capability rows._
