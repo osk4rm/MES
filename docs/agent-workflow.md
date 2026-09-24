@@ -397,6 +397,20 @@ Zasady:
     — merge ref nie istnieje, gdy PR konfliktuje z masterem, a to właśnie
     taki PR fix musi naprawić. Review/verify/e2e przed użyciem merge refa
     sprawdzają `swarm_pr_mergeable` i przy `CONFLICTING` odsyłają do `ai:changes`.
+  - **Pinowanie `swarm-lib.sh`**: joby, które po pierwszym checkoucie
+    przełączają się na workspace PR-a, muszą skopiować lib do
+    `$RUNNER_TEMP` (`swarm_stage_lib`) i source'ować TEN egzemplarz
+    (`source "$RUNNER_TEMP/swarm-lib.sh"`). Source'owanie
+    `scripts/ci/swarm-lib.sh` po checkoucie gałęzi PR-a wczytywało STARĄ
+    kopię z gałęzi (sprzed nowych helperów) i nowe funkcje ginęły jako
+    „command not found" (fix job fałszywie wchodził w `ai:blocked`).
+  - **Agenci nie startują stacku**: implement/fix weryfikują tylko
+    `dotnet build/test` + `npm run build`. Odpalanie aplikacji/DB w sesji
+    implementera spalało budżet (króliki CORS/env) i agent kończył pracę
+    bez brancha. E2E to osobny etap z `nohup`-owanym stackiem.
+  - **Jedna retry-tura przed `ai:blocked`**: implementer bez brancha
+    (sesja gwiazdkowana/koniec limitu) zostawia `ai:implement` do ponowienia
+    przez sweep (max 2 próby), dopiero potem eskalacja.
   - `ai:ready` + `gh pr merge` z konfliktem = `ai:changes` (nie `ai:blocked`);
     tylko nie-konfliktowe błędy mergu idą do człowieka.
 - **Ostatni werdykt wygrywa**: fallback werdyktu z komentarzy PR-a bierze
