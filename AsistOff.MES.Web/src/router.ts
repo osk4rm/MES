@@ -30,6 +30,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'schedule', name: 'schedule', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.schedule', icon: 'pi pi-calendar' } },
       { path: 'reports', redirect: '/reports/oee' },
       { path: 'reports/oee', name: 'reports-oee', component: () => import('./views/production/OeeDashboardView.vue'), meta: { titleKey: 'nav.oeeDashboard', icon: 'pi pi-chart-bar' } },
+      { path: 'reports/reliability', name: 'reports-reliability', component: () => import('./views/production/ReliabilityDashboardView.vue'), meta: { titleKey: 'nav.reliabilityDashboard', icon: 'pi pi-wrench' } },
       { path: 'settings', name: 'settings', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.settings', icon: 'pi pi-cog' } },
       {
         path: 'configuration',
