@@ -32,6 +32,37 @@ public sealed record PagedResponseDto<T>(
     int TotalPages,
     IReadOnlyCollection<T> Items);
 
+/// <summary>Shape of a production order as returned by <c>/api/production-orders</c>.</summary>
+public sealed record ProductionOrderDto(
+    Guid Id,
+    string Code,
+    Guid ProductId,
+    Guid RecipeId,
+    Guid RecipeVersionId,
+    decimal PlannedQuantity,
+    Guid? MeasureUnitId,
+    int Priority,
+    DateTime? DueDate,
+    short Status,
+    DateTime? ReleasedAt,
+    Guid? ReleasedByUserId,
+    string? Notes,
+    string? SyncId,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>Shape of a recipe as returned by <c>/api/recipes</c>.</summary>
+public sealed record RecipeDto(
+    Guid Id,
+    string Code,
+    string Name,
+    IReadOnlyCollection<RecipeVersionDto> Versions);
+
+/// <summary>Shape of a recipe version summary as returned by <c>/api/recipes</c>.</summary>
+public sealed record RecipeVersionDto(
+    Guid Id,
+    int VersionNumber,
+    short Status);
 /// <summary>Shape of an SPC characteristic as returned by <c>/api/spc-characteristics</c>.</summary>
 public sealed record SpcCharacteristicDto(
 /// <summary>Shape of a downtime event as returned by <c>/api/downtime-events</c>.</summary>

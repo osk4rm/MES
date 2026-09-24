@@ -14,6 +14,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: 'dashboard', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
       { path: 'production', redirect: '/production/orders' },
+      { path: 'production/orders', name: 'production-orders', component: () => import('./views/production/ProductionOrdersView.vue'), meta: { titleKey: 'nav.productionOrders', icon: 'pi pi-list' } },
       { path: 'production/orders', name: 'production-orders', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.productionOrders', icon: 'pi pi-list' } },
       { path: 'production/scrap', name: 'production-scrap', component: () => import('./views/production/ScrapView.vue'), meta: { titleKey: 'nav.productionScrap', icon: 'pi pi-trash' } },
       { path: 'production/andon', name: 'production-andon', component: () => import('./views/production/AndonView.vue'), meta: { titleKey: 'nav.productionAndon', icon: 'pi pi-bell' } },

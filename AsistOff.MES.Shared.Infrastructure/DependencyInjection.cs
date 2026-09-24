@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using AsistOff.MES.Shared.Infrastructure.Auth;
 using AsistOff.MES.Shared.Infrastructure.Behaviors;
@@ -24,6 +25,7 @@ namespace AsistOff.MES.Shared.Infrastructure
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
             services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
             services.AddSingleton<IGuidProvider, GuidProvider>();
+            services.AddScoped<ICurrentUserAccessor, HttpCurrentUserAccessor>();
             services.AddAuth(hostEnvironment);
             services.AddMessaging();
             services.AddValidation(assemblies);
