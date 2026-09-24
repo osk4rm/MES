@@ -18,6 +18,15 @@ internal sealed class UpdateLotRequestHandler(
         if (string.IsNullOrWhiteSpace(request.Code))
             throw new ValidationException(nameof(request.Code), "Code is required.");
 
+        if (request.Code.Length > 50)
+            throw new ValidationException(nameof(request.Code), "Code must not exceed 50 characters.");
+
+        if (request.SupplierLotNumber is { Length: > 100 })
+            throw new ValidationException(nameof(request.SupplierLotNumber), "Supplier lot number must not exceed 100 characters.");
+
+        if (request.Notes is { Length: > 1000 })
+            throw new ValidationException(nameof(request.Notes), "Notes must not exceed 1000 characters.");
+
         if (request.Quantity < 0)
             throw new ValidationException(nameof(request.Quantity), "Quantity must be greater than or equal to 0.");
 

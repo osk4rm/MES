@@ -89,6 +89,55 @@ public sealed class LotsEndpointTests(MesApplicationFixture fixture) : Integrati
     }
 
     [Fact]
+    public async Task Create_WithOverlongCode_Returns400()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var payload = NewPayload(new string('L', 51));
+
+        var response = await client.PostAsJsonAsync(BaseUrl, payload);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Update_WithRouteIdMismatch_Returns400()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var code = UniqueCode();
+        var created = await ReadAsync<LotDto>(await client.PostAsJsonAsync(BaseUrl, NewPayload(code)));
+
+        var response = await client.PutAsJsonAsync(
+            $"{BaseUrl}/{Guid.NewGuid()}",
+            NewPayload(code, created.ProductId, created.MeasureUnitId, 25m) with { Id = created.Id });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Lot_CreatedInAnotherTenant_IsNotVisible_AndSameCodeIsReusable()
+    {
+        // Arrange - create a lot as the seeded dev tenant.
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+        var code = UniqueCode();
+        var created = await ReadAsync<LotDto>(await devClient.PostAsJsonAsync(BaseUrl, NewPayload(code)));
+
+        // Act - provision a second tenant.
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+
+        // Assert - the other tenant cannot see the lot by id or by code,
+        // but the same code is reusable in its own tenant scope.
+        (await otherTenantClient.GetAsync($"{BaseUrl}/{created.Id}"))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await otherTenantClient.GetAsync($"{BaseUrl}/by-code/{code}"))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var reuse = await otherTenantClient.PostAsJsonAsync(BaseUrl, NewPayload(code));
+
+        reuse.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
     public async Task Get_WithUnknownId_Returns404()
     {
         using var client = await Fixture.CreateAuthenticatedClientAsync();

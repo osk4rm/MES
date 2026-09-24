@@ -52,6 +52,36 @@ public class CreateLotRequestHandlerTests
     }
 
     [Fact]
+    public async Task Handle_CodeExceedingMaxLength_ThrowsValidationException()
+    {
+        var request = ValidRequest(new string('L', 51));
+
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task Handle_SupplierLotNumberExceedingMaxLength_ThrowsValidationException()
+    {
+        var request = ValidRequest() with { SupplierLotNumber = new string('S', 101) };
+
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task Handle_NotesExceedingMaxLength_ThrowsValidationException()
+    {
+        var request = ValidRequest() with { Notes = new string('N', 1001) };
+
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
     public async Task Handle_DuplicateCode_ThrowsConflictException()
     {
         _repository
