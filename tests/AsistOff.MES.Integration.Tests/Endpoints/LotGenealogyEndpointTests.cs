@@ -253,19 +253,160 @@ public sealed class LotGenealogyEndpointTests(MesApplicationFixture fixture) : I
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Theory]
+    [InlineData("upstream")]
+    [InlineData("downstream")]
+    public async Task Traceability_WithoutToken_Returns401(string direction)
+    {
+        using var client = Fixture.CreateClient();
+
+        var response = await client.GetAsync($"{BaseUrl}/{direction}/{Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Upstream_TwoLevelChain_ReturnsBothLevels()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var raw = await CreateLotAsync(client);
+        var mid = await CreateLotAsync(client);
+        var finished = await CreateLotAsync(client);
+        var order = await CreateOrderAsync(client);
+        var machineId = Guid.NewGuid();
+
+        var first = await client.PostAsJsonAsync(BaseUrl, EdgePayload(raw.Id, mid.Id, order.Id, machineId: machineId));
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        var second = await client.PostAsJsonAsync(BaseUrl, EdgePayload(mid.Id, finished.Id, order.Id, consumedQuantity: 7m));
+        second.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var response = await client.GetAsync($"{BaseUrl}/upstream/{finished.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var trace = await ReadAsync<LotTraceabilityDto>(response);
+        trace.RootLotId.Should().Be(finished.Id);
+        trace.Truncated.Should().BeFalse();
+        trace.Nodes.Should().HaveCount(2);
+        trace.Nodes.Single(n => n.LotId == mid.Id).Depth.Should().Be(1);
+        trace.Nodes.Single(n => n.LotId == mid.Id).ConsumedQuantity.Should().Be(7m);
+        trace.Nodes.Single(n => n.LotId == mid.Id).ProductionOrderCode.Should().Be(order.Code);
+        trace.Nodes.Single(n => n.LotId == raw.Id).Depth.Should().Be(2);
+        trace.Nodes.Single(n => n.LotId == raw.Id).MachineId.Should().Be(machineId);
+        trace.Nodes.Should().OnlyContain(n => n.OccurredAt > DateTime.MinValue);
+        trace.Nodes.Should().OnlyContain(n => !string.IsNullOrWhiteSpace(n.LotCode));
+        trace.Nodes.Should().OnlyContain(n => !string.IsNullOrWhiteSpace(n.ProductionOrderCode));
+    }
+
+    [Fact]
+    public async Task Downstream_TwoLevelChain_ReturnsTransitiveLots()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var raw = await CreateLotAsync(client);
+        var mid = await CreateLotAsync(client);
+        var finished = await CreateLotAsync(client);
+        var order = await CreateOrderAsync(client);
+
+        (await client.PostAsJsonAsync(BaseUrl, EdgePayload(raw.Id, mid.Id, order.Id))).StatusCode.Should().Be(HttpStatusCode.Created);
+        (await client.PostAsJsonAsync(BaseUrl, EdgePayload(mid.Id, finished.Id, order.Id))).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var response = await client.GetAsync($"{BaseUrl}/downstream/{raw.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var trace = await ReadAsync<LotTraceabilityDto>(response);
+        trace.RootLotId.Should().Be(raw.Id);
+        trace.Truncated.Should().BeFalse();
+        trace.Nodes.Select(n => n.LotId).Should().BeEquivalentTo([mid.Id, finished.Id]);
+        trace.Nodes.Single(n => n.LotId == mid.Id).Depth.Should().Be(1);
+        trace.Nodes.Single(n => n.LotId == finished.Id).Depth.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Downstream_Cycle_TerminatesAndListsEachLotOnce()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var a = await CreateLotAsync(client);
+        var b = await CreateLotAsync(client);
+        var order = await CreateOrderAsync(client);
+
+        (await client.PostAsJsonAsync(BaseUrl, EdgePayload(a.Id, b.Id, order.Id))).StatusCode.Should().Be(HttpStatusCode.Created);
+        (await client.PostAsJsonAsync(BaseUrl, EdgePayload(b.Id, a.Id, order.Id))).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var response = await client.GetAsync($"{BaseUrl}/downstream/{a.Id}?maxDepth=10");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var trace = await ReadAsync<LotTraceabilityDto>(response);
+        trace.Nodes.Select(n => n.LotId).Should().OnlyHaveUniqueItems();
+        trace.Nodes.Should().ContainSingle(n => n.LotId == b.Id);
+    }
+
+    [Fact]
+    public async Task Upstream_CrossTenantRoot_Returns404()
+    {
+        using var ownerClient = await Fixture.CreateAuthenticatedClientAsync();
+        var foreignLot = await CreateLotAsync(ownerClient);
+
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+
+        var response = await client.GetAsync($"{BaseUrl}/upstream/{foreignLot.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Downstream_CrossTenantRoot_Returns404()
+    {
+        using var ownerClient = await Fixture.CreateAuthenticatedClientAsync();
+        var foreignLot = await CreateLotAsync(ownerClient);
+
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+
+        var response = await client.GetAsync($"{BaseUrl}/downstream/{foreignLot.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Upstream_UnknownLot_Returns404()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync($"{BaseUrl}/upstream/{Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Theory]
+    [InlineData("upstream")]
+    [InlineData("downstream")]
+    public async Task Traceability_InvalidDepth_Returns400(string direction)
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var lot = await CreateLotAsync(client);
+
+        foreach (var depth in new[] { "0", "11" })
+        {
+            var response = await client.GetAsync($"{BaseUrl}/{direction}/{lot.Id}?maxDepth={depth}");
+
+            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        }
+    }
+
     private static object EdgePayload(
         Guid consumedLotId,
         Guid producedLotId,
         Guid productionOrderId,
         Guid? productionConfirmationId = null,
         decimal consumedQuantity = 5m,
-        DateTime? occurredAt = null) => new
+        DateTime? occurredAt = null,
+        Guid? machineId = null) => new
         {
             consumedLotId,
             producedLotId,
             productionOrderId,
             productionConfirmationId,
-            machineId = Guid.NewGuid(),
+            machineId = machineId ?? Guid.NewGuid(),
             reportedByOperatorId = (Guid?)null,
             consumedQuantity,
             occurredAt = occurredAt ?? DateTime.UtcNow,

@@ -11,4 +11,6 @@ public interface ILotGenealogyEdgesRepository
     Task<LotGenealogyEdge?> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<LotGenealogyEdge> AddAsync(LotGenealogyEdge entity, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<LotGenealogyEdge>> ListByProducedLotIdsAsync(IReadOnlyCollection<Guid> producedLotIds, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<LotGenealogyEdge>> ListByConsumedLotIdsAsync(IReadOnlyCollection<Guid> consumedLotIds, CancellationToken cancellationToken = default);
 }

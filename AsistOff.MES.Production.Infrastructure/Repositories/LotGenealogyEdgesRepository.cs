@@ -34,4 +34,26 @@ internal sealed class LotGenealogyEdgesRepository(DefaultContext context) : ILot
             .Where(x => x.Id == id)
             .ExecuteDeleteAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyCollection<LotGenealogyEdge>> ListByProducedLotIdsAsync(IReadOnlyCollection<Guid> producedLotIds, CancellationToken cancellationToken = default)
+    {
+        if (producedLotIds.Count == 0)
+            return Array.Empty<LotGenealogyEdge>();
+
+        return await context.Set<LotGenealogyEdge>()
+            .Where(x => producedLotIds.Contains(x.ProducedLotId))
+            .OrderBy(x => x.OccurredAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<LotGenealogyEdge>> ListByConsumedLotIdsAsync(IReadOnlyCollection<Guid> consumedLotIds, CancellationToken cancellationToken = default)
+    {
+        if (consumedLotIds.Count == 0)
+            return Array.Empty<LotGenealogyEdge>();
+
+        return await context.Set<LotGenealogyEdge>()
+            .Where(x => consumedLotIds.Contains(x.ConsumedLotId))
+            .OrderBy(x => x.OccurredAt)
+            .ToListAsync(cancellationToken);
+    }
 }

@@ -268,6 +268,26 @@ public sealed record LotGenealogyEdgeDto(
     DateTime CreatedAt,
     DateTime? UpdatedAt);
 
+/// <summary>Shape of one node returned by the lot traceability endpoints.</summary>
+public sealed record LotTraceabilityNodeDto(
+    Guid LotId,
+    string LotCode,
+    Guid ProductId,
+    int Depth,
+    decimal ConsumedQuantity,
+    Guid ProductionOrderId,
+    string ProductionOrderCode,
+    Guid MachineId,
+    Guid? ReportedByOperatorId,
+    DateTime OccurredAt);
+
+/// <summary>Shape of the transitive closure returned by the lot traceability endpoints.</summary>
+public sealed record LotTraceabilityDto(
+    Guid RootLotId,
+    string RootLotCode,
+    IReadOnlyCollection<LotTraceabilityNodeDto> Nodes,
+    bool Truncated);
+
 /// <summary>Shape of one RW/PW movement preview line returned by the movements endpoints.</summary>
 public sealed record MovementPreviewLineDto(
     string MovementType,
