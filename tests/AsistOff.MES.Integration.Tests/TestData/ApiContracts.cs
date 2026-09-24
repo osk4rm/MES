@@ -315,3 +315,23 @@ public sealed record OeeSnapshotDto(
     decimal TotalCount,
     decimal GoodCount,
     decimal ScrapCount);
+
+/// <summary>Shape of an OPC UA connection as returned by <c>/api/opcua-connections</c>.</summary>
+public sealed record OpcUaConnectionDto(
+    Guid Id,
+    Guid MachineId,
+    string EndpointUrl,
+    short SecurityPolicy,
+    int PollIntervalSeconds,
+    bool IsEnabled,
+    DateTime? LastSeenAtUtc,
+    string? LastError,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>Shape of the endpoint check returned by <c>/api/opcua-connections/{id}/test</c>.</summary>
+public sealed record OpcUaConnectionTestDto(
+    Guid Id,
+    string EndpointUrl,
+    bool Reachable,
+    DateTime CheckedAt);
