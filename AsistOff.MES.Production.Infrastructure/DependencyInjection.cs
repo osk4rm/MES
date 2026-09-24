@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<IDowntimeEventsRepository, DowntimeEventsRepository>();
         services.AddScoped<ILotsRepository, LotsRepository>();
         services.AddScoped<IScrapEventsRepository, ScrapEventsRepository>();
+        services.AddScoped<IAndonSignalsRepository, AndonSignalsRepository>();
 
         services.AddScoped<IEntityConfigurator, ProductionEntityConfigurator>();
 

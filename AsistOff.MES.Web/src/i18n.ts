@@ -413,6 +413,8 @@ const pl = {
       3: 'X / MR',
       4: 'Karta p',
       5: 'Karta c'
+    }
+  },
   downtime: {
     title: 'Przestoje',
     subtitle: 'Zdarzenia przestojów stanowisk z kodami przyczyn',
@@ -430,6 +432,7 @@ const pl = {
     selectReason: 'Wybierz przyczynę…',
     status: { open: 'Otwarty', closed: 'Zamknięty' },
     filters: { machine: 'Stanowisko', reason: 'Przyczyna' }
+  },
   lots: {
     title: 'Partie',
     subtitle: 'Rejestr partii do śledzenia i identyfikacji',
@@ -918,6 +921,8 @@ const en: typeof pl = {
       3: 'X / MR',
       4: 'p-chart',
       5: 'c-chart'
+    }
+  },
   downtime: {
     title: 'Downtime',
     subtitle: 'Work-center downtime events with reason codes',
@@ -935,6 +940,7 @@ const en: typeof pl = {
     selectReason: 'Select a reason…',
     status: { open: 'Open', closed: 'Closed' },
     filters: { machine: 'Work center', reason: 'Reason' }
+  },
   lots: {
     title: 'Lots',
     subtitle: 'Lot registry for traceability and lookup',
@@ -985,7 +991,6 @@ const en: typeof pl = {
       machine: 'Machine',
       reasonCode: 'Reason code'
     }
-  },
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
   stubs: {

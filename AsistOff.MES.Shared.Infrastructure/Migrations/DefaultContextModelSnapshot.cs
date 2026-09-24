@@ -272,7 +272,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("DepartmentId")
                     b.Property<Guid?>("DepartmentId")
                         .HasColumnType("uuid");
 
@@ -693,7 +692,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.AndonSignal", b =>
-            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.WorkCenterCalendar", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -746,6 +744,14 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.HasIndex("TenantId", "MachineId", "Status", "RaisedAt");
 
                     b.ToTable("AndonSignals", "production");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.WorkCenterCalendar", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("MachineId")
                         .HasColumnType("uuid");
 
@@ -859,7 +865,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.DowntimeEvent", b =>
-            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.Lot", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -872,18 +877,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("MachineId")
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("ExpiryDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("MeasureUnitId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Notes")
@@ -901,6 +894,45 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
 
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "MachineId", "StartedAt");
+
+                    b.ToTable("DowntimeEvents", "production");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.Lot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MeasureUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<DateTime?>("ProducedAt")
                         .HasColumnType("timestamp with time zone");
@@ -928,9 +960,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
 
                     b.HasIndex("TenantId");
 
-                    b.HasIndex("TenantId", "MachineId", "StartedAt");
-
-                    b.ToTable("DowntimeEvents", "production");
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
 
