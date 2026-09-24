@@ -2,6 +2,7 @@ using AsistOff.MES.Configuration.Application.Features.Operators.Responses;
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,13 @@ internal sealed class CreateOperatorRequestHandler(
 {
     public async Task<OperatorResponse> Handle(CreateOperatorRequest request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Identifier))
+            throw new ValidationException(nameof(request.Identifier), "Identifier is required.");
+        if (string.IsNullOrWhiteSpace(request.FirstName))
+            throw new ValidationException(nameof(request.FirstName), "First name is required.");
+        if (string.IsNullOrWhiteSpace(request.LastName))
+            throw new ValidationException(nameof(request.LastName), "Last name is required.");
+
         var operatorEntity = new Operator
         {
             Id = guidProvider.NewGuid(),
