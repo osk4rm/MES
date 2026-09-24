@@ -248,12 +248,14 @@ swarm_nudge_stuck_prs() { # re-fire stage labels on PRs that lost their trigger
   # bot-actor runs, so the PR stalls forever. Re-fire the label (remove+add)
   # on any unlocked stage PR whose ci is not still running; the stage job then
   # re-evaluates immediately (and its wait loop auto-approvals covers
-  # action_required runs). Only PRs WITHOUT ai:running (no live job) and
+  # action_required runs). Includes ai:changes: a re-route to the fixer that
+  # was already labeled emits no event, so this sweep is the safety net.
+  # Only PRs WITHOUT ai:running (no live job) and
   # without ai:blocked (human owns those) are touched.
   local pr label state
   for pr in $(gh pr list --state open --limit 50 --json number,labels \
     --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not) and (.labels | map(.name) | index("ai:blocked") | not))] | .[].number' 2>/dev/null); do
-    for label in ai:review ai:verify ai:e2e ai:ready; do
+    for label in ai:review ai:verify ai:e2e ai:ready ai:changes; do
       if swarm_has_label pr "$pr" "$label"; then
         state=$(swarm_ci_state_once "$pr")
         if [ "$state" != running ]; then

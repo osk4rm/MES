@@ -426,11 +426,22 @@ Zasady:
   `POST /actions/runs/{id}/approve` (wymaga `actions: write`).
   `swarm_use_pat_remote` czyści też `http....extraheader` z checkoutu —
   bez tego pushe leciały jako `github-actions[bot]` mimo PAT-a w URL.
+- **Przekierowanie do `ai:changes` musi zdjąć labelkę przed dodaniem**: duplikat
+  `--add-label ai:changes` to na GitHubie no-op, który **nie emituje eventu
+  `labeled`** — a `fix` startuje tylko z niego, więc martwe przekierowanie
+  zostawiało PR w `ai:changes` na zawsze. Guardy konfliktów (review/verify/e2e/merge)
+  robią więc `remove` + `add`, a `swarm_nudge_stuck_prs` ma `ai:changes` na
+  liście naprawczej (sweep co 30 min) jako siatkę bezpieczeństwa dla pozostałych
+  przejść (czerwone CI, werdykty).
+- **Analyst nie liczy do backlogu tego, co sam ma adoptować**: bramka
+  `BACKLOG_MAX` uruchamiała się tylko przy braku nielabelowanych proposali
+  (`swarm_unlabeled_count == 0`) — inaczej 5 osieroconych follow-upów
+  („backlog full") wiecznie blokowało refill kolejki.
 - **Sweep leczy zablokowane etapy**: `workflow_run` NIE odpala się dla runów
   aktora bota, więc „ci-completed retrigger" potrafił nie przyjść i PR stał
   w `ai:review` z zielonym CI. `swarm_nudge_stuck_prs` (sweep, co 30 min +
-  przy pushu) przebija labela etapu na niezablokowanych PR-ach, gdy CI nie
-  jest w trakcie — etap przelicza się natychmiast.
+  przy pushu) przebija labela etapu (review/verify/e2e/ready/**changes**) na
+  niezablokowanych PR-ach, gdy CI nie jest w trakcie — etap przelicza się natychmiast.
 - **Samouzupełniająca kolejka**: pusty `ai:implement` + backlog poniżej
   `BACKLOG_MAX=5` + gap w trackerze lub nielabelowany proposal = job `analyst`
   sam startuje `mes-analyst` w CI. Pętla nie staje po wyczerpaniu issuesów;
