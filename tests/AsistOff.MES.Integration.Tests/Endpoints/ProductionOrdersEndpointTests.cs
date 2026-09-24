@@ -218,6 +218,54 @@ public sealed class ProductionOrdersEndpointTests(MesApplicationFixture fixture)
     }
 
     [Fact]
+    public async Task Browse_ReturnsPagedOrders()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        await CreateOrderAsync(client);
+        await CreateOrderAsync(client);
+        await CreateOrderAsync(client);
+
+        var firstPage = await client.GetAsync($"{BaseUrl}?pageNumber=1&pageSize=2");
+
+        firstPage.StatusCode.Should().Be(HttpStatusCode.OK);
+        var first = await ReadAsync<PagedResponseDto<ProductionOrderDto>>(firstPage);
+        first.TotalCount.Should().Be(3);
+        first.TotalPages.Should().Be(2);
+        first.Items.Should().HaveCount(2);
+
+        var secondPage = await client.GetAsync($"{BaseUrl}?pageNumber=2&pageSize=2");
+
+        secondPage.StatusCode.Should().Be(HttpStatusCode.OK);
+        var second = await ReadAsync<PagedResponseDto<ProductionOrderDto>>(secondPage);
+        second.TotalCount.Should().Be(3);
+        second.Items.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task Browse_WithStatusFilter_ReturnsFiltered()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var planned = await CreateOrderAsync(client);
+        var released = await CreateReleasedOrderAsync(client);
+
+        var releasedOnly = await client.GetAsync($"{BaseUrl}?status=2");
+
+        releasedOnly.StatusCode.Should().Be(HttpStatusCode.OK);
+        var releasedPage = await ReadAsync<PagedResponseDto<ProductionOrderDto>>(releasedOnly);
+        releasedPage.Items.Should().Contain(item => item.Id == released.Id);
+        releasedPage.Items.Should().NotContain(item => item.Id == planned.Id);
+
+        var plannedOnly = await client.GetAsync($"{BaseUrl}?status=1");
+
+        plannedOnly.StatusCode.Should().Be(HttpStatusCode.OK);
+        var plannedPage = await ReadAsync<PagedResponseDto<ProductionOrderDto>>(plannedOnly);
+        plannedPage.Items.Should().Contain(item => item.Id == planned.Id);
+        plannedPage.Items.Should().NotContain(item => item.Id == released.Id);
+    }
+
+    [Fact]
     public async Task Get_OrderFromAnotherTenant_Returns404()
     {
         using var devClient = await Fixture.CreateAuthenticatedClientAsync();

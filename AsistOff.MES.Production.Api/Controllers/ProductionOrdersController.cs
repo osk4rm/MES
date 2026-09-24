@@ -21,7 +21,7 @@ public class ProductionOrdersController(ISender sender) : ApiController
         => await sender.Send(request, cancellationToken);
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<ProductionOrderResponse>> GetAsync(
+    public async Task<ActionResult<ProductionOrderResponse>> Get(
         [FromRoute] Guid id, CancellationToken cancellationToken)
         => Ok(await sender.Send(new GetProductionOrderRequest(id), cancellationToken));
 
@@ -30,7 +30,7 @@ public class ProductionOrdersController(ISender sender) : ApiController
         [FromBody] CreateProductionOrderRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(request, cancellationToken);
-        return CreatedAtAction("Get", new { id = result.Id }, result);
+        return CreatedAtAction(nameof(Get), new { id = result.Id }, result);
     }
 
     [HttpPut("{id:guid}")]
