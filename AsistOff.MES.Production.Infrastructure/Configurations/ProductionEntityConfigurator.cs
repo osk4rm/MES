@@ -21,6 +21,7 @@ public class ProductionEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<SpcCharacteristic>();
         modelBuilder.Entity<DowntimeEvent>();
         modelBuilder.Entity<Lot>();
+        modelBuilder.Entity<LotGenealogyEdge>();
         modelBuilder.Entity<ScrapEvent>();
         modelBuilder.Entity<MachineTelemetryTag>();
         modelBuilder.Entity<TelemetryReading>();
