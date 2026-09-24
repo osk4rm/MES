@@ -118,6 +118,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppFilterBar from '../../components/ui/AppFilterBar.vue';
 import AppInput from '../../components/ui/AppInput.vue';
@@ -146,6 +147,7 @@ import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const { t } = useI18n();
+const router = useRouter();
 const toast = useToastStore();
 
 interface Filters { code?: string; status?: ProductionOrderStatus }
@@ -199,7 +201,9 @@ function onStatusChange(v: string | number | null) {
 function clearFilters() { codeFilter.value = ''; statusFilter.value = null; table.resetFilters(); }
 
 function rowActions(item: ProductionOrderResponse): Array<{ key: string; label: string; icon: string; variant?: 'default' | 'danger' }> {
-  const actions: Array<{ key: string; label: string; icon: string; variant?: 'default' | 'danger' }> = [];
+  const actions: Array<{ key: string; label: string; icon: string; variant?: 'default' | 'danger' }> = [
+    { key: 'details', label: t('common.open'), icon: 'pi-eye' }
+  ];
   if (item.status === ProductionOrderStatus.Planned) {
     actions.push({ key: 'release', label: t('productionOrders.release'), icon: 'pi-check' });
     actions.push({ key: 'edit', label: t('common.edit'), icon: 'pi-pencil' });
@@ -346,7 +350,8 @@ const confirmMessage = computed(() => confirmTarget.value
   : '');
 
 function onRowAction(key: string, item: ProductionOrderResponse): void {
-  if (key === 'edit') { void openEdit(item); }
+  if (key === 'details') { void router.push({ name: 'production-order-detail', params: { id: item.id } }); }
+  else if (key === 'edit') { void openEdit(item); }
   else if (key === 'delete' || key === 'release') {
     confirmKind.value = key;
     confirmTarget.value = item;
