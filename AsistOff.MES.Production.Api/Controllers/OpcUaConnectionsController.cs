@@ -3,6 +3,7 @@ using AsistOff.MES.Production.Application.Features.OpcUaConnections.Browse;
 using AsistOff.MES.Production.Application.Features.OpcUaConnections.Create;
 using AsistOff.MES.Production.Application.Features.OpcUaConnections.Delete;
 using AsistOff.MES.Production.Application.Features.OpcUaConnections.Get;
+using AsistOff.MES.Production.Application.Features.OpcUaConnections.Status;
 using AsistOff.MES.Production.Application.Features.OpcUaConnections.Test;
 using AsistOff.MES.Production.Application.Features.OpcUaConnections.Toggle;
 using AsistOff.MES.Production.Application.Features.OpcUaConnections.Update;
@@ -20,6 +21,11 @@ public class OpcUaConnectionsController(ISender sender) : ApiController
     public async Task<ActionResult<PagedResponse<OpcUaConnectionResponse>>> BrowseAsync(
         [FromQuery] BrowseOpcUaConnectionsRequest request, CancellationToken cancellationToken)
         => await sender.Send(request, cancellationToken);
+
+    [HttpGet("status")]
+    public async Task<ActionResult<OpcUaConnectionStatusResponse>> StatusAsync(
+        [FromQuery] GetOpcUaConnectionStatusRequest request, CancellationToken cancellationToken)
+        => Ok(await sender.Send(request, cancellationToken));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<OpcUaConnectionResponse>> GetAsync(

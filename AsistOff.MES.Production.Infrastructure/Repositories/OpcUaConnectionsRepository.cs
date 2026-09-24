@@ -25,6 +25,9 @@ internal sealed class OpcUaConnectionsRepository(DefaultContext context) : IOpcU
         => context.Set<OpcUaConnection>()
             .FirstOrDefaultAsync(x => x.MachineId == machineId && x.EndpointUrl == endpointUrl, cancellationToken);
 
+    public async Task<IReadOnlyCollection<OpcUaConnection>> ListAllAsync(CancellationToken cancellationToken = default)
+        => await context.Set<OpcUaConnection>().ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyCollection<OpcUaConnection>> ListEnabledAsync(CancellationToken cancellationToken = default)
         => await context.Set<OpcUaConnection>().Where(x => x.IsEnabled).ToListAsync(cancellationToken);
 

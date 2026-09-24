@@ -12,6 +12,12 @@ public interface IOpcUaConnectionsRepository
     Task<OpcUaConnection?> GetByEndpointAsync(Guid machineId, string endpointUrl, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// All connections of the ambient tenant (the global query filter
+    /// scopes the result). Used by the connection-status query.
+    /// </summary>
+    Task<IReadOnlyCollection<OpcUaConnection>> ListAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Enabled connections of the ambient tenant (the global query filter
     /// scopes the result). Used by the OPC UA poller.
     /// </summary>

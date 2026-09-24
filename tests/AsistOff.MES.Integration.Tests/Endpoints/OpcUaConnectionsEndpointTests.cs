@@ -213,6 +213,121 @@ public sealed class OpcUaConnectionsEndpointTests(MesApplicationFixture fixture)
         enabledPage.Items.Should().NotContain(item => item.Id == wanted.Id);
     }
 
+    [Fact]
+    public async Task Status_WithoutToken_Returns401()
+    {
+        using var client = Fixture.CreateClient();
+
+        var response = await client.GetAsync($"{BaseUrl}/status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Status_ReturnsEntry_WithTagCounts_MatchingReadingRecency()
+    {
+        // Arrange - one connection on a fresh machine, one tag with a fresh
+        // reading (seconds old, inside the 2x30s reporting threshold) plus
+        // one tag that never reported. The OPC UA poller is disabled in the
+        // integration host, so LastSeenAtUtc stays null (never seen).
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var machineId = await CreateMachineAsync(client);
+        var connection = await CreateConnectionAsync(client, machineId);
+        var reportingTag = await CreateTagAsync(client, machineId);
+        var silentTag = await CreateTagAsync(client, machineId);
+        await SubmitReadingAsync(client, reportingTag.Id, DateTime.UtcNow.AddSeconds(-10), 21.5);
+
+        // Act - filtered to the fresh machine so the shared tenant database
+        // cannot leak other tests' connections into the assertions.
+        var response = await client.GetAsync($"{BaseUrl}/status?machineId={machineId}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var status = await ReadAsync<OpcUaConnectionStatusDto>(response);
+        var entry = status.Connections.Should().ContainSingle(e => e.ConnectionId == connection.Id).Subject;
+        entry.MachineId.Should().Be(machineId);
+        entry.EndpointUrl.Should().Be(connection.EndpointUrl);
+        entry.IsEnabled.Should().BeTrue();
+        entry.LastSeenAtUtc.Should().BeNull();
+        entry.IsLive.Should().BeFalse();
+        entry.TotalTags.Should().Be(2);
+        entry.ReportingTags.Should().Be(1);
+        entry.StaleTags.Should().Be(1);
+        status.TotalCount.Should().Be(1);
+        status.LiveCount.Should().Be(0);
+        status.StaleCount.Should().Be(1);
+        status.DisabledCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Status_DisabledConnection_IsNotLive_AndExcludedFromLiveTotals()
+    {
+        // Arrange
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var machineId = await CreateMachineAsync(client);
+        var connection = await CreateConnectionAsync(client, machineId);
+        var toggle = await client.PostAsync($"{BaseUrl}/{connection.Id}/toggle", null);
+        toggle.EnsureSuccessStatusCode();
+
+        // Act
+        var response = await client.GetAsync($"{BaseUrl}/status?machineId={machineId}");
+
+        // Assert - disabled is not applicable: never live, never stale
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var status = await ReadAsync<OpcUaConnectionStatusDto>(response);
+        var entry = status.Connections.Should().ContainSingle(e => e.ConnectionId == connection.Id).Subject;
+        entry.IsEnabled.Should().BeFalse();
+        entry.IsLive.Should().BeFalse();
+        status.TotalCount.Should().Be(1);
+        status.LiveCount.Should().Be(0);
+        status.StaleCount.Should().Be(0);
+        status.DisabledCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Status_UnknownMachineId_Returns404()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync($"{BaseUrl}/status?machineId={Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Status_CrossTenantMachine_Returns404()
+    {
+        // Arrange - a machine owned by a brand-new tenant
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var otherMachineId = await CreateMachineAsync(otherTenantClient);
+
+        // Act - requested as the seeded dev tenant
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+        var response = await devClient.GetAsync($"{BaseUrl}/status?machineId={otherMachineId}");
+
+        // Assert - the other tenant's machine is invisible, hence unknown
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Status_DoesNotLeakCrossTenantConnections()
+    {
+        // Arrange - a connection under a brand-new tenant
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var otherConnection = await CreateConnectionAsync(otherTenantClient);
+
+        // Act - status as the seeded dev tenant
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+        var response = await devClient.GetAsync($"{BaseUrl}/status");
+
+        // Assert - the other tenant's connection never appears
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var status = await ReadAsync<OpcUaConnectionStatusDto>(response);
+        status.Connections.Should().NotContain(e => e.ConnectionId == otherConnection.Id);
+    }
+
     private static async Task<Guid> CreateMachineAsync(HttpClient client)
     {
         var code = $"OC-M-{Guid.NewGuid():N}"[..12];
@@ -240,5 +355,33 @@ public sealed class OpcUaConnectionsEndpointTests(MesApplicationFixture fixture)
         });
         response.EnsureSuccessStatusCode();
         return await ReadAsync<OpcUaConnectionDto>(response);
+    }
+
+    private static async Task<MachineTelemetryTagDto> CreateTagAsync(HttpClient client, Guid machineId)
+    {
+        var response = await client.PostAsJsonAsync("/api/telemetry-tags", new
+        {
+            machineId,
+            nodeId = $"ns=2;s={Guid.NewGuid():N}",
+            displayName = "Sensor",
+            dataType = 2,
+            pollIntervalSeconds = 30,
+            description = (string?)null
+        });
+        response.EnsureSuccessStatusCode();
+        return await ReadAsync<MachineTelemetryTagDto>(response);
+    }
+
+    private static async Task SubmitReadingAsync(HttpClient client, Guid tagId, DateTime readAt, double value)
+    {
+        var response = await client.PostAsJsonAsync("/api/telemetry-readings", new
+        {
+            tagId,
+            readAt,
+            doubleValue = value,
+            stringValue = (string?)null,
+            quality = 1
+        });
+        response.EnsureSuccessStatusCode();
     }
 }
