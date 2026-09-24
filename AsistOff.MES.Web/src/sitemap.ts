@@ -15,6 +15,7 @@ export const sitemap: NavItem[] = [
       { label: 'nav.productionOrders', icon: 'pi pi-list', route: '/production/orders' },
       { label: 'nav.productionScrap', icon: 'pi pi-trash', route: '/production/scrap' },
       { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' },
+      { label: 'nav.spcCharacteristics', icon: 'pi pi-chart-line', route: '/production/spc-characteristics' }
       { label: 'nav.productionDowntime', icon: 'pi pi-pause-circle', route: '/production/downtime' }
       { label: 'nav.productionLots', icon: 'pi pi-box', route: '/production/lots' }
     ]

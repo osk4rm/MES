@@ -16,6 +16,8 @@ public sealed record PagedResponseDto<T>(
     int TotalPages,
     IReadOnlyCollection<T> Items);
 
+/// <summary>Shape of an SPC characteristic as returned by <c>/api/spc-characteristics</c>.</summary>
+public sealed record SpcCharacteristicDto(
 /// <summary>Shape of a downtime event as returned by <c>/api/downtime-events</c>.</summary>
 public sealed record DowntimeEventDto(
     Guid Id,
@@ -56,6 +58,16 @@ public sealed record ShiftDto(
     string Code,
     string Name,
     string? Description,
+    Guid? ProductId,
+    Guid? MachineId,
+    short ChartType,
+    decimal? NominalValue,
+    decimal? LowerSpecLimit,
+    decimal? UpperSpecLimit,
+    decimal? LowerControlLimit,
+    decimal? UpperControlLimit,
+    int SampleSize,
+    string? Unit,
     string StartTime,
     string EndTime,
     bool IsActive);
