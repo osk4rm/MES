@@ -295,3 +295,23 @@ public sealed record MovementPreviewLineDto(
     decimal Quantity,
     Guid? MeasureUnitId,
     Guid? PreferredWarehouseId);
+
+/// <summary>Shape of the OEE snapshot returned by <c>/api/oee/snapshot</c>.</summary>
+public sealed record OeeSnapshotDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    decimal IdealCycleTimeSeconds,
+    double? Availability,
+    double? Performance,
+    double? Quality,
+    double? Oee,
+    bool AvailabilityComputed,
+    bool PerformanceComputed,
+    bool QualityComputed,
+    double PlannedProductionTimeMinutes,
+    double RunTimeMinutes,
+    double DowntimeMinutes,
+    decimal TotalCount,
+    decimal GoodCount,
+    decimal ScrapCount);
