@@ -43,6 +43,7 @@ const pl = {
     productionOrders: 'Zlecenia produkcyjne',
     productionRecipes: 'Receptury',
     productionScrap: 'Braki',
+    productionLots: 'Partie',
     schedule: 'Harmonogram',
     reports: 'Raporty',
     configuration: 'Konfiguracja',
@@ -326,6 +327,41 @@ const pl = {
       5: 'Inne'
     }
   },
+  lots: {
+    title: 'Partie',
+    subtitle: 'Rejestr partii do śledzenia i identyfikacji',
+    create: 'Nowa partia',
+    code: 'Kod',
+    productId: 'ID produktu',
+    measureUnitId: 'ID jednostki',
+    quantity: 'Ilość',
+    supplierLotNumber: 'Numer partii dostawcy',
+    producedAt: 'Data produkcji',
+    expiryDate: 'Data ważności',
+    notes: 'Uwagi',
+    scan: 'Szukaj',
+    scanPlaceholder: 'Zeskanuj lub wpisz kod partii…',
+    scanHit: 'Znaleziono partię {code}',
+    filters: {
+      code: 'Kod zawiera…',
+      product: 'ID produktu…',
+      status: 'Status',
+      expiryFrom: 'Ważność od',
+      expiryTo: 'Ważność do'
+    },
+    statuses: {
+      1: 'Dostępna',
+      2: 'Wstrzymana',
+      3: 'Zużyta',
+      4: 'Złomowana',
+      5: 'Przeterminowana'
+    },
+    actions: {
+      hold: 'Wstrzymaj',
+      release: 'Przywróć',
+      scrap: 'Złomuj'
+    }
+  },
   scrap: {
     title: 'Braki',
     subtitle: 'Ewidencja braków ze stanowisk z kodami przyczyn',
@@ -409,6 +445,7 @@ const en: typeof pl = {
     productionOrders: 'Production orders',
     productionRecipes: 'Recipes',
     productionScrap: 'Scrap',
+    productionLots: 'Lots',
     schedule: 'Schedule',
     reports: 'Reports',
     configuration: 'Configuration',
@@ -690,6 +727,41 @@ const en: typeof pl = {
       3: 'Quality',
       4: 'Setup',
       5: 'Other'
+    }
+  },
+  lots: {
+    title: 'Lots',
+    subtitle: 'Lot registry for traceability and lookup',
+    create: 'New lot',
+    code: 'Code',
+    productId: 'Product ID',
+    measureUnitId: 'Measure unit ID',
+    quantity: 'Quantity',
+    supplierLotNumber: 'Supplier lot number',
+    producedAt: 'Produced at',
+    expiryDate: 'Expiry date',
+    notes: 'Notes',
+    scan: 'Look up',
+    scanPlaceholder: 'Scan or enter a lot code…',
+    scanHit: 'Found lot {code}',
+    filters: {
+      code: 'Code contains…',
+      product: 'Product ID…',
+      status: 'Status',
+      expiryFrom: 'Expiry from',
+      expiryTo: 'Expiry to'
+    },
+    statuses: {
+      1: 'Available',
+      2: 'On hold',
+      3: 'Consumed',
+      4: 'Scrapped',
+      5: 'Expired'
+    },
+    actions: {
+      hold: 'Hold',
+      release: 'Release',
+      scrap: 'Scrap'
     }
   },
   scrap: {

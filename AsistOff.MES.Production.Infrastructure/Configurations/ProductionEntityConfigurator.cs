@@ -16,6 +16,7 @@ public class ProductionEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<OperationOutput>();
         modelBuilder.Entity<ResourceRequirement>();
         modelBuilder.Entity<OperationTemplate>();
+        modelBuilder.Entity<Lot>();
         modelBuilder.Entity<ScrapEvent>();
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProductionEntityConfigurator).Assembly);
