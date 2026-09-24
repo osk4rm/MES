@@ -293,13 +293,14 @@ public sealed class OeeEndpointTests(MesApplicationFixture fixture) : Integratio
             productionOrderId = order.Id,
             machineId = machine.Id,
             reportedByOperatorId = (Guid?)null,
-            reportedAt = DateTime.UtcNow.AddHours(-5),
+            reportedAt = DateTime.UtcNow,
             goodQuantity = 80m,
             scrapQuantity = 20m,
             notes = (string?)null
         });
         confirmResponse.EnsureSuccessStatusCode();
-        var toUtc = DateTime.UtcNow.AddMinutes(1);
+        var confirmation = await ReadAsync<ProductionConfirmationDto>(confirmResponse);
+        var toUtc = confirmation.ReportedAt.AddMinutes(1);
 
         var trendResponse = await client.GetAsync(
             $"{TrendUrl}?machineId={machine.Id}&fromUtc={Qs(fromUtc)}&toUtc={Qs(toUtc)}&idealCycleTimeSeconds=60&bucket=Day");
@@ -572,7 +573,12 @@ public sealed class OeeEndpointTests(MesApplicationFixture fixture) : Integratio
     /// </summary>
     private static async Task PutFullDayCalendarAsync(HttpClient client, Guid machineId, DateTime from, DateTime to)
     {
-        var days = new[] { from.DayOfWeek, to.DayOfWeek }.Distinct().ToList();
+        var days = new List<DayOfWeek>();
+        for (var day = from.ToUniversalTime().Date; day <= to.ToUniversalTime().Date; day = day.AddDays(1))
+        {
+            if (!days.Contains(day.DayOfWeek))
+                days.Add(day.DayOfWeek);
+        }
         var response = await client.PutAsJsonAsync($"/api/machines/{machineId}/calendar", new
         {
             entries = days.Select(day => new
