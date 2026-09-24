@@ -326,6 +326,11 @@ Zasady:
 
 - **Sekret**: `OPENCODE_API_KEY` (opencode.ai/auth) w Settings → Secrets →
   Actions. Bez niego joby padają z jawnym błędem. `GITHUB_TOKEN` jest automatyczny.
+- **Checkbox**: Settings → Actions → General → Workflow permissions → zaznacz
+  **„Allow GitHub Actions to create and approve pull requests"**. Bez tego
+  implement/researcher/tracker nie otworzą PR-a (API odmawia
+  `createPullRequest`). Gdy brakuje, job sam przechodzi w `ai:blocked`
+  z instrukcją, a nie wiesza się ani nie mieli minut.
 - **Concurrency**: jedna kolejka na issue/PR (`cancel-in-progress: false`) —
   odpowiednik jednowątkowego dyspozytora. `ai:running` jest lockiem między
   runnerem CI a lokalnym dyspozytorem: job widzący cudzy lock kończy się błędem,

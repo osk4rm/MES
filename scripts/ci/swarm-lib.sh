@@ -22,16 +22,65 @@ swarm_has_label() { # <issue|pr> <number> <label> -> 0 when present
   printf '%s\n' "$names" | grep -qxF "$label"
 }
 
+swarm_retry() { # <tries> <delay-sec> <cmd...> — reruns flaky gh ops
+  local tries="$1" delay="$2"
+  shift 2
+  local i=1
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    if [ "$i" -ge "$tries" ]; then
+      return 1
+    fi
+    echo "attempt $i/$tries failed: $* — retrying in ${delay}s"
+    sleep "$delay"
+    i=$((i + 1))
+  done
+}
+
 swarm_add_label() { # <issue|pr> <number> <label>
-  gh "$1" edit "$2" --add-label "$3" >/dev/null
+  swarm_retry 3 10 gh "$1" edit "$2" --add-label "$3" >/dev/null
 }
 
 swarm_remove_label() { # <issue|pr> <number> <label> (never fails the step)
-  gh "$1" edit "$2" --remove-label "$3" >/dev/null 2>&1 || true
+  swarm_retry 3 10 gh "$1" edit "$2" --remove-label "$3" >/dev/null 2>&1 || true
 }
 
 swarm_comment() { # <issue|pr> <number> <body-file>
-  gh "$1" comment "$2" --body-file "$3" >/dev/null
+  swarm_retry 3 10 gh "$1" comment "$2" --body-file "$3" >/dev/null
+}
+
+swarm_branch_for_issue() { # <issue> -> remote branch ai/issue-N-* or empty
+  git fetch origin >/dev/null 2>&1 || true
+  git branch -r --list "origin/ai/issue-$1-*" 2>/dev/null \
+    | head -n 1 | sed 's|^ *origin/||;s| *$||'
+}
+
+swarm_open_pr() { # <branch> <title> <body-file> -> PR number; rc=3 on PR-permission block
+  local branch="$1" title="$2" body="$3" out pr
+  out=$(gh pr create --head "$branch" --base "$(swarm_default_branch)" \
+    --title "$title" --body-file "$body" 2>&1)
+  pr=$(printf '%s' "$out" | grep -oE 'https://github.com/[^ ]*/pull/[0-9]+' | grep -oE '[0-9]+$' | head -n 1)
+  if [ -n "$pr" ]; then
+    echo "$pr"
+    return 0
+  fi
+  if printf '%s' "$out" | grep -q 'not permitted to create or approve pull requests'; then
+    echo "$out" >&2
+    return 3
+  fi
+  echo "$out" >&2
+  return 1
+}
+
+swarm_pr_permission_note() { # prints the one-checkbox fix for blocked PR creation
+  cat <<'EOF'
+GitHub Actions is not permitted to create pull requests in this repo. Fix (30s, human):
+Settings > Actions > General > Workflow permissions > check
+"Allow GitHub Actions to create and approve pull requests", then re-add the
+trigger label to retry. No code change needed.
+EOF
 }
 
 swarm_say() { # <issue|pr> <number> <text> (short comment without a file)

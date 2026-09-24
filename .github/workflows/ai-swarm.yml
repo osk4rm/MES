@@ -86,6 +86,10 @@ jobs:
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
           ISSUE='${{ github.event.issue.number || inputs.number }}'
+          if [ -z "$ISSUE" ]; then
+            echo '::error::No issue number resolved from the event.'
+            exit 1
+          fi
           swarm_require_auth
           swarm_acquire_lock issue "$ISSUE" || exit 1
           swarm_auto_release issue "$ISSUE"
@@ -96,10 +100,40 @@ jobs:
             implement.log
           PR=$(swarm_find_pr_for_issue "$ISSUE")
           if [ -z "$PR" ]; then
-            swarm_remove_label issue "$ISSUE" ai:implement
-            swarm_add_label issue "$ISSUE" ai:blocked
-            swarm_say issue "$ISSUE" 'Agent flow (CI): implementer did not open a PR. Needs human attention.'
-            exit 1
+            # Fallback: agent pushed the branch but did not open the PR
+            # (e.g. missing repo permission) — open it deterministically.
+            BRANCH=$(swarm_branch_for_issue "$ISSUE")
+            if [ -n "$BRANCH" ]; then
+              TITLE=$(gh issue view "$ISSUE" --json title --jq .title)
+              BODY=$(mktemp)
+              {
+                echo "Closes #$ISSUE. Opened by CI fallback: the branch was pushed but no PR existed."
+                echo 'See the issue comments for the implementer verification report.'
+              } >"$BODY"
+              if PR=$(swarm_open_pr "$BRANCH" "$TITLE" "$BODY"); then
+                echo "fallback opened PR #$PR"
+              else
+                CODE=$?
+                rm -f "$BODY"
+                swarm_remove_label issue "$ISSUE" ai:implement
+                swarm_add_label issue "$ISSUE" ai:blocked
+                if [ "$CODE" = 3 ]; then
+                  NOTE=$(mktemp)
+                  swarm_pr_permission_note >"$NOTE"
+                  swarm_comment issue "$ISSUE" "$NOTE"
+                  rm -f "$NOTE"
+                else
+                  swarm_say issue "$ISSUE" 'Agent flow (CI): branch exists but the PR could not be opened. Needs human attention.'
+                fi
+                exit 1
+              fi
+              rm -f "$BODY"
+            else
+              swarm_remove_label issue "$ISSUE" ai:implement
+              swarm_add_label issue "$ISSUE" ai:blocked
+              swarm_say issue "$ISSUE" 'Agent flow (CI): implementer did not open a PR. Needs human attention.'
+              exit 1
+            fi
           fi
           if [ "$(gh pr view "$PR" --json isDraft --jq .isDraft)" = true ]; then
             gh pr ready "$PR" >/dev/null
@@ -160,6 +194,8 @@ jobs:
         run: |
           if ! command -v opencode >/dev/null 2>&1; then
             curl -fsSL https://opencode.ai/install | bash
+            # GITHUB_PATH applies to the NEXT step only; export now for this one.
+            export PATH="$HOME/.opencode/bin:$PATH"
           fi
           opencode --version
       - name: Wait for CI, then review
