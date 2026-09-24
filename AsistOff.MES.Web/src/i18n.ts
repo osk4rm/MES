@@ -45,6 +45,7 @@ const pl = {
     productionRecipes: 'Receptury',
     productionScrap: 'Braki',
     productionDowntime: 'Przestoje',
+    productionLots: 'Partie',
     schedule: 'Harmonogram',
     reports: 'Raporty',
     configuration: 'Konfiguracja',
@@ -56,6 +57,7 @@ const pl = {
     machines: 'Maszyny',
     operators: 'Operatorzy',
     skills: 'Umiejętności',
+    shifts: 'Zmiany',
     reasonCodes: 'Kody przyczyn',
     operationTemplates: 'Wzorcowe operacje',
     settings: 'Ustawienia'
@@ -171,6 +173,7 @@ const pl = {
     code: 'Kod',
     name: 'Nazwa',
     description: 'Opis',
+    calendar: 'Kalendarz',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
   },
   recipes: {
@@ -257,6 +260,42 @@ const pl = {
     description: 'Opis',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
   },
+  shifts: {
+    title: 'Zmiany',
+    subtitle: 'Słownik zmian roboczych',
+    create: 'Nowa zmiana',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    startTime: 'Początek',
+    endTime: 'Koniec',
+    isActive: 'Aktywna',
+    overnightHint: 'Zmiana nocna — koniec wypada po północy.',
+    overnightSeparator: '–',
+    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
+  },
+  calendar: {
+    title: 'Kalendarz stanowiska',
+    subtitle: 'Tygodniowe okna pracy',
+    addEntry: 'Dodaj wpis',
+    removeEntry: 'Usuń wpis',
+    empty: 'Brak wpisów — dodaj pierwsze okno pracy.',
+    dayOfWeek: 'Dzień tygodnia',
+    startTime: 'Początek',
+    endTime: 'Koniec',
+    shift: 'Zmiana',
+    noShift: 'Bez zmiany',
+    working: 'Praca',
+    days: {
+      0: 'Niedziela',
+      1: 'Poniedziałek',
+      2: 'Wtorek',
+      3: 'Środa',
+      4: 'Czwartek',
+      5: 'Piątek',
+      6: 'Sobota'
+    }
+  },
   operationTemplates: {
     title: 'Wzorcowe operacje',
     subtitle: 'Szablony do ponownego użycia podczas tworzenia receptur',
@@ -338,6 +377,40 @@ const pl = {
     selectReason: 'Wybierz przyczynę…',
     status: { open: 'Otwarty', closed: 'Zamknięty' },
     filters: { machine: 'Stanowisko', reason: 'Przyczyna' }
+  lots: {
+    title: 'Partie',
+    subtitle: 'Rejestr partii do śledzenia i identyfikacji',
+    create: 'Nowa partia',
+    code: 'Kod',
+    productId: 'ID produktu',
+    measureUnitId: 'ID jednostki',
+    quantity: 'Ilość',
+    supplierLotNumber: 'Numer partii dostawcy',
+    producedAt: 'Data produkcji',
+    expiryDate: 'Data ważności',
+    notes: 'Uwagi',
+    scan: 'Szukaj',
+    scanPlaceholder: 'Zeskanuj lub wpisz kod partii…',
+    scanHit: 'Znaleziono partię {code}',
+    filters: {
+      code: 'Kod zawiera…',
+      product: 'ID produktu…',
+      status: 'Status',
+      expiryFrom: 'Ważność od',
+      expiryTo: 'Ważność do'
+    },
+    statuses: {
+      1: 'Dostępna',
+      2: 'Wstrzymana',
+      3: 'Zużyta',
+      4: 'Złomowana',
+      5: 'Przeterminowana'
+    },
+    actions: {
+      hold: 'Wstrzymaj',
+      release: 'Przywróć',
+      scrap: 'Złomuj'
+    }
   },
   scrap: {
     title: 'Braki',
@@ -424,6 +497,7 @@ const en: typeof pl = {
     productionRecipes: 'Recipes',
     productionScrap: 'Scrap',
     productionDowntime: 'Downtime',
+    productionLots: 'Lots',
     schedule: 'Schedule',
     reports: 'Reports',
     configuration: 'Configuration',
@@ -435,6 +509,7 @@ const en: typeof pl = {
     machines: 'Machines',
     operators: 'Operators',
     skills: 'Skills',
+    shifts: 'Shifts',
     reasonCodes: 'Reason codes',
     operationTemplates: 'Operation templates',
     settings: 'Settings'
@@ -550,6 +625,7 @@ const en: typeof pl = {
     code: 'Code',
     name: 'Name',
     description: 'Description',
+    calendar: 'Calendar',
     filters: { code: 'Code contains…', name: 'Name contains…' }
   },
   recipes: {
@@ -636,6 +712,42 @@ const en: typeof pl = {
     description: 'Description',
     filters: { code: 'Code contains…', name: 'Name contains…' }
   },
+  shifts: {
+    title: 'Shifts',
+    subtitle: 'Working-time dictionary',
+    create: 'New shift',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    startTime: 'Start',
+    endTime: 'End',
+    isActive: 'Active',
+    overnightHint: 'Overnight shift — ends after midnight.',
+    overnightSeparator: '–',
+    filters: { code: 'Code contains…', name: 'Name contains…' }
+  },
+  calendar: {
+    title: 'Work center calendar',
+    subtitle: 'Weekly working windows',
+    addEntry: 'Add entry',
+    removeEntry: 'Remove entry',
+    empty: 'No entries — add the first working window.',
+    dayOfWeek: 'Day of week',
+    startTime: 'Start',
+    endTime: 'End',
+    shift: 'Shift',
+    noShift: 'No shift',
+    working: 'Working',
+    days: {
+      0: 'Sunday',
+      1: 'Monday',
+      2: 'Tuesday',
+      3: 'Wednesday',
+      4: 'Thursday',
+      5: 'Friday',
+      6: 'Saturday'
+    }
+  },
   operationTemplates: {
     title: 'Operation templates',
     subtitle: 'Reusable templates for recipe operations',
@@ -717,6 +829,40 @@ const en: typeof pl = {
     selectReason: 'Select a reason…',
     status: { open: 'Open', closed: 'Closed' },
     filters: { machine: 'Work center', reason: 'Reason' }
+  lots: {
+    title: 'Lots',
+    subtitle: 'Lot registry for traceability and lookup',
+    create: 'New lot',
+    code: 'Code',
+    productId: 'Product ID',
+    measureUnitId: 'Measure unit ID',
+    quantity: 'Quantity',
+    supplierLotNumber: 'Supplier lot number',
+    producedAt: 'Produced at',
+    expiryDate: 'Expiry date',
+    notes: 'Notes',
+    scan: 'Look up',
+    scanPlaceholder: 'Scan or enter a lot code…',
+    scanHit: 'Found lot {code}',
+    filters: {
+      code: 'Code contains…',
+      product: 'Product ID…',
+      status: 'Status',
+      expiryFrom: 'Expiry from',
+      expiryTo: 'Expiry to'
+    },
+    statuses: {
+      1: 'Available',
+      2: 'On hold',
+      3: 'Consumed',
+      4: 'Scrapped',
+      5: 'Expired'
+    },
+    actions: {
+      hold: 'Hold',
+      release: 'Release',
+      scrap: 'Scrap'
+    }
   },
   scrap: {
     title: 'Scrap',
