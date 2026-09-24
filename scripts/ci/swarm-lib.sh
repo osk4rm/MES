@@ -130,6 +130,27 @@ swarm_comments_body() { # <issue|pr> <number> -> joined comment bodies
   gh "$1" view "$2" --json comments --jq '.comments[].body' 2>/dev/null || true
 }
 
+swarm_last_verdict() { # <alternation> <file> -> value | UNKNOWN
+  # Like swarm_verdict but returns the LAST verdict instead of AMBIGUOUS when
+  # multiple rounds left different verdicts in the log/comments. A PR that was
+  # CHANGES_REQUESTED and then APPROVED must count as APPROVED, not blocked.
+  local pattern="VERDICT:[[:space:]]*($1)" file="$2" last
+  last=$(grep -oE "$pattern" "$file" 2>/dev/null | sed -E 's/.*VERDICT:[[:space:]]*//' | tail -n 1 || true)
+  if [ -z "$last" ]; then
+    echo UNKNOWN
+  else
+    echo "$last"
+  fi
+}
+
+swarm_last_verdict_stdin() { # <alternation> — same as swarm_last_verdict but reads stdin
+  local pattern="$1" tmp
+  tmp=$(mktemp)
+  cat >"$tmp"
+  swarm_last_verdict "$pattern" "$tmp"
+  rm -f "$tmp"
+}
+
 swarm_verdict_stdin() { # <alternation> — same as swarm_verdict but reads stdin
   local pattern="$1" tmp
   tmp=$(mktemp)

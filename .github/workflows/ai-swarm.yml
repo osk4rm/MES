@@ -251,7 +251,7 @@ jobs:
             review.log
           VERDICT=$(swarm_verdict 'APPROVED|CHANGES_REQUESTED' review.log)
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
-            VERDICT=$(swarm_comments_body pr "$PR" | swarm_verdict_stdin 'APPROVED|CHANGES_REQUESTED')
+            VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'APPROVED|CHANGES_REQUESTED')
           fi
           swarm_remove_label pr "$PR" ai:review
           case "$VERDICT" in
@@ -318,7 +318,7 @@ jobs:
             verify.log
           VERDICT=$(swarm_verdict 'TESTS_SOUND|TESTS_INSUFFICIENT' verify.log)
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
-            VERDICT=$(swarm_comments_body pr "$PR" | swarm_verdict_stdin 'TESTS_SOUND|TESTS_INSUFFICIENT')
+            VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'TESTS_SOUND|TESTS_INSUFFICIENT')
           fi
           swarm_remove_label pr "$PR" ai:verify
           case "$VERDICT" in
@@ -481,7 +481,7 @@ jobs:
             e2e.log
           VERDICT=$(swarm_verdict 'E2E_PASS|E2E_FAIL|E2E_BLOCKED' e2e.log)
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
-            VERDICT=$(swarm_comments_body pr "$PR" | swarm_verdict_stdin 'E2E_PASS|E2E_FAIL|E2E_BLOCKED')
+            VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'E2E_PASS|E2E_FAIL|E2E_BLOCKED')
           fi
           # E2E_BLOCKED = infrastructure problem, not code → promote to ai:ready.
           swarm_remove_label pr "$PR" ai:e2e
