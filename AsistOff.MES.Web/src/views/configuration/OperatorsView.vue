@@ -49,6 +49,44 @@
       @page-size-change="table.setPageSize"
     />
 
+    <AppCard :title="$t('operators.roster.title')" :subtitle="$t('operators.roster.subtitle')" class="roster-card">
+      <div class="roster-controls">
+        <AppFormField :label="$t('operators.roster.date')">
+          <template #default="{ id }"><AppInput :id="id" v-model="rosterDate" type="date" @update:modelValue="onRosterDate" /></template>
+        </AppFormField>
+      </div>
+      <form class="roster-form" @submit.prevent="onAssign">
+        <AppFormField :label="$t('operators.roster.operator')" required>
+          <template #default="{ id }"><AppSelect :id="id" v-model="assignOperatorId" :options="rosterOperatorOptions" :empty-label="$t('operators.roster.selectOperator')" allow-empty /></template>
+        </AppFormField>
+        <AppFormField :label="$t('operators.roster.shift')" required>
+          <template #default="{ id }"><AppSelect :id="id" v-model="assignShiftId" :options="rosterShiftOptions" :empty-label="$t('operators.roster.selectShift')" allow-empty /></template>
+        </AppFormField>
+        <AppFormField :label="$t('operators.roster.notes')">
+          <template #default="{ id }"><AppInput :id="id" v-model="assignNotes" :placeholder="$t('operators.roster.notes')" clearable /></template>
+        </AppFormField>
+        <div class="roster-form__actions">
+          <AppButton type="submit" variant="primary" icon="pi pi-plus" :loading="assigning" :disabled="!assignOperatorId || !assignShiftId">{{ $t('operators.roster.assign') }}</AppButton>
+        </div>
+      </form>
+      <AppEmptyState v-if="!rosterLoading && rosterItems.length === 0" icon="pi pi-calendar" :title="$t('operators.roster.empty')" />
+      <AppTable
+        v-else
+        :items="rosterItems"
+        :columns="rosterColumns"
+        :loading="rosterLoading"
+      >
+        <template #cell-operator="{ item }">{{ item.operatorName || item.operatorIdentifier || item.operatorId }}</template>
+        <template #cell-shift="{ item }">{{ item.shiftName || item.shiftCode || item.shiftId }}</template>
+        <template #cell-actions="{ item }">
+          <AppRowActions
+            :actions="[{ key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger' }]"
+            @action="(k) => onRosterAction(k, item)"
+          />
+        </template>
+      </AppTable>
+    </AppCard>
+
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('operators.create')" @close="closeModal">
       <form id="op-form" class="form-grid" @submit.prevent="onSave">
         <AppFormField :label="$t('operators.identifier')" required>
@@ -99,9 +137,13 @@ import AppButton from '../../components/ui/AppButton.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
+import AppCard from '../../components/ui/AppCard.vue';
+import AppEmptyState from '../../components/ui/AppEmptyState.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import { operatorService, EMPTY_USER_ID, type OperatorResponse } from '../../services/operatorService';
 import { departmentService, type DepartmentResponse } from '../../services/departmentService';
+import { shiftService, type ShiftResponse } from '../../services/shiftService';
+import { operatorShiftAssignmentService, type OperatorShiftAssignmentResponse } from '../../services/operatorShiftAssignmentService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -233,13 +275,102 @@ async function confirmDelete() {
 }
 function cancelDelete() { confirmOpen.value = false; toDelete.value = null; }
 
+// roster: operator-to-shift assignments for a selected date
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+const rosterDate = ref<string>(todayIso());
+const rosterItems = ref<OperatorShiftAssignmentResponse[]>([]);
+const rosterLoading = ref(false);
+const rosterOperators = ref<OperatorResponse[]>([]);
+const rosterShifts = ref<ShiftResponse[]>([]);
+const assignOperatorId = ref<string | null>(null);
+const assignShiftId = ref<string | null>(null);
+const assignNotes = ref('');
+const assigning = ref(false);
+const removingRosterId = ref<string | null>(null);
+
+const rosterColumns = computed(() => [
+  { key: 'operator', label: t('operators.roster.operator') },
+  { key: 'shift', label: t('operators.roster.shift') },
+  { key: 'notes', label: t('operators.roster.notes') },
+  { key: 'actions', label: t('common.actions'), width: '90px' }
+]);
+const rosterOperatorOptions = computed(() =>
+  rosterOperators.value.map(o => ({ value: o.id, label: `${o.identifier} — ${o.firstName} ${o.lastName}` }))
+);
+const rosterShiftOptions = computed(() =>
+  rosterShifts.value.map(s => ({ value: s.id, label: `${s.code} — ${s.name}` }))
+);
+
+async function loadRosterLookups() {
+  try {
+    const [operators, shifts] = await Promise.all([
+      operatorService.browse({ pageNumber: 1, pageSize: 100 }),
+      shiftService.browse({ pageNumber: 1, pageSize: 100 })
+    ]);
+    rosterOperators.value = operators.items;
+    rosterShifts.value = shifts.items;
+  } catch { /* ignore */ }
+}
+async function loadRoster() {
+  if (!rosterDate.value) { rosterItems.value = []; return; }
+  rosterLoading.value = true;
+  try {
+    const res = await operatorShiftAssignmentService.browse({ date: rosterDate.value, pageNumber: 1, pageSize: 100 });
+    rosterItems.value = res.items;
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  } finally { rosterLoading.value = false; }
+}
+function onRosterDate(v: string | number | null | undefined) {
+  rosterDate.value = v ? String(v) : todayIso();
+  void loadRoster();
+}
+async function onAssign() {
+  if (!assignOperatorId.value || !assignShiftId.value || !rosterDate.value) return;
+  assigning.value = true;
+  try {
+    await operatorShiftAssignmentService.create({
+      operatorId: assignOperatorId.value,
+      shiftId: assignShiftId.value,
+      date: rosterDate.value,
+      notes: assignNotes.value || null
+    });
+    toast.success(t('operators.roster.assignedToast'));
+    assignNotes.value = '';
+    await loadRoster();
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+  } finally { assigning.value = false; }
+}
+function onRosterAction(key: string, item: OperatorShiftAssignmentResponse) {
+  if (key === 'delete') void removeRoster(item);
+}
+async function removeRoster(item: OperatorShiftAssignmentResponse) {
+  removingRosterId.value = item.id;
+  try {
+    await operatorShiftAssignmentService.remove(item.id);
+    toast.success(t('toasts.deleted'));
+    await loadRoster();
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.deleteFailed')));
+  } finally { removingRosterId.value = null; }
+}
+
 onMounted(async () => {
   await loadDepartments();
   await table.fetch();
+  await loadRosterLookups();
+  await loadRoster();
 });
 </script>
 
 <style scoped>
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+.roster-card { margin-top: var(--space-5); }
+.roster-controls { display: grid; grid-template-columns: 240px; gap: var(--space-3); margin-bottom: var(--space-3); }
+.roster-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: var(--space-3); align-items: end; margin-bottom: var(--space-4); }
+.roster-form__actions { padding-bottom: var(--space-1); }
 </style>

@@ -170,6 +170,19 @@ const pl = {
       rateFrom: 'Stawka od',
       rateTo: 'Stawka do',
       department: 'Dział'
+    },
+    roster: {
+      title: 'Grafik zmian',
+      subtitle: 'Przypisania operatorów do zmian w wybranym dniu',
+      date: 'Data',
+      operator: 'Operator',
+      selectOperator: 'Wybierz operatora…',
+      shift: 'Zmiana',
+      selectShift: 'Wybierz zmianę…',
+      notes: 'Uwagi',
+      assign: 'Przypisz',
+      empty: 'Brak przypisań w tym dniu — dodaj pierwsze.',
+      assignedToast: 'Przypisano operatora do zmiany'
     }
   },
   machines: {
@@ -894,6 +907,19 @@ const en: typeof pl = {
       rateFrom: 'Rate from',
       rateTo: 'Rate to',
       department: 'Department'
+    },
+    roster: {
+      title: 'Shift roster',
+      subtitle: 'Operator-to-shift assignments for the selected date',
+      date: 'Date',
+      operator: 'Operator',
+      selectOperator: 'Select an operator…',
+      shift: 'Shift',
+      selectShift: 'Select a shift…',
+      notes: 'Notes',
+      assign: 'Assign',
+      empty: 'No assignments on this date — add the first one.',
+      assignedToast: 'Operator assigned to shift'
     }
   },
   machines: {

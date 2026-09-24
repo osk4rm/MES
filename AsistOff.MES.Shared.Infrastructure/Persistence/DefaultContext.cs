@@ -17,6 +17,7 @@ public class DefaultContext : DbContext
     private readonly ICurrentTenantAccessor _tenantAccessor;
 
     public DbSet<User> Users { get; set; }
+    public DbSet<OperatorShiftAssignment> OperatorShiftAssignments { get; set; }
     public DbSet<Warehouse> Warehouses { get; set; }
     public DbSet<Operator> Operators { get; set; }
     public DbSet<Department> Departments { get; set; }

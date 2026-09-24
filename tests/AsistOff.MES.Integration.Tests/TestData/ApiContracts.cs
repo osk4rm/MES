@@ -384,6 +384,18 @@ public sealed record OpcUaConnectionStatusEntryDto(
     int ReportingTags,
     int StaleTags);
 
+/// <summary>Shape of an operator shift assignment as returned by <c>/api/operator-shift-assignments</c>. Date is ISO 8601 <c>yyyy-MM-dd</c>.</summary>
+public sealed record OperatorShiftAssignmentDto(
+    Guid Id,
+    Guid OperatorId,
+    string? OperatorIdentifier,
+    string? OperatorName,
+    Guid ShiftId,
+    string? ShiftCode,
+    string? ShiftName,
+    string Date,
+    string? Notes);
+
 /// <summary>Shape of the connection-status readout returned by <c>/api/opcua-connections/status</c>.</summary>
 public sealed record OpcUaConnectionStatusDto(
     IReadOnlyCollection<OpcUaConnectionStatusEntryDto> Connections,
