@@ -44,6 +44,7 @@ const pl = {
     productionRecipes: 'Receptury',
     productionScrap: 'Braki',
     spcCharacteristics: 'Charakterystyki SPC',
+    productionDowntime: 'Przestoje',
     productionLots: 'Partie',
     schedule: 'Harmonogram',
     reports: 'Raporty',
@@ -358,6 +359,23 @@ const pl = {
       3: 'X / MR',
       4: 'Karta p',
       5: 'Karta c'
+  downtime: {
+    title: 'Przestoje',
+    subtitle: 'Zdarzenia przestojów stanowisk z kodami przyczyn',
+    start: 'Rozpocznij przestój',
+    close: 'Zamknij',
+    closeTitle: 'Zamknięcie przestoju',
+    machine: 'Stanowisko',
+    reasonCode: 'Kod przyczyny',
+    startedAt: 'Początek',
+    endedAt: 'Koniec',
+    duration: 'Czas trwania',
+    minutes: 'min',
+    notes: 'Notatki',
+    selectMachine: 'Wybierz stanowisko…',
+    selectReason: 'Wybierz przyczynę…',
+    status: { open: 'Otwarty', closed: 'Zamknięty' },
+    filters: { machine: 'Stanowisko', reason: 'Przyczyna' }
   lots: {
     title: 'Partie',
     subtitle: 'Rejestr partii do śledzenia i identyfikacji',
@@ -477,6 +495,7 @@ const en: typeof pl = {
     productionRecipes: 'Recipes',
     productionScrap: 'Scrap',
     spcCharacteristics: 'SPC characteristics',
+    productionDowntime: 'Downtime',
     productionLots: 'Lots',
     schedule: 'Schedule',
     reports: 'Reports',
@@ -791,6 +810,23 @@ const en: typeof pl = {
       3: 'X / MR',
       4: 'p-chart',
       5: 'c-chart'
+  downtime: {
+    title: 'Downtime',
+    subtitle: 'Work-center downtime events with reason codes',
+    start: 'Start downtime',
+    close: 'Close',
+    closeTitle: 'Close downtime event',
+    machine: 'Work center',
+    reasonCode: 'Reason code',
+    startedAt: 'Started at',
+    endedAt: 'Ended at',
+    duration: 'Duration',
+    minutes: 'min',
+    notes: 'Notes',
+    selectMachine: 'Select a work center…',
+    selectReason: 'Select a reason…',
+    status: { open: 'Open', closed: 'Closed' },
+    filters: { machine: 'Work center', reason: 'Reason' }
   lots: {
     title: 'Lots',
     subtitle: 'Lot registry for traceability and lookup',
