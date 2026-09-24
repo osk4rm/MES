@@ -213,7 +213,7 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("DepartmentId")
+                    b.Property<Guid?>("DepartmentId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("FirstName")
@@ -529,6 +529,48 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.ToTable("ReasonCodes", "config");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.Shift", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("Shifts", "config");
+                });
+
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.Skill", b =>
                 {
                     b.Property<Guid>("Id")
@@ -588,6 +630,68 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.HasIndex(new[] { "TenantId" }, "IX_Warehouses_TenantId");
 
                     b.ToTable("Warehouses", "config");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.WorkCenterCalendar", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MachineId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "MachineId")
+                        .IsUnique();
+
+                    b.ToTable("WorkCenterCalendars", "config");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.WorkCenterCalendarEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("DayOfWeek")
+                        .HasColumnType("smallint");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<bool>("IsWorking")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ShiftId")
+                        .HasColumnType("uuid");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkCenterCalendarId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WorkCenterCalendarId", "DayOfWeek");
+
+                    b.ToTable("WorkCenterCalendarEntries", "config");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.BomItem", b =>
@@ -1189,8 +1293,7 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Department", "Department")
                         .WithMany("Operators")
                         .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Department");
                 });
@@ -1250,6 +1353,31 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Navigation("MeasureUnit");
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.WorkCenterCalendar", b =>
+                {
+                    b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Machine", null)
+                        .WithMany()
+                        .HasForeignKey("MachineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.WorkCenterCalendarEntry", b =>
+                {
+                    b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AsistOff.MES.Configuration.Domain.Entities.WorkCenterCalendar", "WorkCenterCalendar")
+                        .WithMany("Entries")
+                        .HasForeignKey("WorkCenterCalendarId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WorkCenterCalendar");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.BomItem", b =>
@@ -1350,6 +1478,11 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Navigation("ChildGroups");
 
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.WorkCenterCalendar", b =>
+                {
+                    b.Navigation("Entries");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.OperationNode", b =>

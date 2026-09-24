@@ -34,6 +34,7 @@ const routes: RouteRecordRaw[] = [
           { path: 'machines', name: 'machines', component: () => import('./views/configuration/MachinesView.vue') },
           { path: 'operators', name: 'operators', component: () => import('./views/configuration/OperatorsView.vue') },
           { path: 'skills', name: 'skills', component: () => import('./views/configuration/SkillsView.vue') },
+          { path: 'shifts', name: 'shifts', component: () => import('./views/configuration/ShiftsView.vue') },
           { path: 'reason-codes', name: 'reason-codes', component: () => import('./views/configuration/ReasonCodesView.vue') },
           { path: 'operation-templates', name: 'operation-templates', component: () => import('./views/configuration/OperationTemplatesView.vue') }
         ]

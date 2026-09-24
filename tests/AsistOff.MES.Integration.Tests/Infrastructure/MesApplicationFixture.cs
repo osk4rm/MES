@@ -39,6 +39,12 @@ public sealed class MesApplicationFixture : IAsyncLifetime
     public HttpClient CreateClient() => _factory.CreateClient();
 
     /// <summary>
+    /// Application service provider, exposed so tests can assert database-level
+    /// behaviour (e.g. <c>ON DELETE CASCADE</c>) that is not observable over HTTP.
+    /// </summary>
+    public IServiceProvider Services => _factory.Services;
+
+    /// <summary>
     /// Returns a client carrying a real JWT obtained from <c>/api/auth/sign-in</c>
     /// for the seeded tenant administrator.
     /// </summary>

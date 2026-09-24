@@ -14,6 +14,9 @@ public class ConfigurationEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<Machine>();
         modelBuilder.Entity<Skill>();
         modelBuilder.Entity<ReasonCode>();
+        modelBuilder.Entity<Shift>();
+        modelBuilder.Entity<WorkCenterCalendar>();
+        modelBuilder.Entity<WorkCenterCalendarEntry>();
         
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ConfigurationEntityConfigurator).Assembly);
         
