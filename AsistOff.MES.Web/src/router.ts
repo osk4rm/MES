@@ -25,6 +25,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'production/lots', name: 'production-lots', component: () => import('./views/production/LotsView.vue'), meta: { titleKey: 'nav.productionLots', icon: 'pi pi-box' } },
       { path: 'production/telemetry', name: 'production-telemetry', component: () => import('./views/production/TelemetryView.vue'), meta: { titleKey: 'nav.productionTelemetry', icon: 'pi pi-wave-pulse' } },
       { path: 'production/telemetry-dashboard', name: 'production-telemetry-dashboard', component: () => import('./views/production/TelemetryDashboardView.vue'), meta: { titleKey: 'nav.productionTelemetryDashboard', icon: 'pi pi-chart-line' } },
+      { path: 'production/kanban', name: 'production-kanban', component: () => import('./views/production/KanbanBoardView.vue'), meta: { titleKey: 'nav.productionKanban', icon: 'pi pi-th-large' } },
       { path: 'schedule', name: 'schedule', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.schedule', icon: 'pi pi-calendar' } },
       { path: 'reports', name: 'reports', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.reports', icon: 'pi pi-chart-bar' } },
       { path: 'settings', name: 'settings', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.settings', icon: 'pi pi-cog' } },
