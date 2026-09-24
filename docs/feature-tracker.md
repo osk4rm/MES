@@ -73,13 +73,13 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 
 | Capability | Glossary | Module | Status | Work item | Notes |
 |---|---|---|---|---|---|
-| Production Order | Production Order | Production | proposed | #80 | header + `Planned -> Released` only |
+| Production Order | Production Order | Production | in-progress | #80 | header + `Planned -> Released` only; PR #91 |
 | Operator confirmations (RW / PW) | Confirmation | Production | gap | — | depends on #80 |
-| Scrap capture | Quality | Production | gap | — | |
-| Downtime capture | Downtime | Production | gap | — | |
-| Reason codes | Reason code | Configuration | proposed | #81 | dictionary only; no event capture |
-| Work-center calendar / shifts | Shift | Configuration | gap | — | `Machine` has no calendar |
-| Lot / Serial tracking | Lot / Serial | Production | gap | — | |
+| Scrap capture | Quality | Production | in-progress | #97 | PR #101; reason-code linked |
+| Downtime capture | Downtime | Production | in-progress | #84 | PR #92; reason-code linked |
+| Reason codes | Reason code | Configuration | done | #81 | dictionary only (PR #82); no event capture yet |
+| Work-center calendar / shifts | Shift | Configuration | in-progress | #83 | `Machine` has no calendar; PR #105 |
+| Lot / Serial tracking | Lot / Serial | Production | in-progress | #85 | PR #93 |
 | Genealogy / traceability | Genealogy | Production | gap | — | depends on lot/serial + confirmations |
 
 ## Analytics / integration
@@ -87,10 +87,10 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Capability | Glossary | Module | Status | Work item | Notes |
 |---|---|---|---|---|---|
 | OEE | OEE | — | gap | — | needs execution + downtime data |
-| Andon | Andon | — | gap | — | |
-| SPC | SPC | — | gap | — | |
-| CMMS | CMMS | — | gap | — | |
+| Andon | Andon | — | in-progress | #98 | PR #104 |
+| SPC | SPC | — | in-progress | #99 | PR #103 |
+| CMMS | CMMS | — | in-progress | #100 | corrective work orders; PR #102 |
 | OPC UA / SCADA telemetry | OPC UA | — | gap | — | |
 | Kanban | Kanban | — | gap | — | |
 
-_Last reconciled: 2026-09-23 — initial seed from repository scan._
+_Last reconciled: 2026-09-24 — #81 done (PR #82 merged); #80/#83/#84/#85/#97/#98/#99/#100 in-progress via open PRs; #88/#89 are fixes with no capability rows._

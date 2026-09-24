@@ -56,7 +56,10 @@ owns those transitions. Just implement and open/update the PR.
    `production-recipes.instructions.md` when in the Recipes module.
 3. Create a branch named `ai/issue-<N>-<short-slug>` from the up-to-date default branch (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`, currently `master` — never assume `main`).
 4. Implement the **smallest change** that fully satisfies the acceptance
-   criteria. Follow `AGENT.md` and the area instructions.
+   criteria. Follow `AGENT.md` and the area instructions. Stay inside the
+   issue scope — if it turns out subsystem-sized, implement the first coherent
+   vertical slice only and describe the remainder in the PR body so
+   `mes-analyst` can slice follow-ups.
 5. Write tests for the new behaviour, following
    `.github/instructions/testing.instructions.md`. **Every feature needs both
    kinds:** unit tests in `tests/AsistOff.MES.Shared.Tests/` (or a matching

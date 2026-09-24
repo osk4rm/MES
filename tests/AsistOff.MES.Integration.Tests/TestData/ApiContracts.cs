@@ -28,3 +28,14 @@ public sealed record LotDto(
     DateTime? ProducedAt,
     DateTime? ExpiryDate,
     string? Notes);
+
+/// <summary>Shape of a scrap event as returned by <c>/api/scrap-events</c>.</summary>
+public sealed record ScrapEventDto(
+    Guid Id,
+    Guid MachineId,
+    Guid ReasonCodeId,
+    decimal Quantity,
+    DateTime ReportedAt,
+    string? Notes,
+    Guid? ReportedByOperatorId,
+    Guid? ProductionOrderId);
