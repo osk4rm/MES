@@ -17,7 +17,7 @@ internal sealed class ProductionModule : IModule
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
         services.AddProductionApplication();
-        services.AddProductionInfrastructure();
+        services.AddProductionInfrastructure(configuration);
     }
 
     public void Use(IApplicationBuilder app)

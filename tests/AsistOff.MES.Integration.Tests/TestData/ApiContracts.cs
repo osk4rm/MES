@@ -63,7 +63,6 @@ public sealed record RecipeVersionDto(
     Guid Id,
     int VersionNumber,
     short Status);
-
 /// <summary>Shape of an SPC characteristic as returned by <c>/api/spc-characteristics</c>.</summary>
 public sealed record SpcCharacteristicDto(
     Guid Id,
@@ -97,6 +96,16 @@ public sealed record DowntimeEventDto(
     DateTime CreatedAt,
     DateTime? UpdatedAt);
 
+/// <summary>Shape of a shift as returned by <c>/api/shifts</c>. Times are ISO 8601 <c>HH:mm:ss</c>.</summary>
+public sealed record ShiftDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string? Description,
+    string StartTime,
+    string EndTime,
+    bool IsActive);
+
 /// <summary>Shape of a lot as returned by <c>/api/lots</c>.</summary>
 public sealed record LotDto(
     Guid Id,
@@ -109,16 +118,6 @@ public sealed record LotDto(
     DateTime? ProducedAt,
     DateTime? ExpiryDate,
     string? Notes);
-
-/// <summary>Shape of a shift as returned by <c>/api/shifts</c>. Times are ISO 8601 <c>HH:mm:ss</c>.</summary>
-public sealed record ShiftDto(
-    Guid Id,
-    string Code,
-    string Name,
-    string? Description,
-    string StartTime,
-    string EndTime,
-    bool IsActive);
 
 /// <summary>One weekly window returned by <c>/api/machines/{id}/calendar</c>.</summary>
 public sealed record WorkCenterCalendarEntryDto(
@@ -174,3 +173,43 @@ public sealed record ScrapEventDto(
     string? Notes,
     Guid? ReportedByOperatorId,
     Guid? ProductionOrderId);
+
+/// <summary>Shape of a telemetry tag as returned by <c>/api/telemetry-tags</c>.</summary>
+public sealed record MachineTelemetryTagDto(
+    Guid Id,
+    Guid MachineId,
+    string NodeId,
+    string DisplayName,
+    short DataType,
+    int PollIntervalSeconds,
+    bool IsEnabled,
+    string? Description,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>Shape of a telemetry reading as returned by <c>/api/telemetry-readings</c>.</summary>
+public sealed record TelemetryReadingDto(
+    Guid Id,
+    Guid TagId,
+    Guid MachineId,
+    DateTime ReadAt,
+    double? DoubleValue,
+    string? StringValue,
+    short Quality);
+
+/// <summary>Shape of one per-tag entry returned by <c>/api/telemetry-tags/status</c>.</summary>
+public sealed record TelemetryTagStatusDto(
+    Guid TagId,
+    Guid MachineId,
+    string NodeId,
+    string DisplayName,
+    bool IsEnabled,
+    DateTime? LastReadAt,
+    int ReadingsLastHour,
+    bool Stale);
+
+/// <summary>Shape of the connection-status readout returned by <c>/api/telemetry-tags/status</c>.</summary>
+public sealed record TelemetryStatusDto(
+    bool SimulatorEnabled,
+    int SimulatorIntervalSeconds,
+    IReadOnlyCollection<TelemetryTagStatusDto> Tags);

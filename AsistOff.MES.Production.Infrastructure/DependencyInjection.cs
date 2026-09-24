@@ -1,14 +1,17 @@
+using AsistOff.MES.Production.Application.Telemetry;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Production.Infrastructure.Configurations;
 using AsistOff.MES.Production.Infrastructure.Repositories;
+using AsistOff.MES.Production.Infrastructure.Telemetry;
 using AsistOff.MES.Shared.Abstractions.DAL;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AsistOff.MES.Production.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddProductionInfrastructure(this IServiceCollection services)
+    public static IServiceCollection AddProductionInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<IRecipesRepository, RecipesRepository>();
         services.AddScoped<IRecipeVersionsRepository, RecipeVersionsRepository>();
@@ -19,11 +22,16 @@ public static class DependencyInjection
         services.AddScoped<IProductionOrdersRepository, ProductionOrdersRepository>();
         services.AddScoped<ISpcCharacteristicsRepository, SpcCharacteristicsRepository>();
         services.AddScoped<IDowntimeEventsRepository, DowntimeEventsRepository>();
+        services.AddScoped<IAndonSignalsRepository, AndonSignalsRepository>();
         services.AddScoped<ILotsRepository, LotsRepository>();
         services.AddScoped<IScrapEventsRepository, ScrapEventsRepository>();
-        services.AddScoped<IAndonSignalsRepository, AndonSignalsRepository>();
+        services.AddScoped<IMachineTelemetryTagsRepository, MachineTelemetryTagsRepository>();
+        services.AddScoped<ITelemetryReadingsRepository, TelemetryReadingsRepository>();
 
         services.AddScoped<IEntityConfigurator, ProductionEntityConfigurator>();
+
+        services.Configure<TelemetryOptions>(configuration.GetSection(TelemetryOptions.SectionName));
+        services.AddHostedService<TelemetrySimulatorService>();
 
         return services;
     }

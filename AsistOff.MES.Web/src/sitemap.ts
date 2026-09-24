@@ -13,12 +13,13 @@ export const sitemap: NavItem[] = [
     icon: 'pi pi-cog',
     children: [
       { label: 'nav.productionOrders', icon: 'pi pi-list', route: '/production/orders' },
-      { label: 'nav.productionScrap', icon: 'pi pi-trash', route: '/production/scrap' },
-      { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' },
       { label: 'nav.productionDowntime', icon: 'pi pi-pause-circle', route: '/production/downtime' },
+      { label: 'nav.productionLots', icon: 'pi pi-box', route: '/production/lots' },
+      { label: 'nav.productionScrap', icon: 'pi pi-trash', route: '/production/scrap' },
       { label: 'nav.productionAndon', icon: 'pi pi-bell', route: '/production/andon' },
+      { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' },
       { label: 'nav.spcCharacteristics', icon: 'pi pi-chart-line', route: '/production/spc-characteristics' },
-      { label: 'nav.productionLots', icon: 'pi pi-box', route: '/production/lots' }
+      { label: 'nav.productionTelemetry', icon: 'pi pi-wave-pulse', route: '/production/telemetry' }
     ]
   },
   { label: 'nav.schedule', icon: 'pi pi-calendar', route: '/schedule' },
