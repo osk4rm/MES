@@ -22,6 +22,9 @@ internal sealed class CreateProductionConfirmationRequestHandler(
         var order = await ordersRepository.GetAsync(request.ProductionOrderId, cancellationToken)
             ?? throw new NotFoundException("ProductionOrder", request.ProductionOrderId);
 
+        if (order.Status is ProductionOrderStatus.Completed or ProductionOrderStatus.Closed)
+            throw new ConflictException("Confirmations cannot be reported against Completed or Closed orders.");
+
         if (order.Status is not (ProductionOrderStatus.Released or ProductionOrderStatus.InProgress))
             throw new ValidationException(nameof(request.ProductionOrderId), "Confirmations can only be reported against Released or InProgress orders.");
 

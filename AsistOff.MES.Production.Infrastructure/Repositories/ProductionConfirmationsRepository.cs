@@ -34,4 +34,36 @@ internal sealed class ProductionConfirmationsRepository(DefaultContext context) 
             .Where(x => x.Id == id)
             .ExecuteDeleteAsync(cancellationToken);
     }
+
+    public async Task<(decimal ProducedQuantity, decimal ScrappedQuantity, int ConfirmationsCount)> GetTotalsAsync(
+        Guid productionOrderId, CancellationToken cancellationToken = default)
+    {
+        var totals = await GetTotalsForOrdersAsync([productionOrderId], cancellationToken);
+        return totals.TryGetValue(productionOrderId, out var total)
+            ? total
+            : (0m, 0m, 0);
+    }
+
+    public async Task<Dictionary<Guid, (decimal ProducedQuantity, decimal ScrappedQuantity, int ConfirmationsCount)>> GetTotalsForOrdersAsync(
+        IReadOnlyCollection<Guid> productionOrderIds, CancellationToken cancellationToken = default)
+    {
+        if (productionOrderIds.Count == 0)
+            return new Dictionary<Guid, (decimal, decimal, int)>();
+
+        return await context.Set<ProductionConfirmation>()
+            .AsNoTracking()
+            .Where(x => productionOrderIds.Contains(x.ProductionOrderId))
+            .GroupBy(x => x.ProductionOrderId)
+            .Select(g => new
+            {
+                ProductionOrderId = g.Key,
+                ProducedQuantity = g.Sum(x => x.GoodQuantity),
+                ScrappedQuantity = g.Sum(x => x.ScrapQuantity),
+                ConfirmationsCount = g.Count()
+            })
+            .ToDictionaryAsync(
+                x => x.ProductionOrderId,
+                x => (x.ProducedQuantity, x.ScrappedQuantity, x.ConfirmationsCount),
+                cancellationToken);
+    }
 }

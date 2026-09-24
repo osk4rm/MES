@@ -49,7 +49,13 @@ public sealed record ProductionOrderDto(
     string? Notes,
     string? SyncId,
     DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    DateTime? UpdatedAt,
+    decimal ProducedQuantity,
+    decimal ScrappedQuantity,
+    decimal RemainingQuantity,
+    int ConfirmationsCount,
+    DateTime? CompletedAt,
+    DateTime? ClosedAt);
 
 /// <summary>Shape of a recipe as returned by <c>/api/recipes</c>.</summary>
 public sealed record RecipeDto(

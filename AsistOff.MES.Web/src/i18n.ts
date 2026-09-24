@@ -198,12 +198,25 @@ const pl = {
     notes: 'Uwagi',
     release: 'Wydaj',
     releasedToast: 'Zlecenie wydane',
+    complete: 'Zakończ',
+    completedToast: 'Zlecenie zakończone',
+    close: 'Zamknij',
+    closedToast: 'Zlecenie zamknięte',
+    confirmComplete: 'Czy na pewno zakończyć to zlecenie? Dalsze potwierdzenia będą zablokowane.',
+    confirmClose: 'Czy na pewno zamknąć to zlecenie?',
     filters: { code: 'Kod zawiera…', status: 'Status' },
     status: { planned: 'Planowane', released: 'Wydane', inProgress: 'W realizacji', completed: 'Zakończone', closed: 'Zamknięte' },
     detail: {
       subtitle: 'Szczegóły zlecenia i potwierdzenia wykonania',
       summary: 'Podsumowanie',
-      releasedAt: 'Data wydania'
+      releasedAt: 'Data wydania',
+      producedQuantity: 'Ilość wyprodukowana',
+      scrappedQuantity: 'Ilość braków',
+      remainingQuantity: 'Pozostało',
+      confirmationsCount: 'Liczba potwierdzeń',
+      progress: 'Postęp',
+      completedAt: 'Data zakończenia',
+      closedAt: 'Data zamknięcia'
     }
   },
   productionConfirmations: {
@@ -771,12 +784,25 @@ const en: typeof pl = {
     notes: 'Notes',
     release: 'Release',
     releasedToast: 'Order released',
+    complete: 'Complete',
+    completedToast: 'Order completed',
+    close: 'Close',
+    closedToast: 'Order closed',
+    confirmComplete: 'Really complete this order? Further confirmations will be blocked.',
+    confirmClose: 'Really close this order?',
     filters: { code: 'Code contains…', status: 'Status' },
     status: { planned: 'Planned', released: 'Released', inProgress: 'In progress', completed: 'Completed', closed: 'Closed' },
     detail: {
       subtitle: 'Order details and execution confirmations',
       summary: 'Summary',
-      releasedAt: 'Released at'
+      releasedAt: 'Released at',
+      producedQuantity: 'Produced quantity',
+      scrappedQuantity: 'Scrapped quantity',
+      remainingQuantity: 'Remaining',
+      confirmationsCount: 'Confirmations',
+      progress: 'Progress',
+      completedAt: 'Completed at',
+      closedAt: 'Closed at'
     }
   },
   productionConfirmations: {

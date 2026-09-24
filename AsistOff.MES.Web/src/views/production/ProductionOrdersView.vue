@@ -29,7 +29,7 @@
         <code>{{ item.code }}</code>
       </template>
       <template #cell-status="{ item }">
-        <AppBadge :variant="item.status === ProductionOrderStatus.Released ? 'success' : 'info'" dot>
+        <AppBadge :variant="statusVariant(item.status)" dot>
           {{ statusLabel(item.status) }}
         </AppBadge>
       </template>
@@ -174,6 +174,17 @@ function statusLabel(v: number): string {
     case ProductionOrderStatus.Completed: return t('productionOrders.status.completed');
     case ProductionOrderStatus.Closed: return t('productionOrders.status.closed');
     default: return String(v);
+  }
+}
+
+function statusVariant(v: number): 'info' | 'primary' | 'success' | 'warning' | 'idle' {
+  switch (v) {
+    case ProductionOrderStatus.Planned: return 'info';
+    case ProductionOrderStatus.Released: return 'success';
+    case ProductionOrderStatus.InProgress: return 'warning';
+    case ProductionOrderStatus.Completed: return 'primary';
+    case ProductionOrderStatus.Closed: return 'idle';
+    default: return 'info';
   }
 }
 

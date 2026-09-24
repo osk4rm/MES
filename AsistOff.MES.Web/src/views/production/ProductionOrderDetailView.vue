@@ -22,6 +22,24 @@
         >
           {{ $t('productionConfirmations.report') }}
         </AppButton>
+        <AppButton
+          v-if="canComplete"
+          variant="primary"
+          icon="pi pi-check-circle"
+          :loading="completing"
+          @click="askComplete"
+        >
+          {{ $t('productionOrders.complete') }}
+        </AppButton>
+        <AppButton
+          v-if="canClose"
+          variant="secondary"
+          icon="pi pi-lock"
+          :loading="closing"
+          @click="askClose"
+        >
+          {{ $t('productionOrders.close') }}
+        </AppButton>
       </template>
     </AppPageHeader>
 
@@ -29,13 +47,35 @@
       <div class="summary-grid">
         <div class="summary-item">
           <span class="summary-item__label">{{ $t('common.status') }}</span>
-          <AppBadge :variant="order.status === ProductionOrderStatus.Released ? 'success' : 'info'" dot>
+          <AppBadge :variant="statusVariant(order.status)" dot>
             {{ statusLabel(order.status) }}
           </AppBadge>
         </div>
         <div class="summary-item">
           <span class="summary-item__label">{{ $t('productionOrders.plannedQuantity') }}</span>
           <span>{{ formatQuantity(order.plannedQuantity) }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item__label">{{ $t('productionOrders.detail.producedQuantity') }}</span>
+          <span>{{ formatQuantity(order.producedQuantity ?? 0) }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item__label">{{ $t('productionOrders.detail.scrappedQuantity') }}</span>
+          <span>{{ formatQuantity(order.scrappedQuantity ?? 0) }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item__label">{{ $t('productionOrders.detail.remainingQuantity') }}</span>
+          <span>{{ formatQuantity(order.remainingQuantity ?? order.plannedQuantity) }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item__label">{{ $t('productionOrders.detail.confirmationsCount') }}</span>
+          <span>{{ order.confirmationsCount ?? 0 }}</span>
+        </div>
+        <div class="summary-item summary-item--full">
+          <span class="summary-item__label">{{ $t('productionOrders.detail.progress') }} ({{ progressPercent }}%)</span>
+          <div class="progress" role="progressbar" :aria-valuenow="progressPercent" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress__bar" :style="{ width: progressPercent + '%' }" />
+          </div>
         </div>
         <div class="summary-item">
           <span class="summary-item__label">{{ $t('productionOrders.priority') }}</span>
@@ -48,6 +88,14 @@
         <div class="summary-item">
           <span class="summary-item__label">{{ $t('productionOrders.detail.releasedAt') }}</span>
           <span>{{ formatDateTime(order.releasedAt) }}</span>
+        </div>
+        <div v-if="order.completedAt" class="summary-item">
+          <span class="summary-item__label">{{ $t('productionOrders.detail.completedAt') }}</span>
+          <span>{{ formatDateTime(order.completedAt) }}</span>
+        </div>
+        <div v-if="order.closedAt" class="summary-item">
+          <span class="summary-item__label">{{ $t('productionOrders.detail.closedAt') }}</span>
+          <span>{{ formatDateTime(order.closedAt) }}</span>
         </div>
         <div v-if="order.notes" class="summary-item summary-item--full">
           <span class="summary-item__label">{{ $t('productionOrders.notes') }}</span>
@@ -167,6 +215,15 @@
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
+
+    <AppConfirmDialog
+      :open="lifecycleOpen"
+      :title="lifecycleTitle"
+      :message="lifecycleMessage"
+      :loading="completing || closing"
+      @confirm="confirmLifecycle"
+      @cancel="cancelLifecycle"
+    />
   </div>
   <div v-else-if="loading" class="loading"><i class="pi pi-spin pi-spinner" /> {{ $t('common.loading') }}</div>
   <div v-else class="loading">{{ $t('common.notFound') }}</div>
@@ -219,6 +276,29 @@ const canReport = computed(() =>
   order.value !== null &&
   (order.value.status === ProductionOrderStatus.Released ||
     order.value.status === ProductionOrderStatus.InProgress));
+
+const canComplete = computed(() =>
+  order.value !== null && order.value.status === ProductionOrderStatus.InProgress);
+
+const canClose = computed(() =>
+  order.value !== null && order.value.status === ProductionOrderStatus.Completed);
+
+const progressPercent = computed(() => {
+  if (!order.value || order.value.plannedQuantity <= 0) return 0;
+  const produced = order.value.producedQuantity ?? 0;
+  return Math.min(100, Math.round((produced / order.value.plannedQuantity) * 100));
+});
+
+function statusVariant(v: number): 'info' | 'primary' | 'success' | 'warning' | 'idle' {
+  switch (v) {
+    case ProductionOrderStatus.Planned: return 'info';
+    case ProductionOrderStatus.Released: return 'success';
+    case ProductionOrderStatus.InProgress: return 'warning';
+    case ProductionOrderStatus.Completed: return 'primary';
+    case ProductionOrderStatus.Closed: return 'idle';
+    default: return 'info';
+  }
+}
 
 interface Filters { productionOrderId?: string }
 
@@ -423,6 +503,53 @@ function cancelDelete(): void {
   confirmTarget.value = null;
 }
 
+const lifecycleOpen = ref(false);
+const lifecycleKind = ref<'complete' | 'close' | null>(null);
+const completing = ref(false);
+const closing = ref(false);
+const lifecycleTitle = computed(() => lifecycleKind.value === 'close'
+  ? t('productionOrders.close')
+  : t('productionOrders.complete'));
+const lifecycleMessage = computed(() => lifecycleKind.value === 'close'
+  ? t('productionOrders.confirmClose')
+  : t('productionOrders.confirmComplete'));
+
+function askComplete(): void {
+  lifecycleKind.value = 'complete';
+  lifecycleOpen.value = true;
+}
+
+function askClose(): void {
+  lifecycleKind.value = 'close';
+  lifecycleOpen.value = true;
+}
+
+function cancelLifecycle(): void {
+  lifecycleOpen.value = false;
+  lifecycleKind.value = null;
+}
+
+async function confirmLifecycle(): Promise<void> {
+  if (!order.value || !lifecycleKind.value) return;
+  const kind = lifecycleKind.value;
+  if (kind === 'complete') completing.value = true;
+  else closing.value = true;
+  try {
+    order.value = kind === 'complete'
+      ? await productionOrderService.complete(order.value.id)
+      : await productionOrderService.close(order.value.id);
+    toast.success(kind === 'complete' ? t('productionOrders.completedToast') : t('productionOrders.closedToast'));
+    lifecycleOpen.value = false;
+    lifecycleKind.value = null;
+    await table.fetch();
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+  } finally {
+    completing.value = false;
+    closing.value = false;
+  }
+}
+
 onMounted(() => {
   void loadOrder();
   void loadLookups();
@@ -460,6 +587,17 @@ onMounted(() => {
 }
 .confirmations-section h3 {
   margin: 0;
+}
+.progress {
+  height: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  overflow: hidden;
+}
+.progress__bar {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width var(--transition-normal);
 }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
