@@ -17,13 +17,8 @@ internal sealed class TenantContext : ITenantContext, ICurrentTenantAccessor
     {
         get
         {
-            var value = _httpContextAccessor.HttpContext?.User.FindFirst("tenant_id")?.Value
-                ?? throw new UnauthorizedAccessException("Tenant not found");
-
-            if (!Guid.TryParse(value, out var tenantId))
-            {
-                throw new UnauthorizedAccessException("Tenant claim contains an invalid identifier.");
-            }
+            if (!TryGetTenantId(out var tenantId))
+                throw new UnauthorizedAccessException("Tenant not found");
 
             return tenantId;
         }
@@ -46,6 +41,16 @@ internal sealed class TenantContext : ITenantContext, ICurrentTenantAccessor
 
     public bool TryGetTenantId(out Guid tenantId)
     {
+        // Background (non-HTTP) work runs inside an explicit
+        // BackgroundTenantContext scope; it wins over request claims so that
+        // hosted services resolve exactly one tenant at a time.
+        var background = BackgroundTenantContext.Current;
+        if (background.HasValue && background.Value != Guid.Empty)
+        {
+            tenantId = background.Value;
+            return true;
+        }
+
         tenantId = Guid.Empty;
         var value = _httpContextAccessor.HttpContext?.User.FindFirst("tenant_id")?.Value;
         if (string.IsNullOrWhiteSpace(value))

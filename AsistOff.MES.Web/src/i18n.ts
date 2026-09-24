@@ -455,6 +455,9 @@ const pl = {
     submitReading: 'Zapisz odczyt',
     noReadings: 'Brak odczytów dla tego tagu',
     selectMachine: 'Wybierz stanowisko…',
+    connection: 'Połączenie',
+    status: { recent: 'Aktualny', stale: 'Nieaktualny', never: 'Brak odczytów' },
+    simulator: { enabled: 'Symulator wł.', disabled: 'Symulator wył.' },
     filters: { machine: 'Stanowisko', search: 'Szukaj po node lub nazwie…' },
     dataTypes: { 1: 'Logiczna', 2: 'Liczba', 3: 'Całkowita', 4: 'Tekst' },
     qualities: { 1: 'Dobra', 2: 'Zła', 3: 'Niepewna' }
@@ -989,6 +992,9 @@ const en: typeof pl = {
     submitReading: 'Submit reading',
     noReadings: 'No readings for this tag yet',
     selectMachine: 'Select a work center…',
+    connection: 'Connection',
+    status: { recent: 'Recent', stale: 'Stale', never: 'Never' },
+    simulator: { enabled: 'Simulator on', disabled: 'Simulator off' },
     filters: { machine: 'Work center', search: 'Search by node or name…' },
     dataTypes: { 1: 'Boolean', 2: 'Double', 3: 'Integer', 4: 'String' },
     qualities: { 1: 'Good', 2: 'Bad', 3: 'Uncertain' }

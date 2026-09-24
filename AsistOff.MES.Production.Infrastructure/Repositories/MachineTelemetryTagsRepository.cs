@@ -25,6 +25,12 @@ internal sealed class MachineTelemetryTagsRepository(DefaultContext context) : I
         => context.Set<MachineTelemetryTag>()
             .FirstOrDefaultAsync(x => x.MachineId == machineId && x.NodeId == nodeId, cancellationToken);
 
+    public async Task<IReadOnlyCollection<MachineTelemetryTag>> ListAllAsync(CancellationToken cancellationToken = default)
+        => await context.Set<MachineTelemetryTag>().ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyCollection<MachineTelemetryTag>> ListEnabledAsync(CancellationToken cancellationToken = default)
+        => await context.Set<MachineTelemetryTag>().Where(x => x.IsEnabled).ToListAsync(cancellationToken);
+
     public async Task<MachineTelemetryTag> AddAsync(MachineTelemetryTag entity, CancellationToken cancellationToken = default)
     {
         context.Set<MachineTelemetryTag>().Add(entity);

@@ -16,5 +16,13 @@ internal sealed class TenantRepository(MultitenancyDbContext db) : ITenantReposi
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyCollection<Guid>> ListActiveIdsAsync(CancellationToken cancellationToken = default)
+    {
+        return await db.Tenants
+            .Where(t => t.IsActive)
+            .Select(t => t.Id)
+            .ToListAsync(cancellationToken);
+    }
 }
 

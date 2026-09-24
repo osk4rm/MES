@@ -80,6 +80,23 @@ export interface SubmitTelemetryReadingRequest {
   quality: TelemetryQuality;
 }
 
+export interface TelemetryTagStatusEntry {
+  tagId: string;
+  machineId: string;
+  nodeId: string;
+  displayName: string;
+  isEnabled: boolean;
+  lastReadAt?: string | null;
+  readingsLastHour: number;
+  stale: boolean;
+}
+
+export interface TelemetryStatusResponse {
+  simulatorEnabled: boolean;
+  simulatorIntervalSeconds: number;
+  tags: TelemetryTagStatusEntry[];
+}
+
 const TAGS_BASE = '/api/telemetry-tags';
 const READINGS_BASE = '/api/telemetry-readings';
 
@@ -105,6 +122,10 @@ export const telemetryTagService = {
   },
   async remove(id: string): Promise<void> {
     await http.delete(`${TAGS_BASE}/${id}`);
+  },
+  async getStatus(): Promise<TelemetryStatusResponse> {
+    const { data } = await http.get<TelemetryStatusResponse>(`${TAGS_BASE}/status`);
+    return data;
   }
 };
 

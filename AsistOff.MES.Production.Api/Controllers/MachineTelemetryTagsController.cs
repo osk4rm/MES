@@ -3,6 +3,7 @@ using AsistOff.MES.Production.Application.Features.MachineTelemetryTags.Browse;
 using AsistOff.MES.Production.Application.Features.MachineTelemetryTags.Create;
 using AsistOff.MES.Production.Application.Features.MachineTelemetryTags.Delete;
 using AsistOff.MES.Production.Application.Features.MachineTelemetryTags.Get;
+using AsistOff.MES.Production.Application.Features.MachineTelemetryTags.Status;
 using AsistOff.MES.Production.Application.Features.MachineTelemetryTags.Toggle;
 using AsistOff.MES.Production.Application.Features.MachineTelemetryTags.Update;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
@@ -19,6 +20,10 @@ public class MachineTelemetryTagsController(ISender sender) : ApiController
     public async Task<ActionResult<PagedResponse<MachineTelemetryTagResponse>>> BrowseAsync(
         [FromQuery] BrowseMachineTelemetryTagsRequest request, CancellationToken cancellationToken)
         => await sender.Send(request, cancellationToken);
+
+    [HttpGet("status")]
+    public async Task<ActionResult<TelemetryStatusResponse>> GetStatusAsync(CancellationToken cancellationToken)
+        => Ok(await sender.Send(new GetTelemetryStatusRequest(), cancellationToken));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<MachineTelemetryTagResponse>> GetAsync(

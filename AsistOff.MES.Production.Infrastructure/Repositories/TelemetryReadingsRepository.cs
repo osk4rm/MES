@@ -28,6 +28,17 @@ internal sealed class TelemetryReadingsRepository(DefaultContext context) : ITel
         return entity;
     }
 
+    public Task<TelemetryReading?> GetLatestAsync(Guid tagId, CancellationToken cancellationToken = default)
+        => context.Set<TelemetryReading>()
+            .Where(x => x.TagId == tagId)
+            .OrderByDescending(x => x.ReadAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public Task<int> CountSinceAsync(Guid tagId, DateTime since, CancellationToken cancellationToken = default)
+        => context.Set<TelemetryReading>()
+            .Where(x => x.TagId == tagId && x.ReadAt >= since)
+            .CountAsync(cancellationToken);
+
     public async Task<IReadOnlyCollection<TelemetryReading>> BrowseLatestAsync(ExpressionStarter<TelemetryReading> predicate, Paginator<TelemetryReading> paginator, CancellationToken cancellationToken = default)
     {
         var filtered = context.Set<TelemetryReading>().Where(predicate);
