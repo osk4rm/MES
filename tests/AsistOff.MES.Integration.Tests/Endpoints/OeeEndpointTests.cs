@@ -15,6 +15,8 @@ namespace AsistOff.MES.Integration.Tests.Endpoints;
 public sealed class OeeEndpointTests(MesApplicationFixture fixture) : IntegrationTestBase(fixture)
 {
     private const string BaseUrl = "/api/oee/snapshot";
+    private const string TrendUrl = "/api/oee/trend";
+    private const string LossesUrl = "/api/oee/losses";
 
     [Fact]
     public async Task Snapshot_WithoutToken_Returns401()
@@ -251,6 +253,265 @@ public sealed class OeeEndpointTests(MesApplicationFixture fixture) : Integratio
 
     private static string Qs(DateTime value) => Uri.EscapeDataString(value.ToString("O"));
 
+    [Fact]
+    public async Task Trend_WithoutToken_Returns401()
+    {
+        using var client = Fixture.CreateClient();
+
+        var response = await client.GetAsync(
+            $"{TrendUrl}?machineId={Guid.NewGuid()}&fromUtc={Qs(DateTime.UtcNow.AddHours(-8))}&toUtc={Qs(DateTime.UtcNow)}&idealCycleTimeSeconds=60&bucket=Day");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Losses_WithoutToken_Returns401()
+    {
+        using var client = Fixture.CreateClient();
+
+        var response = await client.GetAsync(
+            $"{LossesUrl}?machineId={Guid.NewGuid()}&fromUtc={Qs(DateTime.UtcNow.AddHours(-8))}&toUtc={Qs(DateTime.UtcNow)}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Trend_HappyPath_EntriesMatchPerBucketSnapshots()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var fromUtc = DateTime.UtcNow.AddHours(-30);
+        var machine = await CreateMachineAsync(client);
+        await PutFullDayCalendarAsync(client, machine.Id, fromUtc, DateTime.UtcNow);
+        var reasonId = await CreateReasonAsync(client);
+        var order = await CreateReleasedOrderAsync(client);
+
+        var downtimeStart = DateTime.UtcNow.AddHours(-20);
+        await StartAndCloseDowntimeAsync(client, machine.Id, reasonId, downtimeStart, downtimeStart.AddMinutes(45));
+
+        var confirmResponse = await client.PostAsJsonAsync("/api/production-confirmations", new
+        {
+            productionOrderId = order.Id,
+            machineId = machine.Id,
+            reportedByOperatorId = (Guid?)null,
+            reportedAt = DateTime.UtcNow.AddHours(-5),
+            goodQuantity = 80m,
+            scrapQuantity = 20m,
+            notes = (string?)null
+        });
+        confirmResponse.EnsureSuccessStatusCode();
+        var toUtc = DateTime.UtcNow.AddMinutes(1);
+
+        var trendResponse = await client.GetAsync(
+            $"{TrendUrl}?machineId={machine.Id}&fromUtc={Qs(fromUtc)}&toUtc={Qs(toUtc)}&idealCycleTimeSeconds=60&bucket=Day");
+
+        trendResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var trend = await ReadAsync<OeeTrendDto>(trendResponse);
+        trend.MachineId.Should().Be(machine.Id);
+        trend.Bucket.Should().Be("Day");
+        trend.Entries.Should().HaveCountGreaterThan(1);
+        trend.Entries.Should().BeInAscendingOrder(e => e.FromUtc);
+        trend.Entries.First().FromUtc.Should().Be(fromUtc.ToUniversalTime());
+        trend.Entries.Last().ToUtc.Should().Be(toUtc.ToUniversalTime());
+
+        // Every bucket matches a direct snapshot over the same window.
+        foreach (var entry in trend.Entries)
+        {
+            var snapshotResponse = await client.GetAsync(
+                $"{BaseUrl}?machineId={machine.Id}&fromUtc={Qs(entry.FromUtc)}&toUtc={Qs(entry.ToUtc)}&idealCycleTimeSeconds=60");
+            snapshotResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var snapshot = await ReadAsync<OeeSnapshotDto>(snapshotResponse);
+            snapshot.Should().Be(entry);
+        }
+    }
+
+    [Fact]
+    public async Task Trend_EmptyBuckets_CarryNullFactors()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var machine = await CreateMachineAsync(client);
+
+        var fromUtc = DateTime.UtcNow.AddHours(-50);
+        var toUtc = DateTime.UtcNow.AddMinutes(1);
+        var trendResponse = await client.GetAsync(
+            $"{TrendUrl}?machineId={machine.Id}&fromUtc={Qs(fromUtc)}&toUtc={Qs(toUtc)}&idealCycleTimeSeconds=60&bucket=Day");
+
+        trendResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var trend = await ReadAsync<OeeTrendDto>(trendResponse);
+        trend.Entries.Should().HaveCountGreaterThan(1);
+        trend.Entries.Should().OnlyContain(e =>
+            e.Availability == null && e.Performance == null && e.Quality == null && e.Oee == null
+            && !e.AvailabilityComputed && !e.PerformanceComputed && !e.QualityComputed);
+    }
+
+    [Theory]
+    [InlineData("Month")]
+    [InlineData("")]
+    public async Task Trend_UnknownBucket_Returns400(string bucket)
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var machine = await CreateMachineAsync(client);
+
+        var response = await client.GetAsync(
+            $"{TrendUrl}?machineId={machine.Id}&fromUtc={Qs(DateTime.UtcNow.AddHours(-8))}&toUtc={Qs(DateTime.UtcNow)}&idealCycleTimeSeconds=60&bucket={bucket}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Trend_ReversedWindow_Returns400()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var machine = await CreateMachineAsync(client);
+
+        var response = await client.GetAsync(
+            $"{TrendUrl}?machineId={machine.Id}&fromUtc={Qs(DateTime.UtcNow)}&toUtc={Qs(DateTime.UtcNow.AddHours(-8))}&idealCycleTimeSeconds=60&bucket=Day");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Trend_WindowOver93Days_Returns400()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var machine = await CreateMachineAsync(client);
+
+        var response = await client.GetAsync(
+            $"{TrendUrl}?machineId={machine.Id}&fromUtc={Qs(DateTime.UtcNow.AddDays(-100))}&toUtc={Qs(DateTime.UtcNow)}&idealCycleTimeSeconds=60&bucket=Week");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Trend_UnknownMachine_Returns404()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync(
+            $"{TrendUrl}?machineId={Guid.NewGuid()}&fromUtc={Qs(DateTime.UtcNow.AddHours(-8))}&toUtc={Qs(DateTime.UtcNow)}&idealCycleTimeSeconds=60&bucket=Day");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Trend_CrossTenantMachine_Returns404()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var foreignMachine = await CreateMachineAsync(otherTenantClient);
+
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var response = await client.GetAsync(
+            $"{TrendUrl}?machineId={foreignMachine.Id}&fromUtc={Qs(DateTime.UtcNow.AddHours(-8))}&toUtc={Qs(DateTime.UtcNow)}&idealCycleTimeSeconds=60&bucket=Day");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Losses_HappyPath_ParetoTotalsMatchSnapshotAndScrap()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var fromUtc = DateTime.UtcNow.AddHours(-8);
+        var machine = await CreateMachineAsync(client);
+        await PutFullDayCalendarAsync(client, machine.Id, fromUtc, DateTime.UtcNow);
+        var reasonA = await CreateReasonWithDtoAsync(client);
+        var reasonB = await CreateReasonWithDtoAsync(client);
+
+        var firstStart = DateTime.UtcNow.AddHours(-6);
+        await StartAndCloseDowntimeAsync(client, machine.Id, reasonA.Id, firstStart, firstStart.AddMinutes(60));
+        var secondStart = DateTime.UtcNow.AddHours(-4);
+        await StartAndCloseDowntimeAsync(client, machine.Id, reasonB.Id, secondStart, secondStart.AddMinutes(30));
+
+        var firstScrapAt = DateTime.UtcNow.AddHours(-3);
+        await CreateScrapAsync(client, machine.Id, reasonA.Id, 10m, firstScrapAt);
+        await CreateScrapAsync(client, machine.Id, reasonA.Id, 5m, firstScrapAt.AddMinutes(5));
+        await CreateScrapAsync(client, machine.Id, reasonB.Id, 5m, firstScrapAt.AddMinutes(10));
+
+        var toUtc = DateTime.UtcNow.AddMinutes(1);
+        var lossesResponse = await client.GetAsync(
+            $"{LossesUrl}?machineId={machine.Id}&fromUtc={Qs(fromUtc)}&toUtc={Qs(toUtc)}");
+
+        lossesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var losses = await ReadAsync<OeeLossesDto>(lossesResponse);
+
+        losses.MachineId.Should().Be(machine.Id);
+        losses.TotalDowntimeMinutes.Should().BeApproximately(90, 0.5);
+        losses.TotalScrapQuantity.Should().Be(20m);
+        losses.DowntimePareto.Should().HaveCount(2);
+        losses.DowntimePareto.Should().BeInDescendingOrder(e => e.Minutes);
+        losses.DowntimePareto.Sum(e => e.Minutes).Should().BeApproximately(losses.TotalDowntimeMinutes, 0.001);
+        losses.DowntimePareto.Sum(e => e.Share).Should().BeApproximately(1.0, 0.0001);
+        var downtimeA = losses.DowntimePareto.Should().ContainSingle(e => e.ReasonCodeId == reasonA.Id).Subject;
+        downtimeA.Code.Should().Be(reasonA.Code);
+        downtimeA.Name.Should().Be(reasonA.Name);
+        downtimeA.Minutes.Should().BeApproximately(60, 0.5);
+        downtimeA.Share.Should().BeApproximately(0.6667, 0.0001);
+        var downtimeB = losses.DowntimePareto.Should().ContainSingle(e => e.ReasonCodeId == reasonB.Id).Subject;
+        downtimeB.Code.Should().Be(reasonB.Code);
+        downtimeB.Name.Should().Be(reasonB.Name);
+        downtimeB.Minutes.Should().BeApproximately(30, 0.5);
+        downtimeB.Share.Should().BeApproximately(0.3333, 0.0001);
+        losses.ScrapPareto.Should().HaveCount(2);
+        losses.ScrapPareto.Should().BeInDescendingOrder(e => e.Quantity);
+        losses.ScrapPareto.Sum(e => e.Quantity).Should().Be(losses.TotalScrapQuantity);
+        losses.ScrapPareto.Sum(e => e.Share).Should().BeApproximately(1.0, 0.0001);
+
+        // Downtime minutes agree with the snapshot run-time loss for the caller tenant.
+        var snapshotResponse = await client.GetAsync(
+            $"{BaseUrl}?machineId={machine.Id}&fromUtc={Qs(fromUtc)}&toUtc={Qs(toUtc)}&idealCycleTimeSeconds=60");
+        snapshotResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var snapshot = await ReadAsync<OeeSnapshotDto>(snapshotResponse);
+        snapshot.DowntimeMinutes.Should().BeApproximately(losses.TotalDowntimeMinutes, 0.001);
+    }
+
+    [Fact]
+    public async Task Losses_UnknownMachine_Returns404()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync(
+            $"{LossesUrl}?machineId={Guid.NewGuid()}&fromUtc={Qs(DateTime.UtcNow.AddHours(-8))}&toUtc={Qs(DateTime.UtcNow)}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Losses_CrossTenantMachine_Returns404()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var foreignMachine = await CreateMachineAsync(otherTenantClient);
+
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var response = await client.GetAsync(
+            $"{LossesUrl}?machineId={foreignMachine.Id}&fromUtc={Qs(DateTime.UtcNow.AddHours(-8))}&toUtc={Qs(DateTime.UtcNow)}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Losses_ReversedWindow_Returns400()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var machine = await CreateMachineAsync(client);
+
+        var response = await client.GetAsync(
+            $"{LossesUrl}?machineId={machine.Id}&fromUtc={Qs(DateTime.UtcNow)}&toUtc={Qs(DateTime.UtcNow.AddHours(-8))}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Losses_WindowOver93Days_Returns400()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var machine = await CreateMachineAsync(client);
+
+        var response = await client.GetAsync(
+            $"{LossesUrl}?machineId={machine.Id}&fromUtc={Qs(DateTime.UtcNow.AddDays(-100))}&toUtc={Qs(DateTime.UtcNow)}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     private static async Task<MachineDto> CreateMachineAsync(HttpClient client)
     {
         var response = await client.PostAsJsonAsync("/api/machines", new
@@ -268,6 +529,11 @@ public sealed class OeeEndpointTests(MesApplicationFixture fixture) : Integratio
 
     private static async Task<Guid> CreateReasonAsync(HttpClient client)
     {
+        return (await CreateReasonWithDtoAsync(client)).Id;
+    }
+
+    private static async Task<ReasonCodeDto> CreateReasonWithDtoAsync(HttpClient client)
+    {
         var code = $"OEE-{Guid.NewGuid():N}"[..12];
         var response = await client.PostAsJsonAsync("/api/reason-codes", new
         {
@@ -280,7 +546,24 @@ public sealed class OeeEndpointTests(MesApplicationFixture fixture) : Integratio
         });
 
         response.EnsureSuccessStatusCode();
-        return (await ReadAsync<ReasonCodeDto>(response)).Id;
+        return await ReadAsync<ReasonCodeDto>(response);
+    }
+
+    private static async Task CreateScrapAsync(
+        HttpClient client, Guid machineId, Guid reasonId, decimal quantity, DateTime reportedAt)
+    {
+        var response = await client.PostAsJsonAsync("/api/scrap-events", new
+        {
+            machineId,
+            reasonCodeId = reasonId,
+            quantity,
+            reportedAt,
+            notes = (string?)null,
+            reportedByOperatorId = (Guid?)null,
+            productionOrderId = (Guid?)null
+        });
+
+        response.EnsureSuccessStatusCode();
     }
 
     /// <summary>
