@@ -64,6 +64,7 @@
   <span class="badge" id="be">backend <b>…</b></span>
   <span class="badge" id="fe">frontend <b>…</b></span>
   <span class="badge" id="dispatcherBadge">dispatcher <b>…</b></span>
+  <span class="badge" id="queueBadge">kolejka <b>…</b></span>
   <span class="badge" id="tick">polling…</span>
 </header>
 
@@ -169,6 +170,10 @@ function renderState(st) {
   d.className = 'badge ' + (st.dispatcher ? 'up' : 'down')
   d.querySelector('b').textContent = st.dispatcher ? `running ${ago(st.dispatcher.startedAt)}` : 'stopped'
   $('dispState').textContent = st.dispatcher ? `(pid ${st.dispatcher.pid})` : ''
+
+  const q = $('queueBadge')
+  const qi = st.queue || { queued: 0, inFlight: 0, limit: 3 }
+  q.querySelector('b').textContent = `${qi.inFlight}/${qi.limit} w locie · ${qi.queued} czeka`
 
   const sel = $('agent')
   if (!sel.options.length) {

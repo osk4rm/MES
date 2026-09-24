@@ -314,10 +314,12 @@ werdykty, czekanie na CI) żyją w `scripts/ci/swarm-lib.sh`.
 | Event | Job | Efekt |
 |---|---|---|
 | issue `labeled ai:implement` | `implement` | implementer → PR + `ai:review` (brak PR → `ai:blocked`) |
-| PR `labeled ai:review` / `synchronize` z `ai:review` / koniec CI (`workflow_run`) | `review` | czeka na CI (max 20 min) → reviewer → `ai:verify` / `ai:changes` |
+| PR `labeled ai:review` / `synchronize` z `ai:review` / koniec CI (`workflow_run`) | `review` | czeka na CI (max 10 min) → reviewer → `ai:verify` / `ai:changes` |
 | PR `labeled ai:verify` | `verify` | verifier read-only → `ai:e2e` / `ai:changes` |
 | PR `labeled ai:changes` | `fix` | guard rund (liczy failure-verdykty w komentarzach, limit `MAX_ROUNDS=3`) → implementer fix → `ai:review` |
 | PR `labeled ai:e2e` | `e2e` | Postgres service + stack + tester → `ai:ready` / `ai:changes` / `ai:blocked` |
+| PR `labeled ai:ready` | `merge` | czeka na CI → squash-merge + delete-branch (czerwone CI → z powrotem `ai:review`, konflikt → `ai:blocked`) |
+| push na default / cron co 30 min | `sweep` | najstarszy `ai:implement` bez locka wraca do kolejki, gdy jest wolny slot |
 | cron pn 06:00 UTC | `researcher` | gap rows → zwykły PR do mergu przez człowieka |
 | cron codziennie 05:30 UTC | `tracker` | sync trackera → PR `ai/tracker-sync` |
 | `workflow_dispatch` | dowolny | ręczny trigger (zastępuje przyciski dashboardu w CI) |
@@ -346,8 +348,23 @@ Zasady:
   z instrukcją, a nie wiesza się ani nie mieli minut.
 - **Concurrency**: jedna kolejka na issue/PR (`cancel-in-progress: false`) —
   odpowiednik jednowątkowego dyspozytora. `ai:running` jest lockiem między
-  runnerem CI a lokalnym dyspozytorem: job widzący cudzy lock kończy się błędem,
-  ponawiasz go zdejmując i dokładając label-trigger.
+  runnerem CI a lokalnym dyspozytorem: przegrany wyścig kończy się zielono
+  (`exit 0` z notką), ponawiasz go zdejmując i dokładając label-trigger.
+- **Limit równoległości (`MAX_PARALLEL=3`)**: implement i sweep odmawiają nowej
+  pracy, gdy ≥3 itemy trzymają `ai:running`. Odmowa to zielone wyjście —
+  labelka `ai:implement` zostaje, a sweep (push na default + cron co 30 min)
+  dobiera najstarszy czekający issue bez locka. Limit widać w dashboardzie
+  (badge „kolejka"). Lokalny dyspozytor limitu nie egzekwuje — to rola CI.
+- **Auto-merge**: `ai:ready` + zielone CI = squash-merge z kasowaniem brancha,
+  bez człowieka. Dashboard pokazuje `ready` do momentu mergu.
+- **Krojenie issuesów** (reguły w `mes-issue-spec` + `mes-analyst`): jeden issue
+  = jeden PR do zreviewowania w <30 min. Duże tematy to serie `(1/3)` z
+  `depends on`, jedna migracja EF na serię (pierwszy slice) — równoległe PR-y
+  z migracjami konfliktują snapshot.
+- **CI fast-path**: PR-y tylko-dokumentacyjne (`*.md`, `docs/**`) skipują joby
+  backend/frontend przez `dorny/paths-filter` (run zielony w ~1 min);
+  `swarm_wait_ci` traktuje skip jako pass. `cancel-in-progress` kasuje
+  zdezaktualizowane runy po nowym pushu.
 - **`--auto`**: runnery CI to izolowane klony, więc agenci lecą z
   `opencode --auto` (permission files dalej bronią pusha na default branch).
 - **Brak session affinity w CI**: fix w CI startuje świeżą sesję z promptem
