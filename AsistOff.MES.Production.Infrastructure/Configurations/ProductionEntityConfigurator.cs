@@ -21,6 +21,8 @@ public class ProductionEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<DowntimeEvent>();
         modelBuilder.Entity<Lot>();
         modelBuilder.Entity<ScrapEvent>();
+        modelBuilder.Entity<MachineTelemetryTag>();
+        modelBuilder.Entity<TelemetryReading>();
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProductionEntityConfigurator).Assembly);
     }
