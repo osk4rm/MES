@@ -13,7 +13,8 @@ export const sitemap: NavItem[] = [
     icon: 'pi pi-cog',
     children: [
       { label: 'nav.productionOrders', icon: 'pi pi-list', route: '/production/orders' },
-      { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' }
+      { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' },
+      { label: 'nav.spcCharacteristics', icon: 'pi pi-chart-line', route: '/production/spc-characteristics' }
     ]
   },
   { label: 'nav.schedule', icon: 'pi pi-calendar', route: '/schedule' },

@@ -42,6 +42,7 @@ const pl = {
     production: 'Produkcja',
     productionOrders: 'Zlecenia produkcyjne',
     productionRecipes: 'Receptury',
+    spcCharacteristics: 'Charakterystyki SPC',
     schedule: 'Harmonogram',
     reports: 'Raporty',
     configuration: 'Konfiguracja',
@@ -287,6 +288,38 @@ const pl = {
       5: 'Inne'
     }
   },
+  spcCharacteristics: {
+    title: 'Charakterystyki SPC',
+    subtitle: 'Słownik charakterystyk jakości ze specyfikacją i granicami kontrolnymi',
+    create: 'Nowa charakterystyka',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    chartType: 'Typ karty',
+    nominalValue: 'Wartość nominalna',
+    lowerSpecLimit: 'Dolna granica specyfikacji (LSL)',
+    upperSpecLimit: 'Górna granica specyfikacji (USL)',
+    lowerControlLimit: 'Dolna granica kontrolna (LCL)',
+    upperControlLimit: 'Górna granica kontrolna (UCL)',
+    sampleSize: 'Liczebność próbki',
+    unit: 'Jednostka',
+    product: 'Produkt',
+    machine: 'Stanowisko',
+    isActive: 'Aktywna',
+    filters: {
+      search: 'Szukaj po kodzie lub nazwie…',
+      product: 'Produkt',
+      machine: 'Stanowisko',
+      status: 'Status'
+    },
+    chartTypes: {
+      1: 'X-śr / R',
+      2: 'X-śr / S',
+      3: 'X / MR',
+      4: 'Karta p',
+      5: 'Karta c'
+    }
+  },
   scanBy: { 1: 'EAN', 2: 'Kod' },
   stubs: {
     title: 'Moduł w przygotowaniu',
@@ -353,6 +386,7 @@ const en: typeof pl = {
     production: 'Production',
     productionOrders: 'Production orders',
     productionRecipes: 'Recipes',
+    spcCharacteristics: 'SPC characteristics',
     schedule: 'Schedule',
     reports: 'Reports',
     configuration: 'Configuration',
@@ -596,6 +630,38 @@ const en: typeof pl = {
       3: 'Quality',
       4: 'Setup',
       5: 'Other'
+    }
+  },
+  spcCharacteristics: {
+    title: 'SPC characteristics',
+    subtitle: 'Quality characteristic dictionary with spec and control limits',
+    create: 'New characteristic',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    chartType: 'Chart type',
+    nominalValue: 'Nominal value',
+    lowerSpecLimit: 'Lower spec limit (LSL)',
+    upperSpecLimit: 'Upper spec limit (USL)',
+    lowerControlLimit: 'Lower control limit (LCL)',
+    upperControlLimit: 'Upper control limit (UCL)',
+    sampleSize: 'Sample size',
+    unit: 'Unit',
+    product: 'Product',
+    machine: 'Work center',
+    isActive: 'Active',
+    filters: {
+      search: 'Search by code or name…',
+      product: 'Product',
+      machine: 'Work center',
+      status: 'Status'
+    },
+    chartTypes: {
+      1: 'X-bar / R',
+      2: 'X-bar / S',
+      3: 'X / MR',
+      4: 'p-chart',
+      5: 'c-chart'
     }
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
