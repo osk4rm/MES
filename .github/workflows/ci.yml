@@ -15,6 +15,28 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
 jobs:
+  guard:
+    name: Merge-integrity guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: No merge-conflict markers
+        # Agents (and humans) resolving merges must never commit `<<<<<<<` /
+        # `=======` / `>>>>>>>` leftovers. This is the cheap tripwire that
+        # keeps broken conflict resolutions out of master.
+        run: |
+          set -e
+          hits=$( {
+            git grep -nE '^(<<<<<<< |=======$|>>>>>>> )' -- . ':(exclude)*.md' 2>/dev/null || true
+            git grep -nE '^(<<<<<<< |>>>>>>> )' -- '*.md' 2>/dev/null || true
+          } | sed '/^$/d' )
+          if [ -n "$hits" ]; then
+            echo '::error::Unresolved merge-conflict markers committed:'
+            echo "$hits"
+            exit 1
+          fi
+          echo 'no merge-conflict markers'
+
   changes:
     name: Detect code changes
     runs-on: ubuntu-latest
@@ -47,6 +69,16 @@ jobs:
         run: dotnet restore AsistOff.MES.sln
       - name: Build
         run: dotnet build AsistOff.MES.sln --configuration Release --no-restore
+      - name: EF model snapshot in sync
+        # Entity changes without a regenerated DefaultContextModelSnapshot.cs
+        # poison the next `dotnet ef migrations add` (and were a root cause of
+        # the snapshot zipper-merges). Catch drift at PR time.
+        run: |
+          dotnet tool install --global dotnet-ef
+          dotnet ef migrations has-pending-model-changes \
+            --project AsistOff.MES.Shared.Infrastructure \
+            --startup-project AsistOff.MES.Gateway \
+            --context DefaultContext
       - name: Test
         run: dotnet test AsistOff.MES.sln --configuration Release --no-build --verbosity normal --logger "trx" --results-directory TestResults
       - name: Upload test results

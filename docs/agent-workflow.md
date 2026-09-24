@@ -373,6 +373,39 @@ Zasady:
   Własne checki `ai-swarm` są ignorowane — szum z labelki-locka potrafił
   stworzyć kolejkujący się no-op run, którego pending zatruwał wait
   (samozakleszczenie kończące się timeoutem i demotowaniem `ai:ready`).
+- **Auto-cleanup locków**: sweep czyści `ai:running` starsze niż
+  `STALE_LOCK_MINUTES=45` (znacznik = czas labela w timeline). Zgubiony job
+  nie blokuje slotu w nieskończoność.
+- **Serializacja migracji EF**: max 1 PR z plikami `Migrations/` w locie.
+  Dwa równoległe PR-y z migracjami zipper-mergują się w
+  `DefaultContextModelSnapshot.cs` i psują mastera. Implement i sweep czekają
+  aż migracyjny PR się zmerguje (PR-y z `ai:blocked` nie blokują kolejki).
+- **Integralność merge'y** (guardrails anty-„dziwne konflikty z masterem"):
+  - joby mergujące (`implement`, `fix`) robią `git fetch` + `git merge
+    origin/master` NA PEŁNYM klonie (`fetch-depth: 0` — płytki klon nie ma
+    merge-base i git wymyśla fikcyjne konflikty); konflikty trafiają do
+    agenta z kontraktem (`swarm_conflict_rules`): nigdy nie zostawiać
+    markerów konfliktu, snapshotu EF nie wolno mergować ręcznie
+    (regeneracja przez `dotnet ef migrations remove/add --context
+    DefaultContext`), a pliki rejestrowe (`i18n.ts`, `sitemap.ts`,
+    `ApiContracts.cs`) mergujemy jako unię obu stron.
+  - przed pushem `swarm_check_conflict_markers` — jakikolwiek `<<<<<<<`,
+    `=======` czy `>>>>>>>` w drzewie zatrzymuje PR (runda naprawcza, potem
+    `ai:blocked`). Ten sam check jest w `ci.yml` (job `guard`), więc
+    zepsuta resolucja nigdy nie przejdzie na zielono.
+  - `fix` checkoutuje gałąź PR-a (`refs/pull/N/head`), NIE `refs/pull/N/merge`
+    — merge ref nie istnieje, gdy PR konfliktuje z masterem, a to właśnie
+    taki PR fix musi naprawić. Review/verify/e2e przed użyciem merge refa
+    sprawdzają `swarm_pr_mergeable` i przy `CONFLICTING` odsyłają do `ai:changes`.
+  - `ai:ready` + `gh pr merge` z konfliktem = `ai:changes` (nie `ai:blocked`);
+    tylko nie-konfliktowe błędy mergu idą do człowieka.
+- **Ostatni werdykt wygrywa**: fallback werdyktu z komentarzy PR-a bierze
+  OSTATNI (`swarm_last_verdict_stdin`), nie „więcej niż jeden = AMBIGUOUS" —
+  PR z `CHANGES_REQUESTED` w rundzie 1 i `APPROVED` w rundzie 2 jest
+  zaaprobowany, nie zablokowany.
+- **Red CI wraca do pętli**: `review` nasłuchuje też `workflow_run` z
+  `conclusion == failure` — wcześniej czerwone CI po timeoutcie waita
+  zostawiało PR w `ai:review` na zawsze.
 - **Samouzupełniająca kolejka**: pusty `ai:implement` + backlog poniżej
   `BACKLOG_MAX=5` + gap w trackerze lub nielabelowany proposal = job `analyst`
   sam startuje `mes-analyst` w CI. Pętla nie staje po wyczerpaniu issuesów;
@@ -392,8 +425,10 @@ Zasady:
   „przeczytaj komentarze PR" (lokalny dyspozytor trzyma `--session`
   implementera — patrz §4).
 - **E2E w CI**: service `postgres:16` na `localhost:5432`, backend dostaje
-  `postgres__connectionString` env-em; agent sam stawia stack przez
-  `scripts/e2e/app.ps1` (pwsh jest na runnerach). Bez DB werdykt to `E2E_BLOCKED`.
+  `postgres__connectionString` env-em; stack startuje się z `nohup` w tym samym
+  kroku co agent (procesy przeżywają tool calle). `E2E_BLOCKED` (problem
+  infrastruktury) = `ai:ready` z notką, nie `ai:blocked` — review + verify
+  już przeszły. Bez DB werdykt to `E2E_BLOCKED`.
 - Lokalny dyspozytor zostaje jako **fallback/debug** — nie odpalaj go
   równolegle z zielonym CI na tych samych labelach, bo będziecie się mijać
   lockami (to akurat bezpieczne, ale hałaśliwe).

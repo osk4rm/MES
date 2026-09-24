@@ -20,9 +20,13 @@ secrets by design.
 | Frontend | `http://localhost:5173` |
 | Backend (http profile) | `http://localhost:5243` |
 | Login | `admin@dev.local` / `Passw0rd!` (dev tenant) |
-| Start / stop stack | `pwsh -File scripts/e2e/app.ps1 -Action start\|stop\|status` |
-| Backend log | `%TEMP%\opencode\e2e-backend.err.log` |
-| Frontend log | `%TEMP%\opencode\e2e-frontend.log` |
+| Start / stop stack (local only) | `pwsh -File scripts/e2e/app.ps1 -Action start\|stop\|status` |
+| Backend log (local) | `%TEMP%\opencode\e2e-backend.err.log` |
+| Frontend log (local) | `%TEMP%\opencode\e2e-frontend.log` |
+
+**In CI the stack is already running** (started with `nohup` in the workflow
+step before the agent starts). Do NOT start or stop it — just navigate and
+test. Backend logs are at `/tmp/backend.log` and `/tmp/frontend.log`.
 
 The stack is driven with the Playwright MCP browser tools. If the backend does
 not become healthy (usually PostgreSQL is down), the verdict is `E2E_BLOCKED`.

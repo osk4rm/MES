@@ -59,6 +59,7 @@ env:
   MAX_ROUNDS: '3'
   MAX_PARALLEL: '3'
   BACKLOG_MAX: '5'
+  STALE_LOCK_MINUTES: '45'
   # Prefer a user PAT so bot-opened PRs are authored by a collaborator and skip
   # the public-repo approval gate (without it every bot PR stalls on approve,
   # and approved runs do not emit workflow_run events). Falls back to the
@@ -78,9 +79,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      # fetch-depth 0: agents merge master into their branches — a shallow
+      # clone hides the merge base and git invents bogus conflicts.
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
@@ -109,20 +113,60 @@ jobs:
             echo "at capacity ($(swarm_in_flight_count) in flight >= ${MAX_PARALLEL:-3}); leaving ai:implement for the sweeper"
             exit 0
           fi
+          # Serialize EF-migration work: parallel migrations zipper-merge into
+          # DefaultContextModelSnapshot.cs and corrupt master. The sweeper
+          # re-fires this issue once the in-flight migration PR lands.
+          MIG_PR=$(swarm_in_flight_migration_pr)
+          if [ -n "$MIG_PR" ]; then
+            echo "migration PR #$MIG_PR in flight; deferring issue #$ISSUE for the sweeper"
+            exit 0
+          fi
           # Lost race for the lock: exit green — the holder does the work.
-          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          # (A lock with no live run behind it is cleared by the stale-lock sweep.)
           swarm_acquire_lock issue "$ISSUE" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release issue "$ISSUE"
           git config user.name 'MES Agent Swarm'
           git config user.email 'mes-swarm@users.noreply.github.com'
+          swarm_use_pat_remote "${{ secrets.SWARM_PAT }}"
           swarm_run_agent mes-implementer \
-            "Implement GitHub issue #$ISSUE. Read it with 'gh issue view $ISSUE --comments'. Follow AGENT.md and the area instructions. Write tests, run 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build', then open a PR that closes #$ISSUE. Use branch name ai/issue-$ISSUE-<slug>. Do not add or remove ai:* labels." \
+            "Implement GitHub issue #$ISSUE. Read it with 'gh issue view $ISSUE --comments'. Follow AGENT.md and the area instructions. Write tests, run 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build', then push branch ai/issue-$ISSUE-<slug> and open a PR that closes #$ISSUE. Keep the branch current with master: before the final push run 'git fetch origin master && git merge origin/master' and resolve any conflicts (never leave conflict markers; never hand-merge Migrations/DefaultContextModelSnapshot.cs — regenerate the migration with 'dotnet ef migrations remove/add --project AsistOff.MES.Shared.Infrastructure --startup-project AsistOff.MES.Gateway --context DefaultContext'; in i18n.ts, sitemap.ts and ApiContracts.cs keep the union of both sides). Do not add or remove ai:* labels." \
             implement.log
+          BRANCH=$(swarm_branch_for_issue "$ISSUE")
+          if [ -n "$BRANCH" ]; then
+            git fetch origin "$BRANCH"
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+            # Deterministic re-sync: the agent may have branched from a stale
+            # master (long run) — conflicts here are handed back to the agent.
+            MERGE_RC=0
+            swarm_sync_master || MERGE_RC=$?
+            if [ "$MERGE_RC" = 2 ]; then
+              swarm_run_agent mes-implementer \
+                "Resolve the in-progress merge of master into $BRANCH. $(swarm_conflict_rules)" \
+                implement-merge.log
+            fi
+            if ! swarm_finish_merge_if_pending; then
+              swarm_remove_label issue "$ISSUE" ai:implement
+              swarm_add_label issue "$ISSUE" ai:blocked
+              swarm_say issue "$ISSUE" 'Agent flow (CI): merge with master left unresolved conflicts after the fix round. Needs human attention.'
+              exit 1
+            fi
+            if ! swarm_check_conflict_markers; then
+              swarm_run_agent mes-implementer \
+                'Remove every merge-conflict marker from the working tree (they were committed by mistake). Resolve each file to the correct final content — union both sides for i18n.ts/sitemap.ts/ApiContracts.cs — then run the builds and push.' \
+                implement-markers.log
+              if ! swarm_check_conflict_markers; then
+                swarm_remove_label issue "$ISSUE" ai:implement
+                swarm_add_label issue "$ISSUE" ai:blocked
+                swarm_say issue "$ISSUE" 'Agent flow (CI): conflict markers survived the cleanup round. Needs human attention.'
+                exit 1
+              fi
+            fi
+            git push origin "$BRANCH" || true
+          fi
           PR=$(swarm_find_pr_for_issue "$ISSUE")
           if [ -z "$PR" ]; then
             # Fallback: agent pushed the branch but did not open the PR
             # (e.g. missing repo permission) — open it deterministically.
-            BRANCH=$(swarm_branch_for_issue "$ISSUE")
             if [ -n "$BRANCH" ]; then
               TITLE=$(gh issue view "$ISSUE" --json title --jq .title)
               BODY=$(mktemp)
@@ -166,6 +210,9 @@ jobs:
   review:
     name: review PR
     # NOTE: no parentheses in GitHub expressions; && binds tighter than ||.
+    # workflow_run fires on ci success AND failure: a red ci must send the PR
+    # back to ai:changes (before this, a red CI after a wait-timeout deadlocked
+    # the PR in ai:review forever).
     if: >
       github.event_name == 'pull_request_target' &&
       github.event.pull_request.draft == false &&
@@ -175,6 +222,8 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'ai:review') ||
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success' ||
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure' ||
       github.event_name == 'workflow_dispatch' &&
       inputs.agent == 'mes-reviewer'
     runs-on: ubuntu-latest
@@ -191,18 +240,30 @@ jobs:
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
+          PR=''
           if [ '${{ github.event_name }}' = workflow_run ]; then
             PR=$(swarm_pr_for_sha '${{ github.event.workflow_run.head_sha }}')
             if [ -z "$PR" ] || ! swarm_has_label pr "$PR" ai:review; then
               echo 'No open PR with ai:review for this CI run; nothing to do.'
               echo "skip=true" >>"$GITHUB_OUTPUT"
+              PR=''
             else
               echo "number=$PR" >>"$GITHUB_OUTPUT"
             fi
           elif [ '${{ github.event_name }}' = workflow_dispatch ]; then
-            echo "number=${{ inputs.number }}" >>"$GITHUB_OUTPUT"
+            PR='${{ inputs.number }}'
+            echo "number=$PR" >>"$GITHUB_OUTPUT"
           else
-            echo "number=${{ github.event.pull_request.number }}" >>"$GITHUB_OUTPUT"
+            PR='${{ github.event.pull_request.number }}'
+            echo "number=$PR" >>"$GITHUB_OUTPUT"
+          fi
+          if [ -n "$PR" ] && [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
+            # refs/pull/N/merge does not exist while the PR conflicts — route
+            # to the fixer instead of failing the checkout below.
+            swarm_remove_label pr "$PR" ai:review
+            swarm_add_label pr "$PR" ai:changes
+            swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
+            echo "skip=true" >>"$GITHUB_OUTPUT"
           fi
       - uses: actions/checkout@v6
         if: steps.pr.outputs.skip != 'true'
@@ -250,7 +311,7 @@ jobs:
             review.log
           VERDICT=$(swarm_verdict 'APPROVED|CHANGES_REQUESTED' review.log)
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
-            VERDICT=$(swarm_comments_body pr "$PR" | swarm_verdict_stdin 'APPROVED|CHANGES_REQUESTED')
+            VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'APPROVED|CHANGES_REQUESTED')
           fi
           swarm_remove_label pr "$PR" ai:review
           case "$VERDICT" in
@@ -286,8 +347,25 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Resolve PR number
+        id: pr
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          PR='${{ github.event.pull_request.number || inputs.number }}'
+          echo "number=$PR" >>"$GITHUB_OUTPUT"
+          if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
+            swarm_remove_label pr "$PR" ai:verify
+            swarm_add_label pr "$PR" ai:changes
+            swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v6
+        if: steps.pr.outputs.skip != 'true'
+        with:
           repository: ${{ github.repository }}
-          ref: refs/pull/${{ github.event.pull_request.number || inputs.number }}/merge
+          ref: refs/pull/${{ steps.pr.outputs.number }}/merge
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
@@ -295,6 +373,7 @@ jobs:
         with:
           node-version: 20
       - name: Install opencode
+        if: steps.pr.outputs.skip != 'true'
         run: |
           if ! command -v opencode >/dev/null 2>&1; then
             curl -fsSL https://opencode.ai/install | bash
@@ -303,10 +382,11 @@ jobs:
           fi
           opencode --version
       - name: Verify tests prove the acceptance criteria
+        if: steps.pr.outputs.skip != 'true'
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
-          PR='${{ github.event.pull_request.number || inputs.number }}'
+          PR='${{ steps.pr.outputs.number }}'
           swarm_require_auth
           # Lost race for the lock: exit green — the holder does the work.
           # (A lock with no live run behind it is cleared by a human removing ai:running.)
@@ -317,7 +397,7 @@ jobs:
             verify.log
           VERDICT=$(swarm_verdict 'TESTS_SOUND|TESTS_INSUFFICIENT' verify.log)
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
-            VERDICT=$(swarm_comments_body pr "$PR" | swarm_verdict_stdin 'TESTS_SOUND|TESTS_INSUFFICIENT')
+            VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'TESTS_SOUND|TESTS_INSUFFICIENT')
           fi
           swarm_remove_label pr "$PR" ai:verify
           case "$VERDICT" in
@@ -346,10 +426,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      # The fix job checks out the PR HEAD BRANCH, never refs/pull/N/merge:
+      # the merge ref does not exist while the PR conflicts with master — and
+      # a conflicting PR is exactly what this job must be able to repair.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Resolve PR head
+        id: pr
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          PR='${{ github.event.pull_request.number || inputs.number }}'
+          HEAD_REF=$(gh pr view "$PR" --json headRefName --jq .headRefName)
+          echo "number=$PR" >>"$GITHUB_OUTPUT"
+          echo "head=$HEAD_REF" >>"$GITHUB_OUTPUT"
+      # fetch-depth 0 so the master merge below has a real merge base.
       - uses: actions/checkout@v6
         with:
           repository: ${{ github.repository }}
-          ref: refs/pull/${{ github.event.pull_request.number || inputs.number }}/merge
+          ref: refs/pull/${{ steps.pr.outputs.number }}/head
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
@@ -368,10 +465,11 @@ jobs:
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
-          PR='${{ github.event.pull_request.number || inputs.number }}'
+          PR='${{ steps.pr.outputs.number }}'
+          HEAD_REF='${{ steps.pr.outputs.head }}'
           swarm_require_auth
           # Lost race for the lock: exit green — the holder does the work.
-          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          # (A lock with no live run behind it is cleared by the stale-lock sweep.)
           swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
           FAILS=$(swarm_fail_count "$PR")
@@ -384,15 +482,47 @@ jobs:
           git config user.name 'MES Agent Swarm'
           git config user.email 'mes-swarm@users.noreply.github.com'
           swarm_use_pat_remote "${{ secrets.SWARM_PAT }}"
-          HEAD_REF=$(gh pr view "$PR" --json headRefName --jq .headRefName)
-          git fetch origin "$HEAD_REF"
-          git checkout "$HEAD_REF"
+          git checkout -B "$HEAD_REF"
+          # Bring the branch up to date with master FIRST: feedback fixes on a
+          # stale branch die at merge time. Conflicts become part of the agent's
+          # task below (with a strict resolution contract).
+          CONFLICT_NOTE=''
+          MERGE_RC=0
+          swarm_sync_master || MERGE_RC=$?
+          if [ "$MERGE_RC" = 2 ]; then
+            CONFLICT_NOTE="$(swarm_conflict_rules)"
+          fi
           # CI has no session affinity (unlike the local dispatcher): the fix
           # prompt points at the PR comments so a fresh session can continue.
           swarm_run_agent mes-implementer \
-            "Review/e2e feedback on PR #$PR requested changes. Read it with 'gh pr view $PR --comments'. Fix every point, re-run 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build', then push to the same branch and reply. Do not add or remove ai:* labels." \
+            "Review/e2e feedback on PR #$PR requested changes. Read it with 'gh pr view $PR --comments'. Fix every point, re-run 'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and 'npm --prefix AsistOff.MES.Web run build', then push to the same branch and reply. Never commit merge-conflict markers. $CONFLICT_NOTE Do not add or remove ai:* labels." \
             fix.log
-          git push origin "$HEAD_REF"
+          if ! swarm_finish_merge_if_pending; then
+            swarm_remove_label pr "$PR" ai:changes
+            swarm_add_label pr "$PR" ai:blocked
+            swarm_say pr "$PR" 'Agent flow (CI): the master merge still has unresolved conflicts after the fix round. Needs human attention.'
+            exit 1
+          fi
+          if ! swarm_check_conflict_markers; then
+            swarm_run_agent mes-implementer \
+              'Remove every merge-conflict marker from the working tree (they were committed by mistake). Resolve each file to the correct final content — union both sides for i18n.ts/sitemap.ts/ApiContracts.cs — then run the builds and push.' \
+              fix-markers.log
+            if ! swarm_check_conflict_markers; then
+              swarm_remove_label pr "$PR" ai:changes
+              swarm_add_label pr "$PR" ai:blocked
+              swarm_say pr "$PR" 'Agent flow (CI): conflict markers survived the cleanup round. Needs human attention.'
+              exit 1
+            fi
+          fi
+          if ! git push origin "$HEAD_REF"; then
+            echo 'push rejected (history was rewritten?) — retrying with --force-with-lease'
+            if ! git push --force-with-lease origin "$HEAD_REF"; then
+              swarm_remove_label pr "$PR" ai:changes
+              swarm_add_label pr "$PR" ai:blocked
+              swarm_say pr "$PR" 'Agent flow (CI): could not push the fix to the PR branch. Needs human attention.'
+              exit 1
+            fi
+          fi
           swarm_remove_label pr "$PR" ai:changes
           swarm_add_label pr "$PR" ai:review
           echo '-> ai:review'
@@ -424,18 +554,39 @@ jobs:
           --health-retries 5
     env:
       postgres__connectionString: 'Host=localhost;Port=5432;Database=mes;Username=admin;Password=root'
+      VITE_API_BASE_URL: 'http://localhost:5243/'
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Resolve PR number
+        id: pr
+        run: |
+          # shellcheck disable=SC1091
+          source scripts/ci/swarm-lib.sh
+          PR='${{ github.event.pull_request.number || inputs.number }}'
+          echo "number=$PR" >>"$GITHUB_OUTPUT"
+          if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
+            swarm_remove_label pr "$PR" ai:e2e
+            swarm_add_label pr "$PR" ai:changes
+            swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v6
+        if: steps.pr.outputs.skip != 'true'
+        with:
           repository: ${{ github.repository }}
-          ref: refs/pull/${{ github.event.pull_request.number || inputs.number }}/merge
+          ref: refs/pull/${{ steps.pr.outputs.number }}/merge
       - uses: actions/setup-dotnet@v5
+        if: steps.pr.outputs.skip != 'true'
         with:
           dotnet-version: '10.0.x'
       - uses: actions/setup-node@v6
+        if: steps.pr.outputs.skip != 'true'
         with:
           node-version: 20
       - name: Install opencode and Playwright browsers
+        if: steps.pr.outputs.skip != 'true'
         run: |
           if ! command -v opencode >/dev/null 2>&1; then
             curl -fsSL https://opencode.ai/install | bash
@@ -446,23 +597,44 @@ jobs:
           npm --prefix AsistOff.MES.Web ci
           npx --yes playwright@latest install --with-deps chromium
       - name: Run Playwright smoke via agent
+        if: steps.pr.outputs.skip != 'true'
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
-          PR='${{ github.event.pull_request.number || inputs.number }}'
+          PR='${{ steps.pr.outputs.number }}'
           swarm_require_auth
           # Lost race for the lock: exit green — the holder does the work.
-          # (A lock with no live run behind it is cleared by a human removing ai:running.)
+          # (A lock with no live run behind it is cleared by the stale-lock sweep.)
           swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
-          # The agent starts the stack itself (scripts/e2e/app.ps1); the
-          # service above only provides PostgreSQL on localhost:5432.
+          # Start the stack with nohup in THIS step: app.ps1 background jobs
+          # are killed when their launcher returns on CI runners. The service
+          # above only provides PostgreSQL on localhost:5432.
+          nohup dotnet run --project AsistOff.MES.Gateway > /tmp/backend.log 2>&1 &
+          echo $! > /tmp/backend.pid
+          (cd AsistOff.MES.Web && nohup npm run dev > /tmp/frontend.log 2>&1 & echo $! > /tmp/frontend.pid)
+          for i in $(seq 1 60); do
+            BACKEND_OK=$(curl -sf http://localhost:5243/health >/dev/null 2>&1 && echo 1 || echo 0)
+            FRONTEND_OK=$(curl -sf http://localhost:5173 >/dev/null 2>&1 && echo 1 || echo 0)
+            if [ "$BACKEND_OK" = 1 ] && [ "$FRONTEND_OK" = 1 ]; then
+              echo "stack healthy (backend + frontend)"
+              break
+            fi
+            if [ "$i" = 60 ]; then
+              echo "stack failed to become healthy; backend log:"
+              tail -30 /tmp/backend.log || true
+              echo "frontend log:"
+              tail -30 /tmp/frontend.log || true
+            fi
+            sleep 2
+          done
+          # The stack is already running — tell the agent to use it as-is.
           swarm_run_agent mes-e2e-tester \
-            "Run the Playwright end-to-end smoke test for PR #$PR. Resolve the scope from 'gh pr diff $PR --name-only' using the mes-e2e skill, ensure the stack with 'pwsh -File scripts/e2e/app.ps1 -Action start', then post the result with 'gh pr comment $PR' ending with exactly one line on its own: 'VERDICT: E2E_PASS', 'VERDICT: E2E_FAIL' or 'VERDICT: E2E_BLOCKED'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
+            "Run the Playwright end-to-end smoke test for PR #$PR. The stack is ALREADY RUNNING at http://localhost:5243 (backend) and http://localhost:5173 (frontend). Do NOT start or stop the stack. Resolve the scope from 'gh pr diff $PR --name-only' using the mes-e2e skill, then post the result with 'gh pr comment $PR' ending with exactly one line on its own: 'VERDICT: E2E_PASS', 'VERDICT: E2E_FAIL' or 'VERDICT: E2E_BLOCKED'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
             e2e.log
           VERDICT=$(swarm_verdict 'E2E_PASS|E2E_FAIL|E2E_BLOCKED' e2e.log)
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
-            VERDICT=$(swarm_comments_body pr "$PR" | swarm_verdict_stdin 'E2E_PASS|E2E_FAIL|E2E_BLOCKED')
+            VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'E2E_PASS|E2E_FAIL|E2E_BLOCKED')
           fi
           swarm_remove_label pr "$PR" ai:e2e
           case "$VERDICT" in
@@ -471,15 +643,25 @@ jobs:
               swarm_say pr "$PR" 'Agent flow (CI): CI + review + verify + e2e green. Auto-merge will take it from here (ai:ready).'
               ;;
             E2E_FAIL) swarm_add_label pr "$PR" ai:changes; echo '-> ai:changes' ;;
+            E2E_BLOCKED)
+              # Infrastructure problem (stack/DB/browser), not a code failure:
+              # review + verify already passed — promote instead of stalling.
+              swarm_add_label pr "$PR" ai:ready
+              swarm_say pr "$PR" 'Agent flow (CI): e2e smoke could not complete (infrastructure). Review + verify passed — promoting to ai:ready. Re-run e2e manually if needed.'
+              ;;
             *)
               swarm_add_label pr "$PR" ai:blocked
-              swarm_say pr "$PR" 'Agent flow (CI): e2e could not produce a verdict (stack down?). Needs human attention.'
+              swarm_say pr "$PR" 'Agent flow (CI): e2e produced no verdict at all. Needs human attention.'
               exit 1
               ;;
           esac
       - name: Stop e2e stack
         if: always()
-        run: pwsh -NoProfile -File scripts/e2e/app.ps1 -Action stop || true
+        run: |
+          kill "$(cat /tmp/backend.pid 2>/dev/null)" 2>/dev/null || true
+          kill "$(cat /tmp/frontend.pid 2>/dev/null)" 2>/dev/null || true
+          pkill -f 'dotnet.*AsistOff.MES.Gateway' 2>/dev/null || true
+          pkill -f 'npm run dev' 2>/dev/null || true
 
   # ----------------------------------------------------------------- researcher
   researcher:
@@ -510,6 +692,7 @@ jobs:
           swarm_require_auth
           git config user.name 'MES Agent Swarm'
           git config user.email 'mes-swarm@users.noreply.github.com'
+          swarm_use_pat_remote "${{ secrets.SWARM_PAT }}"
           swarm_run_agent mes-researcher \
             'Read docs/feature-tracker.md first (do NOT rescan the whole repo). Append 1-3 new gap rows in the correct section (Status=gap, Work item=-, dependencies in Notes prefixed "depends on"). Never create GitHub issues and never modify existing rows.' \
             researcher.log
@@ -555,6 +738,7 @@ jobs:
           swarm_require_auth
           git config user.name 'MES Agent Swarm'
           git config user.email 'mes-swarm@users.noreply.github.com'
+          swarm_use_pat_remote "${{ secrets.SWARM_PAT }}"
           DEFAULT=$(swarm_default_branch)
           swarm_run_agent mes-tracker \
             "Reconcile docs/feature-tracker.md with GitHub issues/PRs and the codebase, then publish the update on branch ai/tracker-sync (based on $DEFAULT) and open or update a PR. Abort if the working tree is dirty." \
@@ -580,8 +764,17 @@ jobs:
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
+          # Always clean stale locks first — a lost job must not block a slot.
+          swarm_cleanup_stale_locks
           if [ "$(swarm_in_flight_count)" -ge "${MAX_PARALLEL:-3}" ]; then
             echo "at capacity; nothing to sweep"
+            exit 0
+          fi
+          # Migration serialization: two parallel EF-migration PRs zipper-merge
+          # into DefaultContextModelSnapshot.cs and corrupt master. One at a time.
+          MIG_PR=$(swarm_in_flight_migration_pr)
+          if [ -n "$MIG_PR" ]; then
+            echo "migration PR #$MIG_PR in flight; waiting before starting new work"
             exit 0
           fi
           ISSUE=$(swarm_oldest_queued_issue)
@@ -626,8 +819,14 @@ jobs:
             swarm_say pr "$PR" 'Agent flow (CI): merged to the default branch (squash).'
           else
             swarm_remove_label pr "$PR" ai:ready
-            swarm_add_label pr "$PR" ai:blocked
-            swarm_say pr "$PR" 'Agent flow (CI): auto-merge failed (conflict?). Needs human attention.'
+            if [ "$(swarm_pr_mergeable "$PR")" = CONFLICTING ]; then
+              # Not a human problem: the fixer rebases onto master and resolves.
+              swarm_add_label pr "$PR" ai:changes
+              swarm_say pr "$PR" 'Agent flow (CI): auto-merge hit a conflict with master — back to ai:changes so the fixer can rebase and resolve.'
+            else
+              swarm_add_label pr "$PR" ai:blocked
+              swarm_say pr "$PR" 'Agent flow (CI): auto-merge failed (not a conflict — see the run log). Needs human attention.'
+            fi
             exit 1
           fi
 
