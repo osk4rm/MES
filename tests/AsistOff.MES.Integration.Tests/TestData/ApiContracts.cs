@@ -335,3 +335,24 @@ public sealed record OpcUaConnectionTestDto(
     string EndpointUrl,
     bool Reachable,
     DateTime CheckedAt);
+
+/// <summary>Shape of one per-connection entry returned by <c>/api/opcua-connections/status</c>.</summary>
+public sealed record OpcUaConnectionStatusEntryDto(
+    Guid ConnectionId,
+    Guid MachineId,
+    string EndpointUrl,
+    bool IsEnabled,
+    DateTime? LastSeenAtUtc,
+    string? LastError,
+    bool IsLive,
+    int TotalTags,
+    int ReportingTags,
+    int StaleTags);
+
+/// <summary>Shape of the connection-status readout returned by <c>/api/opcua-connections/status</c>.</summary>
+public sealed record OpcUaConnectionStatusDto(
+    IReadOnlyCollection<OpcUaConnectionStatusEntryDto> Connections,
+    int TotalCount,
+    int LiveCount,
+    int StaleCount,
+    int DisabledCount);

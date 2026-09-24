@@ -20,6 +20,7 @@ export const sitemap: NavItem[] = [
       { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' },
       { label: 'nav.spcCharacteristics', icon: 'pi pi-chart-line', route: '/production/spc-characteristics' },
       { label: 'nav.productionTelemetry', icon: 'pi pi-wave-pulse', route: '/production/telemetry' },
+      { label: 'nav.productionOpcUaConnections', icon: 'pi pi-link', route: '/production/opcua-connections' },
       { label: 'nav.productionTelemetryDashboard', icon: 'pi pi-chart-line', route: '/production/telemetry-dashboard' },
       { label: 'nav.productionKanban', icon: 'pi pi-th-large', route: '/production/kanban' }
     ]

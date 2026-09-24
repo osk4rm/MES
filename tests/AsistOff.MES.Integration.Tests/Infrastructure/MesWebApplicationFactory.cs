@@ -43,6 +43,11 @@ public sealed class MesWebApplicationFactory(string connectionString) : WebAppli
             // Runs after the production Telemetry section binding, so the
             // poller stays off for the whole integration run.
             services.Configure<TelemetryOptions>(options => options.SimulatorEnabled = false);
+
+            // Same for the OPC UA poller: LastSeenAtUtc must only change via
+            // explicit test actions, otherwise connection-status assertions
+            // (live/stale, never-seen) would be timing dependent.
+            services.Configure<OpcUaPollingOptions>(options => options.PollingEnabled = false);
         });
     }
 
