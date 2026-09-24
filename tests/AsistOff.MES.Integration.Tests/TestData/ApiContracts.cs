@@ -253,6 +253,21 @@ public sealed record KanbanCardDto(
     short Status,
     string? Notes);
 
+/// <summary>Shape of a lot genealogy edge as returned by <c>/api/lot-genealogy</c>.</summary>
+public sealed record LotGenealogyEdgeDto(
+    Guid Id,
+    Guid ConsumedLotId,
+    Guid ProducedLotId,
+    Guid ProductionOrderId,
+    Guid? ProductionConfirmationId,
+    Guid MachineId,
+    Guid? ReportedByOperatorId,
+    decimal ConsumedQuantity,
+    DateTime OccurredAt,
+    string? Notes,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
 /// <summary>Shape of one RW/PW movement preview line returned by the movements endpoints.</summary>
 public sealed record MovementPreviewLineDto(
     string MovementType,

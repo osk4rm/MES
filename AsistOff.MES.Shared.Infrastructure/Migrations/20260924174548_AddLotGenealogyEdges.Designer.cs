@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AsistOff.MES.Shared.Infrastructure.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    [Migration("20260924174839_AddKanbanLoopsAndCards")]
-    partial class AddKanbanLoopsAndCards
+    [Migration("20260924174548_AddLotGenealogyEdges")]
+    partial class AddLotGenealogyEdges
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -913,104 +913,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.ToTable("DowntimeEvents", "production");
                 });
 
-            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.KanbanCard", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CardNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("LoopId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<short>("Status")
-                        .HasColumnType("smallint");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LoopId");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex("TenantId", "LoopId", "CardNumber")
-                        .IsUnique();
-
-                    b.HasIndex("TenantId", "LoopId", "Status");
-
-                    b.ToTable("KanbanCards", "production");
-                });
-
-            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.KanbanLoop", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("CardQuantity")
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<int>("CardsInCirculation")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<Guid>("ConsumingMachineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("SupplyingWarehouseId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex("TenantId", "Code")
-                        .IsUnique();
-
-                    b.HasIndex("TenantId", "ProductId");
-
-                    b.ToTable("KanbanLoops", "production");
-                });
-
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.Lot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1067,6 +969,70 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.HasIndex("TenantId", "ProductId");
 
                     b.ToTable("Lots", "production");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.LotGenealogyEdge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConsumedLotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ConsumedQuantity")
+                        .HasColumnType("numeric(14,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ProducedLotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProductionConfirmationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductionOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ReportedByOperatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConsumedLotId");
+
+                    b.HasIndex("ProducedLotId");
+
+                    b.HasIndex("ProductionConfirmationId");
+
+                    b.HasIndex("ProductionOrderId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ConsumedLotId");
+
+                    b.HasIndex("TenantId", "ProducedLotId");
+
+                    b.HasIndex("TenantId", "ProductionOrderId", "OccurredAt");
+
+                    b.ToTable("LotGenealogyEdges", "production");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.MachineTelemetryTag", b =>
@@ -1950,15 +1916,38 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Navigation("OperationNode");
                 });
 
-            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.KanbanCard", b =>
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.LotGenealogyEdge", b =>
                 {
-                    b.HasOne("AsistOff.MES.Production.Domain.Entities.KanbanLoop", "Loop")
-                        .WithMany("Cards")
-                        .HasForeignKey("LoopId")
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.Lot", "ConsumedLot")
+                        .WithMany()
+                        .HasForeignKey("ConsumedLotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.Lot", "ProducedLot")
+                        .WithMany()
+                        .HasForeignKey("ProducedLotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.ProductionConfirmation", "ProductionConfirmation")
+                        .WithMany()
+                        .HasForeignKey("ProductionConfirmationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.ProductionOrder", "ProductionOrder")
+                        .WithMany()
+                        .HasForeignKey("ProductionOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Loop");
+                    b.Navigation("ConsumedLot");
+
+                    b.Navigation("ProducedLot");
+
+                    b.Navigation("ProductionConfirmation");
+
+                    b.Navigation("ProductionOrder");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.OperationDependency", b =>
@@ -2075,11 +2064,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.WorkCenterCalendar", b =>
                 {
                     b.Navigation("Entries");
-                });
-
-            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.KanbanLoop", b =>
-                {
-                    b.Navigation("Cards");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.OperationNode", b =>
