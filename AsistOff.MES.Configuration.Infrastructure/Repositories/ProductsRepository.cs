@@ -31,6 +31,35 @@ internal sealed class ProductsRepository(DefaultContext context) : IProductsRepo
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
+    public async Task<Product?> GetByScanAsync(string value, CancellationToken cancellationToken = default)
+    {
+        // Resolution priority: exact Code, then Ean, then Barcode — active products only.
+        // Tenant isolation is enforced by the EF Core global query filter (ISaasy).
+        var byCode = await context.Products
+            .Include(x => x.ProductGroup)
+            .Include(x => x.ProductMeasureUnits)
+                .ThenInclude(pmu => pmu.MeasureUnit)
+            .FirstOrDefaultAsync(x => x.IsActive && x.Code == value, cancellationToken);
+
+        if (byCode is not null)
+            return byCode;
+
+        var byEan = await context.Products
+            .Include(x => x.ProductGroup)
+            .Include(x => x.ProductMeasureUnits)
+                .ThenInclude(pmu => pmu.MeasureUnit)
+            .FirstOrDefaultAsync(x => x.IsActive && x.Ean == value, cancellationToken);
+
+        if (byEan is not null)
+            return byEan;
+
+        return await context.Products
+            .Include(x => x.ProductGroup)
+            .Include(x => x.ProductMeasureUnits)
+                .ThenInclude(pmu => pmu.MeasureUnit)
+            .FirstOrDefaultAsync(x => x.IsActive && x.Barcode == value, cancellationToken);
+    }
+
     public async Task<int> CountAsync(ExpressionStarter<Product> predicate, CancellationToken cancellationToken = default)
     {
         return await context.Products.Where(predicate).CountAsync(cancellationToken);
