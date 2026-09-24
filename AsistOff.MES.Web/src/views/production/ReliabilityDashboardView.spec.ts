@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import ReliabilityDashboardView from './ReliabilityDashboardView.vue';
-import { reliabilityService, type ReliabilitySnapshot } from '../../services/reliabilityService';
+import {
+  formatMinutes,
+  formatNullableMinutes,
+  reliabilityService,
+  type ReliabilitySnapshot
+} from '../../services/reliabilityService';
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { useToastStore } from '../../stores/toastStore';
 
@@ -122,12 +127,33 @@ describe('ReliabilityDashboardView', () => {
     const wrapper = mountDashboard();
     await flushPromises();
 
-    // Counts render verbatim; minute KPIs render with the min suffix.
-    expect(wrapper.text()).toContain('reliabilityDashboard.cards.failures');
-    expect(wrapper.text()).toContain('reliabilityDashboard.cards.mtbf');
     expect(snapshotMock).toHaveBeenCalledWith(
       expect.objectContaining({ machineId: 'machine-1' })
     );
+    // Per-card title -> value mapping: a swapped MTBF/MTTR binding or a
+    // wrong count binding fails instead of passing on titles alone. The
+    // seeded fixture is failureCount 1 / repairCount 1 / MTBF 420 min /
+    // MTTR 60 min / avgRepair 45 min over a 480 min window.
+    const cards = wrapper.findAll('.reliability-card');
+    expect(cards).toHaveLength(8);
+    const byTitle = new Map(
+      cards.map((card) => [
+        card.find('.reliability-card__title').text(),
+        card.find('.reliability-card__value').text()
+      ])
+    );
+    expect(byTitle.get('reliabilityDashboard.cards.failures')).toBe('1');
+    expect(byTitle.get('reliabilityDashboard.cards.repairs')).toBe('1');
+    expect(byTitle.get('reliabilityDashboard.cards.mtbf')).toBe(formatNullableMinutes(420));
+    expect(byTitle.get('reliabilityDashboard.cards.mttr')).toBe(formatNullableMinutes(60));
+    expect(byTitle.get('reliabilityDashboard.cards.avgRepair')).toBe(formatNullableMinutes(45));
+    expect(byTitle.get('reliabilityDashboard.cards.window')).toBe(formatMinutes(480));
+    expect(byTitle.get('reliabilityDashboard.cards.uptime')).toBe(formatMinutes(420));
+    expect(byTitle.get('reliabilityDashboard.cards.downtime')).toBe(formatMinutes(60));
+    // Fully computed window: no em-dash placeholders in the KPI values
+    // (the picker label itself uses an em dash by design, so scope this to
+    // the cards rather than the whole view text).
+    expect([...byTitle.values()].join(' ')).not.toContain('—');
     // URL already matches so no redundant replace is pushed (sync guard).
     expect(mockReplace).not.toHaveBeenCalled();
   });
