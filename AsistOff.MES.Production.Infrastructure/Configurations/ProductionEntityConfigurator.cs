@@ -17,6 +17,7 @@ public class ProductionEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<ResourceRequirement>();
         modelBuilder.Entity<OperationTemplate>();
         modelBuilder.Entity<ProductionOrder>();
+        modelBuilder.Entity<AndonSignal>();
         modelBuilder.Entity<SpcCharacteristic>();
         modelBuilder.Entity<DowntimeEvent>();
         modelBuilder.Entity<Lot>();

@@ -15,12 +15,9 @@ export const sitemap: NavItem[] = [
       { label: 'nav.productionOrders', icon: 'pi pi-list', route: '/production/orders' },
       { label: 'nav.productionScrap', icon: 'pi pi-trash', route: '/production/scrap' },
       { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' },
-      { label: 'nav.productionDowntime', icon: 'pi pi-pause-circle', route: '/production/downtime' }
+      { label: 'nav.productionDowntime', icon: 'pi pi-pause-circle', route: '/production/downtime' },
       { label: 'nav.productionAndon', icon: 'pi pi-bell', route: '/production/andon' },
-      { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' }
->>>>>>> 43fc512647f96d44273316852d9ae6eb60824426
-      { label: 'nav.spcCharacteristics', icon: 'pi pi-chart-line', route: '/production/spc-characteristics' }
-      { label: 'nav.productionDowntime', icon: 'pi pi-pause-circle', route: '/production/downtime' }
+      { label: 'nav.spcCharacteristics', icon: 'pi pi-chart-line', route: '/production/spc-characteristics' },
       { label: 'nav.productionLots', icon: 'pi pi-box', route: '/production/lots' }
     ]
   },
