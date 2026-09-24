@@ -49,6 +49,7 @@ const pl = {
     productionLots: 'Partie',
     productionTelemetry: 'Telemetria',
     productionTelemetryDashboard: 'Panel telemetrii',
+    productionKanban: 'Kanban',
     schedule: 'Harmonogram',
     reports: 'Raporty',
     configuration: 'Konfiguracja',
@@ -578,6 +579,36 @@ const pl = {
       notFound: 'Nie znaleziono partii lub brak dostępu'
     }
   },
+  kanban: {
+    title: 'Kanban',
+    subtitle: 'Tablica uzupełnień ssących — sygnały Full / Empty / Ordered',
+    loop: 'Pętla kanban',
+    selectLoop: 'Wybierz pętlę…',
+    noLoops: 'Brak pętli kanban',
+    loopEmpty: 'Ta pętla nie ma żadnych kart',
+    columnEmpty: 'Brak kart o tym statusie',
+    notFound: 'Nie znaleziono pętli lub brak dostępu',
+    notFoundHint: 'Pętla może należeć do innej organizacji — wybierz inną pętlę.',
+    cardNumber: 'Numer karty',
+    product: 'Produkt',
+    workCenter: 'Stanowisko',
+    warehouse: 'Magazyn',
+    cardQuantity: 'Ilość na karcie',
+    consume: 'Zużyj',
+    order: 'Zamów',
+    replenish: 'Uzupełnij',
+    consumed: 'Karta zużyta — status Empty',
+    ordered: 'Karta zamówiona — status Ordered',
+    replenished: 'Karta uzupełniona — status Full',
+    illegalTransition: 'Niedozwolona zmiana statusu — odśwież tablicę',
+    wipLimitNotice: 'Przekroczono limit obiegu (WIP) — nie można zamówić kolejnej karty',
+    inactiveLoopNotice: 'Pętla jest nieaktywna — nie można uzupełnić karty',
+    statuses: {
+      1: 'Pełne',
+      2: 'Puste',
+      3: 'Zamówione'
+    }
+  },
   scrap: {
     title: 'Braki',
     subtitle: 'Ewidencja braków ze stanowisk z kodami przyczyn',
@@ -669,6 +700,7 @@ const en: typeof pl = {
     productionLots: 'Lots',
     productionTelemetry: 'Telemetry',
     productionTelemetryDashboard: 'Telemetry dashboard',
+    productionKanban: 'Kanban',
     schedule: 'Schedule',
     reports: 'Reports',
     configuration: 'Configuration',
@@ -1196,6 +1228,36 @@ const en: typeof pl = {
       truncated: 'Results truncated — narrow the depth or change the root lot',
       switchRoot: 'Set as root',
       notFound: 'Lot not found or access denied'
+    }
+  },
+  kanban: {
+    title: 'Kanban',
+    subtitle: 'Pull replenishment board — Full / Empty / Ordered signals',
+    loop: 'Kanban loop',
+    selectLoop: 'Select a loop…',
+    noLoops: 'No kanban loops',
+    loopEmpty: 'This loop has no cards',
+    columnEmpty: 'No cards with this status',
+    notFound: 'Loop not found or access denied',
+    notFoundHint: 'The loop may belong to another organization — pick a different loop.',
+    cardNumber: 'Card number',
+    product: 'Product',
+    workCenter: 'Work center',
+    warehouse: 'Warehouse',
+    cardQuantity: 'Card quantity',
+    consume: 'Consume',
+    order: 'Order',
+    replenish: 'Replenish',
+    consumed: 'Card consumed — Empty status',
+    ordered: 'Card ordered — Ordered status',
+    replenished: 'Card replenished — Full status',
+    illegalTransition: 'Illegal status transition — refresh the board',
+    wipLimitNotice: 'Circulation (WIP) limit exceeded — cannot order another card',
+    inactiveLoopNotice: 'Loop is inactive — cannot replenish the card',
+    statuses: {
+      1: 'Full',
+      2: 'Empty',
+      3: 'Ordered'
     }
   },
   scrap: {
