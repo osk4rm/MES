@@ -783,6 +783,9 @@ jobs:
           source scripts/ci/swarm-lib.sh
           # Always clean stale locks first — a lost job must not block a slot.
           swarm_cleanup_stale_locks
+          # Heal stage PRs whose retrigger event never fired (bot-actor runs
+          # emit no workflow_run) — re-fires ai:review/verify/e2e/ready labels.
+          swarm_nudge_stuck_prs
           if [ "$(swarm_in_flight_count)" -ge "${MAX_PARALLEL:-3}" ]; then
             echo "at capacity; nothing to sweep"
             exit 0
