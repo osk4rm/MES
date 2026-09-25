@@ -1,89 +1,21 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
 using AsistOff.MES.Integration.Tests.Infrastructure;
 
 namespace AsistOff.MES.Integration.Tests.Endpoints;
 
 /// <summary>
 /// Endpoint-scoped integration tests for the observability slice (issue
-/// #252): the <c>X-Correlation-ID</c> bridge (echo on every response,
-/// <c>traceId</c> in error envelopes), the Prometheus scrape endpoint
-/// (200 with exposition content when enabled, 404 when disabled), OTLP
-/// no-op boot, and the tenant-read auth regression guard.
+/// #252): the Prometheus scrape endpoint (200 with exposition content when
+/// enabled, 404 when disabled), OTLP no-op boot, and the tenant-read auth
+/// regression guard. The <c>X-Correlation-ID</c> echo contract itself is
+/// covered by <c>CorrelationIdEndpointTests</c> (issue #251); these tests
+/// only assert the echoed id is present alongside observability behaviour.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class ObservabilityEndpointTests(MesApplicationFixture fixture) : IntegrationTestBase(fixture)
 {
     private const string CorrelationHeader = "X-Correlation-ID";
-
-    [Fact]
-    public async Task Request_WithoutCorrelationId_ReturnsEchoedGuid()
-    {
-        // Arrange - anonymous client, no correlation header.
-        using var client = Fixture.CreateClient();
-
-        // Act
-        var response = await client.GetAsync("/health/live");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var echoed = GetCorrelationId(response);
-        Guid.TryParse(echoed, out _).Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task Request_WithValidCorrelationId_EchoesItVerbatim()
-    {
-        // Arrange
-        using var client = Fixture.CreateClient();
-        var correlationId = Guid.NewGuid().ToString();
-        client.DefaultRequestHeaders.Add(CorrelationHeader, correlationId);
-
-        // Act
-        var response = await client.GetAsync("/health/live");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        GetCorrelationId(response).Should().Be(correlationId);
-    }
-
-    [Fact]
-    public async Task Request_WithInvalidCorrelationId_ReplacesItWithFreshGuid()
-    {
-        // Arrange
-        using var client = Fixture.CreateClient();
-        client.DefaultRequestHeaders.Add(CorrelationHeader, "not-a-guid");
-
-        // Act
-        var response = await client.GetAsync("/health/live");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var echoed = GetCorrelationId(response);
-        echoed.Should().NotBe("not-a-guid");
-        Guid.TryParse(echoed, out _).Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task ErrorResponse_ContainsTraceIdMatchingCorrelationHeader()
-    {
-        // Arrange - authenticated client asking for a product that cannot exist.
-        using var client = await Fixture.CreateAuthenticatedClientAsync();
-        var correlationId = Guid.NewGuid().ToString();
-        client.DefaultRequestHeaders.Add(CorrelationHeader, correlationId);
-
-        // Act
-        var response = await client.GetAsync($"/api/products/{Guid.NewGuid()}");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        GetCorrelationId(response).Should().Be(correlationId);
-
-        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        body.RootElement.TryGetProperty("traceId", out var traceId).Should().BeTrue();
-        traceId.GetString().Should().Be(correlationId);
-    }
 
     [Fact]
     public async Task MetricsEndpoint_WhenDisabled_Returns404()
@@ -115,11 +47,13 @@ public sealed class ObservabilityEndpointTests(MesApplicationFixture fixture) : 
             await client.GetAsync("/health/live");
             var response = await client.GetAsync("/metrics");
 
-            // Assert
+            // Assert - Prometheus exposition content type plus both the
+            // request duration histogram and its count series.
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             response.Content.Headers.ContentType?.MediaType.Should().Be("text/plain");
             var body = await response.Content.ReadAsStringAsync();
             body.Should().Contain("http_server_request_duration");
+            body.Should().Contain("http_server_request_duration_count");
         }
         finally
         {

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Shared.Infrastructure.Correlation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -34,11 +35,9 @@ public static class ObservabilityRegistration
         services.Configure<ObservabilityOptions>(
             configuration.GetSection(ObservabilityOptions.SectionName));
 
-        var resource = ResourceBuilder.CreateDefault()
-            .AddService(options.ServiceName, serviceVersion: options.ServiceVersion);
+        var resource = BuildResourceBuilder(options);
 
-        var sampler = new ParentBasedSampler(
-            new TraceIdRatioBasedSampler(options.GetSamplingRatio()));
+        var sampler = BuildSampler(options);
 
         services.AddOpenTelemetry()
             .WithTracing(tracing => tracing
@@ -61,6 +60,23 @@ public static class ObservabilityRegistration
 
         return services;
     }
+
+    /// <summary>
+    /// Builds the OpenTelemetry resource carrying the configured
+    /// <c>service.name</c> / <c>service.version</c> identity (internal seam
+    /// for tests: asserts the service name exported with every span).
+    /// </summary>
+    internal static ResourceBuilder BuildResourceBuilder(ObservabilityOptions options) =>
+        ResourceBuilder.CreateDefault()
+            .AddService(options.ServiceName, serviceVersion: options.ServiceVersion);
+
+    /// <summary>
+    /// Builds the root sampler: a parent-based sampler honouring upstream
+    /// W3C <c>traceparent</c> decisions, falling back to the configured
+    /// sampling ratio (clamped to <c>[0, 1]</c>).
+    /// </summary>
+    internal static ParentBasedSampler BuildSampler(ObservabilityOptions options) =>
+        new(new TraceIdRatioBasedSampler(options.GetSamplingRatio()));
 
     /// <summary>
     /// Maps the Prometheus scrape endpoint (<c>/metrics</c>) when
@@ -125,10 +141,10 @@ public static class ObservabilityRegistration
     {
         var context = response.HttpContext;
 
-        var correlationId = CorrelationIdHelper.GetEffectiveCorrelationId(context);
+        var correlationId = CorrelationIds.GetCurrent(context);
         if (correlationId is not null)
         {
-            activity.SetTag(CorrelationIdHelper.ActivityTagKey, correlationId);
+            activity.SetTag(CorrelationIds.ActivityTagKey, correlationId);
         }
 
         var accessor = context.RequestServices.GetService<ICurrentTenantAccessor>();
