@@ -1,3 +1,4 @@
+using AsistOff.MES.Production.Application.Features.AuditEvents;
 using AsistOff.MES.Production.Application.Telemetry;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Production.Infrastructure.Configurations;
@@ -21,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IOperationTemplatesRepository, OperationTemplatesRepository>();
         services.AddScoped<IProductionOrdersRepository, ProductionOrdersRepository>();
         services.AddScoped<IProductionConfirmationsRepository, ProductionConfirmationsRepository>();
+        services.AddScoped<IAuditEventsRepository, AuditEventsRepository>();
         services.AddScoped<ISpcCharacteristicsRepository, SpcCharacteristicsRepository>();
         services.AddScoped<ISpcMeasurementsRepository, SpcMeasurementsRepository>();
         services.AddScoped<IDowntimeEventsRepository, DowntimeEventsRepository>();

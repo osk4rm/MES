@@ -50,6 +50,7 @@ namespace AsistOff.MES.Shared.Infrastructure
         {
             services.AddScoped<PublishDomainEventsInterceptor>();
             services.AddScoped<AuditableEntityInterceptor>();
+            services.AddScoped<AuditHistoryInterceptor>();
             services.AddScoped<SaasyEntityInterceptor>();
             services.AddScoped<IEntityConfigurator, SharedAuditEntityConfigurator>();
 

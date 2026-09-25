@@ -39,9 +39,17 @@ internal sealed class ProductionOrdersRepository(DefaultContext context) : IProd
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        await context.Set<ProductionOrder>()
-            .Where(x => x.Id == id)
-            .ExecuteDeleteAsync(cancellationToken);
+        // Tracked remove (not ExecuteDeleteAsync) so the AuditHistoryInterceptor
+        // observes the delete and appends the history row in the same transaction.
+        var order = await context.Set<ProductionOrder>()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (order is null)
+        {
+            return;
+        }
+
+        context.Set<ProductionOrder>().Remove(order);
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     public Task<bool> CodeExistsAsync(string code, Guid? excludeId, CancellationToken cancellationToken = default)

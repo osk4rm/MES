@@ -45,8 +45,16 @@ internal sealed class MachinesRepository(DefaultContext context) : IMachinesRepo
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        await context.Set<Machine>()
-            .Where(x => x.Id == id)
-            .ExecuteDeleteAsync(cancellationToken);
+        // Tracked remove (not ExecuteDeleteAsync) so the AuditHistoryInterceptor
+        // observes the delete and appends the history row in the same transaction.
+        var machine = await context.Set<Machine>()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (machine is null)
+        {
+            return;
+        }
+
+        context.Set<Machine>().Remove(machine);
+        await context.SaveChangesAsync(cancellationToken);
     }
 }
