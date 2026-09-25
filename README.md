@@ -107,6 +107,21 @@ dotnet run --project AsistOff.MES.Gateway         # http://localhost:5080
 
 Connection string is in `AsistOff.MES.Gateway/appsettings.*.json` (key: `Postgres:ConnectionString`). Migrations are applied automatically at startup.
 
+### Health probes
+
+Container orchestrators gate traffic and restarts on three anonymous,
+tenant-agnostic endpoints (no auth, never rate-limited):
+
+| Probe | Purpose | Healthy | Unhealthy |
+|-------|---------|---------|-----------|
+| `GET /health/live` | Liveness: the process is running and serving traffic (touches no dependencies) | `200` | — (fails only if the process itself is down) |
+| `GET /health/ready` | Readiness: PostgreSQL is reachable | `200` | `503` with `application/problem+json` |
+| `GET /health` | Backwards-compatible alias of readiness for existing callers | `200` | `503` with `application/problem+json` |
+
+Readiness failures return a generic RFC 7807 body and never include
+connection strings or secrets. Suggested wiring: liveness probe →
+`GET /health/live`, readiness probe → `GET /health/ready`.
+
 ### Frontend
 
 ```bash
