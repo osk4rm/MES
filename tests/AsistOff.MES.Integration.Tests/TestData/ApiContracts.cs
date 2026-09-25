@@ -402,6 +402,21 @@ public sealed record ReliabilitySnapshotDto(
     double? MttrMinutes,
     double? AvgRepairMinutes);
 
+/// <summary>Shape of one fleet row returned by <c>/api/reliability/fleet</c>.</summary>
+public sealed record ReliabilityFleetRowDto(
+    Guid MachineId,
+    string MachineCode,
+    string MachineName,
+    Guid? DepartmentId,
+    int FailureCount,
+    int RepairCount,
+    double WindowMinutes,
+    double UptimeMinutes,
+    double TotalDowntimeMinutes,
+    double? MtbfMinutes,
+    double? MttrMinutes,
+    double? AvgRepairMinutes);
+
 /// <summary>Shape of an OPC UA connection as returned by <c>/api/opcua-connections</c>.</summary>
 public sealed record OpcUaConnectionDto(
     Guid Id,
