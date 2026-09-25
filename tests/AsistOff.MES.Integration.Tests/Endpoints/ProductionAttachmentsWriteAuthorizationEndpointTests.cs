@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AsistOff.MES.Integration.Tests.Infrastructure;
 using AsistOff.MES.Integration.Tests.TestData;
+using AsistOff.MES.Shared.Infrastructure.Auth;
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
@@ -158,8 +159,7 @@ public sealed class ProductionAttachmentsWriteAuthorizationEndpointTests(MesAppl
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var token = await ReadAsync<SignInResponse>(response);
-        return token.AccessToken;
+        return MesApplicationFixture.ExtractCookie(response, AuthCookies.AccessCookieName);
     }
 
     private async Task<HttpClient> ClientForAsync(string email, string password)
@@ -299,8 +299,6 @@ public sealed class ProductionAttachmentsWriteAuthorizationEndpointTests(MesAppl
 
         return operation!.Id;
     }
-
-    private sealed record SignInResponse(string AccessToken);
 
     private sealed record ProductionOrderDto(Guid Id);
 

@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Multitenancy.Repositories;
 using AsistOff.MES.Shared.Abstractions.Auth;
@@ -73,13 +75,88 @@ public class RefreshTokenRequestHandler : IRequestHandler<RefreshTokenRequest, J
 
         using (BackgroundTenantContext.BeginScope(stored.TenantId))
         {
-            return await RotateAsync(stored, cancellationToken);
+            return await RotateAsync(stored, request.AccessToken, cancellationToken);
         }
     }
 
-    private async Task<JsonWebToken> RotateAsync(RefreshToken stored, CancellationToken cancellationToken)
+    /// <summary>
+    /// Cross-tenant binding for cookie transport: when the caller presents an
+    /// ambient access session (header or access cookie) whose <c>tenant_id</c>
+    /// differs from the refresh row's tenant, rotation is rejected with 401
+    /// before any state changes, so a refresh cookie issued under tenant A can
+    /// never mint a session for a tenant B caller. Anonymous callers (no
+    /// ambient token, or an unparseable one such as a stale foreign token)
+    /// proceed — the opaque refresh token itself is the credential and its
+    /// tenant still comes from the stored row, never from caller input.
+    /// The ambient token's signature is intentionally not verified here; the
+    /// endpoint is anonymous by design and signature enforcement belongs to
+    /// the JWT Bearer pipeline on authenticated endpoints.
+    /// </summary>
+    private void RejectCrossTenantRefresh(RefreshToken stored, string? ambientAccessToken)
+    {
+        var ambientTenantId = TryReadTenantId(ambientAccessToken);
+        if (ambientTenantId.HasValue && ambientTenantId.Value != stored.TenantId)
+        {
+            _logger.LogWarning(
+                "Refresh rejected: ambient tenant {AmbientTenantId} does not match refresh token tenant {StoredTenantId}",
+                ambientTenantId.Value, stored.TenantId);
+            throw new AuthenticationException("Refresh token does not match the current session");
+        }
+    }
+
+    /// <summary>
+    /// Reads the <c>tenant_id</c> claim from a raw JWT payload without
+    /// validating the signature (see <see cref="RejectCrossTenantRefresh"/>).
+    /// Returns <c>null</c> for missing, malformed or tenant-less tokens so the
+    /// caller is treated as anonymous.
+    /// </summary>
+    private static Guid? TryReadTenantId(string? accessToken)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                return null;
+            }
+
+            var parts = accessToken.Split('.');
+            if (parts.Length != 3)
+            {
+                return null;
+            }
+
+            var payload = parts[1].Replace('-', '+').Replace('_', '/');
+            payload += new string('=', (4 - payload.Length % 4) % 4);
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+
+            using var document = JsonDocument.Parse(json);
+            if (!document.RootElement.TryGetProperty("tenant_id", out var tenantElement))
+            {
+                return null;
+            }
+
+            string? value = tenantElement.ValueKind switch
+            {
+                JsonValueKind.String => tenantElement.GetString(),
+                JsonValueKind.Array => tenantElement.EnumerateArray()
+                    .Select(e => e.ValueKind == JsonValueKind.String ? e.GetString() : e.ToString())
+                    .FirstOrDefault(),
+                _ => tenantElement.ToString()
+            };
+
+            return Guid.TryParse(value, out var tenantId) ? tenantId : null;
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private async Task<JsonWebToken> RotateAsync(RefreshToken stored, string? ambientAccessToken, CancellationToken cancellationToken)
     {
         var now = _dateTimeProvider.UtcNow;
+
+        RejectCrossTenantRefresh(stored, ambientAccessToken);
 
         if (stored.IsRevoked && stored.ReplacedByHash is not null)
         {

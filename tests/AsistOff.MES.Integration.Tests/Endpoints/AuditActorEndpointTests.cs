@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using AsistOff.MES.Integration.Tests.Infrastructure;
 using AsistOff.MES.Integration.Tests.TestData;
+using AsistOff.MES.Shared.Infrastructure.Auth;
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
@@ -184,8 +185,7 @@ public sealed class AuditActorEndpointTests(MesApplicationFixture fixture) : Int
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var token = await ReadAsync<SignInResponse>(response);
-        return token.AccessToken;
+        return MesApplicationFixture.ExtractCookie(response, AuthCookies.AccessCookieName);
     }
 
     private HttpClient ClientWithToken(string accessToken)
@@ -253,6 +253,4 @@ public sealed class AuditActorEndpointTests(MesApplicationFixture fixture) : Int
         Guid.TryParse(sub, out var userId).Should().BeTrue("JWT must carry the caller user id in sub");
         return userId;
     }
-
-    private sealed record SignInResponse(string AccessToken);
 }

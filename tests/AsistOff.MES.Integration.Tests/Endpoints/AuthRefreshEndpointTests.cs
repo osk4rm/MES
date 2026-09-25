@@ -38,7 +38,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var token = await ReadAsync<AuthTokensDto>(response);
+        var token = ReadCookies(response);
         token.AccessToken.Should().NotBeNullOrWhiteSpace();
         token.RefreshToken.Should().NotBeNullOrWhiteSpace();
     }
@@ -56,7 +56,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
 
         // Assert — new pair issued, refresh token changed, access token usable.
         refresh.StatusCode.Should().Be(HttpStatusCode.OK);
-        var rotated = await ReadAsync<AuthTokensDto>(refresh);
+        var rotated = ReadCookies(refresh);
         rotated.AccessToken.Should().NotBeNullOrWhiteSpace();
         rotated.RefreshToken.Should().NotBeNullOrWhiteSpace();
         rotated.RefreshToken.Should().NotBe(tokens.RefreshToken);
@@ -176,7 +176,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     }
 
     [Fact]
-    public async Task Refresh_WithTenantAToken_CannotMintTenantBSession()
+    public async Task Refresh_WithTenantAToken_WhileAuthenticatedAsTenantB_Returns401()
     {
         // Arrange — two tenants; the attacker holds tenant B's access token and
         // tenant A's refresh token.
@@ -194,10 +194,13 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         // Act — refresh tenant A's token while presenting tenant B's session.
         var refresh = await attacker.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokensA.RefreshToken });
 
-        // Assert — the minted session stays bound to tenant A, never tenant B.
-        refresh.StatusCode.Should().Be(HttpStatusCode.OK);
-        var rotated = await ReadAsync<AuthTokensDto>(refresh);
-        ReadClaim(rotated.AccessToken, "tenant_id").Should().Be(tenantA);
+        // Assert — cross-tenant refresh is rejected before any state changes,
+        // so tenant A's token still rotates anonymously afterwards.
+        refresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        using var anonymous = Fixture.CreateClient();
+        var retry = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokensA.RefreshToken });
+        retry.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     private async Task<(HttpClient Client, AuthTokensDto Tokens)> SignInAsync(
@@ -210,11 +213,17 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
             password = password ?? IntegrationTestData.AdminPassword
         });
         response.EnsureSuccessStatusCode();
-        var tokens = await ReadAsync<AuthTokensDto>(response);
+        // Cookie transport (#241): the body carries no tokens; the pair is
+        // read from Set-Cookie and the access token is replayed as a header.
+        var tokens = ReadCookies(response);
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         return (client, tokens);
     }
+
+    private static AuthTokensDto ReadCookies(HttpResponseMessage response) => new(
+        MesApplicationFixture.ExtractCookie(response, AuthCookies.AccessCookieName),
+        MesApplicationFixture.ExtractCookie(response, AuthCookies.RefreshCookieName));
 
     /// <summary>
     /// Re-signs the claims of a valid access token with the host's own key and
