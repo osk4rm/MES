@@ -32,4 +32,19 @@ describe('resolveSafeRedirect', () => {
     expect(resolveSafeRedirect(undefined)).toBe(fallbackRedirect);
     expect(resolveSafeRedirect(null)).toBe(fallbackRedirect);
   });
+
+  // Post-login targets (issue #242): deep board paths with their query
+  // survive, while multi-value query params fall back to the board.
+  it('keeps deep paths with query strings', () => {
+    expect(resolveSafeRedirect('/production/orders?page=2')).toBe('/production/orders?page=2');
+    expect(resolveSafeRedirect('/schedule')).toBe('/schedule');
+  });
+
+  it('rejects array query values', () => {
+    expect(resolveSafeRedirect(['/dashboard'])).toBe(fallbackRedirect);
+  });
+
+  it('rejects javascript pseudo-protocol targets', () => {
+    expect(resolveSafeRedirect('javascript:alert(1)')).toBe(fallbackRedirect);
+  });
 });

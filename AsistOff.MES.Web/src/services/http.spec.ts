@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ensureCorrelationId } from './http';
+import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import http, { buildLoginRedirectUrl, ensureCorrelationId, isAuthEndpoint } from './http';
 import { CORRELATION_ID_HEADER } from './correlation';
 
 const GUID_PATTERN =
@@ -20,6 +21,14 @@ function axiosLikeHeaders(initial: Record<string, string> = {}): {
       store.set(name.toLowerCase(), value);
     }
   };
+}
+
+function readHeader(headers: unknown, name: string): unknown {
+  if (headers !== null && typeof headers === 'object' && typeof (headers as { get?: unknown }).get === 'function') {
+    return (headers as { get: (header: string) => unknown }).get(name);
+  }
+  const record = headers as Record<string, unknown> | undefined;
+  return record?.[name] ?? record?.[name.toLowerCase()];
 }
 
 describe('ensureCorrelationId', () => {
@@ -51,5 +60,59 @@ describe('ensureCorrelationId', () => {
     const second = ensureCorrelationId(headers);
 
     expect(second).toBe(first);
+  });
+});
+
+// Cookie transport (issue #242): API calls travel with httpOnly cookies
+// (withCredentials) and must never carry an Authorization bearer header,
+// because JavaScript never sees a usable token.
+describe('http cookie transport', () => {
+  it('sends cookies and never injects a bearer token', async () => {
+    let captured: InternalAxiosRequestConfig | undefined;
+
+    await http.get('/api/probe', {
+      adapter: async (config: InternalAxiosRequestConfig): Promise<AxiosResponse> => {
+        captured = config;
+        return { data: {}, status: 200, statusText: 'OK', headers: {}, config };
+      }
+    });
+
+    expect(captured?.withCredentials).toBe(true);
+    expect(readHeader(captured?.headers, 'Authorization')).toBeUndefined();
+    expect(typeof readHeader(captured?.headers, CORRELATION_ID_HEADER)).toBe('string');
+  });
+});
+
+describe('isAuthEndpoint', () => {
+  it('matches the cookie session endpoints', () => {
+    expect(isAuthEndpoint('/api/auth/sign-in')).toBe(true);
+    expect(isAuthEndpoint('/api/auth/refresh')).toBe(true);
+    expect(isAuthEndpoint('/api/auth/sign-out')).toBe(true);
+  });
+
+  it('does not match domain endpoints or missing urls', () => {
+    expect(isAuthEndpoint('/api/products')).toBe(false);
+    expect(isAuthEndpoint(undefined)).toBe(false);
+  });
+});
+
+// Expired sessions bounce to login with the original path preserved as
+// ?redirect (no tokens in the URL); auth pages handle 401 themselves.
+describe('buildLoginRedirectUrl', () => {
+  it('preserves the current path as the redirect param', () => {
+    expect(buildLoginRedirectUrl('/reports/oee', '')).toBe('/login?redirect=%2Freports%2Foee');
+  });
+
+  it('preserves query strings without leaking tokens', () => {
+    const target = buildLoginRedirectUrl('/production/orders', '?page=2');
+
+    expect(target).toBe('/login?redirect=%2Fproduction%2Forders%3Fpage%3D2');
+    expect(target).not.toMatch(/token|bearer/i);
+  });
+
+  it('skips the redirect on auth pages to avoid loops', () => {
+    expect(buildLoginRedirectUrl('/', '')).toBeNull();
+    expect(buildLoginRedirectUrl('/login', '?redirect=%2Fdashboard')).toBeNull();
+    expect(buildLoginRedirectUrl('/register', '')).toBeNull();
   });
 });

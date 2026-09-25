@@ -87,12 +87,12 @@ const { t } = useI18n();
 async function onSubmit() {
   loading.value = true;
   try {
-    // Cookie transport (issue #241): the session arrives via httpOnly
+    // Cookie transport (issue #242): the session arrives via httpOnly
     // Set-Cookie and the body tokens are intentionally empty. A 200
-    // means the cookies were issued, so mark the session authenticated
-    // even when accessToken is an empty string.
-    const response = await signIn({ email: email.value, password: password.value });
-    authStore.setAuth(response.accessToken ?? '', { email: email.value });
+    // means the cookies were issued — only the display email is kept,
+    // in memory, and no token is written to any storage.
+    await signIn({ email: email.value, password: password.value });
+    authStore.setAuth({ email: email.value });
     toast.success(t('auth.signInSuccess'));
     const redirect = route.query['redirect'];
     await router.push(resolveSafeRedirect(redirect));
@@ -104,7 +104,9 @@ async function onSubmit() {
 }
 
 function goRegister() {
-  router.push('/register');
+  // Carry the post-login target through registration so the chain
+  // register -> login lands where the caller intended (issue #242).
+  router.push({ path: '/register', query: route.query });
 }
 </script>
 
