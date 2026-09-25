@@ -1,0 +1,20 @@
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Shared.Abstractions.DAL;
+
+namespace AsistOff.MES.Users.Core.Entities;
+
+/// <summary>
+/// Tenant-scoped permission (e.g. users.read). Codes are unique per tenant.
+/// </summary>
+public class Permission : IEntity, ISaasy, IAuditable
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    public required string Category { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+
+    public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
+}
