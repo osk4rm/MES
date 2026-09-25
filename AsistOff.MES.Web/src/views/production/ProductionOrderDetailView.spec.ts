@@ -141,7 +141,11 @@ function mountDetail(): VueWrapper {
           props: ['open', 'title'],
           template: '<div v-if="open" class="modal-stub"><slot /><slot name="footer" /></div>'
         },
-        AppPageHeader: true,
+        AppPageHeader: {
+          // Default `true` stub drops slots, hiding the #actions report
+          // button behind canReport — render both slots instead.
+          template: '<div class="page-header-stub"><slot /><slot name="actions" /></div>'
+        },
         AppCard: true,
         AppTable: true,
         AppPagination: true,
