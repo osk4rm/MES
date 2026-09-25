@@ -87,6 +87,35 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
         newAccess.Should().NotBeNullOrWhiteSpace();
         newRefresh.Should().NotBeNullOrWhiteSpace();
         newRefresh.Should().NotBe(oldRefresh);
+
+        // Act — the rotated access cookie authenticates reads.
+        using var rotated = AuthCookieHelper.CreateCookieClient(
+            Fixture, AuthCookieHelper.BuildCookieHeader(newAccess, newRefresh));
+        var probe = await rotated.GetAsync(ProductsUrl);
+
+        // Assert
+        probe.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Refresh_WithSameOriginHeader_Rotates()
+    {
+        // Arrange — same-host browser callers (e.g. the Vite dev proxy on
+        // another port) pass the Origin check on cookie writes.
+        var cookies = await SignInCookiesAsync();
+        using var client = Fixture.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, RefreshUrl)
+        {
+            Content = JsonContent.Create(new { })
+        };
+        request.Headers.Add("Cookie", cookies);
+        request.Headers.Add("Origin", "http://localhost");
+
+        // Act
+        var response = await client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
