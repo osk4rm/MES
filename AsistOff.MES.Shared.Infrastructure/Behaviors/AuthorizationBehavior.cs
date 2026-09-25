@@ -7,8 +7,8 @@ namespace AsistOff.MES.Shared.Infrastructure.Behaviors
 {
     /// <summary>
     /// MediatR pipeline step enforcing declarative <see cref="RequirePermissionAttribute"/>
-    /// permissions with default-deny for the slice-1 modules (Users, Multitenancy,
-    /// Configuration — issue #231).
+    /// permissions with default-deny for all modules (issues #231 slice 1/2 and
+    /// #233 slice 2/2: Users, Multitenancy, Configuration, Production, Attachments).
     ///
     /// Resolution order:
     /// <list type="number">
@@ -18,8 +18,8 @@ namespace AsistOff.MES.Shared.Infrastructure.Behaviors
     /// <item>Requests on the documented <see cref="AuthorizationAllowlist"/> (reads,
     /// session maintenance, anonymous bootstrap) pass through unchanged.</item>
     /// <item>Requests from the legacy pass-through assemblies
-    /// (<see cref="AuthorizationAllowlist.LegacyPassthroughAssemblyNames"/>, i.e.
-    /// Production and Attachments) pass through unchanged until slice 2/2.</item>
+    /// (<see cref="AuthorizationAllowlist.LegacyPassthroughAssemblyNames"/>, empty
+    /// since slice 2/2) pass through unchanged.</item>
     /// <item>Anything else is rejected with <see cref="ForbiddenException"/> instead of
     /// executing, so a new write added without coverage fails closed.</item>
     /// </list>

@@ -22,6 +22,12 @@ public class RbacDefaultsTests
             "configuration",
             "configuration.read",
             "configuration.write",
+            "production",
+            "production.read",
+            "production.write",
+            "attachments",
+            "attachments.read",
+            "attachments.write",
             "tenant.admin");
     }
 
@@ -34,7 +40,9 @@ public class RbacDefaultsTests
         // Assert — parity with SignInRequestHandler.ResolvePermissions non-admin branch.
         user.Should().BeEquivalentTo(
             "users.read",
-            "configuration.read");
+            "configuration.read",
+            "production.read",
+            "attachments.read");
     }
 
     [Fact]
