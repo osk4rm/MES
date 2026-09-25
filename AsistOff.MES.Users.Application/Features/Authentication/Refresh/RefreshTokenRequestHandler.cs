@@ -23,8 +23,6 @@ public class RefreshTokenRequestHandler : IRequestHandler<RefreshTokenRequest, J
     private readonly AuthOptions _authOptions;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IGuidProvider _guidProvider;
-    private readonly ICurrentTenantAccessor _tenantAccessor;
-    private readonly ICurrentUserAccessor _userAccessor;
     private readonly ILogger<RefreshTokenRequestHandler> _logger;
 
     public RefreshTokenRequestHandler(
@@ -37,8 +35,6 @@ public class RefreshTokenRequestHandler : IRequestHandler<RefreshTokenRequest, J
         AuthOptions authOptions,
         IDateTimeProvider dateTimeProvider,
         IGuidProvider guidProvider,
-        ICurrentTenantAccessor tenantAccessor,
-        ICurrentUserAccessor userAccessor,
         ILogger<RefreshTokenRequestHandler> logger)
     {
         _refreshTokens = refreshTokens;
@@ -50,33 +46,40 @@ public class RefreshTokenRequestHandler : IRequestHandler<RefreshTokenRequest, J
         _authOptions = authOptions;
         _dateTimeProvider = dateTimeProvider;
         _guidProvider = guidProvider;
-        _tenantAccessor = tenantAccessor;
-        _userAccessor = userAccessor;
         _logger = logger;
     }
 
     public async Task<JsonWebToken> Handle(RefreshTokenRequest request, CancellationToken cancellationToken)
     {
-        if (!_tenantAccessor.TryGetTenantId(out var tenantId) || tenantId == Guid.Empty)
-        {
-            throw new AuthenticationException("No valid tenant found for this request");
-        }
-
-        var currentUserId = _userAccessor.UserId;
-        if (currentUserId is null || currentUserId == Guid.Empty)
+        // Anonymous by design: the caller presents only the opaque refresh token
+        // (their access token may already be expired), so no ambient tenant or
+        // user is required here. The row is resolved pre-authentication by its
+        // unguessable hash; everything below runs inside the stored row's tenant
+        // scope, so a token issued under tenant A can only ever mint a tenant A
+        // session — never a session for tenant B.
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
         {
             throw new AuthenticationException("Invalid refresh token");
         }
 
-        var now = _dateTimeProvider.UtcNow;
         var hash = RefreshTokenHasher.Hash(request.RefreshToken);
-        var stored = await _refreshTokens.GetByHashAsync(hash, cancellationToken);
+        var stored = await _refreshTokens.GetByHashIgnoringQueryFiltersAsync(hash, cancellationToken);
 
-        if (stored is null || stored.UserId != currentUserId.Value)
+        if (stored is null)
         {
-            _logger.LogInformation("Refresh rejected: unknown token for user {UserId}", currentUserId);
+            _logger.LogInformation("Refresh rejected: unknown token");
             throw new AuthenticationException("Invalid refresh token");
         }
+
+        using (BackgroundTenantContext.BeginScope(stored.TenantId))
+        {
+            return await RotateAsync(stored, cancellationToken);
+        }
+    }
+
+    private async Task<JsonWebToken> RotateAsync(RefreshToken stored, CancellationToken cancellationToken)
+    {
+        var now = _dateTimeProvider.UtcNow;
 
         if (stored.IsRevoked && stored.ReplacedByHash is not null)
         {
@@ -89,23 +92,24 @@ public class RefreshTokenRequestHandler : IRequestHandler<RefreshTokenRequest, J
 
         if (stored.IsRevoked)
         {
-            _logger.LogInformation("Refresh rejected: token revoked for user {UserId}", currentUserId);
+            _logger.LogInformation("Refresh rejected: token revoked");
             throw new AuthenticationException("Invalid refresh token");
         }
 
         if (stored.IsExpired(now))
         {
-            _logger.LogInformation("Refresh rejected: token expired for user {UserId}", currentUserId);
+            _logger.LogInformation("Refresh rejected: token expired");
             throw new AuthenticationException("Refresh token has expired");
         }
 
         var user = await _usersRepository.GetAsync(stored.UserId);
-        if (user is null)
+        if (user is null || user.TenantId != stored.TenantId)
         {
+            _logger.LogInformation("Refresh rejected: user missing or tenant mismatch");
             throw new AuthenticationException("Invalid refresh token");
         }
 
-        var tenant = await _tenantRepository.GetByIdAsync(user.TenantId, cancellationToken);
+        var tenant = await _tenantRepository.GetByIdAsync(stored.TenantId, cancellationToken);
         if (tenant is null || !tenant.IsActive)
         {
             throw new AuthenticationException("Invalid refresh token");
@@ -121,7 +125,7 @@ public class RefreshTokenRequestHandler : IRequestHandler<RefreshTokenRequest, J
         var successor = new RefreshToken
         {
             Id = _guidProvider.NewGuid(),
-            TenantId = user.TenantId,
+            TenantId = stored.TenantId,
             UserId = user.Id,
             TokenHash = nextHash,
             FamilyId = stored.FamilyId,
