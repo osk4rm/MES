@@ -9,6 +9,7 @@ public class BrowseLotGenealogyEdgesRequest
     public Guid? ProducedLotId { get; set; }
     public Guid? ConsumedLotId { get; set; }
     public Guid? ProductionOrderId { get; set; }
+    public Guid? ProductionConfirmationId { get; set; }
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
     public List<string> RawSort { get; set; } = new();
