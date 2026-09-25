@@ -111,6 +111,36 @@ describe('MachinesView capacity and efficiency', () => {
     expect(wrapper.text()).toContain('0.85');
   });
 
+  it('uses step any so native validation accepts round values (E2E: 100 / 0.85)', async () => {
+    const wrapper = mountMachines();
+    await flushPromises();
+
+    const editBtn = wrapper.findAll('button').find((b) => b.attributes('aria-label') === 'common.edit');
+    await editBtn?.trigger('click');
+    await flushPromises();
+
+    // E2E regression (PR #206): min=0.0001 + step=0.5/0.01 rejected every
+    // normal round value (100, 0.85, even defaults 1/1) via native
+    // step-mismatch, so no POST was sent. step="any" disables that check;
+    // range enforcement stays on the backend (Capacity > 0,
+    // EfficiencyFactor in (0, 1] -> 400 + toast).
+    const numbers = wrapper.findAll('.modal-stub input[type="number"]');
+    expect(numbers).toHaveLength(2);
+    expect((numbers[0]?.element as HTMLInputElement).getAttribute('step')).toBe('any');
+    expect((numbers[1]?.element as HTMLInputElement).getAttribute('step')).toBe('any');
+
+    // Round E2E values must be submittable: native validity has no
+    // stepMismatch / range underflow for them.
+    const capacityEl = numbers[0]?.element as HTMLInputElement;
+    const efficiencyEl = numbers[1]?.element as HTMLInputElement;
+    capacityEl.value = '100';
+    efficiencyEl.value = '0.85';
+    expect(capacityEl.validity.stepMismatch).toBe(false);
+    expect(efficiencyEl.validity.stepMismatch).toBe(false);
+    expect(capacityEl.checkValidity()).toBe(true);
+    expect(efficiencyEl.checkValidity()).toBe(true);
+  });
+
   it('edit persists both fields via update and survives a reload (re-fetch)', async () => {
     const wrapper = mountMachines();
     await flushPromises();

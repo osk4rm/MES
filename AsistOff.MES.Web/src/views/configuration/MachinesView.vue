@@ -58,10 +58,10 @@
           <template #default="{ id }"><AppInput :id="id" v-model="form.description" /></template>
         </AppFormField>
         <AppFormField :label="$t('machines.capacity')" required>
-          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.capacity" :min="0.0001" :step="0.5" required :invalid="invalid" /></template>
+          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.capacity" :min="0" step="any" required :invalid="invalid" /></template>
         </AppFormField>
         <AppFormField :label="$t('machines.efficiencyFactor')" required>
-          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.efficiencyFactor" :min="0.0001" :max="1" :step="0.01" required :invalid="invalid" /></template>
+          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.efficiencyFactor" :min="0" :max="1" step="any" required :invalid="invalid" /></template>
         </AppFormField>
         <AppFormField :label="$t('common.active')" class="form-grid__full">
           <template #default><input type="checkbox" v-model="form.isActive" /></template>
