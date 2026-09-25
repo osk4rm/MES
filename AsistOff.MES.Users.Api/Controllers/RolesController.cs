@@ -37,7 +37,7 @@ public class RolesController(ISender sender) : ApiController
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(request, cancellationToken);
-        return CreatedAtAction(nameof(GetAsync), new { id = result.Id }, result);
+        return CreatedAtAction("Get", new { id = result.Id }, result);
     }
 
     [HttpPut("{id:guid}")]
