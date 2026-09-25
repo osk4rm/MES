@@ -16,6 +16,15 @@ internal sealed class StockMovementsRepository(DefaultContext context) : IStockM
             .ThenBy(x => x.Id)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyCollection<StockMovement>> ListAsync(
+        CancellationToken cancellationToken = default)
+        => await context.Set<StockMovement>()
+            .AsNoTracking()
+            .OrderBy(x => x.ProductId)
+            .ThenBy(x => x.WarehouseId)
+            .ThenBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+
     public async Task AddRangeAsync(
         IReadOnlyCollection<StockMovement> entities, CancellationToken cancellationToken = default)
     {

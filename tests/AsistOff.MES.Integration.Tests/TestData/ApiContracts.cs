@@ -310,6 +310,12 @@ public sealed record StockMovementDto(
     Guid ProductionOrderId,
     DateTime ReportedAt);
 
+/// <summary>Shape of one signed balance returned by <c>/api/stock-on-hand</c>. A null warehouse is the unassigned bucket.</summary>
+public sealed record StockOnHandDto(
+    Guid ProductId,
+    Guid? WarehouseId,
+    decimal QuantityOnHand);
+
 /// <summary>Shape of the OEE snapshot returned by <c>/api/oee/snapshot</c>.</summary>
 public sealed record OeeSnapshotDto(
     Guid MachineId,
