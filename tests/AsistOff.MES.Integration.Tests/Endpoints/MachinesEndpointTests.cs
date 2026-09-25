@@ -134,8 +134,10 @@ public sealed class MachinesEndpointTests(MesApplicationFixture fixture) : Integ
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
-    [Fact]
-    public async Task Update_InvalidCapacity_Returns400()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task Update_InvalidCapacity_Returns400(decimal capacity)
     {
         using var client = await Fixture.CreateAuthenticatedClientAsync();
         var created = await CreateMachineAsync(client);
@@ -147,8 +149,31 @@ public sealed class MachinesEndpointTests(MesApplicationFixture fixture) : Integ
             name = created.Name,
             description = created.Description,
             isActive = created.IsActive,
-            capacity = 0m,
+            capacity,
             efficiencyFactor = 1.0m
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-0.5)]
+    [InlineData(1.5)]
+    public async Task Update_EfficiencyOutsideRange_Returns400(decimal efficiencyFactor)
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var created = await CreateMachineAsync(client);
+
+        var response = await client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", new
+        {
+            id = created.Id,
+            code = created.Code,
+            name = created.Name,
+            description = created.Description,
+            isActive = created.IsActive,
+            capacity = 1m,
+            efficiencyFactor
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
