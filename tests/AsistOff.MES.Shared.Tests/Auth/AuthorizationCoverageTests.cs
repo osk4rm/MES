@@ -67,8 +67,11 @@ public class AuthorizationCoverageTests
     public void OnlySignInAndTenantProvisioning_AreAnonymousWrites()
     {
         // Arrange & Act — the only IAllowAnonymousRequest types in the three modules
-        // are the sign-in bootstrap, the tenant provisioning bootstrap and the
-        // single-tenant lookup; both writes are pre-authentication by definition.
+        // are the sign-in bootstrap, the refresh-token rotation bootstrap (#236),
+        // the tenant provisioning bootstrap and the single-tenant lookup; all
+        // writes are pre-authentication by definition (refresh presents only the
+        // opaque token because the access token already expired; tenant binding
+        // comes from the stored refresh-token row, never from caller input).
         var anonymous = CoveredRequests()
             .Where(t => typeof(IAllowAnonymousRequest).IsAssignableFrom(t))
             .Select(t => t.FullName)
@@ -78,6 +81,7 @@ public class AuthorizationCoverageTests
         // Assert
         anonymous.Should().BeEquivalentTo(
             "AsistOff.MES.Users.Application.Features.Authentication.SignIn.SignInRequest",
+            "AsistOff.MES.Users.Application.Features.Authentication.Refresh.RefreshTokenRequest",
             "AsistOff.MES.Multitenancy.Requests.Commands.Create.CreateTenantCommand",
             "AsistOff.MES.Multitenancy.Requests.Queries.GetTenantQuery");
     }
@@ -85,8 +89,9 @@ public class AuthorizationCoverageTests
     [Fact]
     public void EveryCoveredWrite_IsTenantScoped()
     {
-        // Arrange & Act — all covered writes are ITenantRequest; only the two
-        // pre-authentication bootstraps (sign-in, tenant provisioning) opt out.
+        // Arrange & Act — all covered writes are ITenantRequest; only the
+        // pre-authentication bootstraps (sign-in, refresh rotation, tenant
+        // provisioning) opt out via IAllowAnonymousRequest + allowlist.
         var nonTenantWrites = CoveredRequests()
             .Where(HasRequirePermission)
             .Where(t => !IsTenantScoped(t))
