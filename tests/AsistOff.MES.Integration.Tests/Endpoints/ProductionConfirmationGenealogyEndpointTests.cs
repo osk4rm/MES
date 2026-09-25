@@ -176,6 +176,24 @@ public sealed class ProductionConfirmationGenealogyEndpointTests(MesApplicationF
     }
 
     [Fact]
+    public async Task Create_CrossTenantConsumedLot_Returns404()
+    {
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+        var foreignConsumed = await CreateLotAsync(devClient);
+
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var order = await CreateReleasedOrderAsync(client);
+        var produced = await CreateLotAsync(client);
+
+        var response = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(
+            order.Id, producedLotId: produced.Id,
+            consumedLots: new (Guid LotId, decimal Quantity)[] { (foreignConsumed.Id, 5m) }));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Browse_ByConfirmationId_ReturnsCallerTenantRowsOnly()
     {
         using var client = await Fixture.CreateAuthenticatedClientAsync();
