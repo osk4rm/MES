@@ -254,19 +254,34 @@ swarm_ci_state_once() { # <pr> -> pass | fail | approval | running | none
   esac
 }
 
+swarm_branch_busy() { # <branch> -> 0 when a swarm run is still in flight for it
+  # review/verify deliberately do not take ai:running (it is one global in-flight
+  # lock and would block the parallel gate), so the sweeper cannot see them by
+  # label. Without this check it re-fires a stage label while its agent is still
+  # working, and two reviewers can return different verdicts for one diff.
+  gh run list --branch "$1" --limit 20 --json status,workflowName 2>/dev/null \
+    --jq '[.[] | select(.workflowName == "ai-swarm" and .status != "completed")] | length' \
+    | grep -qE '^[1-9]'
+}
+
 swarm_nudge_stuck_prs() { # re-fire stage labels on PRs that lost their trigger
   # A stage job that times out waiting for CI keeps its label and relies on
   # the ci-completed event to retrigger — but workflow_run does not fire for
   # bot-actor runs, so the PR stalls forever. Re-fire the label (remove+add)
   # on any unlocked stage PR whose ci is not still running; the stage job then
-  # re-evaluates immediately (and its wait loop auto-approvals covers
+  # re-evaluates immediately (and its wait loop auto-approves covers
   # action_required runs). Includes ai:changes: a re-route to the fixer that
   # was already labeled emits no event, so this sweep is the safety net.
   # Only PRs WITHOUT ai:running (no live job) and
   # without ai:blocked (human owns those) are touched.
-  local pr label state
-  for pr in $(gh pr list --state open --limit 50 --json number,labels \
+  local pr label state branch
+  for pr in $(gh pr list --state open --limit 50 --json number,headRefName,labels \
     --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not) and (.labels | map(.name) | index("ai:blocked") | not))] | .[].number' 2>/dev/null); do
+    branch=$(gh pr view "$pr" --json headRefName --jq .headRefName 2>/dev/null || true)
+    if [ -n "$branch" ] && swarm_branch_busy "$branch"; then
+      echo "PR #$pr has a run in flight; not nudging"
+      continue
+    fi
     for label in ai:review ai:verify ai:e2e ai:ready ai:changes; do
       if swarm_has_label pr "$pr" "$label"; then
         state=$(swarm_ci_state_once "$pr")
