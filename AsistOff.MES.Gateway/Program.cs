@@ -4,6 +4,7 @@ using AsistOff.MES.Multitenancy;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure;
+using AsistOff.MES.Shared.Infrastructure.Boot;
 using AsistOff.MES.Shared.Infrastructure.Correlation;
 using AsistOff.MES.Shared.Infrastructure.Extensions;
 using AsistOff.MES.Shared.Infrastructure.Health;
@@ -190,14 +191,54 @@ try
         module.Use(app);
     }
 
-    using (var scope = app.Services.CreateScope())
-    {
-        scope.ServiceProvider.ApplyAllPendingMigrations(assemblies);
-        var seeders = scope.ServiceProvider.GetServices(typeof(ISeeder));
-        foreach (var seeder in seeders)
+    // Production boot gate (issue #257): migrations and seeders only run
+    // when the operator explicitly opts in via the Boot section
+    // (Boot:ApplyMigrations / Boot:RunSeeders, or the Boot__* env vars).
+    // Production defaults are both false, so a production boot never
+    // auto-migrates the plant database and never runs seeders; Development
+    // opts back in via appsettings.Development.json (true/true), preserving
+    // the historical dev behavior. Fail fast on contradictory flags.
+    // The branching lives in BootRunner (unit-tested without a database);
+    // the callbacks below wire it to the real EF Core migrations and ISeeders.
+    var bootOptions = builder.Configuration.GetSection(BootOptions.SectionName).Get<BootOptions>()
+        ?? new BootOptions();
+
+    // Migrate-job entrypoint for compose/production: `dotnet
+    // AsistOff.MES.Gateway.dll --migrate-only` applies pending migrations
+    // (and seeders when Boot:RunSeeders is set) and then exits without
+    // serving traffic. The production compose profile runs this as a job
+    // that must complete before the gateway container starts.
+    var bootExecution = await BootRunner.RunAsync(
+        bootOptions,
+        args,
+        migrateAsync: _ =>
         {
-            await ((ISeeder)seeder!).Seed();
-        }
+            using var migrateScope = app.Services.CreateScope();
+            migrateScope.ServiceProvider.ApplyAllPendingMigrations(assemblies);
+            return Task.CompletedTask;
+        },
+        seedAsync: async _ =>
+        {
+            using var seedScope = app.Services.CreateScope();
+            var seeders = seedScope.ServiceProvider.GetServices(typeof(ISeeder));
+            var seederCount = 0;
+            foreach (var seeder in seeders)
+            {
+                await ((ISeeder)seeder!).Seed().ConfigureAwait(false);
+                seederCount++;
+            }
+
+            return seederCount;
+        });
+
+    foreach (var bootMessage in bootExecution.Messages)
+    {
+        Log.Information("{BootMessage}", bootMessage);
+    }
+
+    if (!bootExecution.ServedTraffic)
+    {
+        return;
     }
 
     app.UseHttpsRedirection();
