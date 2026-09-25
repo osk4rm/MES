@@ -94,6 +94,50 @@ describe('productionConfirmationService', () => {
     expect(postMock).toHaveBeenCalledWith('/api/production-confirmations', payload);
   });
 
+  it('create forwards produced and consumed lots so every run leaves a trace', async () => {
+    const created = confirmation({ goodQuantity: 7, scrapQuantity: 1 });
+    postMock.mockResolvedValue({ data: created });
+    const payload = {
+      productionOrderId: 'order-1',
+      machineId: 'machine-1',
+      reportedByOperatorId: null,
+      reportedAt: new Date('2026-09-24T10:00:00Z').toISOString(),
+      goodQuantity: 7,
+      scrapQuantity: 1,
+      notes: null,
+      producedLotId: 'produced-1',
+      consumedLots: [
+        { lotId: 'consumed-a', quantity: 5 },
+        { lotId: 'consumed-b', quantity: 7 }
+      ]
+    };
+
+    const result = await productionConfirmationService.create(payload);
+
+    expect(result).toEqual(created);
+    expect(postMock).toHaveBeenCalledWith('/api/production-confirmations', payload);
+  });
+
+  it('create omits lot references when the operator reports without lots', async () => {
+    const created = confirmation();
+    postMock.mockResolvedValue({ data: created });
+    const payload = {
+      productionOrderId: 'order-1',
+      machineId: 'machine-1',
+      reportedByOperatorId: null,
+      reportedAt: new Date('2026-09-24T10:00:00Z').toISOString(),
+      goodQuantity: 7,
+      scrapQuantity: 1,
+      notes: null,
+      producedLotId: null,
+      consumedLots: []
+    };
+
+    await productionConfirmationService.create(payload);
+
+    expect(postMock).toHaveBeenCalledWith('/api/production-confirmations', payload);
+  });
+
   it('get fetches a single confirmation by id', async () => {
     const record = confirmation();
     getMock.mockResolvedValue({ data: record });

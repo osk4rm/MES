@@ -267,7 +267,22 @@ const pl = {
     scrapQuantity: 'Ilość braków',
     notes: 'Uwagi',
     empty: 'Brak potwierdzeń dla tego zlecenia',
-    positiveQuantityRequired: 'Przynajmniej jedna ilość (dobra lub braków) musi być większa od zera'
+    positiveQuantityRequired: 'Przynajmniej jedna ilość (dobra lub braków) musi być większa od zera',
+    producedLot: 'Wyprodukowana partia',
+    selectProducedLot: 'Wybierz wyprodukowaną partię…',
+    lotsHint: 'Partie są opcjonalne — podanie wyprodukowanej i zużytych partii zapisze ślad genealogii.',
+    consumedLots: 'Zużyte partie',
+    addConsumedLot: 'Dodaj zużytą partię',
+    removeConsumedLot: 'Usuń wiersz',
+    consumedLot: 'Zużyta partia',
+    selectConsumedLot: 'Wybierz partię…',
+    consumedQuantity: 'Zużyta ilość',
+    lotsErrors: {
+      producedRequired: 'Wyprodukowana partia jest wymagana, gdy podano zużyte partie.',
+      lotRequired: 'Każdy wiersz wymaga wybrania partii.',
+      quantityPositive: 'Zużyta ilość musi być większa od zera.',
+      selfLink: 'Zużyta i wyprodukowana partia muszą się różnić.'
+    }
   },
   movements: {
     title: 'Podgląd ruchów RW / PW',
@@ -1143,7 +1158,22 @@ const en: typeof pl = {
     scrapQuantity: 'Scrap quantity',
     notes: 'Notes',
     empty: 'No confirmations for this order yet',
-    positiveQuantityRequired: 'At least one quantity (good or scrap) must be greater than zero'
+    positiveQuantityRequired: 'At least one quantity (good or scrap) must be greater than zero',
+    producedLot: 'Produced lot',
+    selectProducedLot: 'Select produced lot…',
+    lotsHint: 'Lots are optional — providing a produced lot and consumed lots records a genealogy trace.',
+    consumedLots: 'Consumed lots',
+    addConsumedLot: 'Add consumed lot',
+    removeConsumedLot: 'Remove row',
+    consumedLot: 'Consumed lot',
+    selectConsumedLot: 'Select lot…',
+    consumedQuantity: 'Consumed quantity',
+    lotsErrors: {
+      producedRequired: 'Produced lot is required when consumed lots are provided.',
+      lotRequired: 'Each row requires a lot selection.',
+      quantityPositive: 'Consumed quantity must be greater than zero.',
+      selfLink: 'Consumed and produced lots must differ.'
+    }
   },
   movements: {
     title: 'RW / PW movement preview',

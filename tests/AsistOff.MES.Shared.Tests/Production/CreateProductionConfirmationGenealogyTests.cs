@@ -261,6 +261,32 @@ public class CreateProductionConfirmationGenealogyTests
     }
 
     [Fact]
+    public async Task Handle_CrossTenantConsumedLot_ResolvesToNotFound()
+    {
+        // Arrange — same hidden-row path as the produced lot: a consumed lot
+        // from another tenant is invisible behind the global query filter,
+        // so GetAsync returns null and the handler maps it to 404 without
+        // persisting the confirmation (issue #221 remainder).
+        var order = ReleasedOrder();
+        _orders.Setup(r => r.GetAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        var producedId = Guid.NewGuid();
+        var consumedId = Guid.NewGuid();
+        _lots.Setup(r => r.GetAsync(producedId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NewLot(producedId));
+        _lots.Setup(r => r.GetAsync(consumedId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Lot?)null);
+        var request = ValidRequest(order.Id, producedId, new ConsumedLotEntry(consumedId, 5m));
+
+        // Act
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<NotFoundException>();
+        _confirmations.Verify(r => r.AddAsync(It.IsAny<ProductionConfirmation>(), It.IsAny<CancellationToken>()), Times.Never);
+        _edges.Verify(r => r.AddAsync(It.IsAny<LotGenealogyEdge>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_DeleteConfirmation_DeletesAutoPostedEdgesInCode()
     {
         // Arrange
