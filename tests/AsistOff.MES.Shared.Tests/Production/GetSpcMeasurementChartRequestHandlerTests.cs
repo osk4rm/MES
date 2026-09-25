@@ -128,6 +128,115 @@ public class GetSpcMeasurementChartRequestHandlerTests
         var point = result.Points.Should().ContainSingle().Subject;
         point.IsOutOfControl.Should().BeFalse();
         point.IsOutOfSpec.Should().BeTrue();
+        point.ViolatedRules.Should().BeEmpty();
         result.OutOfControlCount.Should().Be(0);
+        result.Rule2ViolationCount.Should().Be(0);
+        result.Rule3ViolationCount.Should().Be(0);
+        result.Rule4ViolationCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Handle_Rule2Sequence_FlagsRule2WithoutOutOfControl()
+    {
+        // 2-sigma upper is 10.13: both 10.15 and 10.16 are beyond it but
+        // within the control limits, so rule 2 fires without rule 1.
+        var characteristic = Characteristic(_characteristicId);
+        Setup(characteristic,
+            Row(_characteristicId, 10.0m, "2026-09-25T10:00:00Z"),
+            Row(_characteristicId, 10.15m, "2026-09-25T11:00:00Z"),
+            Row(_characteristicId, 10.16m, "2026-09-25T12:00:00Z"));
+
+        var result = await CreateSut().Handle(
+            new GetSpcMeasurementChartRequest { CharacteristicId = _characteristicId }, CancellationToken.None);
+
+        var ordered = result.Points.OrderBy(p => p.MeasuredAt).ToList();
+        ordered[0].ViolatedRules.Should().BeEmpty();
+        ordered[1].ViolatedRules.Should().BeEmpty();
+        ordered[2].ViolatedRules.Should().BeEquivalentTo([2]);
+        ordered.Should().OnlyContain(p => !p.IsOutOfControl);
+        result.OutOfControlCount.Should().Be(0);
+        result.Rule2ViolationCount.Should().Be(1);
+        result.Rule3ViolationCount.Should().Be(0);
+        result.Rule4ViolationCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Handle_Rule3Sequence_FlagsRule3WithoutOutOfControl()
+    {
+        // 1-sigma upper is 10.07: four of five beyond it, all within limits.
+        var characteristic = Characteristic(_characteristicId);
+        Setup(characteristic,
+            Row(_characteristicId, 10.0m, "2026-09-25T10:00:00Z"),
+            Row(_characteristicId, 10.08m, "2026-09-25T11:00:00Z"),
+            Row(_characteristicId, 10.09m, "2026-09-25T12:00:00Z"),
+            Row(_characteristicId, 10.10m, "2026-09-25T13:00:00Z"),
+            Row(_characteristicId, 10.11m, "2026-09-25T14:00:00Z"));
+
+        var result = await CreateSut().Handle(
+            new GetSpcMeasurementChartRequest { CharacteristicId = _characteristicId }, CancellationToken.None);
+
+        var ordered = result.Points.OrderBy(p => p.MeasuredAt).ToList();
+        ordered.Take(4).SelectMany(p => p.ViolatedRules).Should().BeEmpty();
+        ordered[4].ViolatedRules.Should().BeEquivalentTo([3]);
+        ordered.Should().OnlyContain(p => !p.IsOutOfControl);
+        result.OutOfControlCount.Should().Be(0);
+        result.Rule2ViolationCount.Should().Be(0);
+        result.Rule3ViolationCount.Should().Be(1);
+        result.Rule4ViolationCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Handle_Rule4Sequence_FlagsRule4WithoutOutOfControl()
+    {
+        // Eight consecutive points above the centre (10) but below 1-sigma:
+        // rule 4 fires on the last point, rules 1-3 stay quiet.
+        var characteristic = Characteristic(_characteristicId);
+        Setup(characteristic,
+            Row(_characteristicId, 10.05m, "2026-09-25T10:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T11:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T12:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T13:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T14:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T15:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T16:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T17:00:00Z"));
+
+        var result = await CreateSut().Handle(
+            new GetSpcMeasurementChartRequest { CharacteristicId = _characteristicId }, CancellationToken.None);
+
+        var ordered = result.Points.OrderBy(p => p.MeasuredAt).ToList();
+        ordered.Take(7).SelectMany(p => p.ViolatedRules).Should().BeEmpty();
+        ordered[7].ViolatedRules.Should().BeEquivalentTo([4]);
+        ordered.Should().OnlyContain(p => !p.IsOutOfControl);
+        result.OutOfControlCount.Should().Be(0);
+        result.Rule2ViolationCount.Should().Be(0);
+        result.Rule3ViolationCount.Should().Be(0);
+        result.Rule4ViolationCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Handle_UnsortedRepositoryRows_EvaluatesInMeasuredAtOrder()
+    {
+        // Rows arrive out of order; rule 4 must still complete on the
+        // chronologically last point, proving deterministic ordering.
+        var characteristic = Characteristic(_characteristicId);
+        Setup(characteristic,
+            Row(_characteristicId, 10.05m, "2026-09-25T17:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T10:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T14:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T12:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T16:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T11:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T15:00:00Z"),
+            Row(_characteristicId, 10.05m, "2026-09-25T13:00:00Z"));
+
+        var result = await CreateSut().Handle(
+            new GetSpcMeasurementChartRequest { CharacteristicId = _characteristicId }, CancellationToken.None);
+
+        var ordered = result.Points.OrderBy(p => p.MeasuredAt).ToList();
+        ordered.Select(p => p.MeasuredAt).Should().BeInAscendingOrder();
+        ordered.Take(7).SelectMany(p => p.ViolatedRules).Should().BeEmpty();
+        ordered[7].ViolatedRules.Should().BeEquivalentTo([4]);
+        result.Rule4ViolationCount.Should().Be(1);
     }
 }

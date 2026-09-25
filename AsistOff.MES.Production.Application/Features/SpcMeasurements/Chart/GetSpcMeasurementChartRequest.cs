@@ -4,7 +4,7 @@ namespace AsistOff.MES.Production.Application.Features.SpcMeasurements.Chart;
 
 /// <summary>
 /// Read-only control chart evaluation for one characteristic: limits plus
-/// one ordered point per measurement with Western Electric rule 1 flags.
+/// one ordered point per measurement with Western Electric rules 1-4 flags.
 /// </summary>
 public class GetSpcMeasurementChartRequest : ITenantRequest<SpcMeasurementChartResponse>
 {
