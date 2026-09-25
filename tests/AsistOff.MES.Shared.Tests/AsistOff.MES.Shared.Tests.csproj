@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\AsistOff.MES.Shared.Abstractions\AsistOff.MES.Shared.Abstractions.csproj" />
+    <ProjectReference Include="..\..\AsistOff.MES.Shared.Infrastructure\AsistOff.MES.Shared.Infrastructure.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Multitenancy\AsistOff.MES.Multitenancy.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Multitenancy.Contracts\AsistOff.MES.Multitenancy.Contracts.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Configuration.Application\AsistOff.MES.Configuration.Application.csproj" />
