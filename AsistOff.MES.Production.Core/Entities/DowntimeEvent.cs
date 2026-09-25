@@ -36,6 +36,8 @@ public class DowntimeEvent : IEntity, ISaasy, IAuditable
 
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedBy { get; set; }
+    public Guid? ModifiedBy { get; set; }
 
     /// <summary>Derived from <see cref="EndedAt"/>, never persisted.</summary>
     public DowntimeEventStatus Status => EndedAt.HasValue ? DowntimeEventStatus.Closed : DowntimeEventStatus.Open;

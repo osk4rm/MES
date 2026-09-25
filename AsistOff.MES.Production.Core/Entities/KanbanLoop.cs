@@ -34,6 +34,8 @@ public class KanbanLoop : IEntity, ISaasy, IAuditable
 
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedBy { get; set; }
+    public Guid? ModifiedBy { get; set; }
 
     public virtual ICollection<KanbanCard> Cards { get; set; } = new List<KanbanCard>();
 }

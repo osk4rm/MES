@@ -14,6 +14,8 @@ public class UserRole : IEntity, ISaasy, IAuditable
     public Guid RoleId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedBy { get; set; }
+    public Guid? ModifiedBy { get; set; }
 
     public virtual User? User { get; set; }
     public virtual Role? Role { get; set; }

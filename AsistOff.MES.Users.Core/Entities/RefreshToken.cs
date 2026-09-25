@@ -25,6 +25,8 @@ public class RefreshToken : IEntity, ISaasy, IAuditable
     public string? RevocationReason { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedBy { get; set; }
+    public Guid? ModifiedBy { get; set; }
 
     public bool IsRevoked => RevokedAtUtc.HasValue;
     public bool IsExpired(DateTime nowUtc) => nowUtc >= ExpiresAtUtc;
