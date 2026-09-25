@@ -63,7 +63,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppInput from '../components/ui/AppInput.vue';
 import AppFormField from '../components/ui/AppFormField.vue';
@@ -82,6 +82,7 @@ const form = reactive({
 
 const loading = ref(false);
 const router = useRouter();
+const route = useRoute();
 const toast = useToastStore();
 const { t } = useI18n();
 
@@ -105,7 +106,9 @@ async function onSubmit() {
       settings: ''
     });
     toast.success(t('auth.registerSuccess'));
-    router.push('/login');
+    // Forward the post-login target (if any) so the register -> login
+    // chain lands where the caller intended (issue #242).
+    await router.push({ path: '/login', query: route.query });
   } catch (err) {
     toast.error(extractErrorMessage(err, t('auth.registerError')));
   } finally {
@@ -113,7 +116,7 @@ async function onSubmit() {
   }
 }
 
-function goLogin() { router.push('/login'); }
+function goLogin() { router.push({ path: '/login', query: route.query }); }
 </script>
 
 <style scoped>

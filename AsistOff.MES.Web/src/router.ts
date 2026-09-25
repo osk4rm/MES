@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from './stores/authStore';
+import { refreshSession } from './services/authService';
 
 const AppShell = () => import('./components/layout/AppShell.vue');
 
@@ -61,11 +62,18 @@ const router = createRouter({
   routes
 });
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore();
-  if (!auth.token) auth.loadAuth();
   const isPublic = to.meta?.public === true;
   if (!isPublic && !auth.isAuthenticated) {
+    // In-memory session is gone after a reload, but the httpOnly cookies
+    // may still be valid — re-prove the session once before bouncing to
+    // login (issue #242). User display info stays unknown until sign-in.
+    const restored = await refreshSession();
+    if (restored) {
+      auth.setAuth(auth.user);
+      return true;
+    }
     return { name: 'login', query: to.fullPath && to.fullPath !== '/' ? { redirect: to.fullPath } : undefined };
   }
   if (isPublic && auth.isAuthenticated && (to.name === 'login' || to.name === 'register')) {
