@@ -434,3 +434,34 @@ public sealed record OpcUaConnectionStatusDto(
     int LiveCount,
     int StaleCount,
     int DisabledCount);
+
+/// <summary>Shape of an SPC measurement as returned by <c>/api/spc-measurements</c>.</summary>
+public sealed record SpcMeasurementDto(
+    Guid Id,
+    Guid CharacteristicId,
+    decimal Value,
+    DateTime MeasuredAt,
+    string? Notes,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>Shape of one evaluated point returned by <c>/api/spc-measurements/chart</c>.</summary>
+public sealed record SpcMeasurementChartPointDto(
+    Guid Id,
+    decimal Value,
+    DateTime MeasuredAt,
+    bool IsOutOfControl,
+    bool IsOutOfSpec);
+
+/// <summary>Shape of the control chart evaluation returned by <c>/api/spc-measurements/chart</c>.</summary>
+public sealed record SpcMeasurementChartDto(
+    Guid CharacteristicId,
+    decimal? NominalValue,
+    decimal? LowerSpecLimit,
+    decimal? UpperSpecLimit,
+    decimal? LowerControlLimit,
+    decimal? UpperControlLimit,
+    IReadOnlyCollection<SpcMeasurementChartPointDto> Points,
+    int TotalCount,
+    int OutOfControlCount,
+    int OutOfSpecCount);

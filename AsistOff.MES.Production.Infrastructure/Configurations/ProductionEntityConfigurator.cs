@@ -19,6 +19,7 @@ public class ProductionEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<ProductionOrder>();
         modelBuilder.Entity<ProductionConfirmation>();
         modelBuilder.Entity<SpcCharacteristic>();
+        modelBuilder.Entity<SpcMeasurement>();
         modelBuilder.Entity<DowntimeEvent>();
         modelBuilder.Entity<Lot>();
         modelBuilder.Entity<LotGenealogyEdge>();

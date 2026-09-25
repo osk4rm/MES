@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IProductionOrdersRepository, ProductionOrdersRepository>();
         services.AddScoped<IProductionConfirmationsRepository, ProductionConfirmationsRepository>();
         services.AddScoped<ISpcCharacteristicsRepository, SpcCharacteristicsRepository>();
+        services.AddScoped<ISpcMeasurementsRepository, SpcMeasurementsRepository>();
         services.AddScoped<IDowntimeEventsRepository, DowntimeEventsRepository>();
         services.AddScoped<IAndonSignalsRepository, AndonSignalsRepository>();
         services.AddScoped<ILotsRepository, LotsRepository>();
