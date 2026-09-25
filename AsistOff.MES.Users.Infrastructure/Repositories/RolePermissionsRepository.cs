@@ -35,4 +35,10 @@ public class RolePermissionsRepository(DefaultContext context) : IRolePermission
         await context.SaveChangesAsync(cancellationToken);
         return rolePermission;
     }
+
+    public async Task RemoveAsync(RolePermission rolePermission, CancellationToken cancellationToken = default)
+    {
+        context.RolePermissions.Remove(rolePermission);
+        await context.SaveChangesAsync(cancellationToken);
+    }
 }

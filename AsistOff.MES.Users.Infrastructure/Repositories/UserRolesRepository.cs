@@ -23,6 +23,13 @@ public class UserRolesRepository(DefaultContext context) : IUserRolesRepository
             .Where(x => x.UserId == userId)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyCollection<UserRole>> BrowseByRoleAsync(Guid roleId, CancellationToken cancellationToken = default)
+        => await context.UserRoles
+            .AsNoTracking()
+            .Include(x => x.User)
+            .Where(x => x.RoleId == roleId)
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyCollection<UserRole>> BrowseAsync(CancellationToken cancellationToken = default)
         => await context.UserRoles
             .AsNoTracking()
@@ -33,5 +40,11 @@ public class UserRolesRepository(DefaultContext context) : IUserRolesRepository
         await context.UserRoles.AddAsync(userRole, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         return userRole;
+    }
+
+    public async Task RemoveAsync(UserRole userRole, CancellationToken cancellationToken = default)
+    {
+        context.UserRoles.Remove(userRole);
+        await context.SaveChangesAsync(cancellationToken);
     }
 }
