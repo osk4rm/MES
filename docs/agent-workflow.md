@@ -339,10 +339,10 @@ werdykty, czekanie na CI) żyją w `scripts/ci/swarm-lib.sh`.
 |---|---|---|
 | issue `labeled ai:implement` | `implement` | implementer → PR + bramki `ai:review` + `ai:verify` równolegle (docs-only: samo `ai:review`); brak PR → retry przez sweep (max 2 próby), potem `ai:blocked` |
 | PR `labeled ai:review` / `synchronize` z `ai:review` / koniec CI (`workflow_run`) | `review` | czeka na CI (max 10 min) → reviewer → join (`swarm_after_review_approved`): `ai:e2e` gdy verify done, `ai:changes` przy odrzuceniu; świeży `APPROVED` na tym samym head SHA = skip bez sesji |
-| PR `labeled ai:verify` | `verify` | verifier read-only, równolegle z review → join (`swarm_after_verify_sound`); świeży `TESTS_SOUND` na tym samym head SHA = skip bez sesji |
+| PR `labeled ai:verify` / `synchronize` z `ai:verify` | `verify` | verifier read-only, równolegle z review → join (`swarm_after_verify_sound`); świeży `TESTS_SOUND` na tym samym head SHA = skip bez sesji |
 | PR `labeled ai:changes` | `fix` | implementer fix → bramki `ai:review` + `ai:verify` od nowa, bez limitu rund (`MAX_ROUNDS=0`; >0 włącza limit z eskalacją do `ai:blocked`) |
-| PR `labeled ai:e2e` | `e2e` | Postgres service + stack + tester → `ai:ready` / `ai:changes` / `ai:blocked`; świeży `E2E_PASS` na tym samym head SHA = skip |
-| PR `labeled ai:ready` | `merge` | czeka na CI → squash-merge + delete-branch (czerwone CI → `ai:changes`, pending → trzyma `ai:ready`, konflikt mergu → `ai:changes`, `action_required` bez approve → `ai:blocked` raz) |
+| PR `labeled ai:e2e` / `synchronize` z `ai:e2e` | `e2e` | Postgres service + stack + tester → `ai:ready` / `ai:changes` / `ai:blocked`; świeży `E2E_PASS` na tym samym head SHA = skip |
+| PR `labeled ai:ready` / `synchronize` z `ai:ready` | `merge` | `swarm_unsatisfied_gates` (markery muszą pokrywać bieżący head) → czeka na CI → squash-merge + delete-branch (czerwone CI → `ai:changes`, pending → trzyma `ai:ready`, konflikt mergu → `ai:changes`, `action_required` bez approve → `ai:blocked` raz) |
 | push na default / cron co 30 min | `sweep` | najstarszy `ai:implement` bez locka wraca do kolejki, gdy jest wolny slot |
 | push na default / cron co 30 min | `analyst` | kolejka < `QUEUE_TARGET=2` + backlog < `BACKLOG_MAX=5` + gap/proposal w zasięgu = `mes-analyst` dospecowuje do 2 odblokowanych `ai:implement`; inaczej zielone wyjście bez sesji agenta |
 | cron pn 06:00 UTC | `researcher` | gap rows → PR + auto-label `ai:review` (docs fast-path; review APPROVED → `ai:ready` → auto-merge) |
@@ -457,6 +457,26 @@ Zasady:
     zapętlać `ai:changes` zostawia `ai:blocked` i komentarz dla człowieka.
     Wymaga pozytywnego dowodu — nieczytelny SHA albo hash = brak eskalacji
     (jedna dodatkowa runda jest tańsza niż fałszywe zablokowanie).
+  - **Push w trakcie przebiegu = werdykt nie awansuje**: po agencie
+    `swarm_head_moved` porównuje SHA odczytane przed startem z bieżącym
+    headem. Jeśli commit wpadł w trakcie sesji, werdykt zostaje przypięty do
+    ocenionego SHA, a job wychodzi bez zmiany labeli — pipeline awansuje
+    nowy head, nie ten, którego nikt nie testował. Bez tego guarda e2e
+    wystartowane o 23:18:01 dostało commita o 23:20:09, wróciło o 23:20:13
+    i nakleilo `ai:ready` na nowy head (PR #256). `review`, `verify` i `e2e`
+    mają dodatkowo klauzulę `synchronize` w swoim `if`, więc push w trakcie
+    parkowania w danej bramce od razu ją ponawia (bez czekania na świętę
+    30-minutową).
+  - **`ai:ready` to przejście, nie dowód**: merge przed squash-merge sprawdza
+    `swarm_unsatisfied_gates` i odmawia, jeśli marker `review APPROVED` (plus
+    `verify TESTS_SOUND` i dowolny werdykt e2e; dla diffów docs-only tylko
+    review) nie pokrywa BIEŻĄCEGO heada. Zamiast mergować zdejmuje `ai:ready`
+    i odpala pierwszą bramkę, której brakuje. Bez tego PR #256 zmergował się
+    o 23:23:34, kiedy review nowego heada dopiero trwało, a e2e na nim nie
+    było wcale. Ten sam check czyta też `merge` na `synchronize` (agent nie
+    jest potrzebny), więc push na PR-y w `ai:ready` natychmiast zdejmuje
+    fałszywe `ai:ready` zamiast czekać na świętę. Ręczne mergowanie z
+    labelami to nadal możliwe — wystarczy zdjąć `ai:ready`.
   - **Agenci nie startują stacku**: implement/fix weryfikują tylko
     `dotnet build AsistOff.MES.sln`, `dotnet test
     tests/AsistOff.MES.Shared.Tests` i `npm --prefix AsistOff.MES.Web run

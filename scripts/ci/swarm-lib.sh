@@ -497,14 +497,16 @@ swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout | approval
 
 swarm_head_verdict() { # <pr> <gate> <sha> -> verdict recorded for <sha> by <gate> (newest wins), or empty
   local pr="$1" gate="$2" sha="$3"
+  # Digits are legal in gate names (e2e); the old [a-z] guard silently voided
+  # every e2e marker, so the e2e gate re-ran the agent on every re-fire.
   case "$gate" in
-    '' | *[!a-z]*) return 1 ;;
+    '' | *[!a-z0-9]*) return 1 ;;
   esac
   case "$sha" in
     '' | *[!0-9a-f]*) return 1 ;;
   esac
   swarm_comments_body pr "$pr" 2>/dev/null \
-    | grep -oE "swarm-verdict gate=$gate sha=$sha verdict=[A-Z_]+" \
+    | grep -oE "swarm-verdict gate=$gate sha=$sha verdict=[A-Z0-9_]+" \
     | tail -n 1 | sed -E 's/.*verdict=//' || true
 }
 
@@ -521,13 +523,13 @@ swarm_mark_verdict() { # <pr> <gate> <sha> <verdict> — witness that <verdict> 
   # different tree than the one the marker would vouch for.
   local pr="$1" gate="$2" sha="$3" verdict="$4" head tmp
   case "$gate" in
-    '' | *[!a-z]*) return 1 ;;
+    '' | *[!a-z0-9]*) return 1 ;;
   esac
   case "$sha" in
     '' | *[!0-9a-f]*) return 1 ;;
   esac
   case "$verdict" in
-    '' | *[!A-Z_]*) return 1 ;;
+    '' | *[!A-Z0-9_]*) return 1 ;;
   esac
   head=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
   if [ "$head" != "$sha" ]; then
@@ -538,6 +540,38 @@ swarm_mark_verdict() { # <pr> <gate> <sha> <verdict> — witness that <verdict> 
   printf '<!-- swarm-verdict gate=%s sha=%s verdict=%s -->\n' "$gate" "$sha" "$verdict" >"$tmp"
   swarm_comment pr "$pr" "$tmp"
   rm -f "$tmp"
+}
+
+swarm_head_moved() { # <pr> <sha> -> 0 when the PR head is no longer <sha>
+  # A pass that started before the last push judges a tree nobody ships. Observed
+  # on #256: e2e began 23:18:01, a commit landed 23:20:09, the agent returned
+  # 23:20:13 and the job still stamped ai:ready on the new head.
+  local pr="$1" sha="$2" head
+  [ -n "$sha" ] || return 1
+  head=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
+  [ -n "$head" ] && [ "$head" != "$sha" ]
+}
+
+swarm_unsatisfied_gates() { # <pr> — gates that do not cover the current head, one per line
+  # ai:ready is a transition, not evidence: it can be added by a pass that ran
+  # against an older head. Only the markers prove the head we are about to merge,
+  # so the merge gate asks for them by name instead of trusting the label.
+  local pr="$1" head
+  head=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
+  if [ -z "$head" ]; then
+    echo review
+    return 0
+  fi
+  swarm_verdict_covers_head "$pr" review APPROVED || echo review
+  if ! swarm_is_docs_only "$pr"; then
+    swarm_verdict_covers_head "$pr" verify TESTS_SOUND || echo verify
+    # E2E_BLOCKED is an explicit "infrastructure, promote anyway", so any e2e
+    # verdict for this head counts; a missing one means e2e never ran here.
+    case "$(swarm_head_verdict "$pr" e2e "$head")" in
+      E2E_PASS | E2E_FAIL | E2E_BLOCKED) ;;
+      *) echo e2e ;;
+    esac
+  fi
 }
 
 swarm_pr_body_hash() { # <pr> -> stable hash of the PR description (empty-safe)

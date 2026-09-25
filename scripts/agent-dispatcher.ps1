@@ -267,7 +267,7 @@ function Get-RecordedVerdict {
     param([int]$PrNumber, [string]$Gate, [string]$Sha)
     if (-not $Sha) { return $null }
     $comments = GhJson @('pr', 'view', "$PrNumber", '--json', 'comments')
-    $pattern = "swarm-verdict gate=$Gate sha=$Sha verdict=([A-Z_]+)"
+    $pattern = "swarm-verdict gate=$Gate sha=$Sha verdict=([A-Z0-9_]+)"
     $last = $null
     foreach ($c in @($comments.comments)) {
         $m = [regex]::Matches([string]$c.body, $pattern)
@@ -289,9 +289,11 @@ function Add-VerdictMarker {
     # swarm_head_verdict and would silently stop suppressing duplicate passes.
     # -cnotmatch: PowerShell matching is case-insensitive by default, and the
     # marker format is case-sensitive (lowercase gate/sha, UPPER verdict).
-    if ($Gate -cnotmatch '^[a-z]+$') { return }
+    # Digits are legal in gate names (e2e): a [a-z] guard silently voided every
+    # e2e marker, so the e2e stage re-ran its agent on every re-fire.
+    if ($Gate -cnotmatch '^[a-z0-9]+$') { return }
     if ($Sha -cnotmatch '^[0-9a-f]+$') { return }
-    if ($Verdict -cnotmatch '^[A-Z_]+$') { return }
+    if ($Verdict -cnotmatch '^[A-Z0-9_]+$') { return }
     # Refuses to mark a SHA that is no longer the head: the pass judged a
     # different tree than the marker would vouch for.
     $head = Get-HeadSha $PrNumber
@@ -301,6 +303,15 @@ function Add-VerdictMarker {
     }
     if ($DryRun) { Write-Host "      [dry] mark $Gate=$Verdict for $Sha"; return }
     Add-Comment pr $PrNumber "<!-- swarm-verdict gate=$Gate sha=$Sha verdict=$Verdict -->"
+}
+
+function Test-HeadMoved {
+    param([int]$PrNumber, [string]$Sha)
+    # A pass that started before the last push judges a tree nobody ships; its
+    # verdict must not advance the pipeline for the head that replaced it.
+    if (-not $Sha) { return $false }
+    $head = Get-HeadSha $PrNumber
+    return [bool]($head -and ($head -ne $Sha))
 }
 
 function Get-IssueFromBranch {
@@ -496,6 +507,12 @@ function Invoke-Review {
         $verdict = Get-LastVerdictInComments $prNum 'VERDICT:\s*(APPROVED|CHANGES_REQUESTED)'
     }
     if ($verdict -in @('APPROVED', 'CHANGES_REQUESTED')) { Add-VerdictMarker $prNum 'review' $sha $verdict }
+    if (Test-HeadMoved $prNum $sha) {
+        Add-Label pr $prNum 'ai:review'
+        Add-Comment pr $prNum "Agent flow: head moved $sha -> $(Get-HeadSha $prNum) during the review pass. Verdict pinned to the reviewed SHA; review re-queued for the new head."
+        Write-Host "    head moved during the pass; re-queued for the new head"
+        return
+    }
 
     switch ($verdict) {
         'APPROVED' { Add-Label pr $prNum 'ai:verify'; Write-Host "    -> ai:verify" }
@@ -546,6 +563,12 @@ function Invoke-Verify {
         $verdict = Get-LastVerdictInComments $prNum 'VERDICT:\s*(TESTS_SOUND|TESTS_INSUFFICIENT)'
     }
     if ($verdict -in @('TESTS_SOUND', 'TESTS_INSUFFICIENT')) { Add-VerdictMarker $prNum 'verify' $sha $verdict }
+    if (Test-HeadMoved $prNum $sha) {
+        Add-Label pr $prNum 'ai:verify'
+        Add-Comment pr $prNum "Agent flow: head moved $sha -> $(Get-HeadSha $prNum) during the verification pass. Verdict pinned to the audited SHA; verify re-queued for the new head."
+        Write-Host "    head moved during the pass; re-queued for the new head"
+        return
+    }
 
     switch ($verdict) {
         'TESTS_SOUND' { Add-Label pr $prNum 'ai:e2e'; Write-Host "    -> ai:e2e" }
@@ -591,6 +614,12 @@ function Invoke-E2e {
         $verdict = Get-LastVerdictInComments $prNum 'VERDICT:\s*(E2E_PASS|E2E_FAIL|E2E_BLOCKED)'
     }
     if ($verdict -in @('E2E_PASS', 'E2E_FAIL', 'E2E_BLOCKED')) { Add-VerdictMarker $prNum 'e2e' $sha $verdict }
+    if (Test-HeadMoved $prNum $sha) {
+        Add-Label pr $prNum 'ai:e2e'
+        Add-Comment pr $prNum "Agent flow: head moved $sha -> $(Get-HeadSha $prNum) during the e2e pass. Verdict pinned to the tested SHA; e2e re-queued for the new head."
+        Write-Host "    head moved during the pass; re-queued for the new head"
+        return
+    }
 
     switch ($verdict) {
         'E2E_PASS' {

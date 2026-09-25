@@ -354,6 +354,13 @@ jobs:
           case "$VERDICT" in
             APPROVED | CHANGES_REQUESTED) swarm_mark_verdict "$PR" review "$SHA" "$VERDICT" || true ;;
           esac
+          # The head moved while the agent ran: this verdict belongs to the tree we
+          # just read, not to the head. Leave the label in place and let the
+          # synchronize-triggered run judge the new head instead of advancing it.
+          if swarm_head_moved "$PR" "$SHA"; then
+            swarm_say pr "$PR" "Agent flow (CI): head moved $SHA -> $(gh pr view "$PR" --json headRefOid --jq .headRefOid) during the review pass. Review verdict pinned to the reviewed SHA; the new head is re-queued."
+            exit 0
+          fi
           case "$VERDICT" in
             APPROVED) swarm_after_review_approved "$PR" ;;
             CHANGES_REQUESTED)
@@ -373,10 +380,15 @@ jobs:
   # -------------------------------------------------------------------- verify
   verify:
     name: verify PR tests
+    # synchronize re-runs the gate only while ai:verify is still parked on the PR:
+    # a push during the pass (or during a CI wait) must not wait for the 30m sweeper.
     if: >
       github.event_name == 'pull_request_target' &&
       github.event.pull_request.draft == false &&
       github.event.label.name == 'ai:verify' ||
+      github.event_name == 'pull_request_target' &&
+      github.event.action == 'synchronize' &&
+      contains(github.event.pull_request.labels.*.name, 'ai:verify') ||
       github.event_name == 'workflow_dispatch' &&
       inputs.agent == 'mes-verifier'
     runs-on: ubuntu-latest
@@ -448,6 +460,10 @@ jobs:
           case "$VERDICT" in
             TESTS_SOUND | TESTS_INSUFFICIENT) swarm_mark_verdict "$PR" verify "$SHA" "$VERDICT" || true ;;
           esac
+          if swarm_head_moved "$PR" "$SHA"; then
+            swarm_say pr "$PR" "Agent flow (CI): head moved $SHA -> $(gh pr view "$PR" --json headRefOid --jq .headRefOid) during the verification pass. Verdict pinned to the audited SHA; the new head is re-queued."
+            exit 0
+          fi
           case "$VERDICT" in
             TESTS_SOUND) swarm_after_verify_sound "$PR" ;;
             TESTS_INSUFFICIENT)
@@ -603,10 +619,15 @@ jobs:
   # ------------------------------------------------------------------------ e2e
   e2e:
     name: e2e smoke PR
+    # synchronize re-runs the gate only while ai:e2e is still parked on the PR —
+    # without it a push during the pass strands the PR until the 30m sweeper.
     if: >
       github.event_name == 'pull_request_target' &&
       github.event.pull_request.draft == false &&
       github.event.label.name == 'ai:e2e' ||
+      github.event_name == 'pull_request_target' &&
+      github.event.action == 'synchronize' &&
+      contains(github.event.pull_request.labels.*.name, 'ai:e2e') ||
       github.event_name == 'workflow_dispatch' &&
       inputs.agent == 'mes-e2e-tester'
     runs-on: ubuntu-latest
@@ -730,6 +751,12 @@ jobs:
           case "$VERDICT" in
             E2E_PASS | E2E_FAIL | E2E_BLOCKED) swarm_mark_verdict "$PR" e2e "$SHA" "$VERDICT" || true ;;
           esac
+          # No ai:ready for a head the smoke test never saw: a push during the
+          # pass re-queues the gate through synchronize (and the sweeper).
+          if swarm_head_moved "$PR" "$SHA"; then
+            swarm_say pr "$PR" "Agent flow (CI): head moved $SHA -> $(gh pr view "$PR" --json headRefOid --jq .headRefOid) during the e2e pass. Verdict pinned to the tested SHA; the new head is re-queued."
+            exit 0
+          fi
           swarm_remove_label pr "$PR" ai:e2e
           case "$VERDICT" in
             E2E_PASS)
@@ -874,10 +901,15 @@ jobs:
   # ---------------------------------------------------------------------- merge
   merge:
     name: auto-merge ready PR
+    # synchronize re-checks (no agent) while ai:ready is parked: a push invalidates
+    # every marker, and this job is the cheapest place to notice and re-open gates.
     if: >
       github.event_name == 'pull_request_target' &&
       github.event.pull_request.draft == false &&
-      github.event.label.name == 'ai:ready'
+      github.event.label.name == 'ai:ready' ||
+      github.event_name == 'pull_request_target' &&
+      github.event.action == 'synchronize' &&
+      contains(github.event.pull_request.labels.*.name, 'ai:ready')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -892,6 +924,19 @@ jobs:
           # Merge does not run an agent. Do not require OPENCODE_API_KEY.
           swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
+          # ai:ready is a transition, not proof. A pass that started before the
+          # last push can leave the label behind for a head no gate ever saw
+          # (#256 merged that way). Refuse until the markers cover this head, and
+          # hand the PR back to the first gate that is missing instead of merging.
+          PENDING=$(swarm_unsatisfied_gates "$PR" || true)
+          if [ -n "$PENDING" ]; then
+            GATE=$(printf '%s\n' "$PENDING" | head -n 1)
+            echo "gates not settled for the current head: $(echo "$PENDING" | tr '\n' ' ')"
+            swarm_remove_label pr "$PR" ai:ready
+            swarm_refire_label pr "$PR" "ai:$GATE"
+            swarm_say pr "$PR" "Agent flow (CI): ai:ready but no $GATE verdict covers the current head — re-running $GATE instead of merging."
+            exit 0
+          fi
           CI=$(swarm_wait_ci "$PR" 600 | tail -n 1)
           echo "ci=$CI"
           case "$CI" in
