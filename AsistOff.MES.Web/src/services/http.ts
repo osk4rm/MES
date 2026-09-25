@@ -1,13 +1,18 @@
 import axios, { AxiosError } from 'axios';
 import { CORRELATION_ID_HEADER, generateCorrelationId } from './correlation';
+import { useAuthStore } from '../stores/authStore';
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  // Cookie transport (issue #241): the session lives in httpOnly
+  // Cookie transport (issue #242): the session lives in httpOnly
   // mes_access/mes_refresh cookies, so every API call must carry
-  // cookies even cross-origin (Vite :5173 -> API :5080).
+  // cookies even cross-origin (Vite :5173 -> API :5080). No bearer token
+  // is ever injected — JavaScript never sees a usable token.
   withCredentials: true
 });
+
+export const loginPath = '/login';
+const authApiPrefix = '/api/auth/';
 
 export function ensureCorrelationId(
   headers: { get?: (name: string) => unknown; set?: (name: string, value: string) => void; [key: string]: unknown },
@@ -37,15 +42,29 @@ export function ensureCorrelationId(
   return next;
 }
 
+/**
+ * Auth-endpoint calls (sign-in / refresh / sign-out) manage the session
+ * themselves: a 401 there means bad credentials or an expired refresh
+ * cookie, and the caller (LoginView, router guard) decides what happens
+ * next. The global expired-session redirect below must not fire for them.
+ */
+export function isAuthEndpoint(url: string | undefined): boolean {
+  return typeof url === 'string' && url.includes(authApiPrefix);
+}
+
+/**
+ * Builds the login redirect for an expired session, preserving the page
+ * the caller was on as the `?redirect` param so sign-in can land back on
+ * it. Returns null on the public auth pages (they handle 401 themselves)
+ * so no redirect loop is possible. Never carries tokens — only the path.
+ */
+export function buildLoginRedirectUrl(pathname: string, search: string): string | null {
+  const onAuthPage = pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/register');
+  if (onAuthPage) return null;
+  return `${loginPath}?redirect=${encodeURIComponent(`${pathname}${search}`)}`;
+}
+
 http.interceptors.request.use((config) => {
-  // Header fallback during transition: when a legacy bearer token is
-  // still stored (e.g. older session), keep sending it. Cookie-only
-  // sessions send no Authorization header; the API falls back to the
-  // mes_access cookie (see Extensions.OnMessageReceived).
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
   ensureCorrelationId(config.headers);
   return config;
 });
@@ -53,17 +72,15 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error: AxiosError<any>) => {
-    if (error.response?.status === 401) {
-      const path = window.location.pathname;
-      const onAuthPage = path === '/' || path.startsWith('/login') || path.startsWith('/register');
-      if (!onAuthPage) {
+    if (error.response?.status === 401 && !isAuthEndpoint(error.config?.url)) {
+      const target = buildLoginRedirectUrl(window.location.pathname, window.location.search);
+      if (target) {
+        // Session expired mid-use: drop the in-memory marker (cookies are
+        // already unusable) and bounce to login with the return path.
         try {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          localStorage.removeItem('mes_auth_user');
-          localStorage.removeItem('mes_auth_flag');
-        } catch { /* ignore */ }
-        window.location.assign('/login');
+          useAuthStore().clearAuth();
+        } catch { /* ignore - pinia may be unavailable in tests */ }
+        window.location.assign(target);
       }
     }
     return Promise.reject(error);

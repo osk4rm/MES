@@ -2,51 +2,62 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { useAuthStore } from './authStore';
 
-// Cookie transport (issue #241, E2E follow-up): the session lives in
-// httpOnly cookies and the sign-in body carries empty token strings,
-// so the store must treat an empty-token setAuth as authenticated.
+const TOKEN_KEYS = ['token', 'user', 'mes_auth_user', 'mes_auth_flag'];
+
+// Cookie session (issue #242): the JWTs live in httpOnly cookies, so the
+// store keeps only a non-sensitive session marker plus user display info
+// in memory. Nothing auth-related may reach localStorage/sessionStorage.
 describe('authStore cookie session', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     localStorage.clear();
+    sessionStorage.clear();
   });
 
-  it('marks an empty-token sign-in as authenticated', () => {
+  it('starts unauthenticated with no stored session', () => {
     const store = useAuthStore();
 
-    store.setAuth('', { email: 'admin@dev.local' });
+    expect(store.isAuthenticated).toBe(false);
+    expect(store.user).toBeNull();
+  });
+
+  it('marks sign-in as authenticated keeping only display info', () => {
+    const store = useAuthStore();
+
+    store.setAuth({ email: 'admin@dev.local' });
 
     expect(store.isAuthenticated).toBe(true);
     expect(store.user?.email).toBe('admin@dev.local');
   });
 
-  it('restores a cookie session from storage on reload', () => {
+  it('marks a restored cookie session as authenticated without user info', () => {
     const store = useAuthStore();
-    store.setAuth('', { email: 'admin@dev.local' });
 
-    const reloaded = useAuthStore();
-    reloaded.loadAuth();
-
-    expect(reloaded.isAuthenticated).toBe(true);
-    expect(reloaded.user?.email).toBe('admin@dev.local');
-  });
-
-  it('keeps legacy bearer sessions working', () => {
-    const store = useAuthStore();
-    store.setAuth('legacy-token', { email: 'admin@dev.local' });
+    store.setAuth(null);
 
     expect(store.isAuthenticated).toBe(true);
-
-    const reloaded = useAuthStore();
-    reloaded.loadAuth();
-
-    expect(reloaded.isAuthenticated).toBe(true);
-    expect(reloaded.token).toBe('legacy-token');
+    expect(store.user).toBeNull();
   });
 
-  it('clears the session', () => {
+  it('never writes auth state to web storage', () => {
     const store = useAuthStore();
-    store.setAuth('', { email: 'admin@dev.local' });
+
+    store.setAuth({ email: 'admin@dev.local' });
+    store.setAuth(null);
+    store.clearAuth();
+
+    for (const key of TOKEN_KEYS) {
+      expect(localStorage.getItem(key)).toBeNull();
+      expect(sessionStorage.getItem(key)).toBeNull();
+    }
+    expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it('clears the session on sign-out', () => {
+    const store = useAuthStore();
+    store.setAuth({ email: 'admin@dev.local' });
+
     store.clearAuth();
 
     expect(store.isAuthenticated).toBe(false);
