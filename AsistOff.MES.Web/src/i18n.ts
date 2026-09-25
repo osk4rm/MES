@@ -268,7 +268,19 @@ const pl = {
     scrapQuantity: 'Ilość braków',
     notes: 'Uwagi',
     empty: 'Brak potwierdzeń dla tego zlecenia',
-    positiveQuantityRequired: 'Przynajmniej jedna ilość (dobra lub braków) musi być większa od zera'
+    positiveQuantityRequired: 'Przynajmniej jedna ilość (dobra lub braków) musi być większa od zera',
+    producedLot: 'Partia wyprodukowana',
+    selectProducedLot: 'Wybierz partię wyprodukowaną…',
+    noLot: 'Bez partii',
+    consumedLots: 'Partie zużyte',
+    consumedLot: 'Partia zużyta',
+    selectConsumedLot: 'Wybierz partię…',
+    consumedQuantity: 'Ilość zużyta',
+    addConsumedLot: 'Dodaj partię zużytą',
+    genealogyHint: 'Po zapisie ślad pojawi się w zakładce genealogii partii wyprodukowanej.',
+    producedLotRequired: 'Partia wyprodukowana jest wymagana, gdy podano partie zużyte',
+    selfLinkNotAllowed: 'Partia zużyta musi różnić się od wyprodukowanej',
+    consumedQuantityPositive: 'Zużyta ilość musi być większa od zera'
   },
   movements: {
     title: 'Podgląd ruchów RW / PW',
@@ -1164,7 +1176,19 @@ const en: typeof pl = {
     scrapQuantity: 'Scrap quantity',
     notes: 'Notes',
     empty: 'No confirmations for this order yet',
-    positiveQuantityRequired: 'At least one quantity (good or scrap) must be greater than zero'
+    positiveQuantityRequired: 'At least one quantity (good or scrap) must be greater than zero',
+    producedLot: 'Produced lot',
+    selectProducedLot: 'Select produced lot…',
+    noLot: 'No lot',
+    consumedLots: 'Consumed lots',
+    consumedLot: 'Consumed lot',
+    selectConsumedLot: 'Select lot…',
+    consumedQuantity: 'Consumed quantity',
+    addConsumedLot: 'Add consumed lot',
+    genealogyHint: 'After saving, the trace appears in the produced lot genealogy tab.',
+    producedLotRequired: 'Produced lot is required when consumed lots are provided',
+    selfLinkNotAllowed: 'Consumed lot must differ from the produced lot',
+    consumedQuantityPositive: 'Consumed quantity must be greater than zero'
   },
   movements: {
     title: 'RW / PW movement preview',

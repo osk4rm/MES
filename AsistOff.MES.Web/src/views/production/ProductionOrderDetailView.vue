@@ -234,6 +234,61 @@
             <AppTextarea :id="id" v-model="form.notes" :rows="2" />
           </template>
         </AppFormField>
+        <AppFormField
+          :label="`${$t('productionConfirmations.producedLot')} (${$t('common.optional')})`"
+          class="form-grid__full"
+          :error="producedLotError"
+        >
+          <template #default="{ id }">
+            <AppSelect
+              :id="id"
+              v-model="form.producedLotId"
+              :options="lotOptions"
+              :placeholder="$t('productionConfirmations.selectProducedLot')"
+              allow-empty
+              :empty-label="$t('productionConfirmations.noLot')"
+            />
+          </template>
+        </AppFormField>
+        <div class="form-grid__full consumed-block">
+          <div class="consumed-header">
+            <span class="consumed-title">{{ $t('productionConfirmations.consumedLots') }} ({{ $t('common.optional') }})</span>
+            <AppButton variant="ghost" icon="pi pi-plus" @click="addConsumedRow">
+              {{ $t('productionConfirmations.addConsumedLot') }}
+            </AppButton>
+          </div>
+          <p class="consumed-hint">{{ $t('productionConfirmations.genealogyHint') }}</p>
+          <div v-for="(row, idx) in form.consumedLots" :key="idx" class="consumed-row">
+            <AppFormField
+              :label="$t('productionConfirmations.consumedLot')"
+              :error="consumedRowError(idx)"
+              class="consumed-row__lot"
+            >
+              <template #default="{ id }">
+                <AppSelect
+                  :id="id"
+                  v-model="row.lotId"
+                  :options="lotOptions"
+                  :placeholder="$t('productionConfirmations.selectConsumedLot')"
+                />
+              </template>
+            </AppFormField>
+            <AppFormField :label="$t('productionConfirmations.consumedQuantity')" class="consumed-row__qty">
+              <template #default="{ id }">
+                <AppNumberInput :id="id" v-model="row.quantity" :min="0" :step="0.001" />
+              </template>
+            </AppFormField>
+            <AppButton
+              variant="ghost"
+              icon="pi pi-trash"
+              :aria-label="$t('common.delete')"
+              class="consumed-row__remove"
+              @click="removeConsumedRow(idx)"
+            >
+              {{ $t('common.delete') }}
+            </AppButton>
+          </div>
+        </div>
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="saving" @click="closeModal">{{ $t('common.cancel') }}</AppButton>
@@ -328,6 +383,14 @@ import { machineService, type MachineResponse } from '../../services/machineServ
 import { operatorService, type OperatorResponse } from '../../services/operatorService';
 import { productService, type ProductResponse } from '../../services/productService';
 import { warehouseService, type WarehouseResponse } from '../../services/warehouseService';
+import { lotService, type LotResponse } from '../../services/lotService';
+import {
+  buildConsumedLotLines,
+  createConsumedLotRow,
+  validateConsumedLotRow,
+  validateProducedLot,
+  type ConsumedLotFormRow
+} from '../../services/confirmationLots';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -416,12 +479,15 @@ const machines = ref<MachineResponse[]>([]);
 const operators = ref<OperatorResponse[]>([]);
 const products = ref<ProductResponse[]>([]);
 const warehouses = ref<WarehouseResponse[]>([]);
+const lots = ref<LotResponse[]>([]);
 
 const machineOptions = computed(() => machines.value.map(m => ({ value: m.id, label: `${m.code} — ${m.name}` })));
 const operatorFilterOptions = computed(() => [
   { value: null, label: t('productionConfirmations.selectOperator') },
   ...operators.value.map(o => ({ value: o.id, label: `${o.identifier} — ${o.firstName} ${o.lastName}` }))
 ]);
+
+const lotOptions = computed(() => lots.value.map(l => ({ value: l.id, label: l.code })));
 
 function machineLabel(id: string): string {
   const m = machines.value.find(x => x.id === id);
@@ -458,16 +524,18 @@ async function loadOrder(): Promise<void> {
 
 async function loadLookups(): Promise<void> {
   try {
-    const [m, o, p, w] = await Promise.all([
+    const [m, o, p, w, l] = await Promise.all([
       machineService.browse({ pageNumber: 1, pageSize: 500 }),
       operatorService.browse({ pageNumber: 1, pageSize: 500 }),
       productService.browse({ pageNumber: 1, pageSize: 500 }),
-      warehouseService.browse({ pageNumber: 1, pageSize: 500 })
+      warehouseService.browse({ pageNumber: 1, pageSize: 500 }),
+      lotService.browse({ pageNumber: 1, pageSize: 500 })
     ]);
     machines.value = m.items;
     operators.value = o.items;
     products.value = p.items;
     warehouses.value = w.items;
+    lots.value = l.items;
   } catch {
     /* ignore — table still renders */
   }
@@ -493,14 +561,40 @@ function toLocalInputValue(d: Date): string {
 
 const modalOpen = ref(false);
 const saving = ref(false);
+
 const form = reactive({
   machineId: null as string | null,
   operatorId: null as string | null,
   reportedAt: '',
   goodQuantity: null as number | null,
   scrapQuantity: null as number | null,
-  notes: '' as string | null
+  notes: '' as string | null,
+  producedLotId: null as string | null,
+  consumedLots: [] as ConsumedLotFormRow[]
 });
+
+function addConsumedRow(): void {
+  form.consumedLots.push(createConsumedLotRow());
+}
+
+function removeConsumedRow(idx: number): void {
+  form.consumedLots.splice(idx, 1);
+}
+
+const producedLotError = computed((): string | null => {
+  const code = validateProducedLot(form.producedLotId, form.consumedLots.length);
+  return code ? t('productionConfirmations.producedLotRequired') : null;
+});
+
+function consumedRowError(idx: number): string | null {
+  const row = form.consumedLots[idx];
+  if (!row) return null;
+  const code = validateConsumedLotRow(row, form.producedLotId);
+  if (!code) return null;
+  if (code === 'required') return t('validation.required');
+  if (code === 'consumedQuantityPositive') return t('productionConfirmations.consumedQuantityPositive');
+  return t('productionConfirmations.selfLinkNotAllowed');
+}
 
 function openReport(): void {
   Object.assign(form, {
@@ -509,7 +603,9 @@ function openReport(): void {
     reportedAt: toLocalInputValue(new Date()),
     goodQuantity: null,
     scrapQuantity: null,
-    notes: ''
+    notes: '',
+    producedLotId: null,
+    consumedLots: []
   });
   modalOpen.value = true;
 }
@@ -531,6 +627,17 @@ async function onSave(): Promise<void> {
     toast.error(t('productionConfirmations.positiveQuantityRequired'));
     return;
   }
+  if (producedLotError.value) {
+    toast.error(producedLotError.value);
+    return;
+  }
+  for (let i = 0; i < form.consumedLots.length; i++) {
+    const rowError = consumedRowError(i);
+    if (rowError) {
+      toast.error(rowError);
+      return;
+    }
+  }
   saving.value = true;
   try {
     await productionConfirmationService.create({
@@ -540,7 +647,9 @@ async function onSave(): Promise<void> {
       reportedAt: new Date(form.reportedAt).toISOString(),
       goodQuantity: good,
       scrapQuantity: scrap,
-      notes: form.notes || null
+      notes: form.notes || null,
+      producedLotId: form.producedLotId,
+      consumedLots: buildConsumedLotLines(form.consumedLots)
     });
     toast.success(t('toasts.created'));
     modalOpen.value = false;
@@ -758,6 +867,37 @@ onMounted(() => {
 }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+.consumed-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+.consumed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.consumed-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+.consumed-hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+.consumed-row {
+  display: grid;
+  grid-template-columns: 1fr 160px auto;
+  gap: var(--space-2);
+  align-items: end;
+}
+.consumed-row__remove { white-space: nowrap; }
 .loading {
   display: flex;
   align-items: center;
