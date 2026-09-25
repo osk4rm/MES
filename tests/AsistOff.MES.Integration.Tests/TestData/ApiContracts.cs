@@ -324,7 +324,11 @@ public sealed record OeeSummaryDto(
     decimal GoodCount,
     decimal ScrapCount,
     decimal TotalCount,
-    double? Quality);
+    double? Quality,
+    double PlannedTimeMinutes,
+    double RunTimeMinutes,
+    double DowntimeMinutes,
+    double? Availability);
 
 /// <summary>Shape of the OEE trend returned by <c>/api/oee/trend</c>.</summary>
 public sealed record OeeTrendDto(
