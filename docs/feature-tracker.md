@@ -44,6 +44,21 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Multi-tenancy (tenant isolation) | Tenant | Multitenancy | done | — | ADR-0002; `ISaasy` + global query filter |
 | Authentication / JWT + RBAC | — | Users, Auth | done | #208, #209, #210 | RBAC schema + role-derived sign-in (PRs #217, #219); roles mgmt UI (PR #224) |
 | Polymorphic attachments | — | Attachments | done | — | `Attachment` |
+| JWT hardening (audience, key strength, revocation) | — | Users, Auth | gap | - | ValidateAudience + key-entropy floor + refresh rotation/revocation; depends on Authentication / JWT + RBAC |
+| Attachment upload hardening | — | Attachments | gap | - | MIME/extension allowlist, sniffed type, download disposition + nosniff, owner existence/permission check; depends on Polymorphic attachments |
+| Write-endpoint authorization (default-deny + full RBAC) | — | Users, Auth | gap | - | `RequirePermission` on all writes per ADR-0003, permissions from data; depends on Authentication / JWT + RBAC |
+| Abuse protection (rate limiting, security headers, signup gating) | — | Gateway | gap | - | per-IP throttle on sign-in/tenant-create, HSTS/CSP/nosniff, minimal anonymous tenant DTO; depends on Authentication / JWT + RBAC |
+| BFF cookie auth + refresh flow | — | Gateway, Web | gap | - | httpOnly cookies replace localStorage JWT, refresh rotation, honor post-login redirect; depends on Authentication / JWT + RBAC |
+| Audit trail (actor + history) | — | Shared | gap | - | CreatedBy/ModifiedBy + append-only history of who changed what |
+| Health readiness split | — | Gateway | gap | - | Npgsql readiness probe, `/health/live` vs `/health/ready` for orchestrators |
+| Correlation ID end-to-end | — | Gateway, Web | gap | - | generate/echo X-Correlation-ID, LogContext, axios header, traceId in every error path incl. exception handler |
+| OpenTelemetry metrics + traces | OEE | Gateway, Production | gap | - | OTLP/Prometheus export, business meters (confirmations/scrap/downtime), OEE latency histograms |
+| Prod deploy + backup safety | — | Ops | gap | - | gated migration job (no auto-migrate+seed on prod boot), nightly pg_dump, env separation, deploy pipeline |
+| Transactional outbox for domain events | — | Shared | gap | - | OutboxMessages + relay instead of pre-commit publish; no ghost events on rollback |
+| Optimistic concurrency tokens | Production Order | Production | gap | - | rowversion/xmin + 409/retry, starting with Production Order; depends on Production Order |
+| Container + runtime hardening | — | Ops | gap | - | non-root USER, pinned digests, resource limits, restart policies, runtime API URL, generated secrets |
+| Committed Playwright smoke suite | — | Web, CI | gap | - | login→orders→confirm→lots on scripts/e2e/app.ps1 harness, wired into CI |
+| Frontend resilience bundle | — | Web | gap | - | axios timeout/retry/abort, useCrudPage error state + retry, route permission guards, global error boundary |
 
 ## Configuration (master data)
 
@@ -86,6 +101,8 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Work-center calendar / shifts | Shift | Configuration | done | #83 | calendar + entries per machine; shifts dictionary (PR #105) |
 | Lot / Serial tracking | Lot / Serial | Production | done | #85 | `Lot` registry (PR #93) |
 | Genealogy / traceability | Genealogy | Production | done | #142, #143, #144, #207 | `LotGenealogyEdge` auto-derived on confirmation; upstream/downstream traceability + lot tree (PRs #148, #151, #152, #211) |
+| Atomic confirmation fan-out | Confirmation | Production | gap | - | single transaction across confirmation + movements + edges + order status; depends on Operator confirmations (RW / PW) |
+| Read-path performance (paging, no-tracking, batch fetch) | Shift | Production | gap | - | server-side DispatchBoard filtering/Take, AsNoTracking browses, batched lot/tag loads, lookup typeahead + MaxPageSize; depends on Dispatch board (shift-aware) |
 
 ## Analytics / integration
 
@@ -98,5 +115,6 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | OPC UA / SCADA telemetry | OPC UA | Production | done | #114, #115, #116, #160, #161 | tag dictionary + readings; simulator + stale dashboard; connection registry + polling (PRs #118, #127, #132, #162, #164) |
 | Kanban | Kanban | Production | done | #145, #146, #147 | `KanbanLoop` dictionary + card registry; pull transitions with WIP limits; board UI (PRs #149, #155, #158) |
 | MTBF / MTTR reliability KPIs | MTBF / MTTR | Production | done | #170, #171, #213, #214, #220 | per-Work Center snapshot query + API + dashboard; trend + fleet comparison (PRs #173, #175, #215, #216, #222) |
+| OEE/analytics index review | OEE | Production | gap | - | (TenantId,MachineId,ReportedAt) confirmations index, tenant-scoped FK indexes; depends on OEE |
 
 _Last reconciled: 2026-09-25 — genealogy (#142–#144, #207), kanban (#145–#147), OEE (#153/#154/#156, #180–#182), MTBF/MTTR (#170/#171, #213/#214/#220), EAN/GTIN scan (#166/#176/#212), dispatch board (#189/#190/#201), RW/PW persist (#199), stock on hand (#200), machine capacity/efficiency (#204), RBAC backend (#208/#209) + roles UI (#210) done (PRs merged); #221 done via #225 with cross-tenant consumed-lot regression tests from #223; #88/#89 are fixes with no capability rows._
