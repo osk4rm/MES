@@ -2,6 +2,9 @@ using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Multitenancy.Repositories;
 using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
+using AsistOff.MES.Shared.Abstractions.Providers;
+using AsistOff.MES.Shared.Infrastructure.Auth;
+using AsistOff.MES.Users.Application.Features.Authentication.Refresh;
 using AsistOff.MES.Users.Core.Entities;
 using AsistOff.MES.Users.Core.Rbac;
 using AsistOff.MES.Users.Core.Repositories;
@@ -20,6 +23,10 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
     private readonly IPasswordHasher<User> _hasher;
     private readonly IAuthManager _authManager;
     private readonly ILogger<SignInRequestHandler> _logger;
+    private readonly IRefreshTokensRepository? _refreshTokens;
+    private readonly AuthOptions? _authOptions;
+    private readonly IDateTimeProvider? _dateTimeProvider;
+    private readonly IGuidProvider? _guidProvider;
 
     public SignInRequestHandler(
         IUsersRepository usersRepository,
@@ -28,7 +35,11 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
         IRolePermissionsRepository rolePermissionsRepository,
         IPasswordHasher<User> hasher,
         IAuthManager authManager,
-        ILogger<SignInRequestHandler> logger)
+        ILogger<SignInRequestHandler> logger,
+        IRefreshTokensRepository? refreshTokens = null,
+        AuthOptions? authOptions = null,
+        IDateTimeProvider? dateTimeProvider = null,
+        IGuidProvider? guidProvider = null)
     {
         _usersRepository = usersRepository;
         _tenantRepository = tenantRepository;
@@ -37,6 +48,10 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
         _hasher = hasher;
         _authManager = authManager;
         _logger = logger;
+        _refreshTokens = refreshTokens;
+        _authOptions = authOptions;
+        _dateTimeProvider = dateTimeProvider;
+        _guidProvider = guidProvider;
     }
 
     public async Task<JsonWebToken> Handle(SignInRequest request, CancellationToken cancellationToken)
@@ -85,14 +100,45 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
             claims["tenant_display_name"] = [tenant.DisplayName];
         }
 
+        var audience = _authOptions?.Audience ?? "AsistOff.MES.Users";
         var token = _authManager.CreateToken(
             userId: user.Id.ToString(),
             role: user.IsTenantAdmin ? "tenant_admin" : "user",
-            audience: "AsistOff.MES.Users",
+            audience: audience,
             claims: claims
         );
 
+        await IssueRefreshTokenAsync(user, cancellationToken, token);
+
         return token;
+    }
+
+    private async Task IssueRefreshTokenAsync(User user, CancellationToken cancellationToken, JsonWebToken token)
+    {
+        // Refresh store is optional in unit-test construction; in production DI
+        // it is always registered, so sign-in always returns a refresh token.
+        if (_refreshTokens is null)
+        {
+            return;
+        }
+
+        var now = _dateTimeProvider?.UtcNow ?? DateTime.UtcNow;
+        var refreshLifetime = _authOptions?.RefreshTokenLifetime ?? TimeSpan.FromDays(7);
+        var (refreshToken, refreshHash) = RefreshTokenHasher.Generate();
+
+        var entity = new RefreshToken
+        {
+            Id = _guidProvider?.NewGuid() ?? Guid.NewGuid(),
+            TenantId = user.TenantId,
+            UserId = user.Id,
+            TokenHash = refreshHash,
+            FamilyId = _guidProvider?.NewGuid() ?? Guid.NewGuid(),
+            ExpiresAtUtc = now.Add(refreshLifetime),
+            CreatedAt = now
+        };
+
+        await _refreshTokens.AddAsync(entity, cancellationToken);
+        token.RefreshToken = refreshToken;
     }
 
     /// <summary>

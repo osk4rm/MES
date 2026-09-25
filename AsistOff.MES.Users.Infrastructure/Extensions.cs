@@ -15,6 +15,7 @@ public static class Extensions
     public static void AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<IUsersRepository, UsersRepository>();
+        services.AddScoped<IRefreshTokensRepository, RefreshTokensRepository>();
         services.AddScoped<IRolesRepository, RolesRepository>();
         services.AddScoped<IPermissionsRepository, PermissionsRepository>();
         services.AddScoped<IRolePermissionsRepository, RolePermissionsRepository>();

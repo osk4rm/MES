@@ -16,6 +16,7 @@ public static class Extensions
         IList<IModule>? modules = null, Action<JwtBearerOptions>? optionsFactory = null)
     {
         var options = services.GetOptions<AuthOptions>("auth");
+        AuthOptionsValidator.Validate(options, hostEnvironment?.IsProduction() == true);
         services.AddSingleton<IAuthManager, AuthManager>();
 
         if (options.AuthenticationDisabled)
@@ -31,10 +32,15 @@ public static class Extensions
         var tokenValidationParameters = new TokenValidationParameters
         {
             RequireAudience = options.RequireAudience,
-            ValidIssuer = options.ValidIssuer,
+            // Fall back to the single Issuer/Audience shorthands when the
+            // Valid* variants are unset, so `auth:Audience` alone is enough
+            // to validate tokens issued with that audience (and likewise for
+            // the issuer). Production still requires one of them to be set —
+            // see AuthOptionsValidator.
+            ValidIssuer = options.ValidIssuer ?? options.Issuer,
             ValidIssuers = options.ValidIssuers,
             ValidateActor = options.ValidateActor,
-            ValidAudience = options.ValidAudience,
+            ValidAudience = options.ValidAudience ?? options.Audience,
             ValidAudiences = options.ValidAudiences,
             ValidateAudience = options.ValidateAudience,
             ValidateIssuer = options.ValidateIssuer,
