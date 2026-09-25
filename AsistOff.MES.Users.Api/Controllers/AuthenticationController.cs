@@ -22,12 +22,12 @@ public class AuthenticationController(ISender sender) : ApiController
     }
 
     /// <summary>
-    /// Rotates a single-use opaque refresh token. Requires a valid access token
-    /// (authenticated tenant); the refresh token is resolved through the ambient
-    /// tenant and the caller's user id.
+    /// Rotates a single-use opaque refresh token. Anonymous by design: the caller
+    /// presents only the refresh token (their access token may already be expired).
+    /// Tenant binding comes from the stored refresh-token row, never from caller input.
     /// </summary>
     [HttpPost("refresh")]
-    [Authorize]
+    [AllowAnonymous]
     public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(request, cancellationToken);
