@@ -11,4 +11,8 @@ public record MachineResponse(
     Guid? DepartmentId,
     string? DepartmentCode,
     string? DepartmentName,
-    string? SyncId);
+    string? SyncId,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt,
+    Guid? CreatedBy,
+    Guid? ModifiedBy);

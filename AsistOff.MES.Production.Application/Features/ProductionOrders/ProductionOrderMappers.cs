@@ -48,6 +48,8 @@ internal static class ProductionOrderMappers
             o.SyncId,
             o.CreatedAt,
             o.UpdatedAt,
+            o.CreatedBy,
+            o.ModifiedBy,
             producedQuantity,
             scrappedQuantity,
             remaining,

@@ -26,6 +26,8 @@ public class SpcMeasurement : IEntity, ISaasy, IAuditable
 
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedBy { get; set; }
+    public Guid? ModifiedBy { get; set; }
 
     public virtual SpcCharacteristic? Characteristic { get; set; }
 }

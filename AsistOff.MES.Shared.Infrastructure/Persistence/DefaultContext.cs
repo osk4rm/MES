@@ -3,6 +3,7 @@ using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
+using AsistOff.MES.Shared.Infrastructure.Persistence.Entities;
 using AsistOff.MES.Users.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,6 +32,7 @@ public class DefaultContext : DbContext
     public DbSet<ProductMeasureUnit> ProductMeasureUnits { get; set; }
     public DbSet<Product> Products { get; set; }
     public DbSet<ProductPrice> ProductPrices { get; set; }
+    public DbSet<AuditEvent> AuditEvents { get; set; }
 
     public DefaultContext(
         DbContextOptions<DefaultContext> options,

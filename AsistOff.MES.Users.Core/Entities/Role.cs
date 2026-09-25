@@ -15,6 +15,8 @@ public class Role : IEntity, ISaasy, IAuditable
     public string? Description { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedBy { get; set; }
+    public Guid? ModifiedBy { get; set; }
 
     public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
     public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();

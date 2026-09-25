@@ -19,6 +19,8 @@ public record ProductionOrderResponse(
     string? SyncId,
     DateTime CreatedAt,
     DateTime? UpdatedAt,
+    Guid? CreatedBy,
+    Guid? ModifiedBy,
     decimal ProducedQuantity,
     decimal ScrappedQuantity,
     decimal RemainingQuantity,
