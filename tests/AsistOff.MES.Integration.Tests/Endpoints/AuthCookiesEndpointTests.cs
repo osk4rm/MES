@@ -110,6 +110,32 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
     }
 
     [Fact]
+    public async Task Refresh_WithEmptyBodyAndNoCookie_Returns401()
+    {
+        // Arrange — anonymous client, no cookies and no body token.
+        using var client = Fixture.CreateClient();
+
+        // Act — empty body with no refresh cookie: absent token, not a 400.
+        var refresh = await client.PostAsJsonAsync(RefreshUrl, new { });
+
+        // Assert — the handler rejects the missing token with 401.
+        refresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Refresh_WithExplicitBlankToken_Returns400()
+    {
+        // Arrange — anonymous client, no cookies, explicitly blank body token.
+        using var client = Fixture.CreateClient();
+
+        // Act
+        var refresh = await client.PostAsJsonAsync(RefreshUrl, new { refreshToken = "" });
+
+        // Assert — an explicitly provided blank token is a malformed request.
+        refresh.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task SignOut_ViaCookies_ClearsCookiesAndRevokes()
     {
         // Arrange — authenticated purely by cookies.

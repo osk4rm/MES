@@ -57,7 +57,7 @@ public class AuthenticationController(ISender sender, AuthOptions authOptions) :
             rawToken = cookieToken;
         }
 
-        var result = await sender.Send(new RefreshTokenRequest(rawToken ?? string.Empty), cancellationToken);
+        var result = await sender.Send(new RefreshTokenRequest(rawToken), cancellationToken);
 
         AuthCookies.AppendAuthCookies(Response, result.AccessToken, result.RefreshToken, authOptions);
 

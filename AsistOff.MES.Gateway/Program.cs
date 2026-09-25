@@ -84,6 +84,10 @@ try
                 // but reflect any origin. SetIsOriginAllowed (instead of
                 // AllowAnyOrigin) is required — ASP.NET Core refuses
                 // AllowAnyOrigin combined with AllowCredentials.
+                // NOTE: reflecting any origin together with AllowCredentials
+                // is dev-only. Production requires explicit cors:allowedOrigins
+                // (see the branch above); never enable this wildcard with
+                // credentials outside Development.
                 policy.SetIsOriginAllowed(_ => true)
                     .AllowAnyMethod()
                     .AllowAnyHeader()
