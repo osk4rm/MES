@@ -279,7 +279,7 @@ jobs:
             swarm_refire_label pr "$PR" ai:changes
             swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
             echo "skip=true" >>"$GITHUB_OUTPUT"
-          elif [ -n "$PR" ] && swarm_success_covers_head "$PR" APPROVED 'APPROVED|CHANGES_REQUESTED'; then
+          elif [ -n "$PR" ] && swarm_verdict_covers_head "$PR" review APPROVED; then
             state=$(swarm_ci_state_once "$PR")
             if [ "$state" = pass ] || [ "$state" = none ]; then
               echo 'APPROVED covers this head SHA and CI is green; skipping reviewer'
@@ -332,11 +332,13 @@ jobs:
               exit 0
               ;;
           esac
-          if swarm_success_covers_head "$PR" APPROVED 'APPROVED|CHANGES_REQUESTED'; then
+          if swarm_verdict_covers_head "$PR" review APPROVED; then
             echo 'APPROVED already covers this head SHA; skipping reviewer'
             swarm_after_review_approved "$PR"
             exit 0
           fi
+          # Judge the head we are about to read, and pin the verdict to it below.
+          SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
           swarm_run_agent mes-reviewer \
             "Review PR #$PR for AsistOff MES. Inspect only the diff with 'gh pr diff $PR'. Post your findings with 'gh pr comment $PR' and end the body with exactly one verdict on its own line: 'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
             review.log
@@ -344,6 +346,14 @@ jobs:
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
             VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'APPROVED|CHANGES_REQUESTED')
           fi
+          # Pin the verdict to the reviewed SHA so a re-fired label can skip the
+          # agent instead of re-judging an identical diff (swarm_verdict_covers_head).
+          # '|| true': a push during the pass leaves a stale SHA, and the mark is
+          # only an optimisation - it must never abort the step before the
+          # label transition below (bash -e would skip it).
+          case "$VERDICT" in
+            APPROVED | CHANGES_REQUESTED) swarm_mark_verdict "$PR" review "$SHA" "$VERDICT" || true ;;
+          esac
           case "$VERDICT" in
             APPROVED) swarm_after_review_approved "$PR" ;;
             CHANGES_REQUESTED)
@@ -388,7 +398,7 @@ jobs:
             swarm_refire_label pr "$PR" ai:changes
             swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
             echo "skip=true" >>"$GITHUB_OUTPUT"
-          elif swarm_success_covers_head "$PR" TESTS_SOUND 'TESTS_SOUND|TESTS_INSUFFICIENT'; then
+          elif swarm_verdict_covers_head "$PR" verify TESTS_SOUND; then
             echo 'TESTS_SOUND covers this head SHA; skipping verifier'
             swarm_after_verify_sound "$PR"
             echo "skip=true" >>"$GITHUB_OUTPUT"
@@ -422,11 +432,12 @@ jobs:
           source "$RUNNER_TEMP/swarm-lib.sh"
           PR='${{ steps.pr.outputs.number }}'
           swarm_require_auth
-          if swarm_success_covers_head "$PR" TESTS_SOUND 'TESTS_SOUND|TESTS_INSUFFICIENT'; then
+          if swarm_verdict_covers_head "$PR" verify TESTS_SOUND; then
             echo 'TESTS_SOUND already covers this head SHA; skipping verifier'
             swarm_after_verify_sound "$PR"
             exit 0
           fi
+          SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
           swarm_run_agent mes-verifier \
             "Verify that the tests in PR #$PR genuinely prove the acceptance criteria. Read-only audit: inspect the diff with 'gh pr diff $PR', map each criterion to the test(s) that prove it, check for weakened tests. DO NOT write files, commit, or push. Post the report with 'gh pr comment $PR' ending with exactly one verdict on its own line: 'VERDICT: TESTS_SOUND' or 'VERDICT: TESTS_INSUFFICIENT'. Do not write any other VERDICT line. Do not add or remove ai:* labels." \
             verify.log
@@ -434,6 +445,9 @@ jobs:
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
             VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'TESTS_SOUND|TESTS_INSUFFICIENT')
           fi
+          case "$VERDICT" in
+            TESTS_SOUND | TESTS_INSUFFICIENT) swarm_mark_verdict "$PR" verify "$SHA" "$VERDICT" || true ;;
+          esac
           case "$VERDICT" in
             TESTS_SOUND) swarm_after_verify_sound "$PR" ;;
             TESTS_INSUFFICIENT)
@@ -534,6 +548,12 @@ jobs:
           if [ "$MERGE_RC" = 2 ]; then
             CONFLICT_NOTE="$(swarm_conflict_rules)"
           fi
+          # No-progress fingerprint, taken AFTER the master sync so only the
+          # agent's own work counts. A round that changes neither the code nor
+          # the PR description cannot change a verdict, and re-firing the gates
+          # would judge the identical diff again (see the no-progress exit below).
+          HEAD_BEFORE=$(swarm_remote_head_sha "$PR" || true)
+          BODY_BEFORE=$(swarm_pr_body_hash "$PR" || true)
           # CI has no session affinity (unlike the local dispatcher): the fix
           # prompt points at the PR comments so a fresh session can continue.
           # Do NOT let the agent boot the app or a database — that burned whole
@@ -566,6 +586,15 @@ jobs:
               swarm_say pr "$PR" 'Agent flow (CI): could not push the fix to the PR branch. Needs human attention.'
               exit 1
             fi
+          fi
+          # No-progress exit: the gate passes are idempotent per head SHA, so
+          # re-firing them on an unchanged diff can only reproduce the verdict
+          # we just got. Escalate instead of looping (MAX_ROUNDS=0 is unlimited).
+          if swarm_fix_made_no_progress "$PR" "$HEAD_BEFORE" "$BODY_BEFORE"; then
+            swarm_remove_label pr "$PR" ai:changes
+            swarm_add_label pr "$PR" ai:blocked
+            swarm_say pr "$PR" 'Agent flow (CI): the fix round changed neither the code nor the PR description, so another review/verify round would judge the identical diff. Needs human attention.'
+            exit 1
           fi
           swarm_remove_label pr "$PR" ai:changes
           swarm_open_gates "$PR"
@@ -616,7 +645,7 @@ jobs:
             swarm_refire_label pr "$PR" ai:changes
             swarm_say pr "$PR" 'Agent flow (CI): the PR conflicts with master — back to ai:changes so the fixer can rebase and resolve.'
             echo "skip=true" >>"$GITHUB_OUTPUT"
-          elif swarm_success_covers_head "$PR" E2E_PASS 'E2E_PASS|E2E_FAIL|E2E_BLOCKED'; then
+          elif swarm_verdict_covers_head "$PR" e2e E2E_PASS; then
             echo 'E2E_PASS already covers this head SHA; skipping smoke'
             swarm_remove_label pr "$PR" ai:e2e
             swarm_add_label pr "$PR" ai:ready
@@ -661,13 +690,14 @@ jobs:
           # (A lock with no live run behind it is cleared by the stale-lock sweep.)
           swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
-          if swarm_success_covers_head "$PR" E2E_PASS 'E2E_PASS|E2E_FAIL|E2E_BLOCKED'; then
+          if swarm_verdict_covers_head "$PR" e2e E2E_PASS; then
             echo 'E2E_PASS already covers this head SHA; skipping smoke'
             swarm_remove_label pr "$PR" ai:e2e
             swarm_add_label pr "$PR" ai:ready
             swarm_say pr "$PR" 'Agent flow (CI): e2e already passed for this head SHA. Auto-merge will take it from here (ai:ready).'
             exit 0
           fi
+          SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
           # Start the stack with nohup in THIS step: app.ps1 background jobs
           # are killed when their launcher returns on CI runners. The service
           # above only provides PostgreSQL on localhost:5432.
@@ -697,6 +727,9 @@ jobs:
           if [ "$VERDICT" = UNKNOWN ] || [ "$VERDICT" = AMBIGUOUS ]; then
             VERDICT=$(swarm_comments_body pr "$PR" | swarm_last_verdict_stdin 'E2E_PASS|E2E_FAIL|E2E_BLOCKED')
           fi
+          case "$VERDICT" in
+            E2E_PASS | E2E_FAIL | E2E_BLOCKED) swarm_mark_verdict "$PR" e2e "$SHA" "$VERDICT" || true ;;
+          esac
           swarm_remove_label pr "$PR" ai:e2e
           case "$VERDICT" in
             E2E_PASS)

@@ -8,6 +8,13 @@ description: Use when the mes-reviewer agent audits an AsistOff MES pull request
 Review only the diff. Do not trust the implementer's description. For every
 finding, cite the file and line.
 
+Keep the verdict a function of the diff, not of the round. The same diff must
+get the same verdict every time it is reviewed: a gate that flips between
+rounds on identical input cannot converge, and this swarm runs fix rounds
+without a cap. If a point is genuinely arguable, put it under "Notes,
+non-blocking" and approve. Reserve `CHANGES_REQUESTED` for defects you can
+cite in the diff.
+
 ## 1. Multi-tenancy (blocking)
 
 - [ ] Every new MediatR request implements exactly one of `ITenantRequest` or
@@ -38,9 +45,27 @@ finding, cite the file and line.
       integration tests in `tests/AsistOff.MES.Integration.Tests/` (HTTP call,
       status code + body + persistence - not only a smoke test).
 - [ ] Failure paths (`401`/`400`/`404`/`409`) covered where relevant.
-- [ ] UI-facing changes describe a Playwright click-through in the PR body.
 - [ ] No existing test disabled, deleted, or weakened.
 - [ ] CI-relevant commands would pass (`dotnet build/test`, `npm run build`).
+
+### Not yours to block on
+
+These belong to other stages. Report them as observations; never let them
+produce `CHANGES_REQUESTED`, or the fix round cannot satisfy them:
+
+- **The Playwright click-through.** The CI agent runner has no application,
+  database or browser, and the fixer is explicitly forbidden from starting one.
+  AGENT.md defines this click-through as a *manual* verification step. The
+  `mes-e2e-tester` stage runs the browser smoke on a real stack; a human
+  performs the manual pass before merge. A PR that documents an unrun browser
+  check honestly ("not re-run in this pass, e2e stage owns it") is correct —
+  do not ask for it twice.
+- **Whether the PR description is worded the way you would word it.** Only
+  block on a description that is *contradicted* by the diff or states something
+  untrue (e.g. claims a test exists that does not).
+- **Test adequacy.** `mes-verifier` owns whether the tests prove the acceptance
+  criteria. You check that tests exist, assert real behaviour, and were not
+  weakened — leave criterion coverage to the verifier.
 
 ## Verdict
 

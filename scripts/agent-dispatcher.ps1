@@ -222,6 +222,87 @@ function Get-Verdict {
     return $distinct[0]
 }
 
+function Get-LastVerdictInComments {
+    # Fallback path ONLY: the newest verdict wins, mirroring swarm_last_verdict
+    # in scripts/ci/swarm-lib.sh. Get-Verdict would report AMBIGUOUS here, since
+    # a long PR legitimately carries one APPROVED and one CHANGES_REQUESTED
+    # comment from different rounds - that must not escalate a live PR.
+    param([int]$PrNumber, [string]$Pattern)
+    $comments = GhJson @('pr', 'view', "$PrNumber", '--json', 'comments')
+    $last = $null
+    foreach ($c in @($comments.comments)) {
+        $m = [regex]::Matches([string]$c.body, $Pattern)
+        if ($m.Count -gt 0) { $last = $m[$m.Count - 1].Groups[1].Value }
+    }
+    if (-not $last) { return 'UNKNOWN' }
+    return $last
+}
+
+# --- gate verdicts, keyed to the head SHA ---------------------------------
+# Same contract as the CI workflow (swarm_mark_verdict / swarm_verdict_covers_head):
+# an HTML comment records the SHA a gate judged, so a re-fired label can skip the
+# agent instead of re-judging an identical diff. Freshness is never inferred from
+# timestamps - rebase and clock skew move commit dates.
+function Get-HeadSha {
+    param([int]$PrNumber)
+    $sha = Invoke-Gh @('pr', 'view', "$PrNumber", '--json', 'headRefOid', '--jq', '.headRefOid')
+    if (-not $sha) { return $null }
+    return "$sha".Trim()
+}
+
+function Get-PrBodyHash {
+    param([int]$PrNumber)
+    $pr = GhJson @('pr', 'view', "$PrNumber", '--json', 'body')
+    if (-not $pr) { return $null }
+    $body = if ($null -eq $pr.body) { '' } else { [string]$pr.body }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($body))
+        return [System.BitConverter]::ToString($bytes).Replace('-', '')
+    }
+    finally { $sha.Dispose() }
+}
+
+function Get-RecordedVerdict {
+    param([int]$PrNumber, [string]$Gate, [string]$Sha)
+    if (-not $Sha) { return $null }
+    $comments = GhJson @('pr', 'view', "$PrNumber", '--json', 'comments')
+    $pattern = "swarm-verdict gate=$Gate sha=$Sha verdict=([A-Z_]+)"
+    $last = $null
+    foreach ($c in @($comments.comments)) {
+        $m = [regex]::Matches([string]$c.body, $pattern)
+        if ($m.Count -gt 0) { $last = $m[$m.Count - 1].Groups[1].Value }
+    }
+    return $last
+}
+
+function Test-VerdictCoversHead {
+    param([int]$PrNumber, [string]$Gate, [string]$Verdict)
+    $sha = Get-HeadSha $PrNumber
+    if (-not $sha) { return $false }
+    return (Get-RecordedVerdict $PrNumber $Gate $sha) -eq $Verdict
+}
+
+function Add-VerdictMarker {
+    param([int]$PrNumber, [string]$Gate, [string]$Sha, [string]$Verdict)
+    # Same guards as swarm_mark_verdict: a malformed marker would never match
+    # swarm_head_verdict and would silently stop suppressing duplicate passes.
+    # -cnotmatch: PowerShell matching is case-insensitive by default, and the
+    # marker format is case-sensitive (lowercase gate/sha, UPPER verdict).
+    if ($Gate -cnotmatch '^[a-z]+$') { return }
+    if ($Sha -cnotmatch '^[0-9a-f]+$') { return }
+    if ($Verdict -cnotmatch '^[A-Z_]+$') { return }
+    # Refuses to mark a SHA that is no longer the head: the pass judged a
+    # different tree than the marker would vouch for.
+    $head = Get-HeadSha $PrNumber
+    if ($head -ne $Sha) {
+        Write-Host "      head moved ($Sha -> $(if ($head) { $head } else { 'unknown' })); not marking $Gate=$Verdict"
+        return
+    }
+    if ($DryRun) { Write-Host "      [dry] mark $Gate=$Verdict for $Sha"; return }
+    Add-Comment pr $PrNumber "<!-- swarm-verdict gate=$Gate sha=$Sha verdict=$Verdict -->"
+}
+
 function Get-IssueFromBranch {
     param([string]$Branch)
     if ($Branch -match '^ai/issue-(\d+)-') { return [int]$Matches[1] }
@@ -358,9 +439,21 @@ function Invoke-Fix {
         "'dotnet build AsistOff.MES.sln', 'dotnet test tests/AsistOff.MES.Shared.Tests' and " +
         "'cd AsistOff.MES.Web; npm run build' (not the integration suite), then push to the same branch and reply."
     if ($Reason -eq 'ci') { $prompt = "CI on PR #$prNum is red. Inspect 'gh pr checks $prNum' and the logs, fix the failure, re-run build/test locally, then push to the same branch." }
+    # No-progress fingerprint (code + PR description), same contract as
+    # swarm_fix_made_no_progress: an unchanged round can only reproduce the
+    # verdict we just got, because the gates are idempotent per head SHA.
+    $headBefore = Get-HeadSha $prNum
+    $bodyBefore = Get-PrBodyHash $prNum
     Invoke-Agent -Agent 'mes-implementer' -Session $session -Prompt $prompt | Out-Null
     Remove-Label pr $prNum 'ai:running'
     Clear-LockTimestamp $State 'pr' $prNum
+    if ($headBefore -and (Get-HeadSha $prNum) -eq $headBefore -and (Get-PrBodyHash $prNum) -eq $bodyBefore) {
+        Write-Host "    round changed neither code nor PR body -> ai:blocked"
+        Remove-Label pr $prNum 'ai:changes'
+        Add-Label pr $prNum 'ai:blocked'
+        Add-Comment pr $prNum 'Agent flow: the fix round changed neither the code nor the PR description, so another review/verify round would judge the identical diff. Needs human attention.'
+        return
+    }
     Remove-Label pr $prNum 'ai:changes'
     Add-Label pr $prNum 'ai:review'
     Set-Rounds $State $prNum $rounds
@@ -370,6 +463,21 @@ function Invoke-Fix {
 function Invoke-Review {
     param($State, $Pr)
     $prNum = $Pr.number
+    if (Test-VerdictCoversHead $prNum 'review' 'APPROVED') {
+        Write-Host "==> review PR #$prNum : APPROVED already covers this head SHA; skipping"
+        Remove-Label pr $prNum 'ai:review'
+        # Mirrors swarm_after_review_approved: advance only when verify is settled.
+        if ((Has-Label $Pr 'ai:changes') -or (Has-Label $Pr 'ai:blocked')) {
+            Write-Host "    changes/blocked already set; not advancing"
+        }
+        elseif (Test-VerdictCoversHead $prNum 'verify' 'TESTS_SOUND') {
+            Add-Label pr $prNum 'ai:e2e'
+            Write-Host "    -> ai:e2e (verify already settled)"
+        }
+        elseif (-not (Has-Label $Pr 'ai:verify')) { Add-Label pr $prNum 'ai:verify' }
+        return
+    }
+    $sha = Get-HeadSha $prNum
     Write-Host "==> review PR #$prNum : $($Pr.title)"
     Add-Label pr $prNum 'ai:running'
     Set-LockTimestamp $State 'pr' $prNum
@@ -385,10 +493,9 @@ function Invoke-Review {
 
     $verdict = Get-Verdict $raw 'VERDICT:\s*(APPROVED|CHANGES_REQUESTED)'
     if (($verdict -eq 'UNKNOWN') -or ($verdict -eq 'AMBIGUOUS')) {
-        $comments = GhJson @('pr', 'view', "$prNum", '--json', 'comments')
-        $body = (@($comments.comments) | ForEach-Object { $_.body }) -join "`n"
-        $verdict = Get-Verdict $body 'VERDICT:\s*(APPROVED|CHANGES_REQUESTED)'
+        $verdict = Get-LastVerdictInComments $prNum 'VERDICT:\s*(APPROVED|CHANGES_REQUESTED)'
     }
+    if ($verdict -in @('APPROVED', 'CHANGES_REQUESTED')) { Add-VerdictMarker $prNum 'review' $sha $verdict }
 
     switch ($verdict) {
         'APPROVED' { Add-Label pr $prNum 'ai:verify'; Write-Host "    -> ai:verify" }
@@ -404,7 +511,21 @@ function Invoke-Review {
 function Invoke-Verify {
     param($State, $Pr)
     $prNum = $Pr.number
+    if (Test-VerdictCoversHead $prNum 'verify' 'TESTS_SOUND') {
+        Write-Host "==> verify PR #$prNum : TESTS_SOUND already covers this head SHA; skipping"
+        Remove-Label pr $prNum 'ai:verify'
+        # Mirrors swarm_after_verify_sound: wait while the review gate is open.
+        if ((Has-Label $Pr 'ai:changes') -or (Has-Label $Pr 'ai:blocked')) {
+            Write-Host "    changes/blocked already set; not advancing"
+        }
+        elseif (-not (Has-Label $Pr 'ai:review')) {
+            Add-Label pr $prNum 'ai:e2e'
+            Write-Host "    -> ai:e2e (review already settled)"
+        }
+        return
+    }
     $issueNum = Get-IssueFromBranch $Pr.headRefName
+    $sha = Get-HeadSha $prNum
     Write-Host "==> verify PR #$prNum : $($Pr.title)"
     Add-Label pr $prNum 'ai:running'
     Set-LockTimestamp $State 'pr' $prNum
@@ -422,10 +543,9 @@ function Invoke-Verify {
 
     $verdict = Get-Verdict $raw 'VERDICT:\s*(TESTS_SOUND|TESTS_INSUFFICIENT)'
     if (($verdict -eq 'UNKNOWN') -or ($verdict -eq 'AMBIGUOUS')) {
-        $comments = GhJson @('pr', 'view', "$prNum", '--json', 'comments')
-        $body = (@($comments.comments) | ForEach-Object { $_.body }) -join "`n"
-        $verdict = Get-Verdict $body 'VERDICT:\s*(TESTS_SOUND|TESTS_INSUFFICIENT)'
+        $verdict = Get-LastVerdictInComments $prNum 'VERDICT:\s*(TESTS_SOUND|TESTS_INSUFFICIENT)'
     }
+    if ($verdict -in @('TESTS_SOUND', 'TESTS_INSUFFICIENT')) { Add-VerdictMarker $prNum 'verify' $sha $verdict }
 
     switch ($verdict) {
         'TESTS_SOUND' { Add-Label pr $prNum 'ai:e2e'; Write-Host "    -> ai:e2e" }
@@ -445,6 +565,13 @@ function Invoke-Verify {
 function Invoke-E2e {
     param($State, $Pr)
     $prNum = $Pr.number
+    if (Test-VerdictCoversHead $prNum 'e2e' 'E2E_PASS') {
+        Write-Host "==> e2e PR #$prNum : E2E_PASS already covers this head SHA; skipping"
+        Remove-Label pr $prNum 'ai:e2e'
+        Add-Label pr $prNum 'ai:ready'
+        return
+    }
+    $sha = Get-HeadSha $prNum
     Write-Host "==> e2e PR #$prNum : $($Pr.title)"
     Add-Label pr $prNum 'ai:running'
     Set-LockTimestamp $State 'pr' $prNum
@@ -461,10 +588,9 @@ function Invoke-E2e {
 
     $verdict = Get-Verdict $raw 'VERDICT:\s*(E2E_PASS|E2E_FAIL|E2E_BLOCKED)'
     if (($verdict -eq 'UNKNOWN') -or ($verdict -eq 'AMBIGUOUS')) {
-        $comments = GhJson @('pr', 'view', "$prNum", '--json', 'comments')
-        $body = (@($comments.comments) | ForEach-Object { $_.body }) -join "`n"
-        $verdict = Get-Verdict $body 'VERDICT:\s*(E2E_PASS|E2E_FAIL|E2E_BLOCKED)'
+        $verdict = Get-LastVerdictInComments $prNum 'VERDICT:\s*(E2E_PASS|E2E_FAIL|E2E_BLOCKED)'
     }
+    if ($verdict -in @('E2E_PASS', 'E2E_FAIL', 'E2E_BLOCKED')) { Add-VerdictMarker $prNum 'e2e' $sha $verdict }
 
     switch ($verdict) {
         'E2E_PASS' {
