@@ -1,9 +1,12 @@
-using MediatR;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Shared.Abstractions.Auth;
+using AsistOff.MES.Users.Core.Rbac;
 
 namespace AsistOff.MES.Configuration.Application.Features.Departments.Update;
 
+[RequirePermission(RbacDefaults.ConfigurationWrite)]
 public record UpdateDepartmentRequest(
     Guid Id,
     string Code,
     string Name
-) : IRequest;
+) : ITenantRequest;

@@ -135,7 +135,7 @@ public class RefreshTokenRequestHandler : IRequestHandler<RefreshTokenRequest, J
         var audience = _authOptions.Audience ?? "AsistOff.MES.Users";
         var access = _authManager.CreateToken(
             userId: user.Id.ToString(),
-            role: user.IsTenantAdmin ? "tenant_admin" : "user",
+            role: user.IsTenantAdmin ? RbacDefaults.AdminRoleCode : RbacDefaults.UserRoleCode,
             audience: audience,
             claims: claims);
 

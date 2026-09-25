@@ -2,10 +2,11 @@ using AsistOff.MES.Configuration.Application.Features.Products.Common.Responses;
 using AsistOff.MES.Configuration.Domain.Enums;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Auth;
+using AsistOff.MES.Users.Core.Rbac;
 
 namespace AsistOff.MES.Configuration.Application.Features.Products.Create;
 
-[RequirePermission("configuration.write")]
+[RequirePermission(RbacDefaults.ConfigurationWrite)]
 public record CreateProductRequest(
     string Code,
     string Name,
