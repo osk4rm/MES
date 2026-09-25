@@ -25,13 +25,31 @@ internal sealed class GetSpcMeasurementChartRequestHandler(
         var measurements = await measurementsRepository.ListForCharacteristicAsync(
             characteristic.Id, fromUtc, toUtc, cancellationToken);
 
-        var points = measurements
-            .Select(m => new SpcMeasurementChartPoint(
-                m.Id,
-                m.Value,
-                m.MeasuredAt,
-                SpcMeasurementRules.IsOutOfControl(m.Value, characteristic.LowerControlLimit, characteristic.UpperControlLimit),
-                SpcMeasurementRules.IsOutOfSpec(m.Value, characteristic.LowerSpecLimit, characteristic.UpperSpecLimit)))
+        // Sort defensively: rule windows are order-sensitive and must be
+        // deterministic in MeasuredAt ascending order using only this window.
+        var ordered = measurements
+            .OrderBy(m => m.MeasuredAt)
+            .ThenBy(m => m.Id)
+            .ToList();
+
+        var violatedPerPoint = SpcMeasurementRules.EvaluateRules(
+            ordered.Select(m => m.Value).ToList(),
+            characteristic.NominalValue,
+            characteristic.LowerControlLimit,
+            characteristic.UpperControlLimit);
+
+        var points = ordered
+            .Select((m, index) =>
+            {
+                var violated = violatedPerPoint[index];
+                return new SpcMeasurementChartPoint(
+                    m.Id,
+                    m.Value,
+                    m.MeasuredAt,
+                    SpcMeasurementRules.IsOutOfControl(m.Value, characteristic.LowerControlLimit, characteristic.UpperControlLimit),
+                    SpcMeasurementRules.IsOutOfSpec(m.Value, characteristic.LowerSpecLimit, characteristic.UpperSpecLimit),
+                    violated);
+            })
             .ToList();
 
         return new SpcMeasurementChartResponse(
@@ -44,6 +62,9 @@ internal sealed class GetSpcMeasurementChartRequestHandler(
             points,
             points.Count,
             points.Count(p => p.IsOutOfControl),
-            points.Count(p => p.IsOutOfSpec));
+            points.Count(p => p.IsOutOfSpec),
+            points.Count(p => p.ViolatedRules.Contains(2)),
+            points.Count(p => p.ViolatedRules.Contains(3)),
+            points.Count(p => p.ViolatedRules.Contains(4)));
     }
 }

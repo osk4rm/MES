@@ -451,7 +451,8 @@ public sealed record SpcMeasurementChartPointDto(
     decimal Value,
     DateTime MeasuredAt,
     bool IsOutOfControl,
-    bool IsOutOfSpec);
+    bool IsOutOfSpec,
+    IReadOnlyCollection<int> ViolatedRules);
 
 /// <summary>Shape of the control chart evaluation returned by <c>/api/spc-measurements/chart</c>.</summary>
 public sealed record SpcMeasurementChartDto(
@@ -464,7 +465,10 @@ public sealed record SpcMeasurementChartDto(
     IReadOnlyCollection<SpcMeasurementChartPointDto> Points,
     int TotalCount,
     int OutOfControlCount,
-    int OutOfSpecCount);
+    int OutOfSpecCount,
+    int Rule2ViolationCount,
+    int Rule3ViolationCount,
+    int Rule4ViolationCount);
 
 /// <summary>Shape of one shift entry in a dispatch day bucket returned by <c>/api/schedule/dispatch</c>. Times are ISO 8601 <c>HH:mm:ss</c>.</summary>
 public sealed record DispatchShiftDto(

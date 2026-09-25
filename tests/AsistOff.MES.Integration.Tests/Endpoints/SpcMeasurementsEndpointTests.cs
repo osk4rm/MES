@@ -165,10 +165,95 @@ public sealed class SpcMeasurementsEndpointTests(MesApplicationFixture fixture) 
         var ordered = chart.Points.OrderBy(p => p.MeasuredAt).ToList();
         ordered[0].IsOutOfControl.Should().BeFalse();
         ordered[0].IsOutOfSpec.Should().BeFalse();
+        ordered[0].ViolatedRules.Should().BeEmpty();
         ordered[1].IsOutOfControl.Should().BeTrue();
         ordered[1].IsOutOfSpec.Should().BeFalse();
+        ordered[1].ViolatedRules.Should().BeEquivalentTo([1]);
         ordered[2].IsOutOfControl.Should().BeTrue();
         ordered[2].IsOutOfSpec.Should().BeTrue();
+        // 10.3 and 10.9 are both beyond 2-sigma upper, completing a rule 2
+        // window on the last point in addition to rule 1.
+        ordered[2].ViolatedRules.Should().Contain(1);
+        ordered[2].ViolatedRules.Should().Contain(2);
+        chart.Rule2ViolationCount.Should().Be(1);
+        chart.Rule3ViolationCount.Should().Be(0);
+        chart.Rule4ViolationCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Chart_FlagsRule2_WithoutRule1()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var characteristicId = await CreateCharacteristicAsync(client, UniqueCode());
+        var baseTime = DateTime.UtcNow.AddHours(-1);
+        await RecordAsync(client, characteristicId, 10.0m, baseTime.AddMinutes(10));
+        await RecordAsync(client, characteristicId, 10.15m, baseTime.AddMinutes(20));
+        await RecordAsync(client, characteristicId, 10.16m, baseTime.AddMinutes(30));
+
+        var response = await client.GetAsync($"{BaseUrl}/chart?characteristicId={characteristicId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var chart = await ReadAsync<SpcMeasurementChartDto>(response);
+        chart.TotalCount.Should().Be(3);
+        chart.OutOfControlCount.Should().Be(0);
+        var ordered = chart.Points.OrderBy(p => p.MeasuredAt).ToList();
+        ordered.Take(2).SelectMany(p => p.ViolatedRules).Should().BeEmpty();
+        ordered[2].ViolatedRules.Should().BeEquivalentTo([2]);
+        ordered.Should().OnlyContain(p => !p.IsOutOfControl);
+        chart.Rule2ViolationCount.Should().Be(1);
+        chart.Rule3ViolationCount.Should().Be(0);
+        chart.Rule4ViolationCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Chart_FlagsRule3_WithoutRule1()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var characteristicId = await CreateCharacteristicAsync(client, UniqueCode());
+        var baseTime = DateTime.UtcNow.AddHours(-1);
+        await RecordAsync(client, characteristicId, 10.0m, baseTime.AddMinutes(10));
+        await RecordAsync(client, characteristicId, 10.08m, baseTime.AddMinutes(20));
+        await RecordAsync(client, characteristicId, 10.09m, baseTime.AddMinutes(30));
+        await RecordAsync(client, characteristicId, 10.10m, baseTime.AddMinutes(40));
+        await RecordAsync(client, characteristicId, 10.11m, baseTime.AddMinutes(50));
+
+        var response = await client.GetAsync($"{BaseUrl}/chart?characteristicId={characteristicId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var chart = await ReadAsync<SpcMeasurementChartDto>(response);
+        chart.TotalCount.Should().Be(5);
+        chart.OutOfControlCount.Should().Be(0);
+        var ordered = chart.Points.OrderBy(p => p.MeasuredAt).ToList();
+        ordered.Take(4).SelectMany(p => p.ViolatedRules).Should().BeEmpty();
+        ordered[4].ViolatedRules.Should().BeEquivalentTo([3]);
+        chart.Rule2ViolationCount.Should().Be(0);
+        chart.Rule3ViolationCount.Should().Be(1);
+        chart.Rule4ViolationCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Chart_FlagsRule4Run_WithViolatedRulesAndTotals()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var characteristicId = await CreateCharacteristicAsync(client, UniqueCode());
+        var baseTime = DateTime.UtcNow.AddHours(-1);
+        for (var i = 0; i < 8; i++)
+            await RecordAsync(client, characteristicId, 10.05m, baseTime.AddMinutes(10 + i * 5));
+
+        var response = await client.GetAsync($"{BaseUrl}/chart?characteristicId={characteristicId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var chart = await ReadAsync<SpcMeasurementChartDto>(response);
+        chart.TotalCount.Should().Be(8);
+        chart.OutOfControlCount.Should().Be(0);
+        chart.OutOfSpecCount.Should().Be(0);
+        var ordered = chart.Points.OrderBy(p => p.MeasuredAt).ToList();
+        ordered.Should().OnlyContain(p => !p.IsOutOfControl);
+        ordered.Take(7).SelectMany(p => p.ViolatedRules).Should().BeEmpty();
+        ordered[7].ViolatedRules.Should().BeEquivalentTo([4]);
+        chart.Rule2ViolationCount.Should().Be(0);
+        chart.Rule3ViolationCount.Should().Be(0);
+        chart.Rule4ViolationCount.Should().Be(1);
     }
 
     [Fact]
@@ -186,7 +271,11 @@ public sealed class SpcMeasurementsEndpointTests(MesApplicationFixture fixture) 
         var point = chart.Points.Should().ContainSingle().Subject;
         point.IsOutOfControl.Should().BeFalse();
         point.IsOutOfSpec.Should().BeTrue();
+        point.ViolatedRules.Should().BeEmpty();
         chart.OutOfControlCount.Should().Be(0);
+        chart.Rule2ViolationCount.Should().Be(0);
+        chart.Rule3ViolationCount.Should().Be(0);
+        chart.Rule4ViolationCount.Should().Be(0);
     }
 
     [Fact]
