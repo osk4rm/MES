@@ -124,6 +124,46 @@ public class OperatorShiftAssignmentRequestHandlerTests
     }
 
     [Fact]
+    public async Task Handle_EmptyOperatorId_ThrowsValidationException()
+    {
+        // Arrange
+        var request = new CreateOperatorShiftAssignmentRequest(Guid.Empty, _shiftId, new DateOnly(2026, 9, 24), null);
+
+        // Act
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task Handle_EmptyShiftId_ThrowsValidationException()
+    {
+        // Arrange
+        var request = new CreateOperatorShiftAssignmentRequest(_operatorId, Guid.Empty, new DateOnly(2026, 9, 24), null);
+
+        // Act
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task Handle_NotesTooLong_ThrowsValidationException()
+    {
+        // Arrange
+        var request = new CreateOperatorShiftAssignmentRequest(
+            _operatorId, _shiftId, new DateOnly(2026, 9, 24), new string('n', 1001));
+
+        // Act
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
     public async Task Handle_DuplicateAssignment_ThrowsConflictException()
     {
         // Arrange

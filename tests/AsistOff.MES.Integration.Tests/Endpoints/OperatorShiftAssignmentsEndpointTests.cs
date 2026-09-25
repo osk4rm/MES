@@ -29,6 +29,58 @@ public sealed class OperatorShiftAssignmentsEndpointTests(MesApplicationFixture 
     }
 
     [Fact]
+    public async Task Create_WithoutToken_Returns401()
+    {
+        using var client = Fixture.CreateClient();
+
+        var response = await client.PostAsJsonAsync(BaseUrl, new
+        {
+            operatorId = Guid.NewGuid(),
+            shiftId = Guid.NewGuid(),
+            date = "2026-09-24",
+            notes = (string?)null
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Delete_WithoutToken_Returns401()
+    {
+        using var client = Fixture.CreateClient();
+
+        var response = await client.DeleteAsync($"{BaseUrl}/{Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Get_UnknownId_Returns404()
+    {
+        // Arrange
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        // Act
+        var response = await client.GetAsync($"{BaseUrl}/{Guid.NewGuid()}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Delete_UnknownId_Returns404()
+    {
+        // Arrange
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        // Act
+        var response = await client.DeleteAsync($"{BaseUrl}/{Guid.NewGuid()}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Create_ReturnsCreated_AndAppearsInBrowseForThatDate()
     {
         using var client = await Fixture.CreateAuthenticatedClientAsync();
