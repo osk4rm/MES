@@ -1,7 +1,10 @@
-using MediatR;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Shared.Abstractions.Auth;
+using AsistOff.MES.Users.Core.Rbac;
 
 namespace AsistOff.MES.Configuration.Application.Features.Operators.Update;
 
+[RequirePermission(RbacDefaults.ConfigurationWrite)]
 public record UpdateOperatorRequest(
     Guid Id,
     string Identifier,
@@ -10,4 +13,4 @@ public record UpdateOperatorRequest(
     decimal RatePerHour,
     Guid? DepartmentId,
     Guid UserId
-) : IRequest;
+) : ITenantRequest;

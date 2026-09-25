@@ -1,9 +1,12 @@
+using AsistOff.MES.Attachments.Application.Features.List;
 using AsistOff.MES.Configuration.Application.Features.Products.Common.Responses;
 using AsistOff.MES.Configuration.Application.Features.Products.Create;
+using AsistOff.MES.Configuration.Application.Features.Products.Update;
 using AsistOff.MES.Configuration.Domain.Enums;
 using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Infrastructure.Behaviors;
+using AsistOff.MES.Users.Application.Features.Authentication.SignIn;
 using AsistOff.MES.Users.Application.Features.Users.Create;
 using FluentAssertions;
 using MediatR;
@@ -31,19 +34,61 @@ public class AuthorizationBehaviorTests
     private sealed record ProtectedVoidRequest : IRequest;
 
     [Fact]
-    public async Task Handle_RequestWithoutAttribute_PassesThroughRegardlessOfPermissions()
+    public async Task Handle_RequestWithoutAttributeOrAllowlist_ThrowsForbiddenException()
     {
-        // Arrange — caller holds no permissions at all.
+        // Arrange — caller holds no permissions at all; the test-local request is
+        // in no allowlist and no legacy pass-through assembly, so default-deny
+        // (issue #231) rejects it instead of executing.
         var behavior = CreateBehavior<OpenRequest, string>(Array.Empty<string>());
+        var nextCalled = false;
+
+        // Act
+        var act = () => behavior.Handle(
+            new OpenRequest(),
+            _ =>
+            {
+                nextCalled = true;
+                return Task.FromResult("ok");
+            },
+            CancellationToken.None);
+
+        // Assert — 403 without invoking the handler.
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*permission declaration or an allowlist entry*");
+        nextCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_AllowlistedRequest_PassesThroughRegardlessOfPermissions()
+    {
+        // Arrange — sign-in is the documented anonymous bootstrap entry: no token
+        // exists yet, so no permission claim can be evaluated.
+        var behavior = CreateBehavior<SignInRequest, JsonWebToken>(Array.Empty<string>());
 
         // Act
         var result = await behavior.Handle(
-            new OpenRequest(),
-            _ => Task.FromResult("ok"),
+            new SignInRequest("user@example.com", "Passw0rd!"),
+            _ => Task.FromResult<JsonWebToken>(null!),
             CancellationToken.None);
 
-        // Assert — existing behavior unchanged.
-        result.Should().Be("ok");
+        // Assert — allowlisted requests execute unchanged.
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_LegacyPassthroughAssembly_PassesThroughWithoutPermission()
+    {
+        // Arrange — Attachments requests keep the legacy pass-through until slice 2/2.
+        var behavior = CreateBehavior<ListAttachmentsRequest, IReadOnlyCollection<object>>(Array.Empty<string>());
+
+        // Act
+        var result = await behavior.Handle(
+            new ListAttachmentsRequest("Product", Guid.NewGuid()),
+            _ => Task.FromResult<IReadOnlyCollection<object>>(Array.Empty<object>()),
+            CancellationToken.None);
+
+        // Assert — unchanged behavior for the not-yet-covered module.
+        result.Should().BeEmpty();
     }
 
     [Fact]
@@ -133,6 +178,30 @@ public class AuthorizationBehaviorTests
 
         // Assert
         result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_UpdateProductRequest_WithoutPermission_ThrowsForbiddenException()
+    {
+        // Arrange — read-only caller; UpdateProduct is a slice-1 write newly
+        // covered with RequirePermission("configuration.write").
+        var behavior = CreateBehavior<UpdateProductRequest, ProductResponse>(new[] { "configuration.read" });
+        var nextCalled = false;
+
+        // Act
+        var act = () => behavior.Handle(
+            new UpdateProductRequest(Guid.NewGuid(), "CODE", "Name", null, null, null, ScanBy.Code, true, null, null),
+            _ =>
+            {
+                nextCalled = true;
+                return Task.FromResult<ProductResponse>(null!);
+            },
+            CancellationToken.None);
+
+        // Assert — 403 without invoking the handler.
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*configuration.write*");
+        nextCalled.Should().BeFalse();
     }
 
     [Fact]
