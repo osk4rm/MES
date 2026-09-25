@@ -44,13 +44,13 @@ Palette is steel-navy primary (`--color-primary` ≈ `#1E3A5F`), amber reserved 
 ## State management (Pinia)
 
 - Store files in `src/stores/`, one `defineStore` per file using the options style.
-- `authStore` exposes `token`, `user`, `isAuthenticated`, `setAuth`, `loadAuth`, `clearAuth` — persisted to `localStorage`.
+- `authStore` exposes `user`, `authenticated`/`isAuthenticated`, `setAuth`, `clearAuth` — in-memory only. The session lives in httpOnly `mes_access`/`mes_refresh` cookies; never persist tokens (or any auth state) to `localStorage`/`sessionStorage`. After a reload the router guard re-proves the session via `refreshSession()` (`POST /api/auth/refresh`).
 - `toastStore` drives `AppToastHost`; call `toastStore.success|error|info|warning(message)` instead of importing notification libs.
 
 ## API communication
 
 - Every HTTP call goes through a `src/services/*Service.ts` wrapper that uses the shared `http` axios instance.
-- The shared `http` interceptor injects the `Authorization` header and redirects to `/login` on `401`.
+- The shared `http` instance uses `withCredentials` cookie transport and never injects an `Authorization` header. On `401` from a non-auth endpoint it clears the in-memory session and redirects to `/login?redirect=<original path>` (auth endpoints are skipped so sign-in/refresh callers handle 401 themselves).
 - Use `extractErrorMessage(err, fallback)` from `src/services/http.ts` to produce toast-ready error strings that honour ASP.NET Core `ProblemDetails` / `ValidationProblemDetails`.
 - Paged list requests use `buildPagedParams(req)` from `tenantService.ts` to strip empty filter values.
 

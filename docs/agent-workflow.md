@@ -265,6 +265,14 @@ docker compose logs -f swarm
   osobna labelka.
 - `--auto` tylko na izolowanym klonie/runnerze.
 - Reviewer i e2e dostają tylko artefakt (diff/PR), nie historię implementera.
+- **Granica reviewer ↔ verifier ↔ e2e**: `mes-reviewer` ocenia diff
+  (poprawność, AGENT.md, domena) i NIE blokuje na click-throughu Playwright —
+  ani w promptcie, ani w skillu. Sesja reviewera nie ma uruchomionego stacku
+  ani bazy, więc wymuszenie tego testu dawało `CHANGES_REQUESTED` bez
+  możliwości spełnienia (4 z 5 odrzuceń na PR #244). Click-through jest
+  ręcznym krokiem człowieka z `AGENT.md` i etapem `mes-e2e-tester`.
+  `mes-verifier` zostaje właścicielem pytania „czy testy dowodzą AC"
+  (reviewer sprawdza tylko, że testy istnieją i nie są osłabione).
 
 ## 10. Rollout
 
@@ -430,10 +438,25 @@ Zasady:
     `ai:verify`, gdy PR powstał przed tą zmianą). Odrzucenie z dowolnej bramki
     czyści obie i robi `swarm_refire_label ai:changes` (remove+add, żeby event
     `labeled` na pewno się wyemitował).
-  - **Świeży werdykt = skip**: `swarm_success_covers_head` porównuje czas
-    ostatniego werdyktu z `committedDate` heada. PR zdemotowany do re-review
-    bez nowego commita (stary bug merge joba) nie pali kolejnej sesji LLM —
-    resolve-step przeskakuje etap i woła join bezpośrednio. To samo dla e2e.
+  - **Świeży werdykt = skip (marker SHA, nie zegarek)**: po każdym
+    werdykcie `swarm_mark_verdict` zapisuje niewidoczny komentarz
+    `<!-- swarm-verdict gate=<bramka> sha=<sha> verdict=<werdykt> -->`,
+    a `swarm_verdict_covers_head` sprawdza, czy marker istnieje DLA
+    BIEŻĄCEGO heada. Zegarka nie bierze udziału w porównaniu celowo: rebase
+    i skew zegara przesuwają `committedDate` bez zmiany diffu. Stary
+    timestampowy check miał dodatkowo błąd składni (`gh pr view --arg`,
+    którego `gh` nie zna) i `|| echo stale`, więc **każdy** check kończył się
+    „stale" — bramki nie potrafiły pominąć sesji, a demotywany PR zapętlał
+    review/verify w nieskończoność (PR #244: 14 review, 19 verify, zero
+    commitów, `APPROVED` → `CHANGES_REQUESTED` na identycznym diffie).
+    PR-y bez markera dostaną jeden dodatkowy przebieg — to bezpieczne.
+  - **Runda bez postępu = `ai:blocked`**: fix job liczy
+    `swarm_fix_made_no_progress` (head SHA z `git ls-remote` + hash opisu PR-a
+    przed rundą i po niej). Runda, która nie zmieniła ani kodu, ani opisu,
+    nie może zmienić werdyktu bramek (są idempotentne per SHA), więc zamiast
+    zapętlać `ai:changes` zostawia `ai:blocked` i komentarz dla człowieka.
+    Wymaga pozytywnego dowodu — nieczytelny SHA albo hash = brak eskalacji
+    (jedna dodatkowa runda jest tańsza niż fałszywe zablokowanie).
   - **Agenci nie startują stacku**: implement/fix weryfikują tylko
     `dotnet build AsistOff.MES.sln`, `dotnet test
     tests/AsistOff.MES.Shared.Tests` i `npm --prefix AsistOff.MES.Web run
@@ -456,7 +479,10 @@ Zasady:
 - **Ostatni werdykt wygrywa**: fallback werdyktu z komentarzy PR-a bierze
   OSTATNI (`swarm_last_verdict_stdin`), nie „więcej niż jeden = AMBIGUOUS" —
   PR z `CHANGES_REQUESTED` w rundzie 1 i `APPROVED` w rundzie 2 jest
-  zaaprobowany, nie zablokowany.
+  zaaprobowany, nie zablokowany. Lokalny dispatcher ma własną wersję tej
+  reguły (`Get-LastVerdictInComments`) i zapisuje identyczny format markera,
+  więc oba orkiestratory rozumieją swoje werdykty i nie eskalują żywego PR-a
+  tylko dlatego, że historia jest długa.
 - **Red CI wraca do pętli**: `review` nasłuchuje też `workflow_run` z
   `conclusion == failure` — wcześniej czerwone CI po timeoutcie waita
   zostawiało PR w `ai:review` na zawsze.

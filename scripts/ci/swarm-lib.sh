@@ -481,25 +481,90 @@ swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout | approval
   echo timeout
 }
 
-swarm_success_covers_head() { # <pr> <success-verdict> <alternation> -> 0 when latest verdict is that success and is newer than head
-  # Skips a repeat LLM pass when the head SHA was already judged. A new commit
-  # is older than the verdict comment only if the comment came after it.
-  local pr="$1" success="$2" pattern="$3" result
-  result=$(gh pr view "$pr" --json commits,comments --jq --arg success "$success" --arg pattern "$pattern" '
-    ($commits | last | .committedDate // "") as $head
-    | if $head == "" then "stale"
-      else
-        ([.comments[]
-          | select(.body | test("VERDICT:\\s*(" + $pattern + ")"))
-          | {at:.createdAt, v:(.body | capture("VERDICT:\\s*(?<v>" + $pattern + ")").v)}
-        ] | last) as $last
-        | if $last == null then "stale"
-          elif $last.v != $success then "stale"
-          elif $last.at >= $head then "fresh"
-          else "stale" end
-      end
-  ' 2>/dev/null || echo stale)
-  [ "$result" = fresh ]
+# --- gate verdicts, keyed to the head SHA ---------------------------------
+#
+# Freshness must never be inferred from timestamps. Rebase, --amend and runner
+# clock skew all move commit dates, and a comparison that mis-reads "the verdict
+# predates the fix" makes the swarm skip a gate on unreviewed code. The stage
+# job therefore records the SHA it judged, in an HTML comment: invisible in the
+# web UI, present in the API, and written by the job rather than by the agent,
+# so agent compliance is not required. No marker for the current head means
+# "not judged" — the safe direction, the gate runs.
+#
+# Markers are gate-scoped (gate=review / verify / e2e) because a single head SHA
+# collects one marker per gate and the newest-marker-wins lookup would otherwise
+# let a verify marker hide the review verdict for the same commit.
+
+swarm_head_verdict() { # <pr> <gate> <sha> -> verdict recorded for <sha> by <gate> (newest wins), or empty
+  local pr="$1" gate="$2" sha="$3"
+  case "$gate" in
+    '' | *[!a-z]*) return 1 ;;
+  esac
+  case "$sha" in
+    '' | *[!0-9a-f]*) return 1 ;;
+  esac
+  swarm_comments_body pr "$pr" 2>/dev/null \
+    | grep -oE "swarm-verdict gate=$gate sha=$sha verdict=[A-Z_]+" \
+    | tail -n 1 | sed -E 's/.*verdict=//' || true
+}
+
+swarm_verdict_covers_head() { # <pr> <gate> <verdict> -> 0 when <verdict> was recorded for the current head SHA
+  local pr="$1" gate="$2" want="$3" head got
+  head=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
+  [ -n "$head" ] || return 1
+  got=$(swarm_head_verdict "$pr" "$gate" "$head")
+  [ -n "$got" ] && [ "$got" = "$want" ]
+}
+
+swarm_mark_verdict() { # <pr> <gate> <sha> <verdict> — witness that <verdict> covers <sha>; no-op when head already moved
+  # Refuses to mark a SHA that is no longer the head: the pass judged a
+  # different tree than the one the marker would vouch for.
+  local pr="$1" gate="$2" sha="$3" verdict="$4" head tmp
+  case "$gate" in
+    '' | *[!a-z]*) return 1 ;;
+  esac
+  case "$sha" in
+    '' | *[!0-9a-f]*) return 1 ;;
+  esac
+  case "$verdict" in
+    '' | *[!A-Z_]*) return 1 ;;
+  esac
+  head=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
+  if [ "$head" != "$sha" ]; then
+    echo "head moved ($sha -> ${head:-unknown}); not marking $gate=$verdict" >&2
+    return 1
+  fi
+  tmp=$(mktemp)
+  printf '<!-- swarm-verdict gate=%s sha=%s verdict=%s -->\n' "$gate" "$sha" "$verdict" >"$tmp"
+  swarm_comment pr "$pr" "$tmp"
+  rm -f "$tmp"
+}
+
+swarm_pr_body_hash() { # <pr> -> stable hash of the PR description (empty-safe)
+  gh pr view "$1" --json body --jq '.body // ""' 2>/dev/null | git hash-object --stdin
+}
+
+swarm_remote_head_sha() { # <pr> -> head SHA as the git remote reports it
+  # Authoritative and immediate. The REST headRefOid can still lag behind a push
+  # the fixer just made, and a stale read there reads as "the round changed
+  # nothing" - a false escalation to ai:blocked.
+  local pr="$1" ref
+  ref=$(gh pr view "$pr" --json headRefName --jq .headRefName 2>/dev/null || true)
+  [ -n "$ref" ] || return 1
+  git ls-remote origin "$ref" 2>/dev/null | cut -f1 | head -n 1
+}
+
+swarm_fix_made_no_progress() { # <pr> <head-before> <body-before> -> 0 when the round provably changed nothing
+  # Requires positive proof before reporting no progress: a wrong "nothing
+  # changed" costs a human, while a missed one only costs one more agent pass.
+  local pr="$1" head_before="$2" body_before="$3" head_after body_after
+  [ -n "$head_before" ] || return 1
+  head_after=$(swarm_remote_head_sha "$pr") || return 1
+  [ -n "$head_after" ] || return 1
+  [ "$head_after" = "$head_before" ] || return 1
+  body_after=$(swarm_pr_body_hash "$pr")
+  [ -n "$body_after" ] || return 1
+  [ "$body_after" = "$body_before" ]
 }
 
 swarm_open_gates() { # <pr> — wake review, and verify in parallel unless docs-only
@@ -531,7 +596,7 @@ swarm_after_review_approved() { # <pr> — drop the review gate; advance only if
     echo 'verify still open; waiting for it'
     return 0
   fi
-  if swarm_success_covers_head "$pr" TESTS_SOUND 'TESTS_SOUND|TESTS_INSUFFICIENT' \
+  if swarm_verdict_covers_head "$pr" verify TESTS_SOUND \
     || swarm_has_label pr "$pr" ai:e2e \
     || swarm_has_label pr "$pr" ai:ready; then
     if ! swarm_has_label pr "$pr" ai:e2e && ! swarm_has_label pr "$pr" ai:ready; then
