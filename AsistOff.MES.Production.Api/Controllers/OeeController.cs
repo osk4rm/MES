@@ -11,7 +11,7 @@ namespace AsistOff.MES.Production.Api.Controllers;
 [Route("api/oee")]
 public class OeeController(ISender sender) : ApiController
 {
-    /// <summary>Per-Work Center OEE summary: confirmation counts and the Quality factor over a UTC time window.</summary>
+    /// <summary>Per-Work Center OEE summary: confirmation counts, the Quality factor and the Availability factor over a UTC time window.</summary>
     [HttpGet]
     public async Task<ActionResult<OeeSummaryResponse>> SummaryAsync(
         [FromQuery] Guid machineId,

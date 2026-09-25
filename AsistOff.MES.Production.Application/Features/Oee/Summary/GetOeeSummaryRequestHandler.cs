@@ -8,6 +8,8 @@ namespace AsistOff.MES.Production.Application.Features.Oee.Summary;
 
 internal sealed class GetOeeSummaryRequestHandler(
     IMachinesRepository machinesRepository,
+    IWorkCenterCalendarsRepository calendarsRepository,
+    IDowntimeEventsRepository downtimeEventsRepository,
     IProductionConfirmationsRepository confirmationsRepository)
     : IRequestHandler<GetOeeSummaryRequest, OeeSummaryResponse>
 {
@@ -42,6 +44,31 @@ internal sealed class GetOeeSummaryRequestHandler(
             ? OeeMath.Round4((double)(goodCount / totalCount))
             : null;
 
+        // Availability (slice 2): planned time is the overlap of the Work
+        // Center calendar Shifts with the window; downtime sums closed-event
+        // overlap only. Both repositories run under the tenant global query
+        // filter, so cross-tenant calendars and downtime stay invisible.
+        var calendar = await calendarsRepository.GetByMachineIdAsync(request.MachineId, cancellationToken);
+        var plannedMinutes = OeeMath.PlannedMinutes(calendar?.Entries, fromUtc, toUtc);
+
+        var downtimes = await downtimeEventsRepository.ListOverlappingAsync(
+            request.MachineId, fromUtc, toUtc, cancellationToken);
+
+        // Only closed-event overlap counts; open events are ignored.
+        var downtimeMinutes = downtimes
+            .Where(e => e.EndedAt.HasValue)
+            .Sum(e => OeeMath.OverlapMinutes(e.StartedAt, e.EndedAt!.Value, fromUtc, toUtc));
+
+        // Clamp: a stop overlapping mostly unplanned time must never drive
+        // run time negative.
+        var runMinutes = Math.Max(0, plannedMinutes - downtimeMinutes);
+
+        // Null rule: no planned time -> null Availability (never zero).
+        // Full downtime yields 0, not null: run time zero is computed.
+        double? availability = plannedMinutes > 0
+            ? OeeMath.Round4(runMinutes / plannedMinutes)
+            : null;
+
         return new OeeSummaryResponse(
             request.MachineId,
             fromUtc,
@@ -49,6 +76,10 @@ internal sealed class GetOeeSummaryRequestHandler(
             goodCount,
             scrapCount,
             totalCount,
-            quality);
+            quality,
+            plannedMinutes,
+            runMinutes,
+            downtimeMinutes,
+            availability);
     }
 }
