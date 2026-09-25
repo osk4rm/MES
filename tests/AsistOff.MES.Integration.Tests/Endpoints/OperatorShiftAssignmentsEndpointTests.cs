@@ -259,6 +259,65 @@ public sealed class OperatorShiftAssignmentsEndpointTests(MesApplicationFixture 
         crossTenantCreate.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task Get_UnknownId_Returns404()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync($"{BaseUrl}/{Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Delete_UnknownId_Returns404()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.DeleteAsync($"{BaseUrl}/{Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Get_AssignmentCreatedInAnotherTenant_Returns404()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var created = await CreateAssignmentAsync(
+            otherTenantClient,
+            await CreateOperatorAsync(otherTenantClient),
+            await CreateShiftAsync(otherTenantClient),
+            $"2026-09-{Random.Shared.Next(10, 28):D2}");
+
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+
+        var response = await devClient.GetAsync($"{BaseUrl}/{created.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Delete_AssignmentCreatedInAnotherTenant_Returns404_AndAssignmentSurvives()
+    {
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var created = await CreateAssignmentAsync(
+            otherTenantClient,
+            await CreateOperatorAsync(otherTenantClient),
+            await CreateShiftAsync(otherTenantClient),
+            $"2026-09-{Random.Shared.Next(10, 28):D2}");
+
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+
+        var deleteResponse = await devClient.DeleteAsync($"{BaseUrl}/{created.Id}");
+
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var ownerGet = await otherTenantClient.GetAsync($"{BaseUrl}/{created.Id}");
+        ownerGet.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     private static async Task<Guid> CreateOperatorAsync(HttpClient client)
     {
         var identifier = $"OP-{Guid.NewGuid():N}"[..12];

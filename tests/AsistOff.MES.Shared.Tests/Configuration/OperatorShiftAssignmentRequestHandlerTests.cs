@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using AsistOff.MES.Configuration.Application.Features.OperatorShiftAssignments.Browse;
 using AsistOff.MES.Configuration.Application.Features.OperatorShiftAssignments.Create;
 using AsistOff.MES.Configuration.Application.Features.OperatorShiftAssignments.Delete;
+using AsistOff.MES.Configuration.Application.Features.OperatorShiftAssignments.Get;
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
@@ -193,6 +194,23 @@ public class OperatorShiftAssignmentRequestHandlerTests
 
         // Act
         var act = () => handler.Handle(new DeleteOperatorShiftAssignmentRequest(Guid.NewGuid()), CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task Handle_GetUnknownId_ThrowsNotFoundException()
+    {
+        // Arrange
+        _repository
+            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OperatorShiftAssignment?)null);
+
+        var handler = new GetOperatorShiftAssignmentRequestHandler(_repository.Object);
+
+        // Act
+        var act = () => handler.Handle(new GetOperatorShiftAssignmentRequest(Guid.NewGuid()), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
