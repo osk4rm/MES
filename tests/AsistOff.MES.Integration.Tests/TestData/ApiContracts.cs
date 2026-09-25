@@ -296,6 +296,18 @@ public sealed record MovementPreviewLineDto(
     Guid? MeasureUnitId,
     Guid? PreferredWarehouseId);
 
+/// <summary>Shape of a persisted stock ledger line returned by <c>/api/stock-movements</c>.</summary>
+public sealed record StockMovementDto(
+    Guid Id,
+    string MovementType,
+    Guid ProductId,
+    decimal Quantity,
+    Guid? MeasureUnitId,
+    Guid? WarehouseId,
+    Guid ProductionConfirmationId,
+    Guid ProductionOrderId,
+    DateTime ReportedAt);
+
 /// <summary>Shape of the OEE snapshot returned by <c>/api/oee/snapshot</c>.</summary>
 public sealed record OeeSnapshotDto(
     Guid MachineId,
