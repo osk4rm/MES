@@ -23,9 +23,11 @@ namespace AsistOff.MES.Shared.Infrastructure
             IConfiguration configuration, IList<Assembly> assemblies, IHostEnvironment? hostEnvironment = null)
         {
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
             services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
             services.AddSingleton<IGuidProvider, GuidProvider>();
             services.AddScoped<ICurrentUserAccessor, HttpCurrentUserAccessor>();
+            services.AddScoped<ICurrentPermissionsAccessor, HttpCurrentPermissionsAccessor>();
             services.AddAuth(hostEnvironment);
             services.AddMessaging();
             services.AddValidation(assemblies);
