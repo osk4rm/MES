@@ -23,6 +23,13 @@ public class AuthorizationBehaviorTests
 
     private sealed record OpenRequest : IRequest<string>;
 
+    // Void (fire-and-forget) command: implements the non-generic IRequest, which
+    // since MediatR.Contracts 2.x no longer extends IRequest<Unit>. Regression
+    // cover for the pipeline silently skipping such requests (tenant.admin role
+    // endpoints returned 404 instead of 403 for read-only callers).
+    [RequirePermission("tenant.admin")]
+    private sealed record ProtectedVoidRequest : IRequest;
+
     [Fact]
     public async Task Handle_RequestWithoutAttribute_PassesThroughRegardlessOfPermissions()
     {
@@ -128,9 +135,48 @@ public class AuthorizationBehaviorTests
         result.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Handle_VoidRequestWithAttributeAndMissingPermission_ThrowsForbiddenException()
+    {
+        // Arrange — read-only caller, void command (TResponse = Unit in the pipeline).
+        var behavior = CreateBehavior<ProtectedVoidRequest, Unit>(new[] { "users.read" });
+        var nextCalled = false;
+
+        // Act
+        var act = () => behavior.Handle(
+            new ProtectedVoidRequest(),
+            _ =>
+            {
+                nextCalled = true;
+                return Task.FromResult(Unit.Value);
+            },
+            CancellationToken.None);
+
+        // Assert — 403 without invoking the handler.
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*tenant.admin*");
+        nextCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_VoidRequestWithAttributeAndMatchingPermission_CallsNext()
+    {
+        // Arrange — tenant admin caller.
+        var behavior = CreateBehavior<ProtectedVoidRequest, Unit>(new[] { "users.read", "tenant.admin" });
+
+        // Act
+        var result = await behavior.Handle(
+            new ProtectedVoidRequest(),
+            _ => Task.FromResult(Unit.Value),
+            CancellationToken.None);
+
+        // Assert
+        result.Should().Be(Unit.Value);
+    }
+
     private static AuthorizationBehavior<TRequest, TResponse> CreateBehavior<TRequest, TResponse>(
         IReadOnlyCollection<string> permissions)
-        where TRequest : IRequest<TResponse>
+        where TRequest : IBaseRequest
     {
         var accessor = new Mock<ICurrentPermissionsAccessor>();
         accessor.SetupGet(a => a.Permissions).Returns(permissions);

@@ -27,9 +27,6 @@ export interface ConsumedLotLine {
   quantity: number;
 }
 
-/** Alias kept for the lots validation helper; both names describe the same payload line. */
-export type ConsumedLotInput = ConsumedLotLine;
-
 export interface CreateProductionConfirmationRequest {
   productionOrderId: string;
   machineId: string;

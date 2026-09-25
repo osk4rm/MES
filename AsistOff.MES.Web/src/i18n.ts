@@ -68,7 +68,8 @@ const pl = {
     reasonCodes: 'Kody przyczyn',
     operationTemplates: 'Wzorcowe operacje',
     maintenance: 'Utrzymanie ruchu',
-    settings: 'Ustawienia'
+    settings: 'Ustawienia',
+    roles: 'Role'
   },
   auth: {
     signInTitle: 'Logowanie do AsistOff MES',
@@ -272,16 +273,14 @@ const pl = {
     selectProducedLot: 'Wybierz partię wyprodukowaną…',
     noLot: 'Bez partii',
     consumedLots: 'Partie zużyte',
-    addConsumedLot: 'Dodaj partię zużytą',
-    removeConsumedLot: 'Usuń',
-    consumedLot: 'Partia',
+    consumedLot: 'Partia zużyta',
     selectConsumedLot: 'Wybierz partię…',
     consumedQuantity: 'Ilość zużyta',
-    genealogyHint: 'Zapisane krawędzie genealogii podejrzysz w zakładce genealogii partii wyprodukowanej',
+    addConsumedLot: 'Dodaj partię zużytą',
+    genealogyHint: 'Po zapisie ślad pojawi się w zakładce genealogii partii wyprodukowanej.',
     producedLotRequired: 'Partia wyprodukowana jest wymagana, gdy podano partie zużyte',
-    consumedLotRequired: 'Wybierz partię dla każdego wiersza zużycia',
-    consumedQuantityPositive: 'Ilość zużyta musi być większa od zera',
-    lotsMustDiffer: 'Partia zużyta i wyprodukowana muszą się różnić'
+    selfLinkNotAllowed: 'Partia zużyta musi różnić się od wyprodukowanej',
+    consumedQuantityPositive: 'Zużyta ilość musi być większa od zera'
   },
   movements: {
     title: 'Podgląd ruchów RW / PW',
@@ -480,8 +479,7 @@ const pl = {
   },
   reasonCodes: {
     title: 'Kody przyczyn',
-    subtitle: 'Słownik przyczyn przestojów i braków',
-    create: 'Nowy kod przyczyny',
+    subtitle: 'Słownik przyczyn przestojów i braków',    create: 'Nowy kod przyczyny',
     code: 'Kod',
     name: 'Nazwa',
     description: 'Opis',
@@ -501,6 +499,26 @@ const pl = {
       4: 'Przygotowanie',
       5: 'Inne'
     }
+  },
+  roles: {
+    title: 'Role',
+    subtitle: 'Role i przypisania uprawnień (RBAC)',
+    create: 'Nowa rola',
+    edit: 'Edytuj rolę',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    permissions: 'Uprawnienia',
+    members: 'Członkowie',
+    permissionMatrix: 'Macierz uprawnień',
+    matrixSubtitle: 'Zaznacz, które uprawnienia przyznaje każda rola. Zmiany zapisują się od razu.',
+    membersTitle: 'Członkowie roli',
+    selectRoleHint: 'Wybierz rolę…',
+    assign: 'Przypisz',
+    userIdPlaceholder: 'Wklej ID użytkownika…',
+    unassign: 'Usuń z roli',
+    emptyMembers: 'Rola nie ma jeszcze członków.',
+    emptyRoles: 'Brak ról — utwórz pierwszą.'
   },
   spcCharacteristics: {
     title: 'Charakterystyki SPC',
@@ -791,6 +809,17 @@ const pl = {
     from: 'Okno od',
     to: 'Okno do',
     apply: 'Zastosuj',
+    bucket: 'Agregacja',
+    buckets: {
+      Day: 'Dzienna',
+      Week: 'Tygodniowa'
+    },
+    trendTitle: 'Trend w podziale na okresy',
+    trendEmpty: 'Brak okresów w wybranym oknie',
+    bucketFrom: 'Okres od',
+    bucketTo: 'Okres do',
+    fleetTitle: 'Porównanie floty (od najgorszej)',
+    fleetEmpty: 'Brak aktywnych stanowisk w oknie',
     cards: {
       failures: 'Awarie',
       repairs: 'Naprawy',
@@ -947,7 +976,8 @@ const en: typeof pl = {
     reasonCodes: 'Reason codes',
     operationTemplates: 'Operation templates',
     maintenance: 'Maintenance',
-    settings: 'Settings'
+    settings: 'Settings',
+    roles: 'Roles'
   },
   auth: {
     signInTitle: 'Sign in to AsistOff MES',
@@ -1151,16 +1181,14 @@ const en: typeof pl = {
     selectProducedLot: 'Select produced lot…',
     noLot: 'No lot',
     consumedLots: 'Consumed lots',
-    addConsumedLot: 'Add consumed lot',
-    removeConsumedLot: 'Remove',
-    consumedLot: 'Lot',
+    consumedLot: 'Consumed lot',
     selectConsumedLot: 'Select lot…',
     consumedQuantity: 'Consumed quantity',
-    genealogyHint: 'Posted genealogy edges can be inspected in the produced lot genealogy tab',
+    addConsumedLot: 'Add consumed lot',
+    genealogyHint: 'After saving, the trace appears in the produced lot genealogy tab.',
     producedLotRequired: 'Produced lot is required when consumed lots are provided',
-    consumedLotRequired: 'Select a lot for every consumed row',
-    consumedQuantityPositive: 'Consumed quantity must be greater than zero',
-    lotsMustDiffer: 'Consumed and produced lots must differ'
+    selfLinkNotAllowed: 'Consumed lot must differ from the produced lot',
+    consumedQuantityPositive: 'Consumed quantity must be greater than zero'
   },
   movements: {
     title: 'RW / PW movement preview',
@@ -1380,6 +1408,26 @@ const en: typeof pl = {
       4: 'Setup',
       5: 'Other'
     }
+  },
+  roles: {
+    title: 'Roles',
+    subtitle: 'Roles and permission assignments (RBAC)',
+    create: 'New role',
+    edit: 'Edit role',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    permissions: 'Permissions',
+    members: 'Members',
+    permissionMatrix: 'Permission matrix',
+    matrixSubtitle: 'Tick which permissions each role grants. Changes save immediately.',
+    membersTitle: 'Role members',
+    selectRoleHint: 'Select a role…',
+    assign: 'Assign',
+    userIdPlaceholder: 'Paste a user ID…',
+    unassign: 'Remove from role',
+    emptyMembers: 'This role has no members yet.',
+    emptyRoles: 'No roles — create the first one.'
   },
   spcCharacteristics: {
     title: 'SPC characteristics',
@@ -1670,6 +1718,17 @@ const en: typeof pl = {
     from: 'Window from',
     to: 'Window to',
     apply: 'Apply',
+    bucket: 'Bucket',
+    buckets: {
+      Day: 'Daily',
+      Week: 'Weekly'
+    },
+    trendTitle: 'Per-bucket trend',
+    trendEmpty: 'No buckets in the selected window',
+    bucketFrom: 'Bucket from',
+    bucketTo: 'Bucket to',
+    fleetTitle: 'Fleet comparison (worst first)',
+    fleetEmpty: 'No active work centers in the window',
     cards: {
       failures: 'Failures',
       repairs: 'Repairs',

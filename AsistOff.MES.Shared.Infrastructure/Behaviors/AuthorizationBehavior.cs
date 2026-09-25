@@ -10,12 +10,20 @@ namespace AsistOff.MES.Shared.Infrastructure.Behaviors
     /// permissions. Requests without the attribute pass through unchanged; requests
     /// carrying it require the caller to hold every declared permission, otherwise
     /// a <see cref="ForbiddenException"/> (HTTP 403) is thrown.
+    ///
+    /// The generic constraint is deliberately <see cref="IBaseRequest"/> rather than
+    /// <c>IRequest&lt;TResponse&gt;</c>: since MediatR.Contracts 2.x the non-generic
+    /// <c>IRequest</c> (void commands, resolved in the pipeline as <c>TResponse = Unit</c>)
+    /// no longer extends <c>IRequest&lt;Unit&gt;</c> — both are siblings under
+    /// <c>IBaseRequest</c>. Constraining on <c>IRequest&lt;TResponse&gt;</c> silently
+    /// drops void requests from this behavior, leaving their
+    /// <c>RequirePermission</c> attributes unenforced (403 becomes 404/204).
     /// </summary>
     public class AuthorizationBehavior<TRequest, TResponse>(
         ICurrentPermissionsAccessor permissionsAccessor,
         ILogger<AuthorizationBehavior<TRequest, TResponse>> logger)
         : IPipelineBehavior<TRequest, TResponse>
-        where TRequest : IRequest<TResponse>
+        where TRequest : IBaseRequest
     {
         public async Task<TResponse> Handle(
             TRequest request,

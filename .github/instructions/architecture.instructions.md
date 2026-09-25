@@ -100,6 +100,15 @@ Registered per module where needed:
 
 2. `TenantValidationBehavior` – validates tenant context for tenant-scoped requests.
 
+> **Gotcha – constrain behaviors on `IBaseRequest`, never on `IRequest<TResponse>`.**
+> Since MediatR.Contracts 2.x the non-generic `IRequest` (void commands, resolved in
+> the pipeline as `TResponse = Unit`) no longer extends `IRequest<Unit>` – both are
+> siblings under `MediatR.IBaseRequest`. A behavior with `where TRequest :
+> IRequest<TResponse>` is silently skipped for void requests (MS.DI cannot close the
+> generic), so e.g. `RequirePermission` was unenforced on void role endpoints until
+> `AuthorizationBehavior` was relaxed to `IBaseRequest`. The same trap applies to any
+> new pipeline behavior.
+
 ## Exception Hierarchy
 
 Throw exceptions from `AsistOff.MES.Shared.Abstractions.Exceptions`:

@@ -94,16 +94,16 @@ describe('productionConfirmationService', () => {
     expect(postMock).toHaveBeenCalledWith('/api/production-confirmations', payload);
   });
 
-  it('create forwards produced lot and consumed lots for genealogy trace (#221)', async () => {
-    const created = confirmation({ goodQuantity: 7, scrapQuantity: 1 });
+  it('create forwards produced lot and consumed lot lines for genealogy trace', async () => {
+    const created = confirmation();
     postMock.mockResolvedValue({ data: created });
     const payload = {
       productionOrderId: 'order-1',
       machineId: 'machine-1',
       reportedByOperatorId: null,
       reportedAt: new Date('2026-09-24T10:00:00Z').toISOString(),
-      goodQuantity: 7,
-      scrapQuantity: 1,
+      goodQuantity: 10,
+      scrapQuantity: 0,
       notes: null,
       producedLotId: 'lot-produced',
       consumedLots: [
@@ -116,9 +116,12 @@ describe('productionConfirmationService', () => {
 
     expect(result).toEqual(created);
     expect(postMock).toHaveBeenCalledWith('/api/production-confirmations', payload);
+    const [, sent] = postMock.mock.calls[0] as [string, typeof payload];
+    expect(sent.producedLotId).toBe('lot-produced');
+    expect(sent.consumedLots).toHaveLength(2);
   });
 
-  it('create posts null produced lot and empty consumed lots when no trace is recorded', async () => {
+  it('create omits lot references when reporting without trace', async () => {
     const created = confirmation();
     postMock.mockResolvedValue({ data: created });
     const payload = {
