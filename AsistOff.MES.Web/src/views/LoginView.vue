@@ -64,7 +64,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppInput from '../components/ui/AppInput.vue';
 import AppFormField from '../components/ui/AppFormField.vue';
@@ -78,6 +78,7 @@ const email = ref('');
 const password = ref('');
 const loading = ref(false);
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
 const toast = useToastStore();
 const { t } = useI18n();
@@ -85,10 +86,15 @@ const { t } = useI18n();
 async function onSubmit() {
   loading.value = true;
   try {
+    // Cookie transport (issue #241): the session arrives via httpOnly
+    // Set-Cookie and the body tokens are intentionally empty. A 200
+    // means the cookies were issued, so mark the session authenticated
+    // even when accessToken is an empty string.
     const response = await signIn({ email: email.value, password: password.value });
-    authStore.setAuth(response.accessToken, { email: email.value });
+    authStore.setAuth(response.accessToken ?? '', { email: email.value });
     toast.success(t('auth.signInSuccess'));
-    router.push('/dashboard');
+    const redirect = route.query['redirect'];
+    await router.push(typeof redirect === 'string' && redirect.startsWith('/') ? redirect : '/dashboard');
   } catch (err) {
     toast.error(extractErrorMessage(err, t('auth.signInError')));
   } finally {

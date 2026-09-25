@@ -1,10 +1,18 @@
 import axios, { AxiosError } from 'axios';
 
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL
+  baseURL: import.meta.env.VITE_API_BASE_URL,
+  // Cookie transport (issue #241): the session lives in httpOnly
+  // mes_access/mes_refresh cookies, so every API call must carry
+  // cookies even cross-origin (Vite :5173 -> API :5080).
+  withCredentials: true
 });
 
 http.interceptors.request.use((config) => {
+  // Header fallback during transition: when a legacy bearer token is
+  // still stored (e.g. older session), keep sending it. Cookie-only
+  // sessions send no Authorization header; the API falls back to the
+  // mes_access cookie (see Extensions.OnMessageReceived).
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -22,6 +30,8 @@ http.interceptors.response.use(
         try {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
+          localStorage.removeItem('mes_auth_user');
+          localStorage.removeItem('mes_auth_flag');
         } catch { /* ignore */ }
         window.location.assign('/login');
       }
