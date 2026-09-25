@@ -27,8 +27,6 @@ public class RefreshTokenFlowTests
     private readonly Mock<IAuthManager> _authManager = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<IGuidProvider> _guids = new();
-    private readonly Mock<ICurrentTenantAccessor> _tenantAccessor = new();
-    private readonly Mock<ICurrentUserAccessor> _userAccessor = new();
     private readonly DateTime _now = new(2026, 9, 25, 12, 0, 0, DateTimeKind.Utc);
 
     public RefreshTokenFlowTests()
@@ -67,6 +65,12 @@ public class RefreshTokenFlowTests
         return user;
     }
 
+    private RefreshTokenRequestHandler BuildRefreshHandler() => new(
+        _refreshTokens.Object, _users.Object, _tenants.Object,
+        _userRoles.Object, _rolePermissions.Object, _authManager.Object,
+        AuthOptions(), _clock.Object, _guids.Object,
+        NullLogger<RefreshTokenRequestHandler>.Instance);
+
     [Fact]
     public async Task SignIn_IssuesOpaqueRefreshToken_PersistedServerSide()
     {
@@ -100,7 +104,8 @@ public class RefreshTokenFlowTests
     [Fact]
     public async Task Refresh_Rotates_InvalidatesOldAndIssuesNew()
     {
-        // Arrange
+        // Arrange — no ambient tenant or user: the endpoint is anonymous and the
+        // tenant comes from the stored row.
         var user = BuildUser("pw");
         var tenant = new Tenant { Id = user.TenantId, Name = "Acme", IsActive = true };
         var (opaque, hash) = RefreshTokenHasher.Generate();
@@ -114,13 +119,7 @@ public class RefreshTokenFlowTests
             ExpiresAtUtc = _now.AddHours(1),
             CreatedAt = _now.AddMinutes(-5)
         };
-        _tenantAccessor.Setup(t => t.TryGetTenantId(out It.Ref<Guid>.IsAny)).Returns((out Guid id) =>
-        {
-            id = user.TenantId;
-            return true;
-        });
-        _userAccessor.SetupGet(u => u.UserId).Returns(user.Id);
-        _refreshTokens.Setup(r => r.GetByHashAsync(hash, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
+        _refreshTokens.Setup(r => r.GetByHashIgnoringQueryFiltersAsync(hash, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
         _users.Setup(r => r.GetAsync(user.Id)).ReturnsAsync(user);
         _tenants.Setup(r => r.GetByIdAsync(user.TenantId, It.IsAny<CancellationToken>())).ReturnsAsync(tenant);
         RefreshToken? successor = null;
@@ -128,25 +127,119 @@ public class RefreshTokenFlowTests
             .Callback<RefreshToken, CancellationToken>((t, _) => successor = t)
             .Returns(Task.CompletedTask);
 
-        var sut = new RefreshTokenRequestHandler(
-            _refreshTokens.Object, _users.Object, _tenants.Object,
-            _userRoles.Object, _rolePermissions.Object, _authManager.Object,
-            AuthOptions(), _clock.Object, _guids.Object,
-            _tenantAccessor.Object, _userAccessor.Object,
-            NullLogger<RefreshTokenRequestHandler>.Instance);
+        var sut = BuildRefreshHandler();
 
         // Act
         var result = await sut.Handle(new RefreshTokenRequest(opaque), CancellationToken.None);
 
-        // Assert — old invalidated, new issued in the same family.
+        // Assert — old invalidated, new issued in the same family and tenant.
         stored.RevokedAtUtc.Should().Be(_now);
         stored.ReplacedByHash.Should().NotBeNullOrWhiteSpace();
         result.RefreshToken.Should().NotBeNullOrWhiteSpace();
         result.RefreshToken.Should().NotBe(opaque);
         successor.Should().NotBeNull();
         successor!.FamilyId.Should().Be(stored.FamilyId);
+        successor.TenantId.Should().Be(stored.TenantId);
         successor.TokenHash.Should().Be(RefreshTokenHasher.Hash(result.RefreshToken));
         _refreshTokens.Verify(r => r.UpdateAsync(stored, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Refresh_BindsSessionToStoredTenant_NotCallerInput()
+    {
+        // Arrange — the minted access token must carry the stored row's tenant,
+        // even though the request itself carries no tenant information.
+        var user = BuildUser("pw");
+        var tenant = new Tenant { Id = user.TenantId, Name = "Acme", IsActive = true };
+        var (opaque, hash) = RefreshTokenHasher.Generate();
+        var stored = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            TenantId = user.TenantId,
+            UserId = user.Id,
+            TokenHash = hash,
+            FamilyId = Guid.NewGuid(),
+            ExpiresAtUtc = _now.AddHours(1),
+            CreatedAt = _now.AddMinutes(-5)
+        };
+        _refreshTokens.Setup(r => r.GetByHashIgnoringQueryFiltersAsync(hash, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
+        _users.Setup(r => r.GetAsync(user.Id)).ReturnsAsync(user);
+        _tenants.Setup(r => r.GetByIdAsync(user.TenantId, It.IsAny<CancellationToken>())).ReturnsAsync(tenant);
+        _refreshTokens.Setup(r => r.AddAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        IDictionary<string, IEnumerable<string>>? capturedClaims = null;
+        _authManager.Setup(m => m.CreateToken(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<IDictionary<string, IEnumerable<string>>>()))
+            .Callback<string, string, string, IDictionary<string, IEnumerable<string>>?>((_, _, _, c) => capturedClaims = c)
+            .Returns<string, string, string, IDictionary<string, IEnumerable<string>>?>((userId, role, _, _) =>
+                new JsonWebToken { AccessToken = "access", Id = userId, Role = role ?? string.Empty });
+
+        var sut = BuildRefreshHandler();
+
+        // Act
+        await sut.Handle(new RefreshTokenRequest(opaque), CancellationToken.None);
+
+        // Assert — tenant claim equals the stored row's tenant.
+        capturedClaims.Should().NotBeNull();
+        capturedClaims!["tenant_id"].Should().Equal(user.TenantId.ToString());
+    }
+
+    [Fact]
+    public async Task Refresh_UserTenantMismatch_Throws()
+    {
+        // Arrange — the user moved to (or belongs to) another tenant: the token
+        // must not mint a session for them.
+        var user = BuildUser("pw", tenantId: Guid.NewGuid());
+        var (opaque, hash) = RefreshTokenHasher.Generate();
+        var stored = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            TenantId = Guid.NewGuid(),
+            UserId = user.Id,
+            TokenHash = hash,
+            FamilyId = Guid.NewGuid(),
+            ExpiresAtUtc = _now.AddHours(1),
+            CreatedAt = _now.AddMinutes(-5)
+        };
+        _refreshTokens.Setup(r => r.GetByHashIgnoringQueryFiltersAsync(hash, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
+        _users.Setup(r => r.GetAsync(user.Id)).ReturnsAsync(user);
+
+        var sut = BuildRefreshHandler();
+
+        // Act
+        var act = () => sut.Handle(new RefreshTokenRequest(opaque), CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<AuthenticationException>();
+    }
+
+    [Fact]
+    public async Task Refresh_UnknownToken_Throws()
+    {
+        // Arrange
+        _refreshTokens.Setup(r => r.GetByHashIgnoringQueryFiltersAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((RefreshToken?)null);
+
+        var sut = BuildRefreshHandler();
+
+        // Act
+        var act = () => sut.Handle(new RefreshTokenRequest("bogus"), CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<AuthenticationException>();
+    }
+
+    [Fact]
+    public async Task Refresh_EmptyToken_Throws()
+    {
+        // Arrange
+        var sut = BuildRefreshHandler();
+
+        // Act
+        var act = () => sut.Handle(new RefreshTokenRequest(string.Empty), CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<AuthenticationException>();
     }
 
     [Fact]
@@ -179,22 +272,11 @@ public class RefreshTokenFlowTests
             ExpiresAtUtc = _now.AddDays(7),
             CreatedAt = _now.AddMinutes(-1)
         };
-        _tenantAccessor.Setup(t => t.TryGetTenantId(out It.Ref<Guid>.IsAny)).Returns((out Guid id) =>
-        {
-            id = user.TenantId;
-            return true;
-        });
-        _userAccessor.SetupGet(u => u.UserId).Returns(user.Id);
-        _refreshTokens.Setup(r => r.GetByHashAsync(hash, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
+        _refreshTokens.Setup(r => r.GetByHashIgnoringQueryFiltersAsync(hash, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
         _refreshTokens.Setup(r => r.BrowseByFamilyAsync(familyId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<RefreshToken> { stored, sibling });
 
-        var sut = new RefreshTokenRequestHandler(
-            _refreshTokens.Object, _users.Object, _tenants.Object,
-            _userRoles.Object, _rolePermissions.Object, _authManager.Object,
-            AuthOptions(), _clock.Object, _guids.Object,
-            _tenantAccessor.Object, _userAccessor.Object,
-            NullLogger<RefreshTokenRequestHandler>.Instance);
+        var sut = BuildRefreshHandler();
 
         // Act
         var act = () => sut.Handle(new RefreshTokenRequest(opaque), CancellationToken.None);
@@ -221,17 +303,21 @@ public class RefreshTokenFlowTests
             ExpiresAtUtc = _now.AddDays(7),
             CreatedAt = _now
         };
-        _tenantAccessor.Setup(t => t.TryGetTenantId(out It.Ref<Guid>.IsAny)).Returns((out Guid id) =>
+        _refreshTokens.Setup(r => r.GetByHashAsync(hash, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
+        _refreshTokens.Setup(r => r.GetByHashIgnoringQueryFiltersAsync(hash, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
+
+        var tenantAccessor = new Mock<ICurrentTenantAccessor>();
+        tenantAccessor.Setup(t => t.TryGetTenantId(out It.Ref<Guid>.IsAny)).Returns((out Guid id) =>
         {
             id = user.TenantId;
             return true;
         });
-        _userAccessor.SetupGet(u => u.UserId).Returns(user.Id);
-        _refreshTokens.Setup(r => r.GetByHashAsync(hash, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
+        var userAccessor = new Mock<ICurrentUserAccessor>();
+        userAccessor.SetupGet(u => u.UserId).Returns(user.Id);
 
         var signOut = new SignOutRequestHandler(
             _refreshTokens.Object, _clock.Object,
-            _tenantAccessor.Object, _userAccessor.Object,
+            tenantAccessor.Object, userAccessor.Object,
             NullLogger<SignOutRequestHandler>.Instance);
 
         // Act — sign out revokes.
@@ -241,12 +327,7 @@ public class RefreshTokenFlowTests
         stored.RevokedAtUtc.Should().Be(_now);
         stored.RevocationReason.Should().Be("sign-out");
 
-        var refresh = new RefreshTokenRequestHandler(
-            _refreshTokens.Object, _users.Object, _tenants.Object,
-            _userRoles.Object, _rolePermissions.Object, _authManager.Object,
-            AuthOptions(), _clock.Object, _guids.Object,
-            _tenantAccessor.Object, _userAccessor.Object,
-            NullLogger<RefreshTokenRequestHandler>.Instance);
+        var refresh = BuildRefreshHandler();
         var act = () => refresh.Handle(new RefreshTokenRequest(opaque), CancellationToken.None);
         await act.Should().ThrowAsync<AuthenticationException>();
     }

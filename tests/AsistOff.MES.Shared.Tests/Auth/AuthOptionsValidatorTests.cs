@@ -22,7 +22,7 @@ public class AuthOptionsValidatorTests
     };
 
     [Fact]
-    public void Validate_ShortKey_Throws()
+    public void Validate_ShortKey_ThrowsNamingKey()
     {
         // Arrange
         var options = ValidOptions();
@@ -31,9 +31,9 @@ public class AuthOptionsValidatorTests
         // Act
         var act = () => AuthOptionsValidator.Validate(options, isProduction: false);
 
-        // Assert
+        // Assert — startup must name the offending setting.
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*at least 32 bytes*");
+            .WithMessage("*auth:IssuerSigningKey*256 bits*");
     }
 
     [Fact]

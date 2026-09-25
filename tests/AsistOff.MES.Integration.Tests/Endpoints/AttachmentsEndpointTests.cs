@@ -6,7 +6,7 @@ using AsistOff.MES.Integration.Tests.Infrastructure;
 namespace AsistOff.MES.Integration.Tests.Endpoints;
 
 /// <summary>
-/// Endpoint tests for hardened attachment uploads (issue #228): allowlist +
+/// Endpoint tests for hardened attachment uploads (issues #228, #234): allowlist +
 /// magic-byte verification + size limit enforced before persistence, safe
 /// download headers, and owner/tenant existence checks returning 404.
 /// </summary>
@@ -41,6 +41,23 @@ public sealed class AttachmentsEndpointTests(MesApplicationFixture fixture) : In
         list.StatusCode.Should().Be(HttpStatusCode.OK);
         var items = await ReadAsync<List<AttachmentDto>>(list);
         items.Should().ContainSingle(x => x.Id == created.Id);
+    }
+
+    [Fact]
+    public async Task Upload_UppercaseExtensionAndMime_Accepted()
+    {
+        // Arrange - allowlist matching stays case-insensitive after options normalization
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var ownerId = await CreateOperationOwnerAsync(client);
+
+        // Act
+        var upload = await client.PostAsync(BaseUrl,
+            UploadContent("operation", ownerId, "PHOTO.PNG", "IMAGE/PNG", PngBytes));
+
+        // Assert
+        upload.StatusCode.Should().Be(HttpStatusCode.OK);
+        var created = await ReadAsync<AttachmentDto>(upload);
+        created.ContentType.Should().Be("image/png");
     }
 
     [Fact]

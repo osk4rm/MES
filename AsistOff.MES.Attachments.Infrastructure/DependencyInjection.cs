@@ -25,6 +25,11 @@ public static class DependencyInjection
             configuration.GetSection(AttachmentUploadOptions.SectionName).Bind(options);
         });
 
+        // Configuration binding replaces the HashSet instances (losing the
+        // case-insensitive comparer) without normalizing values; re-normalize
+        // so a custom Attachments:Upload section keeps default match semantics.
+        services.PostConfigure<AttachmentUploadOptions>(options => options.Normalize());
+
         services.Configure<LocalFileStorageOptions>(options =>
         {
             configuration.GetSection(LocalFileStorageOptions.SectionName).Bind(options);
