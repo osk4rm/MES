@@ -1,6 +1,7 @@
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Users.Application.Features.Roles.Responses;
+using AsistOff.MES.Users.Core.Rbac;
 
 namespace AsistOff.MES.Users.Application.Features.Roles.Create;
 
@@ -9,7 +10,7 @@ namespace AsistOff.MES.Users.Application.Features.Roles.Create;
 /// creation; permissions and members are assigned via the dedicated endpoints.
 /// Tenant-admin only.
 /// </summary>
-[RequirePermission("tenant.admin")]
+[RequirePermission(RbacDefaults.TenantAdmin)]
 public sealed record CreateRoleRequest(
     string Code,
     string Name,

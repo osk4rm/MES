@@ -17,18 +17,28 @@ public static class RbacDefaults
     public const string AdminRoleDescription = "Full tenant administration (parity with IsTenantAdmin=true).";
     public const string UserRoleDescription = "Read-only access (parity with IsTenantAdmin=false).";
 
+    // Permission codes. All RequirePermission attributes and the database seed
+    // must reference these constants — no permission string literals elsewhere.
+    public const string Users = "users";
+    public const string UsersRead = "users.read";
+    public const string UsersWrite = "users.write";
+    public const string Configuration = "configuration";
+    public const string ConfigurationRead = "configuration.read";
+    public const string ConfigurationWrite = "configuration.write";
+    public const string TenantAdmin = "tenant.admin";
+
     /// <summary>
     /// Must stay in sync with <c>SignInRequestHandler.ResolvePermissions</c> admin branch.
     /// </summary>
     public static readonly IReadOnlyList<string> AdminPermissions =
     [
-        "users",
-        "users.read",
-        "users.write",
-        "configuration",
-        "configuration.read",
-        "configuration.write",
-        "tenant.admin",
+        Users,
+        UsersRead,
+        UsersWrite,
+        Configuration,
+        ConfigurationRead,
+        ConfigurationWrite,
+        TenantAdmin,
     ];
 
     /// <summary>
@@ -36,8 +46,8 @@ public static class RbacDefaults
     /// </summary>
     public static readonly IReadOnlyList<string> UserPermissions =
     [
-        "users.read",
-        "configuration.read",
+        UsersRead,
+        ConfigurationRead,
     ];
 
     public static IReadOnlyList<string> AllPermissionCodes =>
