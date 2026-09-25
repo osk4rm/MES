@@ -7,17 +7,16 @@ using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Outbox;
 using AsistOff.MES.Shared.Infrastructure.Persistence.Entities;
 using FluentAssertions;
-using MediatR;
-using Moq;
 
 namespace AsistOff.MES.Shared.Tests.Outbox;
 
 /// <summary>
-/// Slice 1 (#258) interceptor coverage: saving an entity with domain events
-/// stages one undispatched outbox row per event in the same save while the
-/// existing MediatR delivery still fires; empty event lists stage nothing;
-/// discarded writes leave no ghost rows; the tenant flows from the entity
-/// (falling back to the ambient tenant); secret events reject the save.
+/// Slice 2 (#259) interceptor coverage: saving an entity with domain events
+/// stages one undispatched outbox row per event in the same save and never
+/// publishes — delivery is the relay's job after commit, so a rolled-back
+/// write leaves no staged rows and produces zero dispatches. Empty event
+/// lists stage nothing; the tenant flows from the entity (falling back to the
+/// ambient tenant); secret events reject the save.
 /// </summary>
 public class OutboxInterceptorTests
 {
@@ -86,12 +85,11 @@ public class OutboxInterceptorTests
         public Guid NewGuid() => Guid.NewGuid();
     }
 
-    private readonly Mock<IPublisher> _mediator = new();
     private readonly FakeTenantAccessor _tenants = new();
     private readonly FakeClock _clock = new();
 
     private PublishDomainEventsInterceptor BuildInterceptor() =>
-        new(_mediator.Object, _clock, new FakeGuids(), _tenants);
+        new(_clock, new FakeGuids(), _tenants);
 
     private OutboxTestContext BuildContext() =>
         new(new DbContextOptionsBuilder<OutboxTestContext>()
@@ -100,7 +98,7 @@ public class OutboxInterceptorTests
             BuildInterceptor());
 
     [Fact]
-    public async Task Save_WithSingleDomainEvent_StagesSingleUndispatchedRow_AndStillPublishes()
+    public async Task Save_WithSingleDomainEvent_StagesSingleUndispatchedRow_AndNeverPublishes()
     {
         // Arrange
         var tenantId = Guid.NewGuid();
@@ -124,10 +122,7 @@ public class OutboxInterceptorTests
         rows[0].RetryCount.Should().Be(0);
         rows[0].IdempotencyKey.Should().NotBeNullOrWhiteSpace();
 
-        // Assert — existing MediatR delivery behavior is unchanged.
-        _mediator.Verify(
-            m => m.Publish(It.IsAny<IDomainEvent>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+        // Assert — nothing is published pre-commit; the relay delivers after commit.
         order.DomainEvents.Should().BeEmpty();
     }
 
@@ -152,13 +147,11 @@ public class OutboxInterceptorTests
         rows.Select(x => x.IdempotencyKey).Should().OnlyHaveUniqueItems();
         rows.Select(x => x.Type).Should().Contain(t => t.Contains(nameof(OrderPlacedEvent)));
         rows.Select(x => x.Type).Should().Contain(t => t.Contains(nameof(OrderNoteAddedEvent)));
-        _mediator.Verify(
-            m => m.Publish(It.IsAny<IDomainEvent>(), It.IsAny<CancellationToken>()),
-            Times.Exactly(2));
+        order.DomainEvents.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Save_WithoutEvents_StagesNothing_AndPublishesNothing()
+    public async Task Save_WithoutEvents_StagesNothing()
     {
         // Arrange
         _tenants.CurrentTenantId = Guid.NewGuid();
@@ -170,16 +163,13 @@ public class OutboxInterceptorTests
 
         // Assert
         ctx.OutboxMessages.Should().BeEmpty();
-        _mediator.Verify(
-            m => m.Publish(It.IsAny<IDomainEvent>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
-    public async Task DiscardedWrite_StagesNoGhostRows()
+    public async Task DiscardedWrite_StagesNoGhostRows_AndDispatchesNothing()
     {
         // Arrange — the primary write is rolled back before SaveChanges, so no
-        // staged rows may exist for it.
+        // staged rows may exist for it and the relay can never dispatch it.
         _tenants.CurrentTenantId = Guid.NewGuid();
         using var ctx = BuildContext();
         var order = new Order { Id = Guid.NewGuid(), TenantId = _tenants.CurrentTenantId, Code = "PO-ROLLBACK" };
@@ -190,12 +180,9 @@ public class OutboxInterceptorTests
         ctx.ChangeTracker.Clear();
         await ctx.SaveChangesAsync();
 
-        // Assert
+        // Assert — no staged rows, hence zero possible dispatches.
         ctx.OutboxMessages.Should().BeEmpty();
         ctx.Orders.Should().BeEmpty();
-        _mediator.Verify(
-            m => m.Publish(It.IsAny<IDomainEvent>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
@@ -249,17 +236,14 @@ public class OutboxInterceptorTests
         // Act
         var act = () => ctx.SaveChangesAsync();
 
-        // Assert — the write is rejected before anything is staged or published.
+        // Assert — the write is rejected before anything is staged.
         await act.Should().ThrowAsync<ValidationException>()
             .WithMessage("*Password*");
         ctx.OutboxMessages.Should().BeEmpty();
-        _mediator.Verify(
-            m => m.Publish(It.IsAny<IDomainEvent>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
-    public async Task Save_ContextWithoutOutboxSet_SkipsStagingButStillPublishes()
+    public async Task Save_ContextWithoutOutboxSet_SkipsStagingAndPublishesNothing()
     {
         // Arrange — mirrors MultitenancyDbContext, whose model has no outbox set.
         _tenants.CurrentTenantId = Guid.NewGuid();
@@ -274,12 +258,10 @@ public class OutboxInterceptorTests
         ctx.Orders.Add(order);
         var act = () => ctx.SaveChangesAsync();
 
-        // Assert — no staging crash, delivery preserved.
+        // Assert — no staging crash, entity saved, events dropped without delivery.
         await act.Should().NotThrowAsync();
         ctx.Orders.Should().ContainSingle();
-        _mediator.Verify(
-            m => m.Publish(It.IsAny<IDomainEvent>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+        order.DomainEvents.Should().BeEmpty();
     }
 
     [Fact]

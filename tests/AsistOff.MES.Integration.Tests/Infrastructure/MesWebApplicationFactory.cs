@@ -1,6 +1,7 @@
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Production.Application.Telemetry;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
+using AsistOff.MES.Shared.Infrastructure.Outbox;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using AsistOff.MES.Shared.Infrastructure.Protection;
 using Microsoft.AspNetCore.Hosting;
@@ -53,6 +54,14 @@ public sealed class MesWebApplicationFactory(
             // explicit test actions, otherwise connection-status assertions
             // (live/stale, never-seen) would be timing dependent.
             services.Configure<OpcUaPollingOptions>(options => options.PollingEnabled = false);
+
+            // Same for the outbox relay: undispatched rows must only be
+            // dispatched via explicit RelayTenantAsync calls in
+            // OutboxRelayEndpointTests, otherwise staged-row assertions
+            // (undispatched status, retry counts) would be timing dependent.
+            // The relay logic itself is still exercised — only the timer loop
+            // is off.
+            services.Configure<OutboxRelayOptions>(options => options.Enabled = false);
 
             // Abuse protection: the shared suite performs hundreds of sign-in
             // and tenant-create calls from a single TestServer IP, which would
