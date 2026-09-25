@@ -5,7 +5,9 @@ using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure;
 using AsistOff.MES.Shared.Infrastructure.Extensions;
+using AsistOff.MES.Shared.Infrastructure.Health;
 using AsistOff.MES.Shared.Infrastructure.Protection;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
 
 // Two-stage Serilog initialization. The bootstrap logger captures any failure
@@ -56,7 +58,7 @@ try
             cfg.RegisterServicesFromAssembly(assembly);
     });
 
-    builder.Services.AddHealthChecks();
+    builder.Services.AddMesHealthChecks();
 
     builder.Services.AddExceptionHandling();
 
@@ -170,8 +172,31 @@ try
     app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
-    app.MapHealthChecks("/health");
-    app.MapControllers();
+    // Health probes for container orchestrators (issue #249). All three are
+    // anonymous infrastructure endpoints with no tenant context: orchestrators
+    // call them with no user or tenant. AllowAnonymous makes the opt-out
+    // explicit and DisableRateLimiting guarantees sign-in burst traffic can
+    // never throttle the probes with 429 (the global limiter only throttles
+    // POST sign-in / tenant-signup, but the opt-out keeps probes immune to
+    // future limiter changes too).
+    // - GET /health/live runs only the dependency-free "self" check: 200 when
+    //   the process serves traffic, even when PostgreSQL is unreachable.
+    // - GET /health/ready runs only the PostgreSQL check: 200 when the
+    //   database answers, 503 with problem details otherwise.
+    // - GET /health is the historical endpoint, kept as a readiness alias.
+    var liveOptions = new HealthCheckOptions
+    {
+        Predicate = HealthProbes.IsLiveCheck,
+        ResponseWriter = HealthProbeResponseWriter.WriteResponseAsync
+    };
+    var readyOptions = new HealthCheckOptions
+    {
+        Predicate = HealthProbes.IsReadyCheck,
+        ResponseWriter = HealthProbeResponseWriter.WriteResponseAsync
+    };
+    app.MapHealthChecks(HealthProbes.LivePath, liveOptions).AllowAnonymous().DisableRateLimiting();
+    app.MapHealthChecks(HealthProbes.ReadyPath, readyOptions).AllowAnonymous().DisableRateLimiting();
+    app.MapHealthChecks(HealthProbes.AliasPath, readyOptions).AllowAnonymous().DisableRateLimiting();    app.MapControllers();
 
     app.Run();
 }
