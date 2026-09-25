@@ -34,6 +34,7 @@ public class DefaultContext : DbContext
     public DbSet<Product> Products { get; set; }
     public DbSet<ProductPrice> ProductPrices { get; set; }
     public DbSet<AuditEvent> AuditEvents { get; set; }
+    public DbSet<OutboxMessage> OutboxMessages { get; set; }
 
     public DefaultContext(
         DbContextOptions<DefaultContext> options,
