@@ -102,6 +102,6 @@ public class AuthManager : IAuthManager
         };
     }
 
-    public static TimeSpan GetAccessLifetime(AuthOptions options)
-        => options.Expiry != TimeSpan.Zero ? options.Expiry : options.AccessTokenLifetime;
+    internal static TimeSpan GetAccessLifetime(AuthOptions options)
+        => AuthCookies.GetAccessLifetime(options);
 }

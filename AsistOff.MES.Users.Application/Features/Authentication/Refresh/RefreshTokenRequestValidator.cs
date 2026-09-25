@@ -1,4 +1,5 @@
 using AsistOff.MES.Shared.Abstractions.Validation;
+using FluentValidation;
 
 namespace AsistOff.MES.Users.Application.Features.Authentication.Refresh;
 
@@ -6,10 +7,16 @@ public class RefreshTokenRequestValidator : RequestValidator<RefreshTokenRequest
 {
     public RefreshTokenRequestValidator()
     {
-        // No NotEmpty rule by design (issue #241): the refresh token may arrive
-        // via the httpOnly cookie with an empty body, and a missing token is an
-        // authentication failure (401 from the handler), not a validation
-        // failure (400). The handler rejects null/whitespace with
-        // AuthenticationException.
+        // The token may be supplied via the httpOnly refresh cookie instead
+        // of the body (the controller substitutes it before dispatch), so a
+        // missing body token is not a validation failure — the handler
+        // rejects it with AuthenticationException (401). An explicitly
+        // blank body token is still a malformed request.
+        When(x => x.RefreshToken is not null, () =>
+        {
+            RuleFor(x => x.RefreshToken!)
+                .NotEmpty()
+                .WithMessage("Refresh token must not be empty when provided");
+        });
     }
 }

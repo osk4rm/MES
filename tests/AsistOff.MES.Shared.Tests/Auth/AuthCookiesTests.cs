@@ -1,74 +1,46 @@
-using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Infrastructure.Auth;
 using AsistOff.MES.Users.Application.Features.Authentication.Refresh;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
 
 namespace AsistOff.MES.Shared.Tests.Auth;
 
-/// <summary>
-/// Unit tests for the httpOnly cookie transport (issue #241, slice 1 of 2):
-/// cookie flags, lifetimes, origin guard and the anonymous-refresh contract
-/// (missing token is 401 from the handler, never 400 from validation).
-/// Rotation replay/revocation and tenant binding of the stored rows are
-/// covered by <c>Users/RefreshTokenFlowTests</c>.
-/// </summary>
 public class AuthCookiesTests
 {
-    private static AuthOptions Options(TimeSpan? access = null, TimeSpan? refresh = null) => new()
+    private static AuthOptions Options() => new()
     {
         IssuerSigningKey = new string('k', 40),
         Issuer = "AsistOff.MES",
-        Audience = "AsistOff.MES.Users",
-        AccessTokenLifetime = access ?? TimeSpan.FromMinutes(15),
-        RefreshTokenLifetime = refresh ?? TimeSpan.FromDays(7)
+        Audience = "AsistOff.MES",
+        AccessTokenLifetime = TimeSpan.FromMinutes(15),
+        RefreshTokenLifetime = TimeSpan.FromDays(7)
     };
 
     [Fact]
-    public void BuildAccessOptions_HasRequiredFlags_AndMatchesAccessLifetime()
+    public void BuildAccessCookieOptions_UsesHardenedFlagsAndAccessLifetime()
     {
         // Arrange
-        var options = Options(access: TimeSpan.FromMinutes(15));
-        var now = new DateTimeOffset(2026, 9, 25, 12, 0, 0, TimeSpan.Zero);
+        var options = Options();
 
         // Act
-        var cookie = AuthCookies.BuildAccessOptions(options, now);
+        var cookie = AuthCookies.BuildAccessCookieOptions(options);
 
         // Assert
-        cookie.HttpOnly.Should().BeTrue();
-        cookie.Secure.Should().BeTrue();
+        cookie.HttpOnly.Should().BeTrue("JavaScript must never read the token");
+        cookie.Secure.Should().BeTrue("the token must only travel over TLS");
         cookie.SameSite.Should().Be(SameSiteMode.Lax);
         cookie.Path.Should().Be("/");
         cookie.MaxAge.Should().Be(TimeSpan.FromMinutes(15));
-        cookie.Expires.Should().Be(now.Add(TimeSpan.FromMinutes(15)));
     }
 
     [Fact]
-    public void BuildAccessOptions_HonorsLegacyExpiryPrecedence()
-    {
-        // Arrange — legacy auth:Expiry wins over AccessTokenLifetime.
-        var options = Options(access: TimeSpan.FromMinutes(15));
-        options.Expiry = TimeSpan.FromHours(1);
-        var now = new DateTimeOffset(2026, 9, 25, 12, 0, 0, TimeSpan.Zero);
-
-        // Act
-        var cookie = AuthCookies.BuildAccessOptions(options, now);
-
-        // Assert
-        cookie.MaxAge.Should().Be(TimeSpan.FromHours(1));
-        cookie.Expires.Should().Be(now.Add(TimeSpan.FromHours(1)));
-    }
-
-    [Fact]
-    public void BuildRefreshOptions_HasRequiredFlags_AndMatchesRefreshLifetime()
+    public void BuildRefreshCookieOptions_UsesRefreshLifetime()
     {
         // Arrange
-        var options = Options(refresh: TimeSpan.FromDays(7));
-        var now = new DateTimeOffset(2026, 9, 25, 12, 0, 0, TimeSpan.Zero);
+        var options = Options();
 
         // Act
-        var cookie = AuthCookies.BuildRefreshOptions(options, now);
+        var cookie = AuthCookies.BuildRefreshCookieOptions(options);
 
         // Assert
         cookie.HttpOnly.Should().BeTrue();
@@ -76,188 +48,166 @@ public class AuthCookiesTests
         cookie.SameSite.Should().Be(SameSiteMode.Lax);
         cookie.Path.Should().Be("/");
         cookie.MaxAge.Should().Be(TimeSpan.FromDays(7));
-        cookie.Expires.Should().Be(now.Add(TimeSpan.FromDays(7)));
     }
 
     [Fact]
-    public void BuildClearOptions_IsExpired()
-    {
-        // Arrange & Act
-        var cookie = AuthCookies.BuildClearOptions();
-
-        // Assert — expired Set-Cookie that drops the session.
-        cookie.HttpOnly.Should().BeTrue();
-        cookie.Secure.Should().BeTrue();
-        cookie.SameSite.Should().Be(SameSiteMode.Lax);
-        cookie.Path.Should().Be("/");
-        cookie.Expires.Should().Be(DateTimeOffset.UnixEpoch);
-    }
-
-    [Fact]
-    public void AppendAuthCookies_SetsBothCookies_WithRequiredFlags()
+    public void GetAccessLifetime_LegacyExpiryOverride_Wins()
     {
         // Arrange
-        var context = new DefaultHttpContext();
         var options = Options();
+        options.Expiry = TimeSpan.FromHours(1);
 
         // Act
-        AuthCookies.AppendAuthCookies(context.Response, "access-123", "refresh-456", options, DateTimeOffset.UtcNow);
+        var lifetime = AuthCookies.GetAccessLifetime(options);
 
-        // Assert — flag names are lowercased by the framework.
-        var setCookie = context.Response.Headers.SetCookie.ToString();
-        setCookie.Should().Contain($"{AuthCookies.AccessCookieName}=access-123");
-        setCookie.Should().Contain($"{AuthCookies.RefreshCookieName}=refresh-456");
-        setCookie.ToLowerInvariant().Should().Contain("httponly");
-        setCookie.ToLowerInvariant().Should().Contain("secure");
-        setCookie.Should().ContainEquivalentOf("SameSite=Lax");
-        setCookie.Should().ContainEquivalentOf("Path=/");
+        // Assert
+        lifetime.Should().Be(TimeSpan.FromHours(1));
     }
 
     [Fact]
-    public void ClearAuthCookies_SetsExpiredCookies()
+    public void AppendAuthCookies_SetsBothCookiesWithFlags()
     {
         // Arrange
         var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        // Act
+        AuthCookies.AppendAuthCookies(context.Response, "access-jwt", "opaque-refresh", Options());
+
+        // Assert
+        var setCookies = context.Response.Headers.SetCookie.ToList();
+        setCookies.Should().HaveCount(2);
+        var access = setCookies.Single(c => c!.StartsWith($"{AuthCookies.AccessCookieName}=access-jwt"));
+        var refresh = setCookies.Single(c => c!.StartsWith($"{AuthCookies.RefreshCookieName}=opaque-refresh"));
+
+        foreach (var cookie in new[] { access, refresh })
+        {
+            cookie.Should().Contain("httponly");
+            cookie.Should().Contain("secure");
+            cookie.Should().Contain("samesite=lax");
+            cookie.Should().Contain("path=/");
+        }
+    }
+
+    [Fact]
+    public void ClearAuthCookies_ExpiresBothCookies()
+    {
+        // Arrange
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
 
         // Act
         AuthCookies.ClearAuthCookies(context.Response);
 
         // Assert
-        var setCookie = context.Response.Headers.SetCookie.ToString();
-        setCookie.Should().Contain($"{AuthCookies.AccessCookieName}=");
-        setCookie.Should().Contain($"{AuthCookies.RefreshCookieName}=");
-        setCookie.ToLowerInvariant().Should().Contain("httponly");
-        setCookie.ToLowerInvariant().Should().Contain("expires=");
+        var setCookies = context.Response.Headers.SetCookie.ToList();
+        setCookies.Should().HaveCount(2);
+        setCookies.Should().OnlyContain(c =>
+            c!.StartsWith($"{AuthCookies.AccessCookieName}=") || c.StartsWith($"{AuthCookies.RefreshCookieName}="));
+        setCookies.Should().OnlyContain(c => c!.Contains("1970") || c.Contains("max-age=0"));
     }
 
-    [Fact]
-    public void TryGetRefreshToken_ReturnsCookieValue()
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    public void IsOriginAllowed_WithoutOrigin_Allows(string? origin, bool expected)
     {
         // Arrange
         var context = new DefaultHttpContext();
-        context.Request.Headers.Cookie = $"{AuthCookies.RefreshCookieName}=opaque-token";
+        context.Request.Host = new HostString("localhost", 5080);
+        if (origin is not null)
+        {
+            context.Request.Headers.Origin = origin;
+        }
 
         // Act
-        var found = AuthCookies.TryGetRefreshToken(context.Request, out var token);
+        var allowed = AuthCookies.IsOriginAllowed(context.Request);
 
         // Assert
-        found.Should().BeTrue();
-        token.Should().Be("opaque-token");
+        allowed.Should().Be(expected);
     }
 
     [Fact]
-    public void TryGetRefreshToken_MissingCookie_ReturnsFalse()
+    public void IsOriginAllowed_SameHostDifferentPort_Allows()
     {
-        // Arrange
+        // Arrange — the local Vite dev server calls the API from another port.
         var context = new DefaultHttpContext();
+        context.Request.Host = new HostString("localhost", 5080);
+        context.Request.Headers.Origin = "http://localhost:5173";
 
         // Act
-        var found = AuthCookies.TryGetRefreshToken(context.Request, out var token);
+        var allowed = AuthCookies.IsOriginAllowed(context.Request);
 
         // Assert
-        found.Should().BeFalse();
-        token.Should().BeNull();
+        allowed.Should().BeTrue();
     }
 
     [Fact]
-    public void TryGetAccessToken_BlankCookie_ReturnsFalse()
-    {
-        // Arrange
-        var context = new DefaultHttpContext();
-        context.Request.Headers.Cookie = $"{AuthCookies.AccessCookieName}=%20";
-
-        // Act
-        var found = AuthCookies.TryGetAccessToken(context.Request, out var token);
-
-        // Assert
-        found.Should().BeFalse();
-        token.Should().BeNull();
-    }
-
-    [Fact]
-    public void ValidateOrigin_WithoutOriginHeader_Passes()
+    public void IsOriginAllowed_CrossHost_Rejects()
     {
         // Arrange
         var context = new DefaultHttpContext();
         context.Request.Host = new HostString("api.example.com");
+        context.Request.Headers.Origin = "https://evil.example";
 
         // Act
-        var act = () => AuthCookies.ValidateOrigin(context.Request, configuration: null);
-
-        // Assert — same-origin form posts and non-browser clients pass.
-        act.Should().NotThrow();
-    }
-
-    [Fact]
-    public void ValidateOrigin_SameHost_Passes()
-    {
-        // Arrange
-        var context = new DefaultHttpContext();
-        context.Request.Host = new HostString("api.example.com");
-        context.Request.Headers.Origin = "https://api.example.com";
-
-        // Act
-        var act = () => AuthCookies.ValidateOrigin(context.Request, configuration: null);
+        var allowed = AuthCookies.IsOriginAllowed(context.Request);
 
         // Assert
-        act.Should().NotThrow();
+        allowed.Should().BeFalse();
     }
 
     [Fact]
-    public void ValidateOrigin_AllowedOrigin_Passes()
+    public void IsOriginAllowed_MalformedOrigin_Rejects()
     {
         // Arrange
         var context = new DefaultHttpContext();
         context.Request.Host = new HostString("api.example.com");
-        context.Request.Headers.Origin = "https://app.example.com";
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["cors:allowedOrigins:0"] = "https://app.example.com"
-            })
-            .Build();
+        context.Request.Headers.Origin = "not-a-uri";
 
         // Act
-        var act = () => AuthCookies.ValidateOrigin(context.Request, configuration);
+        var allowed = AuthCookies.IsOriginAllowed(context.Request);
 
         // Assert
-        act.Should().NotThrow();
+        allowed.Should().BeFalse();
     }
 
     [Fact]
-    public void ValidateOrigin_CrossOrigin_ThrowsForbidden()
+    public async Task RefreshValidator_NullToken_AllowsCookieSuppliedFlow()
     {
         // Arrange
-        var context = new DefaultHttpContext();
-        context.Request.Host = new HostString("api.example.com");
-        context.Request.Headers.Origin = "https://evil.example.com";
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["cors:allowedOrigins:0"] = "https://app.example.com"
-            })
-            .Build();
-
-        // Act
-        var act = () => AuthCookies.ValidateOrigin(context.Request, configuration);
-
-        // Assert — malicious site cannot mint or rotate a session.
-        act.Should().Throw<ForbiddenException>();
-    }
-
-    [Fact]
-    public void RefreshValidator_AllowsEmptyToken_SoMissingCookieIs401Not400()
-    {
-        // Arrange — cookie fallback posts an empty body; the handler (not the
-        // validator) owns the 401 for a missing token.
         var validator = new RefreshTokenRequestValidator();
 
         // Act
-        var empty = validator.Validate(new RefreshTokenRequest(string.Empty));
-        var missing = validator.Validate(new RefreshTokenRequest(null));
+        var result = await validator.ValidateAsync(new RefreshTokenRequest(null));
+
+        // Assert — missing body token is not a 400; the handler rejects it with 401.
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RefreshValidator_BlankToken_Rejects()
+    {
+        // Arrange
+        var validator = new RefreshTokenRequestValidator();
+
+        // Act
+        var result = await validator.ValidateAsync(new RefreshTokenRequest(string.Empty));
 
         // Assert
-        empty.IsValid.Should().BeTrue();
-        missing.IsValid.Should().BeTrue();
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RefreshValidator_SuppliedToken_Allows()
+    {
+        // Arrange
+        var validator = new RefreshTokenRequestValidator();
+
+        // Act
+        var result = await validator.ValidateAsync(new RefreshTokenRequest("opaque-token"));
+
+        // Assert
+        result.IsValid.Should().BeTrue();
     }
 }

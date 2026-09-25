@@ -61,10 +61,10 @@ public sealed class MesApplicationFixture : IAsyncLifetime
 
     /// <summary>
     /// Signs in as the given user and returns a client with the bearer token set.
-    /// Since issue #241 the session is transported in httpOnly cookies and the
-    /// body carries no usable token strings, so the bearer value is resolved
-    /// from the <c>mes_access</c> Set-Cookie (falling back to the body for
-    /// transition clients that still receive one).
+    /// Sign-in issues the session over httpOnly cookies (no usable tokens in the
+    /// body), so the access JWT is read back from the <c>mes_access</c>
+    /// <c>Set-Cookie</c> header and presented as a header — proving the
+    /// header transport keeps working during the cookie transition.
     /// </summary>
     public async Task<HttpClient> CreateAuthenticatedClientAsync(string email, string password)
     {
@@ -74,12 +74,10 @@ public sealed class MesApplicationFixture : IAsyncLifetime
 
         response.EnsureSuccessStatusCode();
 
-        var token = await response.Content.ReadFromJsonAsync<SignInResponse>();
-        var access = string.IsNullOrWhiteSpace(token?.AccessToken)
-            ? CookieTestHelpers.GetCookieValue(response, "mes_access")
-            : token!.AccessToken;
+        var accessToken = AuthCookieHelper.GetAccessToken(response);
+        accessToken.Should().NotBeNullOrWhiteSpace();
         client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", access);
+            new AuthenticationHeaderValue("Bearer", accessToken);
 
         return client;
     }
@@ -109,6 +107,4 @@ public sealed class MesApplicationFixture : IAsyncLifetime
 
         return (email, password);
     }
-
-    private sealed record SignInResponse(string AccessToken);
 }
