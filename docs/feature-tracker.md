@@ -42,7 +42,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Capability | Glossary | Module | Status | Work item | Notes |
 |---|---|---|---|---|---|
 | Multi-tenancy (tenant isolation) | Tenant | Multitenancy | done | — | ADR-0002; `ISaasy` + global query filter |
-| Authentication / JWT + RBAC | — | Users, Auth | in-progress | #208, #209, #210 | RBAC schema + role-derived sign-in done (PRs #217, #219); roles mgmt UI open (PR #224) |
+| Authentication / JWT + RBAC | — | Users, Auth | done | #208, #209, #210 | RBAC schema + role-derived sign-in (PRs #217, #219); roles mgmt UI (PR #224) |
 | Polymorphic attachments | — | Attachments | done | — | `Attachment` |
 
 ## Configuration (master data)
@@ -99,4 +99,4 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Kanban | Kanban | Production | done | #145, #146, #147 | `KanbanLoop` dictionary + card registry; pull transitions with WIP limits; board UI (PRs #149, #155, #158) |
 | MTBF / MTTR reliability KPIs | MTBF / MTTR | Production | done | #170, #171, #213, #214, #220 | per-Work Center snapshot query + API + dashboard; trend + fleet comparison (PRs #173, #175, #215, #216, #222) |
 
-_Last reconciled: 2026-09-25 — genealogy (#142–#144, #207), kanban (#145–#147), OEE (#153/#154/#156, #180–#182), MTBF/MTTR (#170/#171, #213/#214/#220), EAN/GTIN scan (#166/#176/#212), dispatch board (#189/#190/#201), RW/PW persist (#199), stock on hand (#200), machine capacity/efficiency (#204), RBAC backend (#208/#209) done (PRs merged); roles UI in progress (#210, PR #224); #223 stale duplicate of merged #225 for closed #221; #88/#89 are fixes with no capability rows._
+_Last reconciled: 2026-09-25 — genealogy (#142–#144, #207), kanban (#145–#147), OEE (#153/#154/#156, #180–#182), MTBF/MTTR (#170/#171, #213/#214/#220), EAN/GTIN scan (#166/#176/#212), dispatch board (#189/#190/#201), RW/PW persist (#199), stock on hand (#200), machine capacity/efficiency (#204), RBAC backend (#208/#209) + roles UI (#210) done (PRs merged); #221 done via #225 with cross-tenant consumed-lot regression tests from #223; #88/#89 are fixes with no capability rows._
