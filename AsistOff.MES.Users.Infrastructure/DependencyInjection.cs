@@ -14,6 +14,7 @@ public static class DependencyInjection
     public static IServiceCollection AddUsersInfrastructure(this IServiceCollection services)
     {
         services.AddScoped<IUsersRepository, UsersRepository>();
+        services.AddScoped<IRefreshTokensRepository, RefreshTokensRepository>();
         services.AddScoped<IRolesRepository, RolesRepository>();
         services.AddScoped<IPermissionsRepository, PermissionsRepository>();
         services.AddScoped<IRolePermissionsRepository, RolePermissionsRepository>();

@@ -24,6 +24,14 @@ public class AuthManager : IAuthManager
                 "auth:IssuerSigningKey must be set via User Secrets or an environment variable before the application starts.");
         }
 
+        var keyBytes = Encoding.UTF8.GetByteCount(issuerSigningKey);
+        if (keyBytes < AuthOptionsValidator.MinimumKeyBytes)
+        {
+            throw new InvalidOperationException(
+                $"auth:IssuerSigningKey must be at least {AuthOptionsValidator.MinimumKeyBytes} bytes (256 bits) for HMAC-SHA256; " +
+                $"current key is {keyBytes} bytes. Provide a longer secret via User Secrets or an environment variable.");
+        }
+
         _options = options;
         _dateTimeProvider = dateTimeProvider;
         _signingCredentials =
@@ -71,7 +79,7 @@ public class AuthManager : IAuthManager
             jwtClaims.AddRange(customClaims);
         }
 
-        var expires = now.Add(_options.Expiry);
+        var expires = now.Add(GetAccessLifetime(_options));
         var jwt = new JwtSecurityToken(
             issuer: _issuer,
             audience: tokenAudience,
@@ -93,4 +101,7 @@ public class AuthManager : IAuthManager
             Claims = claims ?? EmptyClaims
         };
     }
+
+    internal static TimeSpan GetAccessLifetime(AuthOptions options)
+        => options.Expiry != TimeSpan.Zero ? options.Expiry : options.AccessTokenLifetime;
 }
