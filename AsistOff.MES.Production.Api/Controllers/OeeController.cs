@@ -1,5 +1,6 @@
 using AsistOff.MES.Production.Application.Features.Oee.Losses;
 using AsistOff.MES.Production.Application.Features.Oee.Snapshot;
+using AsistOff.MES.Production.Application.Features.Oee.Summary;
 using AsistOff.MES.Production.Application.Features.Oee.Trend;
 using AsistOff.MES.Shared.Infrastructure.Controllers;
 using MediatR;
@@ -10,6 +11,17 @@ namespace AsistOff.MES.Production.Api.Controllers;
 [Route("api/oee")]
 public class OeeController(ISender sender) : ApiController
 {
+    /// <summary>Per-Work Center OEE summary: confirmation counts and the Quality factor over a UTC time window.</summary>
+    [HttpGet]
+    public async Task<ActionResult<OeeSummaryResponse>> SummaryAsync(
+        [FromQuery] Guid machineId,
+        [FromQuery] DateTime fromUtc,
+        [FromQuery] DateTime toUtc,
+        CancellationToken cancellationToken)
+        => Ok(await sender.Send(
+            new GetOeeSummaryRequest(machineId, fromUtc, toUtc),
+            cancellationToken));
+
     /// <summary>Read-only per-Work Center OEE snapshot over a UTC time window.</summary>
     [HttpGet("snapshot")]
     public async Task<ActionResult<OeeSnapshotResponse>> SnapshotAsync(

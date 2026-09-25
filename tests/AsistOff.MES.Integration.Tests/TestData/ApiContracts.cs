@@ -316,6 +316,16 @@ public sealed record OeeSnapshotDto(
     decimal GoodCount,
     decimal ScrapCount);
 
+/// <summary>Shape of the OEE summary returned by <c>/api/oee</c>.</summary>
+public sealed record OeeSummaryDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    decimal GoodCount,
+    decimal ScrapCount,
+    decimal TotalCount,
+    double? Quality);
+
 /// <summary>Shape of the OEE trend returned by <c>/api/oee/trend</c>.</summary>
 public sealed record OeeTrendDto(
     Guid MachineId,
