@@ -2,7 +2,7 @@
   <div>
     <AppPageHeader :title="$t('warehouses.title')" :subtitle="$t('warehouses.subtitle')" icon="pi pi-building">
       <template #actions>
-        <AppButton variant="secondary" icon="pi pi-refresh" @click="table.fetch">{{ $t('common.refresh') }}</AppButton>
+        <AppButton variant="secondary" icon="pi pi-refresh" @click="refreshAll">{{ $t('common.refresh') }}</AppButton>
         <AppButton variant="primary" icon="pi pi-plus" @click="openCreate">{{ $t('warehouses.create') }}</AppButton>
       </template>
     </AppPageHeader>
@@ -39,6 +39,33 @@
       @page-size-change="table.setPageSize"
     />
 
+    <AppCard class="stock-card">
+      <template #header>
+        <div class="stock-card__head">
+          <div>
+            <h3>{{ $t('warehouses.stock.title') }}</h3>
+            <p>{{ $t('warehouses.stock.subtitle') }}</p>
+          </div>
+          <AppButton variant="secondary" icon="pi pi-refresh" :loading="stockLoading" @click="fetchStock">
+            {{ $t('common.refresh') }}
+          </AppButton>
+        </div>
+      </template>
+      <AppTable
+        :items="stockBalances"
+        :columns="stockColumns"
+        :loading="stockLoading"
+        :empty-label="$t('warehouses.stock.empty')"
+      >
+        <template #cell-warehouseId="{ value }">
+          {{ warehouseLabel(value) }}
+        </template>
+        <template #cell-quantityOnHand="{ value }">
+          {{ formatQuantity(value) }}
+        </template>
+      </AppTable>
+    </AppCard>
+
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('warehouses.create')" @close="closeModal">
       <form id="wh-form" class="form-grid" @submit.prevent="onSave">
         <AppFormField :label="$t('warehouses.name')" required class="form-grid__full">
@@ -69,6 +96,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
+import AppCard from '../../components/ui/AppCard.vue';
 import AppFilterBar from '../../components/ui/AppFilterBar.vue';
 import AppInput from '../../components/ui/AppInput.vue';
 import AppTable from '../../components/ui/AppTable.vue';
@@ -80,6 +108,7 @@ import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import { warehouseService, type WarehouseResponse } from '../../services/warehouseService';
+import { stockOnHandService, type StockOnHandBalance } from '../../services/stockOnHandService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -106,6 +135,39 @@ function onName(v: string | number | null | undefined) {
   deb = window.setTimeout(() => table.setFilter('name', v ? String(v) : undefined), 300);
 }
 function clearFilters() { nameFilter.value = ''; table.resetFilters(); }
+
+const stockBalances = ref<StockOnHandBalance[]>([]);
+const stockLoading = ref(false);
+
+const stockColumns = computed(() => [
+  { key: 'productId', label: t('warehouses.stock.product') },
+  { key: 'warehouseId', label: t('warehouses.stock.warehouse') },
+  { key: 'quantityOnHand', label: t('warehouses.stock.quantity'), align: 'right' as const }
+]);
+
+async function fetchStock() {
+  stockLoading.value = true;
+  try {
+    stockBalances.value = await stockOnHandService.browse();
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  } finally {
+    stockLoading.value = false;
+  }
+}
+
+async function refreshAll() {
+  await Promise.all([table.fetch(), fetchStock()]);
+}
+
+function warehouseLabel(id: string | null): string {
+  if (!id) return t('warehouses.stock.unassigned');
+  return table.items.value.find((w) => w.id === id)?.name ?? id;
+}
+
+function formatQuantity(value: number): string {
+  return String(value);
+}
 
 const modalOpen = ref(false);
 const editing = ref<WarehouseResponse | null>(null);
@@ -155,10 +217,14 @@ async function confirmDelete() {
 }
 function cancelDelete() { confirmOpen.value = false; toDelete.value = null; }
 
-onMounted(() => table.fetch());
+onMounted(() => { table.fetch(); fetchStock(); });
 </script>
 
 <style scoped>
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+.stock-card { margin-top: var(--space-4); }
+.stock-card__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.stock-card__head h3 { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
+.stock-card__head p { color: var(--color-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-1); }
 </style>

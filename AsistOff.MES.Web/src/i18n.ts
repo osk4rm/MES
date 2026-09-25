@@ -153,7 +153,16 @@ const pl = {
     create: 'Nowy magazyn',
     name: 'Nazwa',
     syncId: 'Sync ID',
-    filters: { name: 'Nazwa zawiera…' }
+    filters: { name: 'Nazwa zawiera…' },
+    stock: {
+      title: 'Stany magazynowe',
+      subtitle: 'Salda PW / RW według produktu i magazynu',
+      product: 'Produkt',
+      warehouse: 'Magazyn',
+      quantity: 'Stan',
+      unassigned: 'Nieprzypisany',
+      empty: 'Brak sald — zgłoś wykonanie na zleceniu, aby zobaczyć stany.'
+    }
   },
   departments: {
     title: 'Działy',
@@ -1007,7 +1016,16 @@ const en: typeof pl = {
     create: 'New warehouse',
     name: 'Name',
     syncId: 'Sync ID',
-    filters: { name: 'Name contains…' }
+    filters: { name: 'Name contains…' },
+    stock: {
+      title: 'Stock on hand',
+      subtitle: 'PW / RW balances by product and warehouse',
+      product: 'Product',
+      warehouse: 'Warehouse',
+      quantity: 'On hand',
+      unassigned: 'Unassigned',
+      empty: 'No balances yet — report an execution on an order to see stock.'
+    }
   },
   departments: {
     title: 'Departments',
