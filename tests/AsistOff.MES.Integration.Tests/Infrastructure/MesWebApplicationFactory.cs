@@ -2,6 +2,7 @@ using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Production.Application.Telemetry;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
+using AsistOff.MES.Shared.Infrastructure.Protection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -19,7 +20,9 @@ namespace AsistOff.MES.Integration.Tests.Infrastructure;
 /// and the telemetry simulator poller is disabled so background writes can
 /// never make endpoint assertions flaky.
 /// </summary>
-public sealed class MesWebApplicationFactory(string connectionString) : WebApplicationFactory<Program>
+public sealed class MesWebApplicationFactory(
+    string connectionString,
+    Action<AbuseProtectionOptions>? configureProtection = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -48,6 +51,14 @@ public sealed class MesWebApplicationFactory(string connectionString) : WebAppli
             // explicit test actions, otherwise connection-status assertions
             // (live/stale, never-seen) would be timing dependent.
             services.Configure<OpcUaPollingOptions>(options => options.PollingEnabled = false);
+
+            // Abuse-protection overrides (e.g. tiny throttle budgets for the
+            // 429 tests) run after the production RateLimiting binding, so
+            // the values set here win for this host only.
+            if (configureProtection is not null)
+            {
+                services.Configure(configureProtection);
+            }
         });
     }
 

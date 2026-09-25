@@ -1,4 +1,5 @@
-﻿using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+﻿using AsistOff.MES.Multitenancy.Contracts;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using MediatR;
 
 namespace AsistOff.MES.Multitenancy.Requests.Commands.Create;
@@ -10,4 +11,4 @@ public record CreateTenantCommand(
     string Settings,
     string Password,
     string ConfirmPassword
-    ) : IRequest<Guid>, IAllowAnonymousRequest;
+    ) : IRequest<AnonymousTenantResponse>, IAllowAnonymousRequest;

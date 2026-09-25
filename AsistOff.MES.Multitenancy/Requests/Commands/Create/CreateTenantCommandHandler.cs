@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using AsistOff.MES.Multitenancy.Contracts;
 using AsistOff.MES.Multitenancy.Contracts.Events;
 using AsistOff.MES.Multitenancy.Entity;
 using AsistOff.MES.Multitenancy.Repositories;
@@ -19,9 +20,9 @@ public class CreateTenantCommandHandler(
     ILogger<CreateTenantCommandHandler> logger,
     IEventDispatcher eventDispatcher,
     IPasswordHasher<User> passwordHasher)
-    : IRequestHandler<CreateTenantCommand, Guid>
+    : IRequestHandler<CreateTenantCommand, AnonymousTenantResponse>
 {
-    public async Task<Guid> Handle(CreateTenantCommand request, CancellationToken cancellationToken)
+    public async Task<AnonymousTenantResponse> Handle(CreateTenantCommand request, CancellationToken cancellationToken)
     {
         var now = dateTimeProvider.UtcNow;
         var tenant = new Tenant
@@ -46,8 +47,11 @@ public class CreateTenantCommandHandler(
         {
             await repo.CreateAsync(tenant, cancellationToken);
             await eventDispatcher.PublishAsync(new TenantCreatedEvent(tenant.Id, tenant.ContactEmail!, hashedPassword));
-            
-            return tenant.Id;
+
+            // Return the minimal anonymous projection only: id, name and
+            // active status. Secrets, settings and contact details stay
+            // server-side (see AnonymousTenantResponse).
+            return new AnonymousTenantResponse(tenant.Id, tenant.Name, tenant.IsActive);
         }
         catch (Exception ex)
         {

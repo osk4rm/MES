@@ -1,8 +1,10 @@
 import http from './http';
 import type { IPagedResponse } from '../models/pagedModels';
 
-export interface TenantResponse {
+export interface TenantSignupResponse {
   id: string;
+  name: string;
+  isActive: boolean;
 }
 
 export interface CreateTenantRequest {
@@ -14,8 +16,8 @@ export interface CreateTenantRequest {
   confirmPassword: string;
 }
 
-export async function createTenant(request: CreateTenantRequest): Promise<string> {
-  const response = await http.post<string>('/api/tenants', request);
+export async function createTenant(request: CreateTenantRequest): Promise<TenantSignupResponse> {
+  const response = await http.post<TenantSignupResponse>('/api/tenants', request);
   return response.data;
 }
 

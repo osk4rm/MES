@@ -1,5 +1,11 @@
 namespace AsistOff.MES.Integration.Tests.TestData;
 
+/// <summary>Shape of the minimal anonymous tenant signup response returned by <c>POST /api/tenants</c>.</summary>
+public sealed record AnonymousTenantDto(
+    Guid Id,
+    string Name,
+    bool IsActive);
+
 /// <summary>Shape of a reason code as returned by <c>/api/reason-codes</c>.</summary>
 public sealed record ReasonCodeDto(
     Guid Id,

@@ -39,6 +39,14 @@ public sealed class MesApplicationFixture : IAsyncLifetime
     public HttpClient CreateClient() => _factory.CreateClient();
 
     /// <summary>
+    /// Connection string of the shared Testcontainers PostgreSQL, exposed so
+    /// tests needing an isolated host (e.g. dedicated throttle budgets) can
+    /// boot a second <see cref="MesWebApplicationFactory"/> against the same
+    /// database without starting another container.
+    /// </summary>
+    public string PostgresConnectionString => _postgres.GetConnectionString();
+
+    /// <summary>
     /// Application service provider, exposed so tests can assert database-level
     /// behaviour (e.g. <c>ON DELETE CASCADE</c>) that is not observable over HTTP.
     /// </summary>
