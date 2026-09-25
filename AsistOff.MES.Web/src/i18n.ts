@@ -797,6 +797,17 @@ const pl = {
     from: 'Okno od',
     to: 'Okno do',
     apply: 'Zastosuj',
+    bucket: 'Agregacja',
+    buckets: {
+      Day: 'Dzienna',
+      Week: 'Tygodniowa'
+    },
+    trendTitle: 'Trend w podziale na okresy',
+    trendEmpty: 'Brak okresów w wybranym oknie',
+    bucketFrom: 'Okres od',
+    bucketTo: 'Okres do',
+    fleetTitle: 'Porównanie floty (od najgorszej)',
+    fleetEmpty: 'Brak aktywnych stanowisk w oknie',
     cards: {
       failures: 'Awarie',
       repairs: 'Naprawy',
@@ -1683,6 +1694,17 @@ const en: typeof pl = {
     from: 'Window from',
     to: 'Window to',
     apply: 'Apply',
+    bucket: 'Bucket',
+    buckets: {
+      Day: 'Daily',
+      Week: 'Weekly'
+    },
+    trendTitle: 'Per-bucket trend',
+    trendEmpty: 'No buckets in the selected window',
+    bucketFrom: 'Bucket from',
+    bucketTo: 'Bucket to',
+    fleetTitle: 'Fleet comparison (worst first)',
+    fleetEmpty: 'No active work centers in the window',
     cards: {
       failures: 'Failures',
       repairs: 'Repairs',
