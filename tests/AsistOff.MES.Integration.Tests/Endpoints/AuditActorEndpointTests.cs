@@ -184,8 +184,9 @@ public sealed class AuditActorEndpointTests(MesApplicationFixture fixture) : Int
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var token = await ReadAsync<SignInResponse>(response);
-        return token.AccessToken;
+        var accessToken = AuthCookieHelper.GetAccessToken(response);
+        accessToken.Should().NotBeNullOrWhiteSpace();
+        return accessToken!;
     }
 
     private HttpClient ClientWithToken(string accessToken)
@@ -253,6 +254,4 @@ public sealed class AuditActorEndpointTests(MesApplicationFixture fixture) : Int
         Guid.TryParse(sub, out var userId).Should().BeTrue("JWT must carry the caller user id in sub");
         return userId;
     }
-
-    private sealed record SignInResponse(string AccessToken);
 }
