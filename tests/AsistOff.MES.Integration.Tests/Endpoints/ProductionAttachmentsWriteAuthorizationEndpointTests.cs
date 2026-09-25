@@ -158,8 +158,9 @@ public sealed class ProductionAttachmentsWriteAuthorizationEndpointTests(MesAppl
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var token = await ReadAsync<SignInResponse>(response);
-        return token.AccessToken;
+        var accessToken = AuthCookieHelper.GetAccessToken(response);
+        accessToken.Should().NotBeNullOrWhiteSpace();
+        return accessToken!;
     }
 
     private async Task<HttpClient> ClientForAsync(string email, string password)
@@ -299,8 +300,6 @@ public sealed class ProductionAttachmentsWriteAuthorizationEndpointTests(MesAppl
 
         return operation!.Id;
     }
-
-    private sealed record SignInResponse(string AccessToken);
 
     private sealed record ProductionOrderDto(Guid Id);
 
