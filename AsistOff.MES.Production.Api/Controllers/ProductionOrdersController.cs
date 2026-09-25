@@ -26,6 +26,7 @@ public class ProductionOrdersController(ISender sender) : ApiController
         [FromQuery] BrowseProductionOrdersRequest request, CancellationToken cancellationToken)
         => await sender.Send(request, cancellationToken);
 
+    /// <summary>Get one order, including its current <c>concurrencyToken</c>.</summary>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ProductionOrderResponse>> GetAsync(
         [FromRoute] Guid id, CancellationToken cancellationToken)
@@ -39,6 +40,11 @@ public class ProductionOrdersController(ISender sender) : ApiController
         return CreatedAtAction("Get", new { id = result.Id }, result);
     }
 
+    /// <summary>
+    /// Update a Planned order. The body must carry the <c>concurrencyToken</c>
+    /// from the last <c>GET</c>; a stale token is rejected with 409 carrying
+    /// the current token. Retry: reload the order, re-apply the change, resubmit.
+    /// </summary>
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ProductionOrderResponse>> UpdateAsync(
         [FromRoute] Guid id, [FromBody] UpdateProductionOrderRequest request, CancellationToken cancellationToken)
@@ -46,7 +52,6 @@ public class ProductionOrdersController(ISender sender) : ApiController
         if (id != request.Id) return BadRequest("Route ID does not match request ID");
         return Ok(await sender.Send(request, cancellationToken));
     }
-
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult> DeleteAsync(
         [FromRoute] Guid id, CancellationToken cancellationToken)
@@ -55,20 +60,34 @@ public class ProductionOrdersController(ISender sender) : ApiController
         return NoContent();
     }
 
+    /// <summary>
+    /// Release a Planned order. Pass the <c>concurrencyToken</c> from the last
+    /// <c>GET</c> as <c>?concurrencyToken=…</c>; when supplied and stale the
+    /// transition is rejected with 409 carrying the current token instead of
+    /// silently transitioning. Retry: reload the order and resubmit.
+    /// </summary>
     [HttpPost("{id:guid}/release")]
     public async Task<ActionResult<ProductionOrderResponse>> ReleaseAsync(
-        [FromRoute] Guid id, CancellationToken cancellationToken)
-        => Ok(await sender.Send(new ReleaseProductionOrderRequest(id), cancellationToken));
+        [FromRoute] Guid id, [FromQuery] string? concurrencyToken, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new ReleaseProductionOrderRequest(id, concurrencyToken), cancellationToken));
 
+    /// <summary>
+    /// Complete an InProgress order. Accepts the same optional
+    /// <c>?concurrencyToken=…</c> guard and 409 retry contract as release.
+    /// </summary>
     [HttpPost("{id:guid}/complete")]
     public async Task<ActionResult<ProductionOrderResponse>> CompleteAsync(
-        [FromRoute] Guid id, CancellationToken cancellationToken)
-        => Ok(await sender.Send(new CompleteProductionOrderRequest(id), cancellationToken));
+        [FromRoute] Guid id, [FromQuery] string? concurrencyToken, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new CompleteProductionOrderRequest(id, concurrencyToken), cancellationToken));
 
+    /// <summary>
+    /// Close a Completed order. Accepts the same optional
+    /// <c>?concurrencyToken=…</c> guard and 409 retry contract as release.
+    /// </summary>
     [HttpPost("{id:guid}/close")]
     public async Task<ActionResult<ProductionOrderResponse>> CloseAsync(
-        [FromRoute] Guid id, CancellationToken cancellationToken)
-        => Ok(await sender.Send(new CloseProductionOrderRequest(id), cancellationToken));
+        [FromRoute] Guid id, [FromQuery] string? concurrencyToken, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new CloseProductionOrderRequest(id, concurrencyToken), cancellationToken));
 
     /// <summary>Read-only RW/PW movement preview aggregated per order.</summary>
     [HttpGet("{id:guid}/movements")]

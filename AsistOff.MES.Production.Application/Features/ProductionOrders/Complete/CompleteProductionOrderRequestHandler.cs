@@ -18,6 +18,8 @@ internal sealed class CompleteProductionOrderRequestHandler(
         var order = await ordersRepository.GetAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException("ProductionOrder", request.Id);
 
+        ProductionOrderConcurrency.RequireMatchIfPresent(order, request.ConcurrencyToken);
+
         if (order.Status != ProductionOrderStatus.InProgress)
             throw new ConflictException("Only orders in InProgress status can be completed.");
 

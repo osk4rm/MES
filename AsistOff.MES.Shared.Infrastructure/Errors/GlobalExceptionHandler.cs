@@ -37,6 +37,13 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
                 Status = (int)HttpStatusCode.BadRequest,
                 Detail = validationEx.Message
             },
+            ConcurrencyConflictException concurrencyEx => new ProblemDetails
+            {
+                Title = "Conflict",
+                Status = (int)HttpStatusCode.Conflict,
+                Detail = concurrencyEx.Message,
+                Extensions = { ["concurrencyToken"] = concurrencyEx.CurrentToken }
+            },
             ConflictException conflictEx => new ProblemDetails
             {
                 Title = "Conflict",

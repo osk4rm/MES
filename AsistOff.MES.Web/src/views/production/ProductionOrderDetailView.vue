@@ -545,7 +545,7 @@ async function onRelease(): Promise<void> {
   if (!order.value) return;
   releasing.value = true;
   try {
-    order.value = await productionOrderService.release(order.value.id);
+    order.value = await productionOrderService.release(order.value.id, order.value.concurrencyToken);
     toast.success(t('productionOrders.releasedToast'));
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.saveFailed')));
@@ -787,8 +787,8 @@ async function confirmLifecycle(): Promise<void> {
   else closing.value = true;
   try {
     order.value = kind === 'complete'
-      ? await productionOrderService.complete(order.value.id)
-      : await productionOrderService.close(order.value.id);
+      ? await productionOrderService.complete(order.value.id, order.value.concurrencyToken)
+      : await productionOrderService.close(order.value.id, order.value.concurrencyToken);
     toast.success(kind === 'complete' ? t('productionOrders.completedToast') : t('productionOrders.closedToast'));
     lifecycleOpen.value = false;
     lifecycleKind.value = null;

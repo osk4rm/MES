@@ -18,6 +18,11 @@ public class ProductionOrderConfiguration : IEntityTypeConfiguration<ProductionO
         builder.Property(x => x.Status).HasConversion<short>();
         builder.Property(x => x.PlannedQuantity).HasColumnType("numeric(14,4)");
 
+        // Optimistic concurrency via the PostgreSQL xmin system column
+        // (issue #263). Npgsql maps uint row-version properties onto xmin,
+        // which changes on every committed write and never emits DDL for it.
+        builder.Property(x => x.Xmin).HasColumnName("xmin").IsRowVersion();
+
         builder.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => new { x.TenantId, x.Status });
