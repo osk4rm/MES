@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Infrastructure.Correlation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -136,6 +135,9 @@ public static class ObservabilityRegistration
     /// Runs when the server span stops (tenant resolution has completed by
     /// then): re-asserts the correlation tag and adds the ambient
     /// <c>tenant_id</c> tag. Reads tenant state as an opaque tag value only.
+    /// Both values come from <c>HttpContext.Items</c>, which survives until
+    /// export: <c>HttpContext.RequestServices</c> is already torn down when
+    /// this callback fires, so no service resolution is possible here.
     /// </summary>
     private static void EnrichResponseWithTenantAndCorrelation(Activity activity, HttpResponse response)
     {
@@ -147,8 +149,7 @@ public static class ObservabilityRegistration
             activity.SetTag(CorrelationIds.ActivityTagKey, correlationId);
         }
 
-        var accessor = context.RequestServices.GetService<ICurrentTenantAccessor>();
-        if (accessor is not null && accessor.TryGetTenantId(out var tenantId))
+        if (TenantTraceEnricher.TryReadTenantId(context, out var tenantId))
         {
             TenantTraceEnricher.TryEnrichWithTenant(activity, tenantId);
         }

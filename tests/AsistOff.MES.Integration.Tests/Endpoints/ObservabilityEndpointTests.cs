@@ -1,6 +1,13 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AsistOff.MES.Integration.Tests.Infrastructure;
+using AsistOff.MES.Shared.Infrastructure.Correlation;
+using AsistOff.MES.Shared.Infrastructure.Observability;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AsistOff.MES.Integration.Tests.Endpoints;
 
@@ -80,6 +87,87 @@ public sealed class ObservabilityEndpointTests(MesApplicationFixture fixture) : 
             // Assert
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             Guid.TryParse(GetCorrelationId(response), out _).Should().BeTrue();
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("Observability__OtlpEndpoint", null);
+        }
+    }
+
+    [Fact]
+    public async Task TenantGet_WithOtlpConfigured_EmitsServerSpanWithTraceparentAndTenant()
+    {
+        // Arrange - an isolated host with OTLP export enabled (issue #252
+        // AC1): the app must boot in export mode and serve an authenticated
+        // tenant read whose real server span keeps the upstream W3C trace and
+        // carries the correlation + tenant tags with the AsistOff.MES export
+        // identity. The suite runs sequentially, so the process-level
+        // ActivityListener and env override below are reverted afterwards.
+        Environment.SetEnvironmentVariable("Observability__OtlpEndpoint", "http://localhost:4317");
+        try
+        {
+            await using var factory = new MesWebApplicationFactory(Fixture.PostgresConnectionString);
+            using var client = factory.CreateClient();
+
+            // Sign in on the isolated host (same seeded database) and present
+            // the session as a Bearer header, mirroring MesApplicationFixture.
+            using var signIn = await client.PostAsJsonAsync(
+                "/api/auth/sign-in",
+                new { email = TestData.IntegrationTestData.AdminEmail, password = TestData.IntegrationTestData.AdminPassword });
+            signIn.EnsureSuccessStatusCode();
+            var accessToken = AuthCookieHelper.GetAccessToken(signIn);
+            accessToken.Should().NotBeNullOrWhiteSpace();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            var stopped = new ConcurrentBag<Activity>();
+            using var listener = new ActivityListener
+            {
+                ShouldListenTo = source => source.Name == "Microsoft.AspNetCore",
+                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+                ActivityStopped = activity => stopped.Add(activity),
+            };
+            ActivitySource.AddActivityListener(listener);
+            try
+            {
+                var correlationId = Guid.NewGuid().ToString();
+                var upstreamTraceId = ActivityTraceId.CreateRandom().ToString();
+                var upstreamSpanId = ActivitySpanId.CreateRandom().ToString();
+
+                // Act - a real authenticated tenant read carrying an upstream
+                // W3C traceparent (set explicitly: the in-process TestServer
+                // transport performs no ambient propagation of its own).
+                using var request = new HttpRequestMessage(HttpMethod.Get, "/api/products");
+                request.Headers.Add(CorrelationHeader, correlationId);
+                request.Headers.Add("traceparent", $"00-{upstreamTraceId}-{upstreamSpanId}-01");
+                using var response = await client.SendAsync(request);
+
+                // Assert - no 401 regression with export enabled, echo intact.
+                response.StatusCode.Should().Be(HttpStatusCode.OK);
+                GetCorrelationId(response).Should().Be(correlationId);
+
+                // The real server span for this request keeps the upstream
+                // trace and carries the correlation + tenant tags.
+                var serverSpan = stopped
+                    .Where(a => a.Kind == ActivityKind.Server
+                        && Equals(a.GetTagItem(CorrelationIds.ActivityTagKey), correlationId))
+                    .Should().ContainSingle().Subject;
+                serverSpan.TraceId.ToString().Should().Be(upstreamTraceId);
+                var tenantTag = serverSpan.GetTagItem(TenantTraceEnricher.TenantTagKey);
+                tenantTag.Should().NotBeNull();
+                Guid.TryParse(tenantTag!.ToString(), out var spanTenant).Should().BeTrue();
+                spanTenant.Should().NotBe(Guid.Empty);
+            }
+            finally
+            {
+                listener.Dispose();
+            }
+
+            // The export identity of this exact host: the resource the
+            // gateway registration builds from these options (proven to carry
+            // service.name by ObservabilityRegistrationTests) travels on
+            // every exported span.
+            var options = factory.Services.GetRequiredService<IOptions<ObservabilityOptions>>().Value;
+            options.ServiceName.Should().Be("AsistOff.MES");
         }
         finally
         {

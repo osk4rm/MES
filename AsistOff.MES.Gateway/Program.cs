@@ -132,6 +132,14 @@ try
     // resolution and never reads TenantId.
     app.UseMiddleware<CorrelationIdMiddleware>();
 
+    // Stash the resolved tenant id for trace enrichment (issue #252): the
+    // OTel response callback tags the server span after the request scope is
+    // torn down, so the tenant must be captured while the scope is alive.
+    // Runs before tenant resolution on the way in and captures on the way
+    // out, after authentication has resolved the tenant; reads TenantId as
+    // an opaque tag value only.
+    app.UseMiddleware<TenantTraceContextMiddleware>();
+
     // Security headers first: every API response (including error responses
     // from the exception handler) carries nosniff / CSP / Referrer-Policy
     // and, over TLS, HSTS.
