@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using OpenTelemetry;
 
 namespace AsistOff.MES.Shared.Infrastructure.Correlation;
 
@@ -15,6 +17,16 @@ public static class CorrelationIds
     public const string ItemKey = "CorrelationId";
 
     public const string LogPropertyName = "CorrelationId";
+
+    /// <summary>
+    /// W3C baggage key carrying the effective correlation ID downstream.
+    /// </summary>
+    public const string BaggageKey = "correlation-id";
+
+    /// <summary>
+    /// Span tag key carrying the effective correlation ID on the server span.
+    /// </summary>
+    public const string ActivityTagKey = "correlation.id";
 
     /// <summary>
     /// Resolves the effective correlation ID for an incoming header value:
@@ -52,5 +64,19 @@ public static class CorrelationIds
         }
 
         return Guid.TryParse(context.TraceIdentifier, out _) ? context.TraceIdentifier : null;
+    }
+
+    /// <summary>
+    /// Attaches the effective correlation ID to the active W3C trace
+    /// (issue #252): a <c>correlation.id</c> tag on the current
+    /// <see cref="Activity"/> (when present) and a <c>correlation-id</c>
+    /// baggage entry so the value propagates to downstream services via the
+    /// W3C <c>baggage</c> header. Never throws when no activity is active.
+    /// </summary>
+    public static void AttachToTrace(string correlationId)
+    {
+        Activity.Current?.SetTag(ActivityTagKey, correlationId);
+        Activity.Current?.AddBaggage(BaggageKey, correlationId);
+        Baggage.Current = Baggage.Current.SetBaggage(BaggageKey, correlationId);
     }
 }
