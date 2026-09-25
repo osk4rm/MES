@@ -549,3 +549,33 @@ public sealed record DispatchBoardDto(
     string To,
     IReadOnlyCollection<DispatchDayDto> Days,
     IReadOnlyCollection<DispatchOrderRowDto> Orders);
+
+/// <summary>Shape of a tenant permission as returned by <c>/api/permissions</c>.</summary>
+public sealed record PermissionDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string Category);
+
+/// <summary>Shape of one role member as returned by <c>/api/roles/{id}</c>.</summary>
+public sealed record RoleMemberDto(
+    Guid UserId,
+    string Email);
+
+/// <summary>Shape of a role summary as returned by <c>/api/roles</c>.</summary>
+public sealed record RoleDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string? Description,
+    IReadOnlyCollection<string> PermissionCodes,
+    int MemberCount);
+
+/// <summary>Shape of a role detail as returned by <c>/api/roles/{id}</c>.</summary>
+public sealed record RoleDetailDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string? Description,
+    IReadOnlyCollection<PermissionDto> Permissions,
+    IReadOnlyCollection<RoleMemberDto> Members);

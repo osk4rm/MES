@@ -8,4 +8,5 @@ public interface IRolesRepository
     Task<Role?> GetByCodeAsync(string code, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Role>> BrowseAsync(CancellationToken cancellationToken = default);
     Task<Role> AddAsync(Role role, CancellationToken cancellationToken = default);
+    Task UpdateAsync(Role role, CancellationToken cancellationToken = default);
 }

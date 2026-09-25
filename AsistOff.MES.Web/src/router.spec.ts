@@ -34,4 +34,30 @@ describe('router auth guard', () => {
 
     expect(router.currentRoute.value.name).toBe('reports-reliability');
   });
+
+  // Guards the Roles view (issue #210 AC4): `settings/roles` carries no
+  // `meta.public`, so unauthenticated users bounce to `login` while
+  // authenticated admins land on the `roles` route (which restores the
+  // selected role from localStorage on mount and re-fetches after each
+  // mutation — full click-through lives in the e2e stage).
+  it('keeps the roles route non-public (default-deny)', () => {
+    const resolved = router.resolve('/settings/roles');
+    expect(resolved.name).toBe('roles');
+    expect(resolved.meta.public).not.toBe(true);
+  });
+
+  it('redirects unauthenticated users away from settings/roles to login', async () => {
+    await router.push('/settings/roles');
+
+    expect(router.currentRoute.value.name).toBe('login');
+    expect(router.currentRoute.value.query['redirect']).toBe('/settings/roles');
+  });
+
+  it('lets authenticated users open settings/roles', async () => {
+    useAuthStore().setAuth('test-token', { email: 'admin@example.com' });
+
+    await router.push('/settings/roles');
+
+    expect(router.currentRoute.value.name).toBe('roles');
+  });
 });

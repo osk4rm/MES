@@ -52,5 +52,11 @@ export const sitemap: NavItem[] = [
       { label: 'nav.maintenance', icon: 'pi pi-wrench', route: '/configuration/maintenance' }
     ]
   },
-  { label: 'nav.settings', icon: 'pi pi-cog', route: '/settings' }
+  {
+    label: 'nav.settings',
+    icon: 'pi pi-cog',
+    children: [
+      { label: 'nav.roles', icon: 'pi pi-lock', route: '/settings/roles' }
+    ]
+  }
 ];

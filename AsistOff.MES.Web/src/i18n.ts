@@ -68,7 +68,8 @@ const pl = {
     reasonCodes: 'Kody przyczyn',
     operationTemplates: 'Wzorcowe operacje',
     maintenance: 'Utrzymanie ruchu',
-    settings: 'Ustawienia'
+    settings: 'Ustawienia',
+    roles: 'Role'
   },
   auth: {
     signInTitle: 'Logowanie do AsistOff MES',
@@ -478,8 +479,7 @@ const pl = {
   },
   reasonCodes: {
     title: 'Kody przyczyn',
-    subtitle: 'Słownik przyczyn przestojów i braków',
-    create: 'Nowy kod przyczyny',
+    subtitle: 'Słownik przyczyn przestojów i braków',    create: 'Nowy kod przyczyny',
     code: 'Kod',
     name: 'Nazwa',
     description: 'Opis',
@@ -499,6 +499,26 @@ const pl = {
       4: 'Przygotowanie',
       5: 'Inne'
     }
+  },
+  roles: {
+    title: 'Role',
+    subtitle: 'Role i przypisania uprawnień (RBAC)',
+    create: 'Nowa rola',
+    edit: 'Edytuj rolę',
+    code: 'Kod',
+    name: 'Nazwa',
+    description: 'Opis',
+    permissions: 'Uprawnienia',
+    members: 'Członkowie',
+    permissionMatrix: 'Macierz uprawnień',
+    matrixSubtitle: 'Zaznacz, które uprawnienia przyznaje każda rola. Zmiany zapisują się od razu.',
+    membersTitle: 'Członkowie roli',
+    selectRoleHint: 'Wybierz rolę…',
+    assign: 'Przypisz',
+    userIdPlaceholder: 'Wklej ID użytkownika…',
+    unassign: 'Usuń z roli',
+    emptyMembers: 'Rola nie ma jeszcze członków.',
+    emptyRoles: 'Brak ról — utwórz pierwszą.'
   },
   spcCharacteristics: {
     title: 'Charakterystyki SPC',
@@ -956,7 +976,8 @@ const en: typeof pl = {
     reasonCodes: 'Reason codes',
     operationTemplates: 'Operation templates',
     maintenance: 'Maintenance',
-    settings: 'Settings'
+    settings: 'Settings',
+    roles: 'Roles'
   },
   auth: {
     signInTitle: 'Sign in to AsistOff MES',
@@ -1387,6 +1408,26 @@ const en: typeof pl = {
       4: 'Setup',
       5: 'Other'
     }
+  },
+  roles: {
+    title: 'Roles',
+    subtitle: 'Roles and permission assignments (RBAC)',
+    create: 'New role',
+    edit: 'Edit role',
+    code: 'Code',
+    name: 'Name',
+    description: 'Description',
+    permissions: 'Permissions',
+    members: 'Members',
+    permissionMatrix: 'Permission matrix',
+    matrixSubtitle: 'Tick which permissions each role grants. Changes save immediately.',
+    membersTitle: 'Role members',
+    selectRoleHint: 'Select a role…',
+    assign: 'Assign',
+    userIdPlaceholder: 'Paste a user ID…',
+    unassign: 'Remove from role',
+    emptyMembers: 'This role has no members yet.',
+    emptyRoles: 'No roles — create the first one.'
   },
   spcCharacteristics: {
     title: 'SPC characteristics',

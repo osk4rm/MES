@@ -6,6 +6,8 @@ public interface IUserRolesRepository
 {
     Task<UserRole?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<UserRole>> BrowseByUserAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<UserRole>> BrowseByRoleAsync(Guid roleId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<UserRole>> BrowseAsync(CancellationToken cancellationToken = default);
     Task<UserRole> AddAsync(UserRole userRole, CancellationToken cancellationToken = default);
+    Task RemoveAsync(UserRole userRole, CancellationToken cancellationToken = default);
 }

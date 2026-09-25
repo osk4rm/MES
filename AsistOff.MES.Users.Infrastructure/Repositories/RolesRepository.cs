@@ -29,4 +29,10 @@ public class RolesRepository(DefaultContext context) : IRolesRepository
         await context.SaveChangesAsync(cancellationToken);
         return role;
     }
+
+    public async Task UpdateAsync(Role role, CancellationToken cancellationToken = default)
+    {
+        context.Roles.Update(role);
+        await context.SaveChangesAsync(cancellationToken);
+    }
 }

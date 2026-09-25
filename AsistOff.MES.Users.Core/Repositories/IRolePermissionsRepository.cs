@@ -8,4 +8,5 @@ public interface IRolePermissionsRepository
     Task<IReadOnlyCollection<RolePermission>> BrowseByRoleAsync(Guid roleId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<RolePermission>> BrowseAsync(CancellationToken cancellationToken = default);
     Task<RolePermission> AddAsync(RolePermission rolePermission, CancellationToken cancellationToken = default);
+    Task RemoveAsync(RolePermission rolePermission, CancellationToken cancellationToken = default);
 }
