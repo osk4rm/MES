@@ -57,7 +57,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Operators | Operator | Configuration | done | — | `Operator` (code / RFID) |
 | Skills | — | Configuration | done | — | `Skill` |
 | EAN / GTIN product identification | EAN / GTIN | Configuration | gap | — | barcode scan lookup on the shopfloor; depends on Products |
-| Operator shift assignment (roster) | Shift | Configuration | gap | — | which operators work which shift; depends on Work-center calendar / shifts |
+| Operator shift assignment (roster) | Shift | Configuration | done | — | `OperatorShiftAssignment`; which operators work which shift; depends on Work-center calendar / shifts |
 
 ## Production engineering
 

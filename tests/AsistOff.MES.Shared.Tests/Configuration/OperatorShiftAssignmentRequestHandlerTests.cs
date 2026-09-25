@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using AsistOff.MES.Configuration.Application.Features.OperatorShiftAssignments.Browse;
 using AsistOff.MES.Configuration.Application.Features.OperatorShiftAssignments.Create;
 using AsistOff.MES.Configuration.Application.Features.OperatorShiftAssignments.Delete;
+using AsistOff.MES.Configuration.Application.Features.OperatorShiftAssignments.Get;
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
@@ -124,6 +125,46 @@ public class OperatorShiftAssignmentRequestHandlerTests
     }
 
     [Fact]
+    public async Task Handle_EmptyOperatorId_ThrowsValidationException()
+    {
+        // Arrange
+        var request = new CreateOperatorShiftAssignmentRequest(Guid.Empty, _shiftId, new DateOnly(2026, 9, 24), null);
+
+        // Act
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task Handle_EmptyShiftId_ThrowsValidationException()
+    {
+        // Arrange
+        var request = new CreateOperatorShiftAssignmentRequest(_operatorId, Guid.Empty, new DateOnly(2026, 9, 24), null);
+
+        // Act
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task Handle_NotesTooLong_ThrowsValidationException()
+    {
+        // Arrange
+        var request = new CreateOperatorShiftAssignmentRequest(
+            _operatorId, _shiftId, new DateOnly(2026, 9, 24), new string('n', 1001));
+
+        // Act
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
     public async Task Handle_DuplicateAssignment_ThrowsConflictException()
     {
         // Arrange
@@ -153,6 +194,23 @@ public class OperatorShiftAssignmentRequestHandlerTests
 
         // Act
         var act = () => handler.Handle(new DeleteOperatorShiftAssignmentRequest(Guid.NewGuid()), CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task Handle_GetUnknownId_ThrowsNotFoundException()
+    {
+        // Arrange
+        _repository
+            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OperatorShiftAssignment?)null);
+
+        var handler = new GetOperatorShiftAssignmentRequestHandler(_repository.Object);
+
+        // Act
+        var act = () => handler.Handle(new GetOperatorShiftAssignmentRequest(Guid.NewGuid()), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
