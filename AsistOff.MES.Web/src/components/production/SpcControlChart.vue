@@ -112,10 +112,21 @@ function xOf(index: number, total: number): number {
 
 interface PlottedPoint { point: SpcMeasurementChartPoint; x: number; y: number }
 
+// The chart X axis is time: sort a copy by measuredAt so an unsorted API
+// payload still renders in ascending time order instead of prop order.
+const orderedPoints = computed<SpcMeasurementChartPoint[]>(() =>
+  [...props.points].sort((a, b) => {
+    const ta = Date.parse(a.measuredAt);
+    const tb = Date.parse(b.measuredAt);
+    if (Number.isNaN(ta) || Number.isNaN(tb)) return 0;
+    return ta - tb;
+  })
+);
+
 const plotted = computed<PlottedPoint[]>(() =>
-  props.points.map((point, index) => ({
+  orderedPoints.value.map((point, index) => ({
     point,
-    x: xOf(index, props.points.length),
+    x: xOf(index, orderedPoints.value.length),
     y: yOf(point.value)
   }))
 );

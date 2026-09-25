@@ -34,7 +34,13 @@ function mountChart(props: Record<string, unknown> = {}) {
 
 describe('SpcControlChart', () => {
   it('renders one point per measurement in ascending time order', () => {
-    const wrapper = mountChart();
+    const wrapper = mountChart({
+      points: [
+        point({ id: 'point-1', value: 10, measuredAt: new Date('2026-09-24T10:00:00Z').toISOString() }),
+        point({ id: 'point-2', value: 10.2, measuredAt: new Date('2026-09-24T10:01:00Z').toISOString() }),
+        point({ id: 'point-3', value: 9.8, measuredAt: new Date('2026-09-24T10:02:00Z').toISOString() })
+      ]
+    });
 
     const circles = wrapper.findAll('circle.spc-chart__point');
     expect(circles).toHaveLength(3);
@@ -42,6 +48,28 @@ describe('SpcControlChart', () => {
     const xs = circles.map((c) => Number(c.attributes('cx')));
     expect(xs[0]).toBeLessThan(xs[1] as number);
     expect(xs[1]).toBeLessThan(xs[2] as number);
+  });
+
+  it('sorts an unsorted payload by measuredAt so X stays in ascending time order', () => {
+    const wrapper = mountChart({
+      points: [
+        point({ id: 'point-late', value: 9.8, measuredAt: new Date('2026-09-24T10:02:00Z').toISOString() }),
+        point({ id: 'point-early', value: 10, measuredAt: new Date('2026-09-24T10:00:00Z').toISOString() }),
+        point({ id: 'point-mid', value: 10.2, measuredAt: new Date('2026-09-24T10:01:00Z').toISOString() })
+      ]
+    });
+
+    const circles = wrapper.findAll('circle.spc-chart__point');
+    expect(circles).toHaveLength(3);
+
+    const xs = circles.map((c) => Number(c.attributes('cx')));
+    expect(xs[0]).toBeLessThan(xs[1] as number);
+    expect(xs[1]).toBeLessThan(xs[2] as number);
+
+    // DOM order follows time order, not prop order: earliest first.
+    expect(circles[0]?.attributes('data-testid')).toBe('spc-point-point-early');
+    expect(circles[1]?.attributes('data-testid')).toBe('spc-point-point-mid');
+    expect(circles[2]?.attributes('data-testid')).toBe('spc-point-point-late');
   });
 
   it('marks points beyond control limits as out of control', () => {

@@ -168,7 +168,7 @@
           </template>
         </AppFormField>
         <template #actions>
-          <AppButton variant="primary" size="sm" :loading="measurementsLoading" @click="fetchMeasurements">
+          <AppButton variant="primary" size="sm" :loading="measurementsLoading" @click="applyMeasurementsRange">
             {{ $t('spcMeasurements.apply') }}
           </AppButton>
         </template>
@@ -188,6 +188,7 @@
       />
       <template v-else-if="measurementsLoaded && chart">
         <p class="measurements-summary">{{ measurementsSummary }}</p>
+        <p v-if="measurementsLoading" class="measurements-refresh" data-testid="measurements-refresh">{{ $t('common.loading') }}</p>
         <SpcControlChart
           :points="chart.points"
           :lower-control-limit="chart.lowerControlLimit"
@@ -526,13 +527,17 @@ async function openMeasurements(item: SpcCharacteristicResponse): Promise<void> 
 }
 
 function closeMeasurements(): void {
-  if (measurementsLoading.value) return;
+  // Closing must never trap the dialog open: invalidate any in-flight fetch
+  // so its late response is ignored, then reset the dialog state at once.
+  measurementsRequest++;
+  window.clearTimeout(measurementsRangeTimer);
   measurementsOpen.value = false;
   measurementsItem.value = null;
   logItems.value = [];
   chart.value = null;
   measurementsLoaded.value = false;
   measurementsNotFound.value = false;
+  measurementsLoading.value = false;
 }
 
 function clearMeasurementsRange(): void {
@@ -541,12 +546,28 @@ function clearMeasurementsRange(): void {
   void fetchMeasurements();
 }
 
+let measurementsRangeTimer: number | undefined;
+
 function onMeasurementsRangeChange(): void {
+  // Datetime inputs fire change on every edit; debounce so typing a range
+  // triggers a single reload instead of one fetch per keystroke. The Apply
+  // button bypasses the debounce via applyMeasurementsRange.
+  window.clearTimeout(measurementsRangeTimer);
+  measurementsRangeTimer = window.setTimeout(() => {
+    void fetchMeasurements();
+  }, 300);
+}
+
+function applyMeasurementsRange(): void {
+  window.clearTimeout(measurementsRangeTimer);
   void fetchMeasurements();
 }
 
+let measurementsRequest = 0;
+
 async function fetchMeasurements(): Promise<void> {
   if (!measurementsItem.value) return;
+  const request = ++measurementsRequest;
   measurementsLoading.value = true;
   measurementsNotFound.value = false;
   try {
@@ -556,10 +577,12 @@ async function fetchMeasurements(): Promise<void> {
       spcMeasurementService.browse({ characteristicId: id, pageNumber: 1, pageSize: 200, ...range }),
       spcMeasurementService.getChart({ characteristicId: id, ...range })
     ]);
+    if (request !== measurementsRequest) return;
     logItems.value = page.items;
     chart.value = chartRes;
     measurementsLoaded.value = true;
   } catch (err) {
+    if (request !== measurementsRequest) return;
     if (isNotFoundError(err)) {
       // Unknown or cross-tenant characteristic: the API hides foreign rows
       // with 404 — show the not-found state instead of a broken chart.
@@ -569,7 +592,7 @@ async function fetchMeasurements(): Promise<void> {
       toast.error(extractErrorMessage(err, t('errors.loadFailed')));
     }
   } finally {
-    measurementsLoading.value = false;
+    if (request === measurementsRequest) measurementsLoading.value = false;
   }
 }
 
@@ -583,5 +606,6 @@ onMounted(async () => {
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
 .measurements-summary { color: var(--color-text-muted); margin: var(--space-2) 0 var(--space-3); }
+.measurements-refresh { color: var(--color-text-muted); font-size: var(--font-size-sm); margin: 0 0 var(--space-2); }
 .measurements-subtitle { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin: var(--space-4) 0 var(--space-2); }
 </style>
