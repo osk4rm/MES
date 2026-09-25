@@ -1,14 +1,44 @@
 import axios, { AxiosError } from 'axios';
+import { CORRELATION_ID_HEADER, generateCorrelationId } from './correlation';
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL
 });
+
+export function ensureCorrelationId(
+  headers: { get?: (name: string) => unknown; set?: (name: string, value: string) => void; [key: string]: unknown },
+  generate: () => string = generateCorrelationId
+): string {
+  const read = (name: string): string | null => {
+    if (headers && typeof headers.get === 'function') {
+      const current = headers.get(name) as unknown;
+      if (typeof current === 'string' && current.trim() !== '') return current;
+    }
+    const direct = headers[name] as unknown;
+    if (typeof direct === 'string' && direct.trim() !== '') return direct;
+    const lowered = headers[name.toLowerCase()] as unknown;
+    if (typeof lowered === 'string' && lowered.trim() !== '') return lowered;
+    return null;
+  };
+  const existing = read(CORRELATION_ID_HEADER);
+  // Preserve a caller-supplied value (including retries, which re-run this
+  // interceptor with the header already set) instead of overwriting it.
+  if (existing) return existing;
+  const next = generate();
+  if (headers && typeof headers.set === 'function') {
+    headers.set(CORRELATION_ID_HEADER, next);
+  } else {
+    headers[CORRELATION_ID_HEADER] = next;
+  }
+  return next;
+}
 
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  ensureCorrelationId(config.headers);
   return config;
 });
 

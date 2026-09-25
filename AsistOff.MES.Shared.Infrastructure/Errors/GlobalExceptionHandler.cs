@@ -1,5 +1,5 @@
 using AsistOff.MES.Shared.Abstractions.Exceptions;
-using AsistOff.MES.Shared.Infrastructure.Observability;
+using AsistOff.MES.Shared.Infrastructure.Correlation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -18,10 +18,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
     {
         logger.LogError(exception, "An exception occurred: {Message}", exception.Message);
 
-        var problemDetails = CreateProblemDetails(exception);
-        problemDetails.Extensions["traceId"] = CorrelationIdHelper.GetEffectiveCorrelationId(httpContext)
-            ?? Activity.Current?.Id
-            ?? httpContext.TraceIdentifier;
+        var problemDetails = CreateProblemDetails(exception, httpContext);
 
         httpContext.Response.StatusCode = problemDetails.Status ?? (int)HttpStatusCode.InternalServerError;
         httpContext.Response.ContentType = "application/problem+json";
@@ -31,9 +28,9 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         return true;
     }
 
-    private static ProblemDetails CreateProblemDetails(Exception exception)
+    private static ProblemDetails CreateProblemDetails(Exception exception, HttpContext httpContext)
     {
-        return exception switch
+        ProblemDetails problemDetails = exception switch
         {
             ValidationException validationEx => new ValidationProblemDetails(validationEx.Errors)
             {
@@ -84,5 +81,13 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
                 Detail = "An unexpected error occurred."
             }
         };
+
+        // Every error envelope carries traceId equal to the effective
+        // X-Correlation-ID so support can link an operator-visible error to
+        // a backend log line (issue #251).
+        var traceId = CorrelationIds.GetCurrent(httpContext) ?? httpContext.TraceIdentifier;
+        problemDetails.Extensions["traceId"] = traceId;
+
+        return problemDetails;
     }
 }

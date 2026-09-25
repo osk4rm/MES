@@ -1,5 +1,5 @@
 ﻿using System.Diagnostics;
-using AsistOff.MES.Shared.Infrastructure.Observability;
+using AsistOff.MES.Shared.Infrastructure.Correlation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -81,9 +81,14 @@ namespace AsistOff.MES.Gateway.Errors
                 problemDetails.Type ??= clientErrorData.Link;
             }
 
-            var traceId = CorrelationIdHelper.GetEffectiveCorrelationId(httpContext)
-                ?? Activity.Current?.Id
-                ?? httpContext?.TraceIdentifier;
+            // traceId is the effective X-Correlation-ID so model-binding /
+            // validation errors link to the same ID as the response header
+            // and backend logs (issue #251). Activity ID is only a fallback
+            // when the correlation middleware has not run (should not happen
+            // in the normal pipeline).
+            var traceId = CorrelationIds.GetCurrent(httpContext)
+                ?? httpContext?.TraceIdentifier
+                ?? Activity.Current?.Id;
             if (traceId != null)
             {
                 problemDetails.Extensions["traceId"] = traceId;
