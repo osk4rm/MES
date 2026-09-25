@@ -50,9 +50,17 @@ internal sealed class ProductionConfirmationsRepository(DefaultContext context) 
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        await context.Set<ProductionConfirmation>()
-            .Where(x => x.Id == id)
-            .ExecuteDeleteAsync(cancellationToken);
+        // Tracked remove (not ExecuteDeleteAsync) so the AuditHistoryInterceptor
+        // observes the delete and appends the history row in the same transaction.
+        var confirmation = await context.Set<ProductionConfirmation>()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (confirmation is null)
+        {
+            return;
+        }
+
+        context.Set<ProductionConfirmation>().Remove(confirmation);
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<(decimal ProducedQuantity, decimal ScrappedQuantity, int ConfirmationsCount)> GetTotalsAsync(

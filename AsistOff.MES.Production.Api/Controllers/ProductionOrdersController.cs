@@ -1,5 +1,8 @@
 using AsistOff.MES.Production.Application.Features.Common;
+using AsistOff.MES.Production.Application.Features.AuditEvents;
+using AsistOff.MES.Production.Application.Features.AuditEvents.Browse;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Browse;
+using AsistOff.MES.Shared.Abstractions.Audit;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Close;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Complete;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Create;
@@ -72,4 +75,21 @@ public class ProductionOrdersController(ISender sender) : ApiController
     public async Task<ActionResult<IReadOnlyList<MovementPreviewLine>>> GetMovementsAsync(
         [FromRoute] Guid id, CancellationToken cancellationToken)
         => Ok(await sender.Send(new BrowseOrderMovementsRequest(id), cancellationToken));
+
+    /// <summary>
+    /// Recent append-only audit history of one Production Order in descending
+    /// time order (slice 2/2, issue #246). Convenience over
+    /// <c>GET /api/audit-events?entityName=ProductionOrder&amp;entityId={id}</c>
+    /// so the order detail view reads history without a second client call shape.
+    /// </summary>
+    [HttpGet("{id:guid}/history")]
+    public async Task<ActionResult<PagedResponse<AuditEventResponse>>> GetHistoryAsync(
+        [FromRoute] Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new BrowseAuditEventsRequest
+        {
+            EntityName = AuditEntityNames.ProductionOrder,
+            EntityId = id,
+            PageNumber = 1,
+            PageSize = 50,
+        }, cancellationToken));
 }

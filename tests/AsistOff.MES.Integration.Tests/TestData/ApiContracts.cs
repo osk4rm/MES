@@ -207,6 +207,16 @@ public sealed record ProductionConfirmationDto(
     DateTime CreatedAt,
     DateTime? UpdatedAt);
 
+/// <summary>Shape of an audit history row as returned by <c>/api/audit-events</c>.</summary>
+public sealed record AuditEventDto(
+    Guid Id,
+    string EntityName,
+    Guid EntityId,
+    short Action,
+    DateTime ChangedAt,
+    Guid? ActorId,
+    string? Payload);
+
 /// <summary>Shape of a telemetry tag as returned by <c>/api/telemetry-tags</c>.</summary>
 public sealed record MachineTelemetryTagDto(
     Guid Id,

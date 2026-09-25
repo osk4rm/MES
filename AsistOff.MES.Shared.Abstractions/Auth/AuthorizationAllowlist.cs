@@ -104,6 +104,7 @@ public static class AuthorizationAllowlist
             // read-only user role). Browse / get / analytics queries perform no mutation.
             "AsistOff.MES.Production.Application.Features.AndonSignals.Browse.BrowseAndonSignalsRequest",
             "AsistOff.MES.Production.Application.Features.AndonSignals.Get.GetAndonSignalRequest",
+            "AsistOff.MES.Production.Application.Features.AuditEvents.Browse.BrowseAuditEventsRequest",
             "AsistOff.MES.Production.Application.Features.DowntimeEvents.Browse.BrowseDowntimeEventsRequest",
             "AsistOff.MES.Production.Application.Features.DowntimeEvents.Get.GetDowntimeEventRequest",
             "AsistOff.MES.Production.Application.Features.Kanban.Cards.Browse.BrowseKanbanCardsRequest",
