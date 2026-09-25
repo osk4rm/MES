@@ -22,6 +22,11 @@ export interface BrowseProductionConfirmationsRequest extends IPagedRequest {
   to?: string;
 }
 
+export interface ConsumedLotLine {
+  lotId: string;
+  quantity: number;
+}
+
 export interface CreateProductionConfirmationRequest {
   productionOrderId: string;
   machineId: string;
@@ -30,6 +35,8 @@ export interface CreateProductionConfirmationRequest {
   goodQuantity: number;
   scrapQuantity: number;
   notes?: string | null;
+  producedLotId?: string | null;
+  consumedLots?: ConsumedLotLine[] | null;
 }
 
 export interface MovementPreviewLine {
