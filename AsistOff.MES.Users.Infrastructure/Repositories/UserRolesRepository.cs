@@ -44,7 +44,13 @@ public class UserRolesRepository(DefaultContext context) : IUserRolesRepository
 
     public async Task RemoveAsync(UserRole userRole, CancellationToken cancellationToken = default)
     {
-        context.UserRoles.Remove(userRole);
+        // The link instance typically arrives detached (AsNoTracking browse with an
+        // Include) while the caller holds the same Role tracked (GetByIdAsync).
+        // Remove() would attach the whole reachable graph and clash on the duplicate
+        // Role instance ("another instance with the same key ... is already being
+        // tracked" -> HTTP 500). Marking only this entry Deleted attaches just the
+        // link row, which is all a delete needs.
+        context.Entry(userRole).State = EntityState.Deleted;
         await context.SaveChangesAsync(cancellationToken);
     }
 }
