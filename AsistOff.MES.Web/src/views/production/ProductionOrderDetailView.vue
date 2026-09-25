@@ -384,6 +384,13 @@ import { operatorService, type OperatorResponse } from '../../services/operatorS
 import { productService, type ProductResponse } from '../../services/productService';
 import { warehouseService, type WarehouseResponse } from '../../services/warehouseService';
 import { lotService, type LotResponse } from '../../services/lotService';
+import {
+  buildConsumedLotLines,
+  createConsumedLotRow,
+  validateConsumedLotRow,
+  validateProducedLot,
+  type ConsumedLotFormRow
+} from '../../services/confirmationLots';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -555,11 +562,6 @@ function toLocalInputValue(d: Date): string {
 const modalOpen = ref(false);
 const saving = ref(false);
 
-interface ConsumedLotFormRow {
-  lotId: string | null;
-  quantity: number | null;
-}
-
 const form = reactive({
   machineId: null as string | null,
   operatorId: null as string | null,
@@ -572,7 +574,7 @@ const form = reactive({
 });
 
 function addConsumedRow(): void {
-  form.consumedLots.push({ lotId: null, quantity: null });
+  form.consumedLots.push(createConsumedLotRow());
 }
 
 function removeConsumedRow(idx: number): void {
@@ -580,23 +582,18 @@ function removeConsumedRow(idx: number): void {
 }
 
 const producedLotError = computed((): string | null => {
-  if (form.consumedLots.length > 0 && !form.producedLotId) {
-    return t('productionConfirmations.producedLotRequired');
-  }
-  return null;
+  const code = validateProducedLot(form.producedLotId, form.consumedLots.length);
+  return code ? t('productionConfirmations.producedLotRequired') : null;
 });
 
 function consumedRowError(idx: number): string | null {
   const row = form.consumedLots[idx];
   if (!row) return null;
-  if (!row.lotId) return t('validation.required');
-  if (row.quantity === null || row.quantity === undefined || row.quantity <= 0) {
-    return t('productionConfirmations.consumedQuantityPositive');
-  }
-  if (form.producedLotId && row.lotId === form.producedLotId) {
-    return t('productionConfirmations.selfLinkNotAllowed');
-  }
-  return null;
+  const code = validateConsumedLotRow(row, form.producedLotId);
+  if (!code) return null;
+  if (code === 'required') return t('validation.required');
+  if (code === 'consumedQuantityPositive') return t('productionConfirmations.consumedQuantityPositive');
+  return t('productionConfirmations.selfLinkNotAllowed');
 }
 
 function openReport(): void {
@@ -652,7 +649,7 @@ async function onSave(): Promise<void> {
       scrapQuantity: scrap,
       notes: form.notes || null,
       producedLotId: form.producedLotId,
-      consumedLots: form.consumedLots.map(r => ({ lotId: r.lotId as string, quantity: r.quantity as number }))
+      consumedLots: buildConsumedLotLines(form.consumedLots)
     });
     toast.success(t('toasts.created'));
     modalOpen.value = false;
