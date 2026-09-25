@@ -239,7 +239,7 @@ describe('OpcUaConnectionsView', () => {
   it('honours the ?machineId= deep link and keeps it in the URL via router.replace only', async () => {
     mockQuery.machineId = 'machine-1';
     browseMachinesMock.mockResolvedValue({
-      items: [{ id: 'machine-1', code: 'WC-1', name: 'Work Center 1', isActive: true }],
+      items: [{ id: 'machine-1', code: 'WC-1', name: 'Work Center 1', isActive: true, capacity: 1, efficiencyFactor: 1 }],
       totalCount: 1,
       totalPages: 1
     });

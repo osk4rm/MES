@@ -23,6 +23,16 @@ public class MachineConfiguration : IEntityTypeConfiguration<Machine>
         builder.Property(x => x.Description)
             .HasMaxLength(1000);
 
+        builder.Property(x => x.Capacity)
+            .IsRequired()
+            .HasPrecision(18, 4)
+            .HasDefaultValue(1m);
+
+        builder.Property(x => x.EfficiencyFactor)
+            .IsRequired()
+            .HasPrecision(9, 4)
+            .HasDefaultValue(1.0m);
+
         builder.HasOne(x => x.Department)
             .WithMany()
             .HasForeignKey(x => x.DepartmentId)

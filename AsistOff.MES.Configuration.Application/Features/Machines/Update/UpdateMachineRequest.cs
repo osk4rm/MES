@@ -9,4 +9,6 @@ public record UpdateMachineRequest(
     string? Description,
     bool IsActive,
     Guid? DepartmentId,
-    string? SyncId) : ITenantRequest;
+    string? SyncId,
+    decimal? Capacity = null,
+    decimal? EfficiencyFactor = null) : ITenantRequest;

@@ -86,6 +86,8 @@ function machine(overrides: Partial<MachineResponse> = {}): MachineResponse {
     description: null,
     departmentId: null,
     isActive: true,
+    capacity: 1,
+    efficiencyFactor: 1,
     ...overrides
   };
 }

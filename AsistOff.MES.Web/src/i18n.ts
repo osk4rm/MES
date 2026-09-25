@@ -210,6 +210,8 @@ const pl = {
     code: 'Kod',
     name: 'Nazwa',
     description: 'Opis',
+    capacity: 'Wydajność (pojemność)',
+    efficiencyFactor: 'Współczynnik efektywności',
     calendar: 'Kalendarz',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
   },
@@ -1073,6 +1075,8 @@ const en: typeof pl = {
     code: 'Code',
     name: 'Name',
     description: 'Description',
+    capacity: 'Capacity',
+    efficiencyFactor: 'Efficiency factor',
     calendar: 'Calendar',
     filters: { code: 'Code contains…', name: 'Name contains…' }
   },

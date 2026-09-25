@@ -12,6 +12,8 @@ public class Machine : IEntity, ISaasy, ISyncable
     public required string Name { get; set; }
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
+    public decimal Capacity { get; set; } = 1;
+    public decimal EfficiencyFactor { get; set; } = 1.0m;
     public Guid? DepartmentId { get; set; }
 
     public virtual Department? Department { get; set; }

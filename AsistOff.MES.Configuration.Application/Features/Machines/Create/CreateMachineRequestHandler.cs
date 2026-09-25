@@ -24,6 +24,8 @@ internal sealed class CreateMachineRequestHandler(
             Name = request.Name,
             Description = request.Description,
             IsActive = request.IsActive,
+            Capacity = MachineCapacityRules.ResolveCapacity(request.Capacity),
+            EfficiencyFactor = MachineCapacityRules.ResolveEfficiencyFactor(request.EfficiencyFactor),
             DepartmentId = request.DepartmentId,
             SyncId = request.SyncId
         };
