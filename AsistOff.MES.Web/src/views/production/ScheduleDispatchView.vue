@@ -52,6 +52,9 @@
               <span class="dispatch-shift__headcount">{{
                 $t('scheduleDispatch.headcount', { count: shift.headcount })
               }}</span>
+              <AppBadge v-if="shift.isUncovered" variant="warning" dot>
+                {{ $t('scheduleDispatch.uncovered') }}
+              </AppBadge>
             </li>
           </ul>
         </AppCard>

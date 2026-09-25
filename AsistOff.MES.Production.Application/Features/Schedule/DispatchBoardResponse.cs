@@ -26,7 +26,8 @@ public sealed record DispatchShiftResponse(
     TimeOnly StartTime,
     TimeOnly EndTime,
     bool IsOvernight,
-    int Headcount);
+    int Headcount,
+    bool IsUncovered);
 
 /// <summary>
 /// A Released or InProgress order that is overdue, due inside the window or

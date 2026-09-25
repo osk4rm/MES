@@ -3,8 +3,9 @@ import http from './http';
 /**
  * One active shift inside a dispatch day bucket. Mirrors
  * `DispatchShiftResponse` from `GET /api/schedule/dispatch`: code, name,
- * start/end times (ISO `HH:mm:ss`), the overnight flag and the roster
- * headcount for the bucket date.
+ * start/end times (ISO `HH:mm:ss`), the overnight flag, the roster
+ * headcount for the bucket date and the uncovered flag (true when no
+ * operator is assigned to the shift on that date).
  */
 export interface DispatchShift {
   shiftId: string;
@@ -14,6 +15,7 @@ export interface DispatchShift {
   endTime: string;
   isOvernight: boolean;
   headcount: number;
+  isUncovered: boolean;
 }
 
 /** One calendar day of the requested window with its active shifts. */
