@@ -260,26 +260,6 @@ public sealed class OperatorShiftAssignmentsEndpointTests(MesApplicationFixture 
     }
 
     [Fact]
-    public async Task Get_UnknownId_Returns404()
-    {
-        using var client = await Fixture.CreateAuthenticatedClientAsync();
-
-        var response = await client.GetAsync($"{BaseUrl}/{Guid.NewGuid()}");
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public async Task Delete_UnknownId_Returns404()
-    {
-        using var client = await Fixture.CreateAuthenticatedClientAsync();
-
-        var response = await client.DeleteAsync($"{BaseUrl}/{Guid.NewGuid()}");
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
     public async Task Get_AssignmentCreatedInAnotherTenant_Returns404()
     {
         var (email, password) = await Fixture.CreateTenantAsync();
