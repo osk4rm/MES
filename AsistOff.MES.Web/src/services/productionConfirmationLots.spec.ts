@@ -11,31 +11,31 @@ describe('validateConfirmationLots', () => {
   it('requires a produced lot when consumed rows are present', () => {
     expect(
       validateConfirmationLots(null, [{ lotId: 'consumed-1', quantity: 5 }])
-    ).toBe('producedRequired');
+    ).toBe('producedLotRequired');
     expect(
       validateConfirmationLots('', [{ lotId: 'consumed-1', quantity: 5 }])
-    ).toBe('producedRequired');
+    ).toBe('producedLotRequired');
   });
 
   it('requires a lot id on every consumed row', () => {
     expect(
       validateConfirmationLots('produced-1', [{ lotId: '', quantity: 5 }])
-    ).toBe('lotRequired');
+    ).toBe('consumedLotRequired');
   });
 
   it('rejects zero or negative consumed quantities', () => {
     expect(
       validateConfirmationLots('produced-1', [{ lotId: 'consumed-1', quantity: 0 }])
-    ).toBe('quantityPositive');
+    ).toBe('consumedQuantityPositive');
     expect(
       validateConfirmationLots('produced-1', [{ lotId: 'consumed-1', quantity: -2.5 }])
-    ).toBe('quantityPositive');
+    ).toBe('consumedQuantityPositive');
   });
 
   it('rejects same-lot self links', () => {
     expect(
       validateConfirmationLots('lot-1', [{ lotId: 'lot-1', quantity: 5 }])
-    ).toBe('selfLink');
+    ).toBe('lotsMustDiffer');
   });
 
   it('accepts a produced lot with two consumed lots carrying positive quantities', () => {

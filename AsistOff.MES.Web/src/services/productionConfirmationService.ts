@@ -22,10 +22,13 @@ export interface BrowseProductionConfirmationsRequest extends IPagedRequest {
   to?: string;
 }
 
-export interface ConsumedLotInput {
+export interface ConsumedLotLine {
   lotId: string;
   quantity: number;
 }
+
+/** Alias kept for the lots validation helper; both names describe the same payload line. */
+export type ConsumedLotInput = ConsumedLotLine;
 
 export interface CreateProductionConfirmationRequest {
   productionOrderId: string;
@@ -36,7 +39,7 @@ export interface CreateProductionConfirmationRequest {
   scrapQuantity: number;
   notes?: string | null;
   producedLotId?: string | null;
-  consumedLots?: ConsumedLotInput[];
+  consumedLots?: ConsumedLotLine[] | null;
 }
 
 export interface MovementPreviewLine {

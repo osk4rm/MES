@@ -229,11 +229,6 @@
             <AppNumberInput :id="id" v-model="form.scrapQuantity" :min="0" :step="1" :invalid="invalid" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionConfirmations.notes')" class="form-grid__full">
-          <template #default="{ id }">
-            <AppTextarea :id="id" v-model="form.notes" :rows="2" />
-          </template>
-        </AppFormField>
         <AppFormField :label="$t('productionConfirmations.producedLot')" class="form-grid__full">
           <template #default="{ id }">
             <AppSelect
@@ -241,40 +236,51 @@
               v-model="form.producedLotId"
               :options="lotOptions"
               :placeholder="$t('productionConfirmations.selectProducedLot')"
+              :empty-label="$t('productionConfirmations.noLot')"
               allow-empty
             />
           </template>
         </AppFormField>
-        <p class="form-hint form-grid__full">{{ $t('productionConfirmations.lotsHint') }}</p>
         <div class="form-grid__full consumed-lots">
           <div class="consumed-lots__header">
-            <span>{{ $t('productionConfirmations.consumedLots') }}</span>
-            <AppButton variant="ghost" icon="pi pi-plus" @click="addConsumedRow">
+            <span class="consumed-lots__label">{{ $t('productionConfirmations.consumedLots') }}</span>
+            <AppButton variant="ghost" icon="pi pi-plus" type="button" @click="addConsumedLot">
               {{ $t('productionConfirmations.addConsumedLot') }}
             </AppButton>
           </div>
           <div v-for="(row, index) in form.consumedLots" :key="index" class="consumed-lots__row">
             <AppSelect
               v-model="row.lotId"
-              :options="lotOptions"
+              :options="consumedLotOptions(row.lotId)"
               :placeholder="$t('productionConfirmations.selectConsumedLot')"
-              :aria-label="$t('productionConfirmations.consumedLot')"
+              :empty-label="$t('productionConfirmations.noLot')"
+              allow-empty
             />
             <AppNumberInput
               v-model="row.quantity"
               :min="0"
               :step="1"
+              :invalid="isConsumedRowInvalid(row)"
               :placeholder="$t('productionConfirmations.consumedQuantity')"
             />
             <AppButton
               variant="ghost"
               icon="pi pi-trash"
+              icon-only
+              type="button"
               :aria-label="$t('productionConfirmations.removeConsumedLot')"
-              @click="removeConsumedRow(index)"
+              :title="$t('productionConfirmations.removeConsumedLot')"
+              @click="removeConsumedLot(index)"
             />
           </div>
-          <p v-if="lotsError" class="form-error" role="alert">{{ lotsError }}</p>
+          <p class="consumed-lots__hint">{{ $t('productionConfirmations.genealogyHint') }}</p>
+          <p v-if="lotsError" class="consumed-lots__error">{{ lotsError }}</p>
         </div>
+        <AppFormField :label="$t('productionConfirmations.notes')" class="form-grid__full">
+          <template #default="{ id }">
+            <AppTextarea :id="id" v-model="form.notes" :rows="2" />
+          </template>
+        </AppFormField>
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="saving" @click="closeModal">{{ $t('common.cancel') }}</AppButton>
@@ -362,14 +368,13 @@ import {
 } from '../../services/productionOrderService';
 import {
   productionConfirmationService,
-  type ConsumedLotInput,
+  type ConsumedLotLine,
   type MovementPreviewLine,
   type ProductionConfirmationResponse
 } from '../../services/productionConfirmationService';
-import { validateConfirmationLots } from '../../services/productionConfirmationLots';
-import { lotService, type LotResponse } from '../../services/lotService';
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { operatorService, type OperatorResponse } from '../../services/operatorService';
+import { lotService, type LotResponse } from '../../services/lotService';
 import { productService, type ProductResponse } from '../../services/productService';
 import { warehouseService, type WarehouseResponse } from '../../services/warehouseService';
 import { useToastStore } from '../../stores/toastStore';
@@ -458,12 +463,20 @@ function formatQuantity(v: number): string {
 
 const machines = ref<MachineResponse[]>([]);
 const operators = ref<OperatorResponse[]>([]);
+const lots = ref<LotResponse[]>([]);
 const products = ref<ProductResponse[]>([]);
 const warehouses = ref<WarehouseResponse[]>([]);
-const lots = ref<LotResponse[]>([]);
 
 const machineOptions = computed(() => machines.value.map(m => ({ value: m.id, label: `${m.code} — ${m.name}` })));
-const lotOptions = computed(() => lots.value.map(l => ({ value: l.id, label: `${l.code}` })));
+const lotOptions = computed(() => lots.value.map(l => ({ value: l.id, label: `${l.code} (${formatQuantity(l.quantity)})` })));
+
+/** Consumed-lot picker options: the produced lot is disabled so self links are caught inline. */
+function consumedLotOptions(selectedId: string | null): Array<{ value: string; label: string; disabled?: boolean }> {
+  return lotOptions.value.map(o => ({
+    ...o,
+    disabled: form.producedLotId !== null && o.value === form.producedLotId && o.value !== selectedId
+  }));
+}
 const operatorFilterOptions = computed(() => [
   { value: null, label: t('productionConfirmations.selectOperator') },
   ...operators.value.map(o => ({ value: o.id, label: `${o.identifier} — ${o.firstName} ${o.lastName}` }))
@@ -553,27 +566,11 @@ const form = reactive({
   reportedAt: '',
   goodQuantity: null as number | null,
   scrapQuantity: null as number | null,
-  notes: '' as string | null,
   producedLotId: null as string | null,
-  consumedLots: [] as ConsumedLotRow[]
+  consumedLots: [] as ConsumedLotRow[],
+  notes: '' as string | null
 });
-
-const lotsError = computed(() => {
-  const payload: ConsumedLotInput[] = form.consumedLots.map(r => ({
-    lotId: r.lotId ?? '',
-    quantity: r.quantity ?? 0
-  }));
-  const violation = validateConfirmationLots(form.producedLotId, payload);
-  return violation ? t(`productionConfirmations.lotsErrors.${violation}`) : '';
-});
-
-function addConsumedRow(): void {
-  form.consumedLots.push({ lotId: null, quantity: null });
-}
-
-function removeConsumedRow(index: number): void {
-  form.consumedLots.splice(index, 1);
-}
+const lotsError = ref('');
 
 function openReport(): void {
   Object.assign(form, {
@@ -582,16 +579,44 @@ function openReport(): void {
     reportedAt: toLocalInputValue(new Date()),
     goodQuantity: null,
     scrapQuantity: null,
-    notes: '',
     producedLotId: null,
-    consumedLots: []
+    consumedLots: [] as ConsumedLotRow[],
+    notes: ''
   });
+  lotsError.value = '';
   modalOpen.value = true;
 }
 
 function closeModal(): void {
   if (saving.value) return;
   modalOpen.value = false;
+}
+
+function addConsumedLot(): void {
+  form.consumedLots.push({ lotId: null, quantity: null });
+}
+
+function removeConsumedLot(index: number): void {
+  form.consumedLots.splice(index, 1);
+  lotsError.value = '';
+}
+
+function isConsumedRowInvalid(row: ConsumedLotRow): boolean {
+  if (row.quantity === null) return false;
+  return row.quantity <= 0;
+}
+
+/** Inline lot validation mirroring the backend rules (self link, quantities, produced-lot requirement). */
+function validateLots(): string | null {
+  const rows = form.consumedLots;
+  if (rows.length === 0) return null;
+  if (!form.producedLotId) return t('productionConfirmations.producedLotRequired');
+  for (const row of rows) {
+    if (!row.lotId) return t('productionConfirmations.consumedLotRequired');
+    if (row.quantity === null || row.quantity <= 0) return t('productionConfirmations.consumedQuantityPositive');
+    if (row.lotId === form.producedLotId) return t('productionConfirmations.lotsMustDiffer');
+  }
+  return null;
 }
 
 async function onSave(): Promise<void> {
@@ -606,15 +631,16 @@ async function onSave(): Promise<void> {
     toast.error(t('productionConfirmations.positiveQuantityRequired'));
     return;
   }
-  const consumedPayload: ConsumedLotInput[] = form.consumedLots.map(r => ({
-    lotId: r.lotId ?? '',
-    quantity: r.quantity ?? 0
-  }));
-  const lotsViolation = validateConfirmationLots(form.producedLotId, consumedPayload);
-  if (lotsViolation) {
-    toast.error(t(`productionConfirmations.lotsErrors.${lotsViolation}`));
+  const lotProblem = validateLots();
+  lotsError.value = lotProblem ?? '';
+  if (lotProblem) {
+    toast.error(lotProblem);
     return;
   }
+  const consumedLots: ConsumedLotLine[] = form.consumedLots.map(row => ({
+    lotId: row.lotId as string,
+    quantity: row.quantity as number
+  }));
   saving.value = true;
   try {
     await productionConfirmationService.create({
@@ -626,7 +652,7 @@ async function onSave(): Promise<void> {
       scrapQuantity: scrap,
       notes: form.notes || null,
       producedLotId: form.producedLotId,
-      consumedLots: consumedPayload
+      consumedLots
     });
     toast.success(t('toasts.created'));
     modalOpen.value = false;
@@ -844,31 +870,12 @@ onMounted(() => {
 }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
-.form-hint {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-.form-error {
-  margin: var(--space-2) 0 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-danger, #b91c1c);
-}
 .consumed-lots { display: flex; flex-direction: column; gap: var(--space-2); }
-.consumed-lots__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-.consumed-lots__row {
-  display: grid;
-  grid-template-columns: 1fr 160px auto;
-  gap: var(--space-2);
-  align-items: center;
-}
+.consumed-lots__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.consumed-lots__label { font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.consumed-lots__row { display: grid; grid-template-columns: 1fr 160px auto; gap: var(--space-2); align-items: center; }
+.consumed-lots__hint { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.consumed-lots__error { margin: 0; font-size: var(--font-size-sm); color: var(--color-danger); }
 .loading {
   display: flex;
   align-items: center;

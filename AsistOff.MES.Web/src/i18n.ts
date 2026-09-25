@@ -268,21 +268,20 @@ const pl = {
     notes: 'Uwagi',
     empty: 'Brak potwierdzeń dla tego zlecenia',
     positiveQuantityRequired: 'Przynajmniej jedna ilość (dobra lub braków) musi być większa od zera',
-    producedLot: 'Wyprodukowana partia',
-    selectProducedLot: 'Wybierz wyprodukowaną partię…',
-    lotsHint: 'Partie są opcjonalne — podanie wyprodukowanej i zużytych partii zapisze ślad genealogii.',
-    consumedLots: 'Zużyte partie',
-    addConsumedLot: 'Dodaj zużytą partię',
-    removeConsumedLot: 'Usuń wiersz',
-    consumedLot: 'Zużyta partia',
+    producedLot: 'Partia wyprodukowana',
+    selectProducedLot: 'Wybierz partię wyprodukowaną…',
+    noLot: 'Bez partii',
+    consumedLots: 'Partie zużyte',
+    addConsumedLot: 'Dodaj partię zużytą',
+    removeConsumedLot: 'Usuń',
+    consumedLot: 'Partia',
     selectConsumedLot: 'Wybierz partię…',
-    consumedQuantity: 'Zużyta ilość',
-    lotsErrors: {
-      producedRequired: 'Wyprodukowana partia jest wymagana, gdy podano zużyte partie.',
-      lotRequired: 'Każdy wiersz wymaga wybrania partii.',
-      quantityPositive: 'Zużyta ilość musi być większa od zera.',
-      selfLink: 'Zużyta i wyprodukowana partia muszą się różnić.'
-    }
+    consumedQuantity: 'Ilość zużyta',
+    genealogyHint: 'Zapisane krawędzie genealogii podejrzysz w zakładce genealogii partii wyprodukowanej',
+    producedLotRequired: 'Partia wyprodukowana jest wymagana, gdy podano partie zużyte',
+    consumedLotRequired: 'Wybierz partię dla każdego wiersza zużycia',
+    consumedQuantityPositive: 'Ilość zużyta musi być większa od zera',
+    lotsMustDiffer: 'Partia zużyta i wyprodukowana muszą się różnić'
   },
   movements: {
     title: 'Podgląd ruchów RW / PW',
@@ -792,17 +791,6 @@ const pl = {
     from: 'Okno od',
     to: 'Okno do',
     apply: 'Zastosuj',
-    bucket: 'Agregacja',
-    buckets: {
-      Day: 'Dzienna',
-      Week: 'Tygodniowa'
-    },
-    trendTitle: 'Trend w podziale na okresy',
-    trendEmpty: 'Brak okresów w wybranym oknie',
-    bucketFrom: 'Okres od',
-    bucketTo: 'Okres do',
-    fleetTitle: 'Porównanie floty (od najgorszej)',
-    fleetEmpty: 'Brak aktywnych stanowisk w oknie',
     cards: {
       failures: 'Awarie',
       repairs: 'Naprawy',
@@ -1161,19 +1149,18 @@ const en: typeof pl = {
     positiveQuantityRequired: 'At least one quantity (good or scrap) must be greater than zero',
     producedLot: 'Produced lot',
     selectProducedLot: 'Select produced lot…',
-    lotsHint: 'Lots are optional — providing a produced lot and consumed lots records a genealogy trace.',
+    noLot: 'No lot',
     consumedLots: 'Consumed lots',
     addConsumedLot: 'Add consumed lot',
-    removeConsumedLot: 'Remove row',
-    consumedLot: 'Consumed lot',
+    removeConsumedLot: 'Remove',
+    consumedLot: 'Lot',
     selectConsumedLot: 'Select lot…',
     consumedQuantity: 'Consumed quantity',
-    lotsErrors: {
-      producedRequired: 'Produced lot is required when consumed lots are provided.',
-      lotRequired: 'Each row requires a lot selection.',
-      quantityPositive: 'Consumed quantity must be greater than zero.',
-      selfLink: 'Consumed and produced lots must differ.'
-    }
+    genealogyHint: 'Posted genealogy edges can be inspected in the produced lot genealogy tab',
+    producedLotRequired: 'Produced lot is required when consumed lots are provided',
+    consumedLotRequired: 'Select a lot for every consumed row',
+    consumedQuantityPositive: 'Consumed quantity must be greater than zero',
+    lotsMustDiffer: 'Consumed and produced lots must differ'
   },
   movements: {
     title: 'RW / PW movement preview',
@@ -1683,17 +1670,6 @@ const en: typeof pl = {
     from: 'Window from',
     to: 'Window to',
     apply: 'Apply',
-    bucket: 'Bucket',
-    buckets: {
-      Day: 'Daily',
-      Week: 'Weekly'
-    },
-    trendTitle: 'Per-bucket trend',
-    trendEmpty: 'No buckets in the selected window',
-    bucketFrom: 'Bucket from',
-    bucketTo: 'Bucket to',
-    fleetTitle: 'Fleet comparison (worst first)',
-    fleetEmpty: 'No active work centers in the window',
     cards: {
       failures: 'Failures',
       repairs: 'Repairs',
