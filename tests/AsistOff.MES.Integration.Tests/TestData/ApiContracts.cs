@@ -402,6 +402,14 @@ public sealed record ReliabilitySnapshotDto(
     double? MttrMinutes,
     double? AvgRepairMinutes);
 
+/// <summary>Shape of the reliability trend returned by <c>/api/reliability/trend</c>.</summary>
+public sealed record ReliabilityTrendDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    string Bucket,
+    IReadOnlyCollection<ReliabilitySnapshotDto> Buckets);
+
 /// <summary>Shape of an OPC UA connection as returned by <c>/api/opcua-connections</c>.</summary>
 public sealed record OpcUaConnectionDto(
     Guid Id,
