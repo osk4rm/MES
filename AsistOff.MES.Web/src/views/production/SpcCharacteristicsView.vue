@@ -495,6 +495,17 @@ function measurementStatus(item: SpcMeasurementResponse): 'ooc' | 'oos' | 'ok' {
   return 'ok';
 }
 
+function sortMeasurementsAsc(items: SpcMeasurementResponse[]): SpcMeasurementResponse[] {
+  // The log must read in ascending time order (acceptance criterion) even if
+  // a browse payload arrives unsorted; the chart already sorts its own copy.
+  return [...items].sort((a, b) => {
+    const ta = Date.parse(a.measuredAt);
+    const tb = Date.parse(b.measuredAt);
+    if (Number.isNaN(ta) || Number.isNaN(tb)) return 0;
+    return ta - tb;
+  });
+}
+
 function formatDateTime(value: string): string {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
@@ -578,7 +589,7 @@ async function fetchMeasurements(): Promise<void> {
       spcMeasurementService.getChart({ characteristicId: id, ...range })
     ]);
     if (request !== measurementsRequest) return;
-    logItems.value = page.items;
+    logItems.value = sortMeasurementsAsc(page.items);
     chart.value = chartRes;
     measurementsLoaded.value = true;
   } catch (err) {
