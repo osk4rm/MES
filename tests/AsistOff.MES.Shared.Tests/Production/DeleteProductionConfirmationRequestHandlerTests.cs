@@ -12,9 +12,10 @@ public class DeleteProductionConfirmationRequestHandlerTests
 {
     private readonly Mock<IProductionConfirmationsRepository> _confirmations = new();
     private readonly Mock<IProductionOrdersRepository> _orders = new();
+    private readonly Mock<ILotGenealogyEdgesRepository> _edges = new();
 
     private DeleteProductionConfirmationRequestHandler CreateSut() =>
-        new(_confirmations.Object, _orders.Object);
+        new(_confirmations.Object, _orders.Object, _edges.Object);
 
     private static (ProductionConfirmation Confirmation, ProductionOrder Order) Setup(ProductionOrderStatus status)
     {

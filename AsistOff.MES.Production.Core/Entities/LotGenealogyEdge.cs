@@ -8,8 +8,9 @@ namespace AsistOff.MES.Production.Domain.Entities;
 /// (component) lot went into a produced (finished good) lot under a
 /// <see cref="ProductionOrder"/>, optionally linked to the
 /// <see cref="ProductionConfirmation"/> that reported the work.
-/// Recording is explicit; there is no automatic derivation from BOM or
-/// RW / PW postings. Same-lot self links are rejected. Corrections are
+/// Recording is explicit via POST /api/lot-genealogy and automatic when a
+/// confirmation carries lot references (one edge per consumed lot entry).
+/// Same-lot self links are rejected. Corrections are
 /// delete plus re-record; there is no update path.
 /// </summary>
 public class LotGenealogyEdge : IEntity, ISaasy, IAuditable

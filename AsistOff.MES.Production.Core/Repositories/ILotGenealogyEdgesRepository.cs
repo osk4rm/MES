@@ -13,4 +13,10 @@ public interface ILotGenealogyEdgesRepository
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<LotGenealogyEdge>> ListByProducedLotIdsAsync(IReadOnlyCollection<Guid> producedLotIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<LotGenealogyEdge>> ListByConsumedLotIdsAsync(IReadOnlyCollection<Guid> consumedLotIds, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Deletes the auto-posted edges of one confirmation in code, so the
+    /// delete plus re-create correction model stays consistent. Runs under
+    /// the tenant global query filter.
+    /// </summary>
+    Task DeleteByConfirmationAsync(Guid productionConfirmationId, CancellationToken cancellationToken = default);
 }

@@ -56,4 +56,11 @@ internal sealed class LotGenealogyEdgesRepository(DefaultContext context) : ILot
             .OrderBy(x => x.OccurredAt)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task DeleteByConfirmationAsync(Guid productionConfirmationId, CancellationToken cancellationToken = default)
+    {
+        await context.Set<LotGenealogyEdge>()
+            .Where(x => x.ProductionConfirmationId == productionConfirmationId)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
 }

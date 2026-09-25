@@ -19,6 +19,8 @@ public class CreateProductionConfirmationRequestHandlerTests
     private readonly Mock<IProductionOrdersRepository> _orders = new();
     private readonly Mock<IChildEntitiesRepository> _children = new();
     private readonly Mock<IStockMovementsRepository> _movements = new();
+    private readonly Mock<ILotsRepository> _lots = new();
+    private readonly Mock<ILotGenealogyEdgesRepository> _edges = new();
     private readonly Mock<IGuidProvider> _guids = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ITenantContext> _tenant = new();
@@ -35,7 +37,7 @@ public class CreateProductionConfirmationRequestHandlerTests
     }
 
     private CreateProductionConfirmationRequestHandler CreateSut() =>
-        new(_confirmations.Object, _orders.Object, _children.Object, _movements.Object, _guids.Object, _clock.Object, _tenant.Object);
+        new(_confirmations.Object, _orders.Object, _children.Object, _movements.Object, _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object);
 
     private static ProductionOrder ReleasedOrder() => new()
     {
