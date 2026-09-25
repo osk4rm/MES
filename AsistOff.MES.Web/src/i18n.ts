@@ -507,7 +507,29 @@ const pl = {
       3: 'X / MR',
       4: 'Karta p',
       5: 'Karta c'
-    }
+    },
+    measurements: 'Pomiary',
+    measurementsTitle: 'Pomiary: {name}'
+  },
+  spcMeasurements: {
+    title: 'Pomiary SPC',
+    chartTitle: 'Karta kontrolna',
+    logTitle: 'Dziennik pomiarów',
+    measuredAt: 'Czas pomiaru',
+    value: 'Wartość',
+    notes: 'Notatki',
+    from: 'Od',
+    to: 'Do',
+    apply: 'Zastosuj',
+    outOfControl: 'Poza kontrolą',
+    outOfSpec: 'Poza specyfikacją',
+    inControl: 'W kontroli',
+    summary: 'Razem {total} • poza kontrolą {ooc} • poza specyfikacją {oos}',
+    noMeasurements: 'Brak pomiarów dla tej charakterystyki w wybranym zakresie',
+    notFound: 'Nie znaleziono charakterystyki',
+    notFoundHint: 'Charakterystyka mogła zostać usunięta lub należy do innego tenanta. Zamknij okno i odśwież listę.',
+    chartEmpty: 'Za mało pomiarów do wykresu',
+    loadFailed: 'Nie udało się wczytać pomiarów'
   },
   downtime: {
     title: 'Przestoje',
@@ -1338,7 +1360,29 @@ const en: typeof pl = {
       3: 'X / MR',
       4: 'p-chart',
       5: 'c-chart'
-    }
+    },
+    measurements: 'Measurements',
+    measurementsTitle: 'Measurements: {name}'
+  },
+  spcMeasurements: {
+    title: 'SPC measurements',
+    chartTitle: 'Control chart',
+    logTitle: 'Measurement log',
+    measuredAt: 'Measured at',
+    value: 'Value',
+    notes: 'Notes',
+    from: 'From',
+    to: 'To',
+    apply: 'Apply',
+    outOfControl: 'Out of control',
+    outOfSpec: 'Out of spec',
+    inControl: 'In control',
+    summary: '{total} total • {ooc} out of control • {oos} out of spec',
+    noMeasurements: 'No measurements for this characteristic in the selected range',
+    notFound: 'Characteristic not found',
+    notFoundHint: 'The characteristic may have been deleted or belongs to another tenant. Close the dialog and refresh the list.',
+    chartEmpty: 'Not enough measurements for a chart',
+    loadFailed: 'Failed to load measurements'
   },
   downtime: {
     title: 'Downtime',
