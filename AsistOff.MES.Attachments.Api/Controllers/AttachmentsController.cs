@@ -1,3 +1,4 @@
+using AsistOff.MES.Attachments.Application.Features.Common;
 using AsistOff.MES.Attachments.Application.Features.Delete;
 using AsistOff.MES.Attachments.Application.Features.Download;
 using AsistOff.MES.Attachments.Application.Features.List;
@@ -7,11 +8,12 @@ using AsistOff.MES.Shared.Infrastructure.Controllers;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace AsistOff.MES.Attachments.Api.Controllers;
 
 [Route("api/attachments")]
-public class AttachmentsController(ISender sender) : ApiController
+public class AttachmentsController(ISender sender, IOptions<AttachmentUploadOptions> uploadOptions) : ApiController
 {
     /// <summary>Lists attachments for the given polymorphic owner.</summary>
     [HttpGet]
@@ -51,12 +53,22 @@ public class AttachmentsController(ISender sender) : ApiController
         return Ok(result);
     }
 
-    /// <summary>Streams the attachment's binary content.</summary>
+    /// <summary>Streams the attachment's binary content as a forced download.</summary>
     [HttpGet("{id:guid}/download")]
     public async Task<ActionResult> DownloadAsync([FromRoute] Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new DownloadAttachmentRequest(id), cancellationToken);
-        return File(result.Content, result.ContentType, result.FileName);
+
+        // Never echo an attacker-controlled content type: serve allowlisted
+        // types as-is, everything else as application/octet-stream.
+        var safeContentType = AttachmentUploadGuard.MapDownloadContentType(result.ContentType, uploadOptions.Value);
+        var safeFileName = AttachmentFileNameSanitizer.Sanitize(result.FileName);
+
+        // Force download disposition (File with a download name sets
+        // "Content-Disposition: attachment") and block MIME sniffing so an
+        // uploaded HTML/SVG payload cannot execute in another user's browser.
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(result.Content, safeContentType, safeFileName);
     }
 
     [HttpDelete("{id:guid}")]
