@@ -6,15 +6,19 @@ import {
   formatMinutes,
   formatNullableMinutes,
   reliabilityService,
-  type ReliabilitySnapshot
+  type ReliabilityFleetRow,
+  type ReliabilitySnapshot,
+  type ReliabilityTrend
 } from '../../services/reliabilityService';
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { useToastStore } from '../../stores/toastStore';
 
-// Frontend slice (2/2): the backend snapshot endpoint is covered by the
-// (1/2) suites (GetReliabilitySnapshot* unit tests + ReliabilityEndpointTests).
-// These component tests prove the dashboard contract instead: KPI cards
-// matching the snapshot, the null-MTBF/MTTR notice (never zeros),
+// Frontend slice (2/2): the backend snapshot/trend/fleet endpoints are covered
+// by the (1/2) suites (handler + validator unit tests plus
+// ReliabilityEndpointTests, ReliabilityTrendEndpointTests and
+// ReliabilityFleetEndpointTests). These component tests prove the dashboard
+// contract instead: KPI cards matching the snapshot, the per-bucket trend and
+// fleet ranking tables, the null-MTBF/MTTR notice (never zeros),
 // client-side rejection of reversed/overlong windows with prior data kept,
 // the cross-tenant 404 feedback and query deep-linking via router.replace
 // only (no full page reload). JWT attachment itself lives in the shared
@@ -26,7 +30,9 @@ vi.mock('../../services/reliabilityService', async (importOriginal) => {
   return {
     ...actual,
     reliabilityService: {
-      getSnapshot: vi.fn()
+      getSnapshot: vi.fn(),
+      getTrend: vi.fn(),
+      getFleet: vi.fn()
     }
   };
 });
@@ -57,6 +63,8 @@ vi.mock('vue-i18n', () => ({
 }));
 
 const snapshotMock = vi.mocked(reliabilityService.getSnapshot);
+const trendMock = vi.mocked(reliabilityService.getTrend);
+const fleetMock = vi.mocked(reliabilityService.getFleet);
 const browseMachinesMock = vi.mocked(machineService.browse);
 
 function machine(overrides: Partial<MachineResponse> = {}): MachineResponse {
@@ -90,6 +98,35 @@ function snapshotFixture(overrides: Partial<ReliabilitySnapshot> = {}): Reliabil
   };
 }
 
+function trendFixture(overrides: Partial<ReliabilityTrend> = {}): ReliabilityTrend {
+  return {
+    machineId: 'machine-1',
+    fromUtc: new Date('2026-09-24T06:00:00Z').toISOString(),
+    toUtc: new Date('2026-09-24T14:00:00Z').toISOString(),
+    bucket: 'Day',
+    buckets: [snapshotFixture()],
+    ...overrides
+  };
+}
+
+function fleetRowFixture(overrides: Partial<ReliabilityFleetRow> = {}): ReliabilityFleetRow {
+  return {
+    machineId: 'machine-1',
+    machineCode: 'WC-1',
+    machineName: 'Work Center 1',
+    departmentId: null,
+    failureCount: 1,
+    repairCount: 1,
+    windowMinutes: 480,
+    uptimeMinutes: 420,
+    totalDowntimeMinutes: 60,
+    mtbfMinutes: 420,
+    mttrMinutes: 60,
+    avgRepairMinutes: 45,
+    ...overrides
+  };
+}
+
 function notFoundError(): unknown {
   return { response: { status: 404, data: { title: 'Not Found' } }, message: 'Request failed with status code 404' };
 }
@@ -99,11 +136,14 @@ function seedDeepLink(): void {
   mockQuery.from = new Date('2026-09-24T06:00:00Z').toISOString();
   mockQuery.to = new Date('2026-09-24T14:00:00Z').toISOString();
   mockQuery.preset = 'custom';
+  mockQuery.bucket = 'Day';
 }
 
 function seedHappyPath(): void {
   browseMachinesMock.mockResolvedValue({ totalCount: 1, totalPages: 1, items: [machine()] });
   snapshotMock.mockResolvedValue(snapshotFixture());
+  trendMock.mockResolvedValue(trendFixture());
+  fleetMock.mockResolvedValue([fleetRowFixture()]);
 }
 
 function mountDashboard(): VueWrapper {
@@ -265,5 +305,114 @@ describe('ReliabilityDashboardView', () => {
     expect(wrapper.text()).toContain('reliabilityDashboard.notFound');
     expect(wrapper.text()).toContain('reliabilityDashboard.notFoundHint');
     expect(wrapper.text()).not.toContain('reliabilityDashboard.cards.mtbf');
+  });
+
+  it('loads trend and fleet panels alongside the snapshot over the shared window', async () => {
+    seedDeepLink();
+
+    const wrapper = mountDashboard();
+    await flushPromises();
+    expect(wrapper.exists()).toBe(true);
+
+    const snapshotQuery = snapshotMock.mock.calls[0]?.[0] as { fromUtc: string; toUtc: string };
+    // The trend shares the snapshot window plus the selected bucket; the
+    // fleet shares the window (all active tenant work centers, no department).
+    expect(trendMock).toHaveBeenCalledWith({
+      machineId: 'machine-1',
+      fromUtc: snapshotQuery.fromUtc,
+      toUtc: snapshotQuery.toUtc,
+      bucket: 'Day'
+    });
+    expect(fleetMock).toHaveBeenCalledWith({
+      fromUtc: snapshotQuery.fromUtc,
+      toUtc: snapshotQuery.toUtc
+    });
+    expect(wrapper.text()).toContain('reliabilityDashboard.trendTitle');
+    expect(wrapper.text()).toContain('reliabilityDashboard.fleetTitle');
+  });
+
+  it('renders null MTBF/MTTR as an em dash in the trend and fleet tables, never as zeros', async () => {
+    seedDeepLink();
+    trendMock.mockResolvedValue(
+      trendFixture({
+        buckets: [
+          snapshotFixture({ failureCount: 0, mtbfMinutes: null, mttrMinutes: null, avgRepairMinutes: null })
+        ]
+      })
+    );
+    fleetMock.mockResolvedValue([
+      fleetRowFixture({ failureCount: 0, mtbfMinutes: null, mttrMinutes: null, avgRepairMinutes: null })
+    ]);
+
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const cells = wrapper.findAll('.app-table__td').map((td) => td.text());
+    expect(cells.filter((c) => c === '—').length).toBeGreaterThan(0);
+  });
+
+  it('renders the fleet ranking in API order (MTBF ascending, nulls last)', async () => {
+    seedDeepLink();
+    const worst = fleetRowFixture({
+      machineId: 'worst',
+      machineCode: 'WC-W',
+      machineName: 'Worst',
+      failureCount: 2,
+      mtbfMinutes: 180,
+      mttrMinutes: 60
+    });
+    const best = fleetRowFixture({
+      machineId: 'best',
+      machineCode: 'WC-B',
+      machineName: 'Best',
+      failureCount: 1,
+      mtbfMinutes: 420,
+      mttrMinutes: 60
+    });
+    const clean = fleetRowFixture({
+      machineId: 'clean',
+      machineCode: 'WC-C',
+      machineName: 'Clean',
+      failureCount: 0,
+      mtbfMinutes: null,
+      mttrMinutes: null
+    });
+    fleetMock.mockResolvedValue([worst, best, clean]);
+
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const text = wrapper.text();
+    expect(text.indexOf('WC-W')).toBeLessThan(text.indexOf('WC-B'));
+    expect(text.indexOf('WC-B')).toBeLessThan(text.indexOf('WC-C'));
+  });
+
+  it('switching the bucket reloads the trend and re-syncs the URL', async () => {
+    seedDeepLink();
+
+    const wrapper = mountDashboard();
+    await flushPromises();
+    expect(trendMock).toHaveBeenCalledWith(expect.objectContaining({ bucket: 'Day' }));
+
+    const selects = wrapper.findAll('select');
+    expect(selects).toHaveLength(3);
+    await selects[2]?.setValue('Week');
+    await flushPromises();
+
+    expect(trendMock).toHaveBeenCalledWith(expect.objectContaining({ bucket: 'Week' }));
+    expect(mockReplace).toHaveBeenCalledWith({ query: expect.objectContaining({ bucket: 'Week' }) });
+  });
+
+  it('restores the trend bucket from the URL on reload', async () => {
+    seedDeepLink();
+    mockQuery.bucket = 'Week';
+
+    const wrapper = mountDashboard();
+    await flushPromises();
+    expect(wrapper.exists()).toBe(true);
+
+    expect(trendMock).toHaveBeenCalledWith(expect.objectContaining({ bucket: 'Week' }));
+    // URL already matches so no redundant replace is pushed (sync guard).
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });

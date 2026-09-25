@@ -36,6 +36,11 @@
           <AppInput :id="id" v-model="toInput" type="datetime-local" @change="onWindowChange" />
         </template>
       </AppFormField>
+      <AppFormField :label="$t('reliabilityDashboard.bucket')">
+        <template #default="{ id }">
+          <AppSelect :id="id" v-model="bucket" :options="bucketOptions" @change="onBucketChange" />
+        </template>
+      </AppFormField>
       <template #actions>
         <AppButton variant="primary" icon="pi pi-check" :loading="loading" @click="refresh">
           {{ $t('reliabilityDashboard.apply') }}
@@ -78,6 +83,42 @@
           <div class="reliability-card__meta">{{ card.hint }}</div>
         </AppCard>
       </div>
+
+      <AppCard class="reliability-section">
+        <template #header>
+          <h3 class="reliability-section__title">{{ $t('reliabilityDashboard.trendTitle') }}</h3>
+        </template>
+        <AppTable
+          :items="trendBuckets"
+          :columns="trendColumns"
+          :loading="loading"
+          row-key="fromUtc"
+          :empty-label="$t('reliabilityDashboard.trendEmpty')"
+        >
+          <template #cell-fromUtc="{ value }">{{ formatDateTime(String(value)) }}</template>
+          <template #cell-toUtc="{ value }">{{ formatDateTime(String(value)) }}</template>
+          <template #cell-mtbfMinutes="{ value }">{{ formatNullableMinutes(toNullableNumber(value)) }}</template>
+          <template #cell-mttrMinutes="{ value }">{{ formatNullableMinutes(toNullableNumber(value)) }}</template>
+          <template #cell-avgRepairMinutes="{ value }">{{ formatNullableMinutes(toNullableNumber(value)) }}</template>
+        </AppTable>
+      </AppCard>
+
+      <AppCard class="reliability-section">
+        <template #header>
+          <h3 class="reliability-section__title">{{ $t('reliabilityDashboard.fleetTitle') }}</h3>
+        </template>
+        <AppTable
+          :items="fleetRows"
+          :columns="fleetColumns"
+          :loading="loading"
+          row-key="machineId"
+          :empty-label="$t('reliabilityDashboard.fleetEmpty')"
+        >
+          <template #cell-machine="{ item }">{{ fleetRowLabel(item) }}</template>
+          <template #cell-mtbfMinutes="{ value }">{{ formatNullableMinutes(toNullableNumber(value)) }}</template>
+          <template #cell-mttrMinutes="{ value }">{{ formatNullableMinutes(toNullableNumber(value)) }}</template>
+        </AppTable>
+      </AppCard>
     </template>
   </div>
 </template>
@@ -96,15 +137,22 @@ import AppBadge from '../../components/ui/AppBadge.vue';
 import AppCard from '../../components/ui/AppCard.vue';
 import AppSpinner from '../../components/ui/AppSpinner.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppTable from '../../components/ui/AppTable.vue';
 import {
   ReliabilityPreset,
+  ReliabilityTrendBucket,
   formatMinutes,
   formatNullableMinutes,
   hasNullReliability,
   reliabilityService,
+  validateReliabilityBucket,
   validateReliabilityWindow,
+  type GetReliabilityFleetQuery,
   type GetReliabilitySnapshotQuery,
-  type ReliabilitySnapshot
+  type GetReliabilityTrendQuery,
+  type ReliabilityFleetRow,
+  type ReliabilitySnapshot,
+  type ReliabilityTrend
 } from '../../services/reliabilityService';
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { useToastStore } from '../../stores/toastStore';
@@ -122,13 +170,20 @@ const machineId = ref<string | null>(null);
 const preset = ref<ReliabilityPreset>(ReliabilityPreset.Last8Hours);
 const fromInput = ref('');
 const toInput = ref('');
+const bucket = ref<ReliabilityTrendBucket>(ReliabilityTrendBucket.Day);
 
 const snapshot = ref<ReliabilitySnapshot | null>(null);
+const trend = ref<ReliabilityTrend | null>(null);
+const fleet = ref<ReliabilityFleetRow[]>([]);
 const loading = ref(false);
 const loadedOnce = ref(false);
 const notFound = ref(false);
 
 const nullReliability = computed(() => hasNullReliability(snapshot.value));
+const trendBuckets = computed<ReliabilitySnapshot[]>(() => trend.value?.buckets ?? []);
+// Fleet rows render in API order: the backend already ranks MTBF ascending
+// with nulls last, so the view must not re-sort client side.
+const fleetRows = computed<ReliabilityFleetRow[]>(() => fleet.value);
 
 interface KpiCard {
   key: string;
@@ -222,6 +277,45 @@ const presetOptions = computed<SelectOption[]>(() => [
   { value: ReliabilityPreset.Custom, label: t('reliabilityDashboard.presets.custom') }
 ]);
 
+const bucketOptions = computed<SelectOption[]>(() => [
+  { value: ReliabilityTrendBucket.Day, label: t('reliabilityDashboard.buckets.Day') },
+  { value: ReliabilityTrendBucket.Week, label: t('reliabilityDashboard.buckets.Week') }
+]);
+
+const trendColumns = computed(() => [
+  { key: 'fromUtc', label: t('reliabilityDashboard.bucketFrom') },
+  { key: 'toUtc', label: t('reliabilityDashboard.bucketTo') },
+  { key: 'failureCount', label: t('reliabilityDashboard.cards.failures'), align: 'right' as const },
+  { key: 'repairCount', label: t('reliabilityDashboard.cards.repairs'), align: 'right' as const },
+  { key: 'mtbfMinutes', label: t('reliabilityDashboard.cards.mtbf'), align: 'right' as const },
+  { key: 'mttrMinutes', label: t('reliabilityDashboard.cards.mttr'), align: 'right' as const },
+  { key: 'avgRepairMinutes', label: t('reliabilityDashboard.cards.avgRepair'), align: 'right' as const }
+]);
+
+const fleetColumns = computed(() => [
+  { key: 'machine', label: t('reliabilityDashboard.workCenter') },
+  { key: 'failureCount', label: t('reliabilityDashboard.cards.failures'), align: 'right' as const },
+  { key: 'repairCount', label: t('reliabilityDashboard.cards.repairs'), align: 'right' as const },
+  { key: 'mtbfMinutes', label: t('reliabilityDashboard.cards.mtbf'), align: 'right' as const },
+  { key: 'mttrMinutes', label: t('reliabilityDashboard.cards.mttr'), align: 'right' as const }
+]);
+
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatDateTime(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString();
+}
+
+function fleetRowLabel(item: ReliabilityFleetRow): string {
+  return `${item.machineCode} — ${item.machineName}`;
+}
+
 function toDatetimeLocal(d: Date): string {
   const pad = (n: number): string => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -259,13 +353,20 @@ function isNotFoundError(err: unknown): boolean {
   return (err as { response?: { status?: unknown } }).response?.status === 404;
 }
 
+interface ValidatedQuery {
+  snapshot: GetReliabilitySnapshotQuery;
+  trend: GetReliabilityTrendQuery;
+  fleet: GetReliabilityFleetQuery;
+}
+
 /**
  * Validates the filter inputs without touching the loaded panels: illegal
  * input shows the error toast and leaves prior data in place. The 93-day cap
  * and the reversed-window rule mirror the API validator so no request is
- * sent for input the backend would reject with 400.
+ * sent for input the backend would reject with 400; the bucket is validated
+ * the same way (Day or Week only).
  */
-function readValidatedQuery(): GetReliabilitySnapshotQuery | null {
+function readValidatedQuery(): ValidatedQuery | null {
   const id = machineId.value;
   if (!id) {
     toast.error(t('reliabilityDashboard.invalidInput'));
@@ -276,17 +377,33 @@ function readValidatedQuery(): GetReliabilitySnapshotQuery | null {
     toast.error(t('reliabilityDashboard.invalidInput'));
     return null;
   }
+  if (validateReliabilityBucket(bucket.value) !== null) {
+    toast.error(t('reliabilityDashboard.invalidInput'));
+    return null;
+  }
   const from = parseDatetimeLocal(fromInput.value);
   const to = parseDatetimeLocal(toInput.value);
   if (!from || !to) {
     toast.error(t('reliabilityDashboard.invalidInput'));
     return null;
   }
-  return { machineId: id, fromUtc: from.toISOString(), toUtc: to.toISOString() };
+  const fromUtc = from.toISOString();
+  const toUtc = to.toISOString();
+  return {
+    snapshot: { machineId: id, fromUtc, toUtc },
+    trend: { machineId: id, fromUtc, toUtc, bucket: bucket.value },
+    fleet: { fromUtc, toUtc }
+  };
 }
 
-function syncQuery(q: GetReliabilitySnapshotQuery): void {
-  const next = { machineId: q.machineId, from: q.fromUtc, to: q.toUtc, preset: preset.value };
+function syncQuery(q: ValidatedQuery): void {
+  const next = {
+    machineId: q.snapshot.machineId,
+    from: q.snapshot.fromUtc,
+    to: q.snapshot.toUtc,
+    preset: preset.value,
+    bucket: q.trend.bucket
+  };
   const cur = route.query as Record<string, unknown>;
   // Guard the replace when the query already matches: clicking Apply twice
   // (or a watch echo) must not push a redundant navigation.
@@ -294,21 +411,29 @@ function syncQuery(q: GetReliabilitySnapshotQuery): void {
     String(cur.machineId ?? '') === next.machineId &&
     String(cur.from ?? '') === next.from &&
     String(cur.to ?? '') === next.to &&
-    String(cur.preset ?? '') === next.preset
+    String(cur.preset ?? '') === next.preset &&
+    String(cur.bucket ?? '') === next.bucket
   ) {
     return;
   }
   // Remember the key we just synced so the query watcher can swallow its
-  // own echo instead of fetching the snapshot a second time.
-  lastAppliedKey = [next.machineId, next.from, next.to, next.preset].join('|');
+  // own echo instead of fetching every panel a second time.
+  lastAppliedKey = [next.machineId, next.from, next.to, next.preset, next.bucket].join('|');
   void router.replace({ query: { ...route.query, ...next } });
 }
 
-async function loadPanels(q: GetReliabilitySnapshotQuery): Promise<void> {
+async function loadPanels(q: ValidatedQuery): Promise<void> {
   loading.value = true;
   notFound.value = false;
   try {
-    snapshot.value = await reliabilityService.getSnapshot(q);
+    const [s, tr, fl] = await Promise.all([
+      reliabilityService.getSnapshot(q.snapshot),
+      reliabilityService.getTrend(q.trend),
+      reliabilityService.getFleet(q.fleet)
+    ]);
+    snapshot.value = s;
+    trend.value = tr;
+    fleet.value = fl;
     loadedOnce.value = true;
   } catch (err) {
     if (isNotFoundError(err)) {
@@ -316,6 +441,8 @@ async function loadPanels(q: GetReliabilitySnapshotQuery): Promise<void> {
       // with 404 — drop the panels and show the not-found feedback.
       notFound.value = true;
       snapshot.value = null;
+      trend.value = null;
+      fleet.value = [];
     } else {
       toast.error(extractErrorMessage(err, t('errors.loadFailed')));
     }
@@ -333,6 +460,8 @@ async function refresh(): Promise<void> {
 
 function clearPanels(): void {
   snapshot.value = null;
+  trend.value = null;
+  fleet.value = [];
   notFound.value = false;
   loadedOnce.value = false;
 }
@@ -366,11 +495,17 @@ function onWindowChange(): void {
   if (machineId.value) void refresh();
 }
 
+function onBucketChange(v: string | number | null): void {
+  bucket.value = v === ReliabilityTrendBucket.Week ? ReliabilityTrendBucket.Week : ReliabilityTrendBucket.Day;
+  if (machineId.value) void refresh();
+}
+
 function clearFilters(): void {
   preset.value = ReliabilityPreset.Last8Hours;
   const window = defaultWindow();
   fromInput.value = window.from;
   toInput.value = window.to;
+  bucket.value = ReliabilityTrendBucket.Day;
   if (machineId.value) void refresh();
 }
 
@@ -386,15 +521,19 @@ function readStateFromQuery(): void {
   preset.value = Object.values(ReliabilityPreset).includes(rawPreset as ReliabilityPreset)
     ? (rawPreset as ReliabilityPreset)
     : ReliabilityPreset.Custom;
+  // Unknown buckets fall back to Day so a hand-edited URL never breaks the
+  // panels; the next refresh re-syncs the canonical value into the query.
+  const rawBucket = typeof q.bucket === 'string' ? q.bucket.trim().toLowerCase() : '';
+  bucket.value = rawBucket === 'week' ? ReliabilityTrendBucket.Week : ReliabilityTrendBucket.Day;
 }
 
 function queryKey(): string {
   const q = route.query;
-  return [q.machineId, q.from, q.to, q.preset].map((v) => String(v ?? '')).join('|');
+  return [q.machineId, q.from, q.to, q.preset, q.bucket].map((v) => String(v ?? '')).join('|');
 }
 
 // Key of the last query we pushed via syncQuery. The query watcher swallows
-// the echo of our own replace instead of fetching the snapshot twice.
+// the echo of our own replace instead of fetching every panel twice.
 let lastAppliedKey: string | null = null;
 
 watch(queryKey, () => {
@@ -452,5 +591,12 @@ onMounted(async () => {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   margin-top: var(--space-1);
+}
+.reliability-section {
+  margin-bottom: var(--space-3);
+}
+.reliability-section__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 </style>
