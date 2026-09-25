@@ -94,13 +94,17 @@ describe('toDateOnlyString', () => {
 
 describe('currentWeekWindow', () => {
   it('returns the Monday-to-Sunday week containing the given date', () => {
-    // Wednesday 2026-09-24 -> week Mon 22nd .. Sun 28th.
-    expect(currentWeekWindow(new Date(2026, 8, 24))).toEqual({ from: '2026-09-22', to: '2026-09-28' });
+    // Thursday 2026-09-24 -> week Mon 21st .. Sun 27th.
+    expect(currentWeekWindow(new Date(2026, 8, 24))).toEqual({ from: '2026-09-21', to: '2026-09-27' });
   });
 
   it('keeps a Sunday inside its own week and a Monday at the week start', () => {
-    expect(currentWeekWindow(new Date(2026, 8, 27))).toEqual({ from: '2026-09-22', to: '2026-09-28' });
-    expect(currentWeekWindow(new Date(2026, 8, 28))).toEqual({ from: '2026-09-22', to: '2026-09-28' });
+    // Sunday 2026-09-27 still belongs to the Mon 21st .. Sun 27th week.
+    expect(currentWeekWindow(new Date(2026, 8, 27))).toEqual({ from: '2026-09-21', to: '2026-09-27' });
+    // Monday 2026-09-21 starts that same week.
+    expect(currentWeekWindow(new Date(2026, 8, 21))).toEqual({ from: '2026-09-21', to: '2026-09-27' });
+    // Monday 2026-09-28 starts the next week (Mon 28th .. Sun Oct 4th).
+    expect(currentWeekWindow(new Date(2026, 8, 28))).toEqual({ from: '2026-09-28', to: '2026-10-04' });
   });
 
   it('never exceeds the 31-day backend cap', () => {

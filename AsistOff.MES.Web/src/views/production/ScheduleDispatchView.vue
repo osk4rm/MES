@@ -203,6 +203,8 @@ function readInputs(): GetDispatchBoardQuery | null {
   return { from: fromInput.value, to: toInput.value };
 }
 
+let lastAppliedKey: string | null = null;
+
 function syncQuery(q: GetDispatchBoardQuery): void {
   const cur = route.query as Record<string, unknown>;
   if (String(cur.from ?? '') === q.from && String(cur.to ?? '') === q.to) return;
@@ -259,8 +261,6 @@ function queryKey(): string {
   const q = route.query as Record<string, unknown>;
   return [q.from, q.to].map((v) => String(v ?? '')).join('|');
 }
-
-let lastAppliedKey: string | null = null;
 
 watch(queryKey, () => {
   if (lastAppliedKey !== null && queryKey() === lastAppliedKey) {
