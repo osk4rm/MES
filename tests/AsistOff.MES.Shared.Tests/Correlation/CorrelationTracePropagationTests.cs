@@ -3,6 +3,9 @@ using AsistOff.MES.Shared.Infrastructure.Correlation;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using OpenTelemetry;
+using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 
 namespace AsistOff.MES.Shared.Tests.Correlation;
 
@@ -124,6 +127,55 @@ public sealed class CorrelationTracePropagationTests : IDisposable
         finally
         {
             Activity.Current = previous;
+        }
+    }
+
+    [Fact]
+    public async Task Invoke_PushesEffectiveId_IntoSerilogLogContext()
+    {
+        // Arrange - issue #252 AC2: server logs must carry the same effective
+        // correlation id that rides the trace. Capture Serilog events written
+        // inside the downstream pipeline; FromLogContext must surface it.
+        var sink = new CapturingSink();
+        var previous = Log.Logger;
+        Log.Logger = new LoggerConfiguration()
+            .Enrich.FromLogContext()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+
+        try
+        {
+            var incoming = Guid.NewGuid().ToString();
+            var context = new DefaultHttpContext();
+            context.Request.Headers[CorrelationIds.HeaderName] = incoming;
+            var middleware = new CorrelationIdMiddleware(_ =>
+            {
+                Log.Information("inside-request");
+                return Task.CompletedTask;
+            });
+
+            // Act
+            await middleware.InvokeAsync(context);
+
+            // Assert - the log event carries the effective (echoed) id.
+            sink.Events.Should().ContainSingle();
+            sink.Events[0].Properties.TryGetValue(CorrelationIds.LogPropertyName, out var value).Should().BeTrue();
+            value?.ToString().Trim('"').Should().Be(incoming);
+        }
+        finally
+        {
+            Log.CloseAndFlush();
+            Log.Logger = previous;
+        }
+    }
+
+    private sealed class CapturingSink : ILogEventSink
+    {
+        public List<LogEvent> Events { get; } = new();
+
+        public void Emit(LogEvent logEvent)
+        {
+            Events.Add(logEvent);
         }
     }
 }
