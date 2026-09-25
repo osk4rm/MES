@@ -1,7 +1,9 @@
 using System.Reflection;
+using AsistOff.MES.Attachments.Application.Features.List;
 using AsistOff.MES.Configuration.Application.Features.Products.Create;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Multitenancy.Requests.Commands.Create;
+using AsistOff.MES.Production.Application.Features.ProductionOrders.Create;
 using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Users.Application.Features.Authentication.SignIn;
 using AsistOff.MES.Users.Core.Rbac;
@@ -11,12 +13,13 @@ using MediatR;
 namespace AsistOff.MES.Shared.Tests.Auth;
 
 /// <summary>
-/// Slice-1 authorization coverage guard (issue #231). Every MediatR request in
-/// the Users, Multitenancy and Configuration modules must carry either a
-/// <see cref="RequirePermissionAttribute"/> or an entry on the documented
-/// <see cref="AuthorizationAllowlist"/> — otherwise the default-deny
-/// <c>AuthorizationBehavior</c> rejects it with 403. This test fails when a new
-/// request is added without coverage.
+/// Slice-1 + slice-2 authorization coverage guard (issues #231, #233). Every MediatR
+/// request in the Users, Multitenancy, Configuration, Production and Attachments
+/// modules must carry either a <see cref="RequirePermissionAttribute"/> or an entry
+/// on the documented <see cref="AuthorizationAllowlist"/> — otherwise the
+/// default-deny <c>AuthorizationBehavior</c> rejects it with 403. This test fails
+/// when a new request is added without coverage. Gateway owns no MediatR requests
+/// (only the errors controller), so it needs no coverage.
 /// </summary>
 public class AuthorizationCoverageTests
 {
@@ -25,6 +28,8 @@ public class AuthorizationCoverageTests
         typeof(SignInRequest).Assembly, // AsistOff.MES.Users.Application
         typeof(CreateTenantCommand).Assembly, // AsistOff.MES.Multitenancy
         typeof(CreateProductRequest).Assembly, // AsistOff.MES.Configuration.Application
+        typeof(CreateProductionOrderRequest).Assembly, // AsistOff.MES.Production.Application
+        typeof(ListAttachmentsRequest).Assembly, // AsistOff.MES.Attachments.Application
     ];
 
     private static IEnumerable<Type> CoveredRequests() =>
@@ -45,7 +50,7 @@ public class AuthorizationCoverageTests
 
         // Assert — a new write added without coverage must fail here, not in production.
         uncovered.Should().BeEmpty(
-            "each request needs RequirePermission or an AuthorizationAllowlist entry (default-deny, issue #231)");
+            "each request needs RequirePermission or an AuthorizationAllowlist entry (default-deny, issues #231/#233)");
     }
 
     [Fact]
@@ -66,12 +71,13 @@ public class AuthorizationCoverageTests
     [Fact]
     public void OnlySignInAndTenantProvisioning_AreAnonymousWrites()
     {
-        // Arrange & Act — the only IAllowAnonymousRequest types in the three modules
+        // Arrange & Act — the only IAllowAnonymousRequest types in the five modules
         // are the sign-in bootstrap, the refresh-token rotation bootstrap (#236),
         // the tenant provisioning bootstrap and the single-tenant lookup; all
         // writes are pre-authentication by definition (refresh presents only the
         // opaque token because the access token already expired; tenant binding
         // comes from the stored refresh-token row, never from caller input).
+        // Slice 2/2 (#233) introduces no new anonymous requests.
         var anonymous = CoveredRequests()
             .Where(t => typeof(IAllowAnonymousRequest).IsAssignableFrom(t))
             .Select(t => t.FullName)
@@ -100,6 +106,51 @@ public class AuthorizationCoverageTests
 
         // Assert
         nonTenantWrites.Should().BeEmpty("covered writes must be ITenantRequest");
+    }
+
+    [Fact]
+    public void ProductionWrites_RequireProductionWrite()
+    {
+        // Arrange & Act — every Production write carries production.write (dot
+        // naming convention, RbacDefaults constant, no literals).
+        var violations = typeof(CreateProductionOrderRequest).Assembly
+            .GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false }
+                && typeof(IBaseRequest).IsAssignableFrom(t))
+            .Where(t => !AuthorizationAllowlist.IsAllowed(t))
+            .Select(t => (Type: t,
+                Permissions: t.GetCustomAttributes(typeof(RequirePermissionAttribute), inherit: true)
+                    .Cast<RequirePermissionAttribute>()
+                    .Select(a => a.Permission)
+                    .ToList()))
+            .Where(x => !x.Permissions.Contains(RbacDefaults.ProductionWrite, StringComparer.Ordinal))
+            .Select(x => x.Type.FullName)
+            .ToList();
+
+        // Assert
+        violations.Should().BeEmpty("every Production write must require production.write");
+    }
+
+    [Fact]
+    public void AttachmentWrites_RequireAttachmentsWrite()
+    {
+        // Arrange & Act — upload and delete carry attachments.write.
+        var violations = typeof(ListAttachmentsRequest).Assembly
+            .GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false }
+                && typeof(IBaseRequest).IsAssignableFrom(t))
+            .Where(t => !AuthorizationAllowlist.IsAllowed(t))
+            .Select(t => (Type: t,
+                Permissions: t.GetCustomAttributes(typeof(RequirePermissionAttribute), inherit: true)
+                    .Cast<RequirePermissionAttribute>()
+                    .Select(a => a.Permission)
+                    .ToList()))
+            .Where(x => !x.Permissions.Contains(RbacDefaults.AttachmentsWrite, StringComparer.Ordinal))
+            .Select(x => x.Type.FullName)
+            .ToList();
+
+        // Assert
+        violations.Should().BeEmpty("every Attachments write must require attachments.write");
     }
 
     private static bool HasRequirePermission(Type requestType) =>

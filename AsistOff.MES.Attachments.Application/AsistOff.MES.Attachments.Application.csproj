@@ -9,6 +9,7 @@
     <ItemGroup>
       <ProjectReference Include="..\AsistOff.MES.Attachments.Core\AsistOff.MES.Attachments.Core.csproj" />
       <ProjectReference Include="..\AsistOff.MES.Multitenancy.Contracts\AsistOff.MES.Multitenancy.Contracts.csproj" />
+      <ProjectReference Include="..\AsistOff.MES.Users.Core\AsistOff.MES.Users.Core.csproj" />
     </ItemGroup>
 
 </Project>
