@@ -20,6 +20,8 @@ internal sealed class BrowseLotGenealogyEdgesRequestHandler(ILotGenealogyEdgesRe
             predicate = predicate.And(x => x.ConsumedLotId == request.ConsumedLotId.Value);
         if (request.ProductionOrderId.HasValue)
             predicate = predicate.And(x => x.ProductionOrderId == request.ProductionOrderId.Value);
+        if (request.ProductionConfirmationId.HasValue)
+            predicate = predicate.And(x => x.ProductionConfirmationId == request.ProductionConfirmationId.Value);
         if (request.From.HasValue)
             predicate = predicate.And(x => x.OccurredAt >= request.From.Value.ToUniversalTime());
         if (request.To.HasValue)
