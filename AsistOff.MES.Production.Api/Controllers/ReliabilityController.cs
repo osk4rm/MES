@@ -18,4 +18,15 @@ public class ReliabilityController(ISender sender) : ApiController
         => Ok(await sender.Send(
             new GetReliabilitySnapshotRequest(machineId, fromUtc, toUtc),
             cancellationToken));
+
+    /// <summary>Read-only fleet comparison of MTBF/MTTR across active Work Centers, worst first.</summary>
+    [HttpGet("fleet")]
+    public async Task<ActionResult<IReadOnlyList<ReliabilityFleetRowResponse>>> FleetAsync(
+        [FromQuery] DateTime fromUtc,
+        [FromQuery] DateTime toUtc,
+        [FromQuery] Guid? departmentId,
+        CancellationToken cancellationToken)
+        => Ok(await sender.Send(
+            new GetReliabilityFleetRequest(fromUtc, toUtc, departmentId),
+            cancellationToken));
 }
