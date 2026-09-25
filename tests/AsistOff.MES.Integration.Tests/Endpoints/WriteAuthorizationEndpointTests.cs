@@ -129,8 +129,7 @@ public sealed class WriteAuthorizationEndpointTests(MesApplicationFixture fixtur
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var token = await ReadAsync<SignInResponse>(response);
-        token.AccessToken.Should().NotBeNullOrWhiteSpace();
+        AuthCookieHelper.GetAccessToken(response).Should().NotBeNullOrWhiteSpace();
     }
 
     private async Task<string> SignInAsync(string email, string password)
@@ -139,8 +138,9 @@ public sealed class WriteAuthorizationEndpointTests(MesApplicationFixture fixtur
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var token = await ReadAsync<SignInResponse>(response);
-        return token.AccessToken;
+        var accessToken = AuthCookieHelper.GetAccessToken(response);
+        accessToken.Should().NotBeNullOrWhiteSpace();
+        return accessToken!;
     }
 
     private async Task<HttpClient> ClientForAsync(string email, string password)
@@ -229,8 +229,6 @@ public sealed class WriteAuthorizationEndpointTests(MesApplicationFixture fixtur
             name = $"AuthZ department {suffix}"
         };
     }
-
-    private sealed record SignInResponse(string AccessToken);
 
     private sealed record ProductDto(Guid Id);
 

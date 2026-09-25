@@ -15,6 +15,7 @@ import AppSideNav from './AppSideNav.vue';
 import AppTopBar from './AppTopBar.vue';
 import { sitemap } from '../../sitemap';
 import { useAuthStore } from '../../stores/authStore';
+import { signOut } from '../../services/authService';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -29,9 +30,14 @@ watch(collapsed, (v) => {
   try { localStorage.setItem('sidenav.collapsed', v ? '1' : '0'); } catch { /* ignore */ }
 });
 
-function onSignOut() {
+async function onSignOut() {
+  // Best-effort server sign-out so httpOnly cookies are cleared and the
+  // refresh token is revoked; local state is cleared either way.
+  try {
+    await signOut();
+  } catch { /* ignore - local state is cleared below */ }
   authStore.clearAuth();
-  router.push('/login');
+  await router.push('/login');
 }
 </script>
 

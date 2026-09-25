@@ -44,10 +44,11 @@ public sealed class RolePermissionsEndpointTests(MesApplicationFixture fixture) 
 
         // Act
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var token = await ReadAsync<SignInResponse>(response);
+        var accessToken = AuthCookieHelper.GetAccessToken(response);
+        accessToken.Should().NotBeNullOrWhiteSpace();
 
         // Assert — exactly the current admin permission set.
-        DecodePermissions(token.AccessToken).Should().BeEquivalentTo(RbacDefaults.AdminPermissions);
+        DecodePermissions(accessToken!).Should().BeEquivalentTo(RbacDefaults.AdminPermissions);
     }
 
     [Fact]
@@ -154,8 +155,9 @@ public sealed class RolePermissionsEndpointTests(MesApplicationFixture fixture) 
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var token = await ReadAsync<SignInResponse>(response);
-        return token.AccessToken;
+        var accessToken = AuthCookieHelper.GetAccessToken(response);
+        accessToken.Should().NotBeNullOrWhiteSpace();
+        return accessToken!;
     }
 
     private async Task<HttpClient> ClientForAsync(string email, string password)
@@ -289,8 +291,6 @@ public sealed class RolePermissionsEndpointTests(MesApplicationFixture fixture) 
 
         return sum % 10 == 0;
     }
-
-    private sealed record SignInResponse(string AccessToken);
 
     private sealed record ProductDto(Guid Id);
 }
