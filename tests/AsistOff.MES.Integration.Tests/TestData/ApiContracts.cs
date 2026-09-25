@@ -316,7 +316,7 @@ public sealed record OeeSnapshotDto(
     decimal GoodCount,
     decimal ScrapCount);
 
-/// <summary>Shape of the OEE summary returned by <c>/api/oee</c>.</summary>
+/// <summary>Shape of the OEE summary returned by <c>/api/oee</c>: counts, Quality, Availability, auto-resolved ideal cycle time, Performance (clamped at 1) and composite OEE.</summary>
 public sealed record OeeSummaryDto(
     Guid MachineId,
     DateTime FromUtc,
@@ -328,7 +328,10 @@ public sealed record OeeSummaryDto(
     double PlannedTimeMinutes,
     double RunTimeMinutes,
     double DowntimeMinutes,
-    double? Availability);
+    double? Availability,
+    decimal? IdealCycleTimeSeconds,
+    double? Performance,
+    double? Oee);
 
 /// <summary>Shape of the OEE trend returned by <c>/api/oee/trend</c>.</summary>
 public sealed record OeeTrendDto(

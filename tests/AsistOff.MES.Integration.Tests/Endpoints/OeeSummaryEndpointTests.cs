@@ -6,12 +6,13 @@ using AsistOff.MES.Integration.Tests.TestData;
 namespace AsistOff.MES.Integration.Tests.Endpoints;
 
 /// <summary>
-/// Endpoint-scoped integration tests for <c>/api/oee</c> (slices 1+2: Quality
-/// factor plus raw confirmation counts, and the Availability factor from the
-/// Work Center calendar and closed downtime events). They exercise the full
-/// request pipeline: authentication, tenant resolution, the read-time
-/// aggregation and the global exception handler - against a real PostgreSQL
-/// database.
+/// Endpoint-scoped integration tests for <c>/api/oee</c> (slices 1+2+3: Quality
+/// factor plus raw confirmation counts, the Availability factor from the
+/// Work Center calendar and closed downtime events, and the Performance factor
+/// with composite OEE resolved from the confirmed orders' operations). They
+/// exercise the full request pipeline: authentication, tenant resolution, the
+/// read-time aggregation and the global exception handler - against a real
+/// PostgreSQL database.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class OeeSummaryEndpointTests(MesApplicationFixture fixture) : IntegrationTestBase(fixture)
@@ -65,11 +66,16 @@ public sealed class OeeSummaryEndpointTests(MesApplicationFixture fixture) : Int
         summary.TotalCount.Should().Be(100m);
         summary.Quality.Should().BeApproximately(0.9, 0.0001);
 
-        // No calendar rows: zero planned time yields null Availability.
+        // No calendar rows: zero planned time yields null Availability, and
+        // zero run time yields null Performance and null OEE even though the
+        // ideal cycle time (10s from the released order's operation) resolves.
         summary.PlannedTimeMinutes.Should().Be(0);
         summary.RunTimeMinutes.Should().Be(0);
         summary.DowntimeMinutes.Should().Be(0);
         summary.Availability.Should().BeNull();
+        summary.IdealCycleTimeSeconds.Should().Be(10m);
+        summary.Performance.Should().BeNull();
+        summary.Oee.Should().BeNull();
     }
 
     [Fact]
@@ -256,6 +262,136 @@ public sealed class OeeSummaryEndpointTests(MesApplicationFixture fixture) : Int
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task Summary_Composite_ReturnsPerformanceAndOee()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var fromUtc = DateTime.UtcNow.AddHours(-8);
+        var machine = await CreateMachineAsync(client);
+        var order = await CreateReleasedOrderAsync(client);
+
+        var confirmResponse = await client.PostAsJsonAsync("/api/production-confirmations", new
+        {
+            productionOrderId = order.Id,
+            machineId = machine.Id,
+            reportedByOperatorId = (Guid?)null,
+            reportedAt = DateTime.UtcNow,
+            goodQuantity = 90m,
+            scrapQuantity = 10m,
+            notes = (string?)null
+        });
+        confirmResponse.EnsureSuccessStatusCode();
+        var confirmation = await ReadAsync<ProductionConfirmationDto>(confirmResponse);
+        var toUtc = confirmation.ReportedAt.AddMinutes(1);
+
+        await PutFullDayCalendarAsync(client, machine.Id, fromUtc, toUtc);
+        var reasonId = await CreateReasonAsync(client);
+        var downtimeStart = toUtc.AddHours(-2);
+        await StartAndCloseDowntimeAsync(client, machine.Id, reasonId, downtimeStart, downtimeStart.AddMinutes(60));
+
+        var response = await client.GetAsync(
+            $"{BaseUrl}?machineId={machine.Id}&fromUtc={Qs(fromUtc)}&toUtc={Qs(toUtc)}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var summary = await ReadAsync<OeeSummaryDto>(response);
+
+        // The released order's operation carries a 10s ideal: 100 units need
+        // 1000s ≈ 16.667 ideal minutes against run time.
+        var planned = (toUtc.ToUniversalTime() - fromUtc.ToUniversalTime()).TotalMinutes;
+        var run = planned - 60;
+        var idealMinutes = 100.0 * 10.0 / 60.0;
+        var performance = Math.Round(Math.Min(1.0, idealMinutes / run), 4);
+        var availability = Math.Round(run / planned, 4);
+        var oee = Math.Round(availability * performance * 0.9, 4);
+
+        summary.IdealCycleTimeSeconds.Should().Be(10m);
+        summary.Performance.Should().BeApproximately(performance, 0.0001);
+        summary.Oee.Should().BeApproximately(oee, 0.0001);
+        summary.Quality.Should().BeApproximately(0.9, 0.0001);
+        summary.Availability.Should().BeApproximately(availability, 0.0001);
+    }
+
+    [Fact]
+    public async Task Summary_NoIdealCycleTime_ReturnsNullPerformanceAndNullOee()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var fromUtc = DateTime.UtcNow.AddHours(-8);
+        var machine = await CreateMachineAsync(client);
+        var order = await CreateReleasedOrderWithoutIdealAsync(client);
+
+        var confirmResponse = await client.PostAsJsonAsync("/api/production-confirmations", new
+        {
+            productionOrderId = order.Id,
+            machineId = machine.Id,
+            reportedByOperatorId = (Guid?)null,
+            reportedAt = DateTime.UtcNow,
+            goodQuantity = 90m,
+            scrapQuantity = 10m,
+            notes = (string?)null
+        });
+        confirmResponse.EnsureSuccessStatusCode();
+        var confirmation = await ReadAsync<ProductionConfirmationDto>(confirmResponse);
+        var toUtc = confirmation.ReportedAt.AddMinutes(1);
+
+        await PutFullDayCalendarAsync(client, machine.Id, fromUtc, toUtc);
+
+        var response = await client.GetAsync(
+            $"{BaseUrl}?machineId={machine.Id}&fromUtc={Qs(fromUtc)}&toUtc={Qs(toUtc)}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var summary = await ReadAsync<OeeSummaryDto>(response);
+
+        // No usable operation timing: ideal, performance and OEE stay null
+        // (never zeros) while availability and quality remain computed.
+        summary.IdealCycleTimeSeconds.Should().BeNull();
+        summary.Performance.Should().BeNull();
+        summary.Oee.Should().BeNull();
+        summary.Quality.Should().BeApproximately(0.9, 0.0001);
+        summary.Availability.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Summary_ZeroRunTime_ReturnsNullPerformanceAndNullOee()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var machine = await CreateMachineAsync(client);
+        var order = await CreateReleasedOrderAsync(client);
+
+        var confirmResponse = await client.PostAsJsonAsync("/api/production-confirmations", new
+        {
+            productionOrderId = order.Id,
+            machineId = machine.Id,
+            reportedByOperatorId = (Guid?)null,
+            reportedAt = DateTime.UtcNow,
+            goodQuantity = 10m,
+            scrapQuantity = 0m,
+            notes = (string?)null
+        });
+        confirmResponse.EnsureSuccessStatusCode();
+        var confirmation = await ReadAsync<ProductionConfirmationDto>(confirmResponse);
+
+        // A stop covering the whole planned hour floors run time at zero:
+        // availability is 0, performance and OEE are null (never zero).
+        var toUtc = confirmation.ReportedAt.AddMinutes(1);
+        var fromUtc = toUtc.AddHours(-1);
+        await PutFullDayCalendarAsync(client, machine.Id, fromUtc, toUtc);
+        var reasonId = await CreateReasonAsync(client);
+        await StartAndCloseDowntimeAsync(
+            client, machine.Id, reasonId, fromUtc.AddMinutes(-30), toUtc.AddMinutes(30));
+
+        var response = await client.GetAsync(
+            $"{BaseUrl}?machineId={machine.Id}&fromUtc={Qs(fromUtc)}&toUtc={Qs(toUtc)}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var summary = await ReadAsync<OeeSummaryDto>(response);
+
+        summary.RunTimeMinutes.Should().Be(0);
+        summary.Availability.Should().Be(0);
+        summary.IdealCycleTimeSeconds.Should().Be(10m);
+        summary.Performance.Should().BeNull();
+        summary.Oee.Should().BeNull();
+    }
+
     private static string Qs(DateTime value) => Uri.EscapeDataString(value.ToString("O"));
 
     private static async Task<MachineDto> CreateMachineAsync(HttpClient client)
@@ -353,6 +489,46 @@ public sealed class OeeSummaryEndpointTests(MesApplicationFixture fixture) : Int
             setupTimeMinutes = (decimal?)null,
             runTimeMode = 1,
             runTimePerUnitSeconds = 10m,
+            runTimePerBatchMinutes = (decimal?)null,
+            teardownTimeMinutes = (decimal?)null,
+            queueTimeMinutes = (decimal?)null,
+            isOptional = false,
+            allowParallelExecution = false,
+            expectedQuantity = (decimal?)null
+        });
+        operationResponse.EnsureSuccessStatusCode();
+
+        var releaseVersionResponse = await client.PostAsync($"/api/recipe-versions/{versionId}/release", null);
+        releaseVersionResponse.EnsureSuccessStatusCode();
+
+        var order = await CreateOrderAsync(client, recipe.Id, versionId);
+
+        var releaseOrderResponse = await client.PostAsync($"/api/production-orders/{order.Id}/release", null);
+        releaseOrderResponse.EnsureSuccessStatusCode();
+        return await ReadAsync<ProductionOrderDto>(releaseOrderResponse);
+    }
+
+    /// <summary>
+    /// Builds a real recipe whose single operation carries no per-unit timing,
+    /// releases its version, creates an order against it and releases the
+    /// order — so the summary cannot resolve an ideal cycle time.
+    /// </summary>
+    private static async Task<ProductionOrderDto> CreateReleasedOrderWithoutIdealAsync(HttpClient client)
+    {
+        var recipe = await CreateRecipeAsync(client);
+        var versionId = recipe.Versions.Single().Id;
+
+        var operationResponse = await client.PostAsJsonAsync("/api/operations", new
+        {
+            versionId,
+            code = $"OP-{Guid.NewGuid():N}"[..8],
+            name = "Cutting",
+            description = (string?)null,
+            operationType = (string?)null,
+            sortIndex = 0,
+            setupTimeMinutes = (decimal?)null,
+            runTimeMode = 1,
+            runTimePerUnitSeconds = (decimal?)null,
             runTimePerBatchMinutes = (decimal?)null,
             teardownTimeMinutes = (decimal?)null,
             queueTimeMinutes = (decimal?)null,

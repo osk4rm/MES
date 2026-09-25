@@ -8,6 +8,7 @@ import {
   paretoLabel,
   type OeeLosses,
   type OeeSnapshot,
+  type OeeSummary,
   type OeeTrend
 } from './oeeService';
 
@@ -71,9 +72,50 @@ function losses(overrides: Partial<OeeLosses> = {}): OeeLosses {
   };
 }
 
+function summary(overrides: Partial<OeeSummary> = {}): OeeSummary {
+  return {
+    machineId: 'machine-1',
+    fromUtc: new Date('2026-09-24T06:00:00Z').toISOString(),
+    toUtc: new Date('2026-09-24T14:00:00Z').toISOString(),
+    goodCount: 90,
+    scrapCount: 10,
+    totalCount: 100,
+    quality: 0.9,
+    plannedTimeMinutes: 480,
+    runTimeMinutes: 420,
+    downtimeMinutes: 60,
+    availability: 0.875,
+    idealCycleTimeSeconds: 60,
+    performance: 0.2381,
+    oee: 0.1875,
+    ...overrides
+  };
+}
+
 describe('oeeService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('getSummary queries the summary endpoint with the work center and window (ideal resolved server-side)', async () => {
+    const expected = summary();
+    getMock.mockResolvedValue({ data: expected });
+
+    const result = await oeeService.getSummary({
+      machineId: 'machine-1',
+      fromUtc: expected.fromUtc,
+      toUtc: expected.toUtc
+    });
+
+    expect(result).toEqual(expected);
+    expect(getMock).toHaveBeenCalledOnce();
+    expect(getMock).toHaveBeenCalledWith('/api/oee', {
+      params: {
+        machineId: 'machine-1',
+        fromUtc: expected.fromUtc,
+        toUtc: expected.toUtc
+      }
+    });
   });
 
   it('getSnapshot queries the snapshot endpoint with the work center and window', async () => {
@@ -155,6 +197,9 @@ describe('oeeService', () => {
     ).rejects.toBe(failure);
     await expect(
       oeeService.getLosses({ machineId: 'foreign', fromUtc: 'a', toUtc: 'b' })
+    ).rejects.toBe(failure);
+    await expect(
+      oeeService.getSummary({ machineId: 'foreign', fromUtc: 'a', toUtc: 'b' })
     ).rejects.toBe(failure);
   });
 });
