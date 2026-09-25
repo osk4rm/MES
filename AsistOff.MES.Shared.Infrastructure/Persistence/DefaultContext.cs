@@ -14,6 +14,7 @@ public class DefaultContext : DbContext
     private readonly IEnumerable<IEntityConfigurator> _entityConfigurators;
     private readonly PublishDomainEventsInterceptor _publishDomainEventsInterceptor;
     private readonly AuditableEntityInterceptor _auditableEntityInterceptor;
+    private readonly AuditHistoryInterceptor _auditHistoryInterceptor;
     private readonly SaasyEntityInterceptor _saasyEntityInterceptor;
     private readonly ICurrentTenantAccessor _tenantAccessor;
 
@@ -39,6 +40,7 @@ public class DefaultContext : DbContext
         IEnumerable<IEntityConfigurator> entityConfigurators,
         PublishDomainEventsInterceptor publishDomainEventsInterceptor,
         AuditableEntityInterceptor auditableEntityInterceptor,
+        AuditHistoryInterceptor auditHistoryInterceptor,
         SaasyEntityInterceptor saasyEntityInterceptor,
         ICurrentTenantAccessor tenantAccessor)
         : base(options)
@@ -46,6 +48,7 @@ public class DefaultContext : DbContext
         _entityConfigurators = entityConfigurators;
         _publishDomainEventsInterceptor = publishDomainEventsInterceptor;
         _auditableEntityInterceptor = auditableEntityInterceptor;
+        _auditHistoryInterceptor = auditHistoryInterceptor;
         _saasyEntityInterceptor = saasyEntityInterceptor;
         _tenantAccessor = tenantAccessor;
     }
@@ -72,6 +75,10 @@ public class DefaultContext : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.AddInterceptors(_auditableEntityInterceptor);
+        // Audit history runs before the tenant guard so the Saasy interceptor
+        // validates (and backfills TenantId for) the appended history rows in
+        // the same save as the primary write.
+        optionsBuilder.AddInterceptors(_auditHistoryInterceptor);
         optionsBuilder.AddInterceptors(_saasyEntityInterceptor);
         optionsBuilder.AddInterceptors(_publishDomainEventsInterceptor);
         base.OnConfiguring(optionsBuilder);
