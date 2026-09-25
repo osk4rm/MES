@@ -770,6 +770,25 @@ const pl = {
     notFoundHint: 'Stanowisko może należeć do innej organizacji — wybierz inne stanowisko.',
     invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko i okno (maks. 93 dni)'
   },
+  scheduleDispatch: {
+    title: 'Harmonogram',
+    subtitle: 'Tablica dyspozytorska — zaległe zlecenia i obsada zmian',
+    from: 'Okno od',
+    to: 'Okno do',
+    apply: 'Zastosuj',
+    noShifts: 'Brak aktywnych zmian tego dnia',
+    headcount: '{count} op.',
+    ordersTitle: 'Zlecenia do dyspozycji',
+    ordersEmpty: 'Brak zleceń Released / InProgress w wybranym oknie',
+    code: 'Kod',
+    dueDate: 'Termin',
+    priority: 'Priorytet',
+    remaining: 'Pozostało',
+    overdue: 'Zaległe',
+    onTime: 'W terminie',
+    noDueDate: 'Brak terminu',
+    invalidWindow: 'Nieprawidłowe okno dat — data początkowa nie może być późniejsza niż końcowa (maks. 31 dni)'
+  },
   scrap: {
     title: 'Braki',
     subtitle: 'Ewidencja braków ze stanowisk z kodami przyczyn',
@@ -1581,6 +1600,25 @@ const en: typeof pl = {
     notFound: 'Work center not found or access denied',
     notFoundHint: 'The work center may belong to another organization — pick a different one.',
     invalidInput: 'Invalid input — check the work center and window (93 days max)'
+  },
+  scheduleDispatch: {
+    title: 'Schedule',
+    subtitle: 'Dispatch board — overdue orders and shift staffing',
+    from: 'Window from',
+    to: 'Window to',
+    apply: 'Apply',
+    noShifts: 'No active shifts this day',
+    headcount: '{count} ops',
+    ordersTitle: 'Orders ready to dispatch',
+    ordersEmpty: 'No Released / InProgress orders in the selected window',
+    code: 'Code',
+    dueDate: 'Due date',
+    priority: 'Priority',
+    remaining: 'Remaining',
+    overdue: 'Overdue',
+    onTime: 'On time',
+    noDueDate: 'No due date',
+    invalidWindow: 'Invalid date window — the start date must not be after the end date (31 days max)'
   },
   scrap: {
     title: 'Scrap',
