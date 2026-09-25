@@ -53,7 +53,7 @@ jednoznacznie rozdziela „kto decyduje" (dyspozytor) od „kto pracuje" (agent)
 | `ai:changes` | reviewer/verifier/e2e/CI żąda poprawek | dyspozytor |
 | `ai:e2e` | PR gotowe do smoke e2e (Playwright) | dyspozytor |
 | `ai:ready` | CI + review + verify + e2e zielone; do merge przez człowieka | dyspozytor |
-| `ai:blocked` | eskalacja do człowieka (limit rund, brak werdyktu, brak PR) | dyspozytor |
+| `ai:blocked` | eskalacja do człowieka (brak werdyktu, brak PR, nieusuwalny konflikt) — rundy fixów są nielimitowane | dyspozytor |
 | `ai:auto-merge` | opt-in na przyszły auto-merge (jeszcze nieaktywny) | człowiek |
 
 `ai:running` jest jednocześnie lockiem (dyspozytor jest jednowątkowy) i
@@ -101,9 +101,11 @@ researcher ──> tracker `gap` rows ──analyst──> issue [ai:implement]
                                         │              │  ┌──────────┴──────────┐
                                         │              │FAIL                   PASS
                                         └──────────────┘                  +ai:ready
-                                      round++                        merge (człowiek)
-                                        │
-                                 limit rund -> ai:blocked
+                                       round++                        merge (człowiek)
+                                         │
+                                  rundy bez limitu (MAX_ROUNDS=0);
+                                  ai:blocked tylko gdy utknięte
+                                  (brak werdyktu / brak PR / konflikt)
 
   równolegle, autonomicznie:  zmiana zbioru work-itemów ─> mes-tracker ─> PR ai/tracker-sync
 ```
@@ -134,7 +136,7 @@ Parametry:
 | Parametr | Default | Znaczenie |
 |---|---|---|
 | `-IntervalSeconds` | 20 | przerwa między cyklami |
-| `-MaxRounds` | 3 | limit rund review/e2e → fix na PR |
+| `-MaxRounds` | 0 | rundy review/e2e → fix na PR; 0 = bez limitu (agenci pracują aż PR będzie zielony); >0 włącza stary limit z eskalacją do `ai:blocked` |
 | `-Once` | — | jeden cykl i wyjście (testy, dashboard) |
 | `-DryRun` | — | pokaż plan bez uruchamiania agentów i zmian labeli |
 | `-Auto` | — | przekaż `--auto` do opencode (izolowany klon) |
@@ -149,7 +151,9 @@ Zachowanie przy błędach:
   (implementer naprawia), bez marnowania review.
 - Implementer nie otworzył PR → `ai:blocked` + komentarz.
 - Reviewer/e2e bez parsowalnego werdyktu → `ai:blocked`.
-- Przekroczony `-MaxRounds` → `ai:blocked` (+ komentarz) na PR i issue.
+- Rundy fixów są nielimitowane (`-MaxRounds 0` / `MAX_ROUNDS=0`); `ai:blocked`
+  tylko gdy utknięte bez winy poprawek (brak werdyktu, brak PR, nieusuwalny
+  konflikt mergu). Ustawienie `-MaxRounds > 0` przywraca limit z eskalacją.
 
 Stan (sesje, liczniki rund, timestampy locków `ai:running`, ostatni sync
 trackera) trzymany w `%TEMP%\opencode\dispatcher-state.json`, więc restart nie
@@ -251,7 +255,8 @@ docker compose logs -f swarm
 
 ## 9. Guardrails
 
-- Max `-MaxRounds` rund review/verify/e2e → fix; potem `ai:blocked` + komentarz.
+- Rundy review/verify/e2e → fix bez limitu; `ai:blocked` + komentarz tylko
+  gdy utknięte (brak werdyktu, brak PR, nieusuwalny konflikt).
 - Nigdy push do `main`/`master` — zawsze branch + PR (default branch to `master`).
 - Bramka obiektywna = CI (`ci.yml`: `dotnet build/test` + `npm run build`),
   potem review (subiektywna) i e2e (obserwacja UI).
@@ -327,7 +332,7 @@ werdykty, czekanie na CI) żyją w `scripts/ci/swarm-lib.sh`.
 | issue `labeled ai:implement` | `implement` | implementer → PR + bramki `ai:review` + `ai:verify` równolegle (docs-only: samo `ai:review`); brak PR → retry przez sweep (max 2 próby), potem `ai:blocked` |
 | PR `labeled ai:review` / `synchronize` z `ai:review` / koniec CI (`workflow_run`) | `review` | czeka na CI (max 10 min) → reviewer → join (`swarm_after_review_approved`): `ai:e2e` gdy verify done, `ai:changes` przy odrzuceniu; świeży `APPROVED` na tym samym head SHA = skip bez sesji |
 | PR `labeled ai:verify` | `verify` | verifier read-only, równolegle z review → join (`swarm_after_verify_sound`); świeży `TESTS_SOUND` na tym samym head SHA = skip bez sesji |
-| PR `labeled ai:changes` | `fix` | guard rund (liczy failure-verdykty w komentarzach, limit `MAX_ROUNDS=3`) → implementer fix → bramki `ai:review` + `ai:verify` od nowa |
+| PR `labeled ai:changes` | `fix` | implementer fix → bramki `ai:review` + `ai:verify` od nowa, bez limitu rund (`MAX_ROUNDS=0`; >0 włącza limit z eskalacją do `ai:blocked`) |
 | PR `labeled ai:e2e` | `e2e` | Postgres service + stack + tester → `ai:ready` / `ai:changes` / `ai:blocked`; świeży `E2E_PASS` na tym samym head SHA = skip |
 | PR `labeled ai:ready` | `merge` | czeka na CI → squash-merge + delete-branch (czerwone CI → `ai:changes`, pending → trzyma `ai:ready`, konflikt mergu → `ai:changes`, `action_required` bez approve → `ai:blocked` raz) |
 | push na default / cron co 30 min | `sweep` | najstarszy `ai:implement` bez locka wraca do kolejki, gdy jest wolny slot |

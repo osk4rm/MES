@@ -201,7 +201,7 @@ function spawnScript({ id, name, script, env = {} }) {
 function startRun({ kind, agent, prompt }) {
   if (kind === 'dispatcher') {
     const interval = Math.max(5, Number(prompt.intervalSeconds) || 20)
-    const maxRounds = Math.max(1, Number(prompt.maxRounds) || 3)
+    const maxRounds = Math.max(0, Number(prompt.maxRounds) || 0)
     const noTracker = prompt.noTracker ? ' -NoTracker' : ''
     return spawnScript({
       id: `dispatcher-${Date.now()}`,

@@ -172,7 +172,8 @@ swarm_last_verdict_stdin() { # <alternation> — same as swarm_last_verdict but 
 
 swarm_fail_count() { # <pr> -> number of failure verdicts in PR comments
   # Each fix round is preceded by exactly one failure verdict, so this count
-  # approximates rounds already spent (stateless MaxRounds guard).
+  # approximates rounds already spent (round counter; MAX_ROUNDS=0 means the
+  # fix loop is unlimited and this is observability only).
   swarm_comments_body pr "$1" | grep -cE 'VERDICT:[[:space:]]*(CHANGES_REQUESTED|TESTS_INSUFFICIENT|E2E_FAIL)' || true
 }
 

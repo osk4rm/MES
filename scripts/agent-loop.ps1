@@ -6,11 +6,12 @@
     Picks an open GitHub issue labelled `ai:implement`, runs the mes-implementer
     agent to implement it and open a PR, then loops:
         mes-reviewer -> (if changes requested) mes-implementer fixes
-    up to -MaxRounds times. When the loop is exhausted the issue is labelled
+    until the PR passes (MaxRounds = 0, the default, means unlimited rounds).
+    A nonzero -MaxRounds caps the loop; when exhausted the issue is labelled
     `ai:blocked` for human attention.
 
 .PARAMETER MaxRounds
-    Maximum number of review -> fix rounds. Default 3.
+    Maximum number of review -> fix rounds. 0 = unlimited (default).
 
 .PARAMETER ImplementLabel
     Issue label the orchestrator consumes. Default `ai:implement`.
@@ -33,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [int]$MaxRounds = 3,
+    [int]$MaxRounds = 0,
     [string]$ImplementLabel = 'ai:implement',
     [string]$BlockedLabel = 'ai:blocked',
     [switch]$Auto,
@@ -119,9 +120,10 @@ Write-Host "==> PR #$prNum opened ($($pr.headRefName))."
 # ---------------------------------------------------------------------------
 $round  = 0
 $passed = $false
-while ($round -lt $MaxRounds) {
+while ($MaxRounds -le 0 -or $round -lt $MaxRounds) {
     $round++
-    Write-Host "==> Review round $round/$MaxRounds (fresh reviewer session)"
+    $roundTag = if ($MaxRounds -gt 0) { "$round/$MaxRounds" } else { "$round (unlimited)" }
+    Write-Host "==> Review round $roundTag (fresh reviewer session)"
     $reviewRaw = Invoke-Agent -Agent 'mes-reviewer' -Prompt (
         "Review PR #$prNum for AsistOff MES. Inspect only the diff with " +
         "'gh pr diff $prNum'. Post your findings with 'gh pr comment $prNum' " +
@@ -133,7 +135,7 @@ while ($round -lt $MaxRounds) {
     Write-Host "    review verdict: $verdict"
 
     if ($verdict -eq 'APPROVED') {
-        Write-Host "==> Verify round $round/$MaxRounds (fresh verifier session, read-only)"
+        Write-Host "==> Verify round $roundTag (fresh verifier session, read-only)"
         $verifyRaw = Invoke-Agent -Agent 'mes-verifier' -Prompt (
             "Verify that the tests in PR #$prNum genuinely prove the acceptance criteria " +
             "of issue #$num. Read-only audit: inspect the diff with 'gh pr diff $prNum', " +
@@ -160,7 +162,7 @@ while ($round -lt $MaxRounds) {
 if ($passed) {
     Write-Host "==> PR #$prNum approved. Ready for a human merge."
 } else {
-    Write-Host "==> Max rounds reached. Labelling #$num '$BlockedLabel'."
+    Write-Host "==> Max rounds ($MaxRounds) reached. Labelling #$num '$BlockedLabel'."
     gh issue edit $num --add-label $BlockedLabel
 }
 

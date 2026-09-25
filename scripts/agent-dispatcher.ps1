@@ -23,7 +23,8 @@
     Sleep between cycles. Default 20.
 
 .PARAMETER MaxRounds
-    Max review->fix / e2e->fix rounds per PR before ai:blocked. Default 3.
+    Max review->fix / e2e->fix rounds per PR before ai:blocked. 0 = unlimited
+    (default): agents keep fixing until the PR is green.
 
 .PARAMETER Once
     Run a single cycle and exit (useful for testing and the dashboard).
@@ -55,7 +56,7 @@
 [CmdletBinding()]
 param(
     [int]$IntervalSeconds = 20,
-    [int]$MaxRounds = 3,
+    [int]$MaxRounds = 0,
     [switch]$Once,
     [switch]$DryRun,
     [switch]$Auto,
@@ -339,8 +340,8 @@ function Invoke-Fix {
     $session = if ($issueNum) { Get-SessionForIssue $State $issueNum } else { $null }
     $rounds = (Get-Rounds $State $prNum) + 1
 
-    Write-Host "==> fix PR #$prNum (round $rounds/$MaxRounds) : $Reason"
-    if ($rounds -gt $MaxRounds) {
+    Write-Host "==> fix PR #$prNum (round $rounds$(if ($MaxRounds -gt 0) { "/$MaxRounds" } else { " (unlimited)" })) : $Reason"
+    if ($MaxRounds -gt 0 -and $rounds -gt $MaxRounds) {
         Write-Host "    round limit reached -> ai:blocked"
         Remove-Label pr $prNum 'ai:changes'
         Remove-Label pr $prNum 'ai:review'

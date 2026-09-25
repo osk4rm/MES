@@ -59,7 +59,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MAX_ROUNDS: '3'
+  # 0 = unlimited: review/fix rounds run until the PR is green, no round cap.
+  MAX_ROUNDS: '0'
   MAX_PARALLEL: '3'
   BACKLOG_MAX: '5'
   QUEUE_TARGET: '2'
@@ -512,7 +513,9 @@ jobs:
           swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
           swarm_auto_release pr "$PR"
           FAILS=$(swarm_fail_count "$PR")
-          if [ "$FAILS" -ge "${MAX_ROUNDS:-3}" ]; then
+          # MAX_ROUNDS=0 means unlimited: keep fixing until green. A nonzero
+          # value re-enables the old cap as an escape hatch.
+          if [ "${MAX_ROUNDS:-0}" != 0 ] && [ "$FAILS" -ge "${MAX_ROUNDS:-0}" ]; then
             swarm_remove_label pr "$PR" ai:changes
             swarm_add_label pr "$PR" ai:blocked
             swarm_say pr "$PR" "Agent flow (CI): exceeded $FAILS/$MAX_ROUNDS review/fix rounds. Needs human attention."
