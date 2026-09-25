@@ -51,6 +51,7 @@
       <template #cell-actions="{ item }">
         <AppRowActions
           :actions="[
+            { key: 'measurements', label: $t('spcCharacteristics.measurements'), icon: 'pi-chart-line' },
             { key: 'edit', label: $t('common.edit'), icon: 'pi-pencil' },
             { key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger' }
           ]"
@@ -153,6 +154,68 @@
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
+
+    <AppModal :open="measurementsOpen" :title="measurementsTitle" @close="closeMeasurements">
+      <AppFilterBar @clear="clearMeasurementsRange">
+        <AppFormField :label="$t('spcMeasurements.from')">
+          <template #default="{ id }">
+            <AppInput :id="id" v-model="measurementsFrom" type="datetime-local" @change="onMeasurementsRangeChange" />
+          </template>
+        </AppFormField>
+        <AppFormField :label="$t('spcMeasurements.to')">
+          <template #default="{ id }">
+            <AppInput :id="id" v-model="measurementsTo" type="datetime-local" @change="onMeasurementsRangeChange" />
+          </template>
+        </AppFormField>
+        <template #actions>
+          <AppButton variant="primary" size="sm" :loading="measurementsLoading" @click="fetchMeasurements">
+            {{ $t('spcMeasurements.apply') }}
+          </AppButton>
+        </template>
+      </AppFilterBar>
+
+      <AppSpinner v-if="measurementsLoading && !measurementsLoaded" />
+      <AppEmptyState
+        v-else-if="measurementsNotFound"
+        icon="pi pi-exclamation-circle"
+        :title="$t('spcMeasurements.notFound')"
+        :description="$t('spcMeasurements.notFoundHint')"
+      />
+      <AppEmptyState
+        v-else-if="measurementsLoaded && measurementsEmpty"
+        icon="pi pi-inbox"
+        :title="$t('spcMeasurements.noMeasurements')"
+      />
+      <template v-else-if="measurementsLoaded && chart">
+        <p class="measurements-summary">{{ measurementsSummary }}</p>
+        <SpcControlChart
+          :points="chart.points"
+          :lower-control-limit="chart.lowerControlLimit"
+          :upper-control-limit="chart.upperControlLimit"
+          :lower-spec-limit="chart.lowerSpecLimit"
+          :upper-spec-limit="chart.upperSpecLimit"
+          :nominal-value="chart.nominalValue"
+          :empty-label="$t('spcMeasurements.chartEmpty')"
+        />
+        <h4 class="measurements-subtitle">{{ $t('spcMeasurements.logTitle') }}</h4>
+        <AppTable
+          :items="logItems"
+          :columns="measurementColumns"
+          :loading="measurementsLoading"
+          :empty-label="$t('spcMeasurements.noMeasurements')"
+        >
+          <template #cell-measuredAt="{ value }">{{ formatDateTime(String(value)) }}</template>
+          <template #cell-status="{ item }">
+            <AppBadge v-if="measurementStatus(item) === 'ooc'" variant="danger" dot>{{ $t('spcMeasurements.outOfControl') }}</AppBadge>
+            <AppBadge v-else-if="measurementStatus(item) === 'oos'" variant="warning" dot>{{ $t('spcMeasurements.outOfSpec') }}</AppBadge>
+            <AppBadge v-else variant="success" dot>{{ $t('spcMeasurements.inControl') }}</AppBadge>
+          </template>
+        </AppTable>
+      </template>
+      <template #footer>
+        <AppButton variant="ghost" @click="closeMeasurements">{{ $t('common.close') }}</AppButton>
+      </template>
+    </AppModal>
   </div>
 </template>
 
@@ -174,12 +237,20 @@ import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
+import AppSpinner from '../../components/ui/AppSpinner.vue';
+import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import SpcControlChart from '../../components/production/SpcControlChart.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import {
   spcCharacteristicService,
   SpcChartType,
   type SpcCharacteristicResponse
 } from '../../services/spcCharacteristicService';
+import {
+  spcMeasurementService,
+  type SpcMeasurementChartResponse,
+  type SpcMeasurementResponse
+} from '../../services/spcMeasurementService';
 import { productService, type ProductResponse } from '../../services/productService';
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { useToastStore } from '../../stores/toastStore';
@@ -364,7 +435,8 @@ const deleting = ref(false);
 const deleteMessage = computed(() => toDelete.value ? `${t('common.delete')}: ${toDelete.value.name}` : '');
 
 function onRowAction(key: string, item: SpcCharacteristicResponse) {
-  if (key === 'edit') openEdit(item);
+  if (key === 'measurements') void openMeasurements(item);
+  else if (key === 'edit') openEdit(item);
   else if (key === 'delete') { toDelete.value = item; confirmOpen.value = true; }
 }
 async function confirmDelete() {
@@ -381,6 +453,126 @@ async function confirmDelete() {
 }
 function cancelDelete() { confirmOpen.value = false; toDelete.value = null; }
 
+const measurementsOpen = ref(false);
+const measurementsItem = ref<SpcCharacteristicResponse | null>(null);
+const measurementsLoading = ref(false);
+const measurementsLoaded = ref(false);
+const measurementsNotFound = ref(false);
+const measurementsFrom = ref('');
+const measurementsTo = ref('');
+const logItems = ref<SpcMeasurementResponse[]>([]);
+const chart = ref<SpcMeasurementChartResponse | null>(null);
+
+const measurementsTitle = computed(() => measurementsItem.value
+  ? t('spcCharacteristics.measurementsTitle', { name: measurementsItem.value.name })
+  : t('spcMeasurements.title'));
+
+const measurementColumns = computed(() => [
+  { key: 'measuredAt', label: t('spcMeasurements.measuredAt'), sortable: false },
+  { key: 'value', label: t('spcMeasurements.value'), sortable: false, align: 'right' as const },
+  { key: 'status', label: t('common.status'), sortable: false, width: '150px' },
+  { key: 'notes', label: t('spcMeasurements.notes'), sortable: false }
+]);
+
+const flagsById = computed(() => new Map((chart.value?.points ?? []).map(p => [p.id, p])));
+
+const measurementsEmpty = computed(() =>
+  (chart.value?.totalCount ?? logItems.value.length) === 0);
+
+const measurementsSummary = computed(() => chart.value
+  ? t('spcMeasurements.summary', {
+      total: chart.value.totalCount,
+      ooc: chart.value.outOfControlCount,
+      oos: chart.value.outOfSpecCount
+    })
+  : '');
+
+function measurementStatus(item: SpcMeasurementResponse): 'ooc' | 'oos' | 'ok' {
+  const flags = flagsById.value.get(item.id);
+  if (flags?.isOutOfControl) return 'ooc';
+  if (flags?.isOutOfSpec) return 'oos';
+  return 'ok';
+}
+
+function formatDateTime(value: string): string {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+}
+
+function isNotFoundError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  return (err as { response?: { status?: unknown } }).response?.status === 404;
+}
+
+function measurementsRange(): { from?: string; to?: string } {
+  const range: { from?: string; to?: string } = {};
+  if (measurementsFrom.value) {
+    const d = new Date(measurementsFrom.value);
+    if (!Number.isNaN(d.getTime())) range.from = d.toISOString();
+  }
+  if (measurementsTo.value) {
+    const d = new Date(measurementsTo.value);
+    if (!Number.isNaN(d.getTime())) range.to = d.toISOString();
+  }
+  return range;
+}
+
+async function openMeasurements(item: SpcCharacteristicResponse): Promise<void> {
+  measurementsItem.value = item;
+  measurementsFrom.value = '';
+  measurementsTo.value = '';
+  measurementsOpen.value = true;
+  await fetchMeasurements();
+}
+
+function closeMeasurements(): void {
+  if (measurementsLoading.value) return;
+  measurementsOpen.value = false;
+  measurementsItem.value = null;
+  logItems.value = [];
+  chart.value = null;
+  measurementsLoaded.value = false;
+  measurementsNotFound.value = false;
+}
+
+function clearMeasurementsRange(): void {
+  measurementsFrom.value = '';
+  measurementsTo.value = '';
+  void fetchMeasurements();
+}
+
+function onMeasurementsRangeChange(): void {
+  void fetchMeasurements();
+}
+
+async function fetchMeasurements(): Promise<void> {
+  if (!measurementsItem.value) return;
+  measurementsLoading.value = true;
+  measurementsNotFound.value = false;
+  try {
+    const id = measurementsItem.value.id;
+    const range = measurementsRange();
+    const [page, chartRes] = await Promise.all([
+      spcMeasurementService.browse({ characteristicId: id, pageNumber: 1, pageSize: 200, ...range }),
+      spcMeasurementService.getChart({ characteristicId: id, ...range })
+    ]);
+    logItems.value = page.items;
+    chart.value = chartRes;
+    measurementsLoaded.value = true;
+  } catch (err) {
+    if (isNotFoundError(err)) {
+      // Unknown or cross-tenant characteristic: the API hides foreign rows
+      // with 404 — show the not-found state instead of a broken chart.
+      measurementsNotFound.value = true;
+      measurementsLoaded.value = false;
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    }
+  } finally {
+    measurementsLoading.value = false;
+  }
+}
+
 onMounted(async () => {
   await loadLookups();
   await table.fetch();
@@ -390,4 +582,6 @@ onMounted(async () => {
 <style scoped>
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+.measurements-summary { color: var(--color-text-muted); margin: var(--space-2) 0 var(--space-3); }
+.measurements-subtitle { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin: var(--space-4) 0 var(--space-2); }
 </style>
