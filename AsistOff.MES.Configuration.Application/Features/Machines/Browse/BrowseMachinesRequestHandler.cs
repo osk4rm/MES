@@ -33,6 +33,6 @@ internal sealed class BrowseMachinesRequestHandler(IMachinesRepository repositor
     }
 
     internal static MachineResponse Map(Machine m) => new(
-        m.Id, m.Code, m.Name, m.Description, m.IsActive,
+        m.Id, m.Code, m.Name, m.Description, m.IsActive, m.Capacity, m.EfficiencyFactor,
         m.DepartmentId, m.Department?.Code, m.Department?.Name, m.SyncId);
 }

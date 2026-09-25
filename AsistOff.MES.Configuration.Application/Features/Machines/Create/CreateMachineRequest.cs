@@ -9,4 +9,6 @@ public record CreateMachineRequest(
     string? Description,
     bool IsActive,
     Guid? DepartmentId,
-    string? SyncId) : ITenantRequest<MachineResponse>;
+    string? SyncId,
+    decimal? Capacity = null,
+    decimal? EfficiencyFactor = null) : ITenantRequest<MachineResponse>;

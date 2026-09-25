@@ -16,6 +16,8 @@ internal sealed class UpdateMachineRequestHandler(IMachinesRepository repository
         entity.Name = request.Name;
         entity.Description = request.Description;
         entity.IsActive = request.IsActive;
+        entity.Capacity = MachineCapacityRules.ResolveCapacity(request.Capacity);
+        entity.EfficiencyFactor = MachineCapacityRules.ResolveEfficiencyFactor(request.EfficiencyFactor);
         entity.DepartmentId = request.DepartmentId;
         entity.SyncId = request.SyncId;
 
