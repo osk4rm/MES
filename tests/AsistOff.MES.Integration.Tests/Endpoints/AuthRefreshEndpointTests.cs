@@ -27,7 +27,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     private const string ProtectedUrl = "/api/roles";
 
     [Fact]
-    public async Task SignIn_ReturnsAccessAndRefreshTokens()
+    public async Task SignIn_SetsCookies_AndSanitizesBody()
     {
         using var client = Fixture.CreateClient();
 
@@ -38,9 +38,11 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        CookieTestHelpers.GetCookieValue(response, "mes_access").Should().NotBeNullOrWhiteSpace();
+        CookieTestHelpers.GetCookieValue(response, "mes_refresh").Should().NotBeNullOrWhiteSpace();
         var token = await ReadAsync<AuthTokensDto>(response);
-        token.AccessToken.Should().NotBeNullOrWhiteSpace();
-        token.RefreshToken.Should().NotBeNullOrWhiteSpace();
+        token.AccessToken.Should().BeNullOrWhiteSpace();
+        token.RefreshToken.Should().BeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -54,12 +56,17 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         // Act — rotate once.
         var refresh = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokens.RefreshToken });
 
-        // Assert — new pair issued, refresh token changed, access token usable.
+        // Assert — new pair issued via cookies, refresh token changed, access token usable.
         refresh.StatusCode.Should().Be(HttpStatusCode.OK);
-        var rotated = await ReadAsync<AuthTokensDto>(refresh);
+        var rotated = new AuthTokensDto(
+            CookieTestHelpers.GetCookieValue(refresh, "mes_access"),
+            CookieTestHelpers.GetCookieValue(refresh, "mes_refresh"));
         rotated.AccessToken.Should().NotBeNullOrWhiteSpace();
         rotated.RefreshToken.Should().NotBeNullOrWhiteSpace();
         rotated.RefreshToken.Should().NotBe(tokens.RefreshToken);
+        var sanitized = await ReadAsync<AuthTokensDto>(refresh);
+        sanitized.AccessToken.Should().BeNullOrWhiteSpace();
+        sanitized.RefreshToken.Should().BeNullOrWhiteSpace();
 
         using var rotatedClient = Fixture.CreateClient();
         rotatedClient.DefaultRequestHeaders.Authorization =
@@ -196,8 +203,8 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
 
         // Assert — the minted session stays bound to tenant A, never tenant B.
         refresh.StatusCode.Should().Be(HttpStatusCode.OK);
-        var rotated = await ReadAsync<AuthTokensDto>(refresh);
-        ReadClaim(rotated.AccessToken, "tenant_id").Should().Be(tenantA);
+        var rotated = CookieTestHelpers.GetCookieValue(refresh, "mes_access");
+        ReadClaim(rotated, "tenant_id").Should().Be(tenantA);
     }
 
     private async Task<(HttpClient Client, AuthTokensDto Tokens)> SignInAsync(
@@ -210,7 +217,12 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
             password = password ?? IntegrationTestData.AdminPassword
         });
         response.EnsureSuccessStatusCode();
-        var tokens = await ReadAsync<AuthTokensDto>(response);
+        // Cookie transport (issue #241): tokens travel in Set-Cookie; the body
+        // is sanitized, so resolve the pair from the cookies for header-based
+        // transition callers.
+        var tokens = new AuthTokensDto(
+            CookieTestHelpers.GetCookieValue(response, "mes_access"),
+            CookieTestHelpers.GetCookieValue(response, "mes_refresh"));
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         return (client, tokens);

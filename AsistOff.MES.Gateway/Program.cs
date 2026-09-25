@@ -72,6 +72,7 @@ try
                 policy.WithOrigins(allowedOrigins)
                     .AllowAnyMethod()
                     .AllowAnyHeader()
+                    .AllowCredentials()
                     .WithExposedHeaders("Content-Disposition");
             }
             else if (builder.Environment.IsDevelopment())

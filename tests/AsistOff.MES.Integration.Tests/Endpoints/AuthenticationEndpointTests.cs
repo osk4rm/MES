@@ -15,7 +15,7 @@ public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) :
     private const string BaseUrl = "/api/auth/sign-in";
 
     [Fact]
-    public async Task SignIn_WithValidCredentials_ReturnsAccessToken()
+    public async Task SignIn_WithValidCredentials_SetsAuthCookies_AndSanitizesBody()
     {
         using var client = Fixture.CreateClient();
 
@@ -26,8 +26,23 @@ public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) :
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Cookie transport (issue #241): the session moves into httpOnly
+        // cookies; the body carries no usable token strings for storage.
+        var setCookies = CookieTestHelpers.GetSetCookies(response);
+        var access = setCookies.FirstOrDefault(c => c.StartsWith("mes_access=", StringComparison.OrdinalIgnoreCase));
+        var refresh = setCookies.FirstOrDefault(c => c.StartsWith("mes_refresh=", StringComparison.OrdinalIgnoreCase));
+        access.Should().NotBeNull();
+        refresh.Should().NotBeNull();
+        access!.ToLowerInvariant().Should().Contain("httponly");
+        access.ToLowerInvariant().Should().Contain("secure");
+        access.Should().ContainEquivalentOf("SameSite=Lax");
+        access.Should().ContainEquivalentOf("Path=/");
+        refresh!.ToLowerInvariant().Should().Contain("httponly");
+
         var token = await ReadAsync<JsonWebTokenDto>(response);
-        token.AccessToken.Should().NotBeNullOrWhiteSpace();
+        token.AccessToken.Should().BeNullOrWhiteSpace();
+        token.RefreshToken.Should().BeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -58,5 +73,5 @@ public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) :
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    private sealed record JsonWebTokenDto(string AccessToken);
+    private sealed record JsonWebTokenDto(string AccessToken, string RefreshToken);
 }

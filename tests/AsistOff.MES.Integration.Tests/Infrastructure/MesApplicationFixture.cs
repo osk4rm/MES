@@ -61,6 +61,10 @@ public sealed class MesApplicationFixture : IAsyncLifetime
 
     /// <summary>
     /// Signs in as the given user and returns a client with the bearer token set.
+    /// Since issue #241 the session is transported in httpOnly cookies and the
+    /// body carries no usable token strings, so the bearer value is resolved
+    /// from the <c>mes_access</c> Set-Cookie (falling back to the body for
+    /// transition clients that still receive one).
     /// </summary>
     public async Task<HttpClient> CreateAuthenticatedClientAsync(string email, string password)
     {
@@ -71,8 +75,11 @@ public sealed class MesApplicationFixture : IAsyncLifetime
         response.EnsureSuccessStatusCode();
 
         var token = await response.Content.ReadFromJsonAsync<SignInResponse>();
+        var access = string.IsNullOrWhiteSpace(token?.AccessToken)
+            ? CookieTestHelpers.GetCookieValue(response, "mes_access")
+            : token!.AccessToken;
         client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", token!.AccessToken);
+            new AuthenticationHeaderValue("Bearer", access);
 
         return client;
     }
