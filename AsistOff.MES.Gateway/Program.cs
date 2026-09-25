@@ -4,6 +4,7 @@ using AsistOff.MES.Multitenancy;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure;
+using AsistOff.MES.Shared.Infrastructure.Correlation;
 using AsistOff.MES.Shared.Infrastructure.Extensions;
 using AsistOff.MES.Shared.Infrastructure.Health;
 using AsistOff.MES.Shared.Infrastructure.Protection;
@@ -78,7 +79,7 @@ try
                     .AllowAnyMethod()
                     .AllowAnyHeader()
                     .AllowCredentials()
-                    .WithExposedHeaders("Content-Disposition");
+                    .WithExposedHeaders("Content-Disposition", CorrelationIds.HeaderName);
             }
             else if (builder.Environment.IsDevelopment())
             {
@@ -94,7 +95,7 @@ try
                     .AllowAnyMethod()
                     .AllowAnyHeader()
                     .AllowCredentials()
-                    .WithExposedHeaders("Content-Disposition");
+                    .WithExposedHeaders("Content-Disposition", CorrelationIds.HeaderName);
             }
             else
             {
@@ -117,6 +118,15 @@ try
 
     var app = builder.Build();
 
+    // Correlation ID first: every request carries one opaque GUID from
+    // browser to logs to error payload (issue #251). Reads inbound
+    // X-Correlation-ID (generates a GUID when absent or invalid), echoes the
+    // effective value on every response (including error responses from the
+    // exception handler below), assigns HttpContext.TraceIdentifier, and
+    // pushes the value into Serilog LogContext. Runs before tenant
+    // resolution and never reads TenantId.
+    app.UseMiddleware<CorrelationIdMiddleware>();
+
     // Security headers first: every API response (including error responses
     // from the exception handler) carries nosniff / CSP / Referrer-Policy
     // and, over TLS, HSTS.
@@ -133,7 +143,7 @@ try
             diagnosticContext.Set("RequestScheme", httpContext.Request.Scheme);
             diagnosticContext.Set("ClientIp", httpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty);
             diagnosticContext.Set("UserAgent", httpContext.Request.Headers.UserAgent.ToString());
-            diagnosticContext.Set("CorrelationId", httpContext.TraceIdentifier);
+            diagnosticContext.Set("CorrelationId", CorrelationIds.GetCurrent(httpContext) ?? httpContext.TraceIdentifier);
 
             var tenantAccessor = httpContext.RequestServices.GetService<ICurrentTenantAccessor>();
             if (tenantAccessor is not null && tenantAccessor.TryGetTenantId(out var tenantId))
