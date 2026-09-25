@@ -19,6 +19,7 @@ public class ConfigurationEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<OperatorShiftAssignment>();
         modelBuilder.Entity<WorkCenterCalendar>();
         modelBuilder.Entity<WorkCenterCalendarEntry>();
+        modelBuilder.Entity<StockMovement>();
         
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ConfigurationEntityConfigurator).Assembly);
         

@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\AsistOff.MES.Configuration.Application\AsistOff.MES.Configuration.Application.csproj" />
+      <ProjectReference Include="..\AsistOff.MES.Production.Core\AsistOff.MES.Production.Core.csproj" />
       <ProjectReference Include="..\AsistOff.MES.Shared.Infrastructure\AsistOff.MES.Shared.Infrastructure.csproj" />
     </ItemGroup>
 

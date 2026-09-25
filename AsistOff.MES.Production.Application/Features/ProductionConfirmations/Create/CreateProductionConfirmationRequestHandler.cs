@@ -1,4 +1,7 @@
+using AsistOff.MES.Configuration.Domain.Entities;
+using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Production.Application.Features.Common;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Browse;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
@@ -12,6 +15,8 @@ namespace AsistOff.MES.Production.Application.Features.ProductionConfirmations.C
 internal sealed class CreateProductionConfirmationRequestHandler(
     IProductionConfirmationsRepository confirmationsRepository,
     IProductionOrdersRepository ordersRepository,
+    IChildEntitiesRepository childEntitiesRepository,
+    IStockMovementsRepository stockMovementsRepository,
     IGuidProvider guidProvider,
     IDateTimeProvider dateTimeProvider,
     ITenantContext tenantContext)
@@ -69,6 +74,28 @@ internal sealed class CreateProductionConfirmationRequestHandler(
         };
 
         await confirmationsRepository.AddAsync(confirmation, cancellationToken);
+
+        // Post the RW/PW ledger lines using the same BOM inputs as the
+        // movement preview, so persisted lines match the preview lines for
+        // this confirmation (PW for the good quantity plus RW per BOM item).
+        var bomItems = await childEntitiesRepository.ListBomItemsForVersionAsync(
+            order.RecipeVersionId, cancellationToken);
+        var preview = MovementCalculator.BuildPreview(order, confirmation.GoodQuantity, 1, bomItems);
+        var movements = preview.Select(line => new StockMovement
+        {
+            Id = guidProvider.NewGuid(),
+            TenantId = tenantContext.TenantId,
+            MovementType = line.MovementType,
+            ProductId = line.ProductId,
+            Quantity = line.Quantity,
+            MeasureUnitId = line.MeasureUnitId,
+            WarehouseId = line.PreferredWarehouseId,
+            ProductionConfirmationId = confirmation.Id,
+            ProductionOrderId = order.Id,
+            ReportedAt = confirmation.ReportedAt,
+            CreatedAt = dateTimeProvider.UtcNow
+        }).ToList();
+        await stockMovementsRepository.AddRangeAsync(movements, cancellationToken);
 
         if (order.Status == ProductionOrderStatus.Released)
         {
