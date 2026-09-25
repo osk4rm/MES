@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
@@ -7,6 +8,7 @@ using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
+using AsistOff.MES.Shared.Abstractions.Observability;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using MediatR;
 
@@ -26,6 +28,7 @@ internal sealed class CreateProductionConfirmationRequestHandler(
 {
     public async Task<ProductionConfirmationResponse> Handle(CreateProductionConfirmationRequest request, CancellationToken cancellationToken)
     {
+        var stopwatch = Stopwatch.StartNew();
         var order = await ordersRepository.GetAsync(request.ProductionOrderId, cancellationToken)
             ?? throw new NotFoundException("ProductionOrder", request.ProductionOrderId);
 
@@ -161,6 +164,11 @@ internal sealed class CreateProductionConfirmationRequestHandler(
             await ordersRepository.UpdateAsync(order, cancellationToken);
         }
 
-        return BrowseProductionConfirmationsRequestHandler.Map(confirmation);
+        // Throughput + latency, success path only: rejected confirmations
+        // are not production output. Recorded inside the request scope so
+        // the exporter links each sample to the active trace as an exemplar.
+        var response = BrowseProductionConfirmationsRequestHandler.Map(confirmation);
+        MesMeters.RecordConfirmation(request.MachineId, tenantContext.TenantId, stopwatch.Elapsed);
+        return response;
     }
 }
