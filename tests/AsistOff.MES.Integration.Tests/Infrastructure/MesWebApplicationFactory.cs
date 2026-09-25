@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -22,27 +21,15 @@ namespace AsistOff.MES.Integration.Tests.Infrastructure;
 /// never make endpoint assertions flaky, and the abuse-protection throttle
 /// budgets are raised so the shared suite can never trip the limiter
 /// (isolated 429 tests opt back into tiny budgets via configureProtection).
-/// An optional <c>configOverrides</c> dictionary adds in-memory configuration
-/// values (e.g. <c>Observability:PrometheusEnabled=true</c>) so isolated hosts
-/// can exercise configuration-gated endpoints without touching shared state.
 /// </summary>
 public sealed class MesWebApplicationFactory(
     string connectionString,
-    Action<AbuseProtectionOptions>? configureProtection = null,
-    IDictionary<string, string?>? configOverrides = null) : WebApplicationFactory<Program>
+    Action<AbuseProtectionOptions>? configureProtection = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(Environments.Development);
         builder.UseContentRoot(ResolveContentRoot());
-
-        if (configOverrides is not null)
-        {
-            // Added last so test overrides win over appsettings files; this
-            // is what lets isolated observability hosts enable /metrics or
-            // point OTLP at a dummy collector for a single test class.
-            builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(configOverrides));
-        }
 
         builder.ConfigureTestServices(services =>
         {

@@ -1,82 +1,75 @@
 namespace AsistOff.MES.Shared.Infrastructure.Observability;
 
 /// <summary>
-/// Configuration for OpenTelemetry traces and metrics (issue #252).
-/// Bound from the <c>Observability</c> configuration section; every setting
-/// supports environment variable overrides via the standard <c>__</c>
-/// separator (e.g. <c>Observability__OtlpEndpoint</c>,
-/// <c>Observability__PrometheusEnabled</c>).
-/// No tenant-scoped state; no <c>ISaasy</c>, no query-filter bypass.
+/// Declarative observability settings bound from the <c>Observability</c>
+/// configuration section. Every value can be overridden per environment via
+/// <c>appsettings.{Environment}.json</c> or environment variables using the
+/// <c>Observability__</c> prefix (e.g.
+/// <c>Observability__OtlpEndpoint=http://otel-collector:4317</c>).
 /// </summary>
 public sealed class ObservabilityOptions
 {
     public const string SectionName = "Observability";
 
     /// <summary>
-    /// OTLP collector endpoint (e.g. <c>http://otel-collector:4317</c>).
-    /// Empty or whitespace means no exporter is registered and tracing runs
-    /// in no-op mode; the application still boots and serves traffic.
+    /// OpenTelemetry resource <c>service.name</c>. Defaults to the product name.
     /// </summary>
-    public string? OtlpEndpoint { get; set; }
-
-    /// <summary>Logical service name reported on every span/metric. Default <c>AsistOff.MES</c>.</summary>
     public string ServiceName { get; set; } = "AsistOff.MES";
 
-    /// <summary>Service version reported as resource attribute. Default <c>1.0.0</c>.</summary>
+    /// <summary>
+    /// OpenTelemetry resource <c>service.version</c>.
+    /// </summary>
     public string ServiceVersion { get; set; } = "1.0.0";
 
     /// <summary>
-    /// Head-based sampling ratio, 0..1. Values outside the range are clamped
-    /// by <see cref="NormalizedSamplingRatio"/>. Default 1.0 (sample all).
+    /// OTLP/gRPC collector endpoint (e.g. <c>http://otel-collector:4317</c>).
+    /// Empty means no collector is configured: tracing and metrics run in
+    /// no-op mode (spans are still created for W3C propagation, nothing is
+    /// exported) and the application must boot without exceptions.
+    /// </summary>
+    public string OtlpEndpoint { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Root sampling probability in the <c>[0, 1]</c> range. Values outside
+    /// the range are clamped by <see cref="GetSamplingRatio"/>. Remote-parent
+    /// sampling decisions from an upstream W3C <c>traceparent</c> are always
+    /// honoured (parent-based sampler).
     /// </summary>
     public double SamplingRatio { get; set; } = 1.0;
 
     /// <summary>
     /// When <c>true</c>, the Prometheus scrape endpoint (<c>/metrics</c>) is
-    /// mapped. When <c>false</c> (default), <c>/metrics</c> falls through to
-    /// the normal 404 pipeline.
+    /// mapped. When <c>false</c> (default) the endpoint is not mapped and
+    /// <c>GET /metrics</c> falls through to 404.
     /// </summary>
     public bool PrometheusEnabled { get; set; }
 
-    /// <summary>True when an OTLP endpoint is configured (non-empty).</summary>
-    public bool HasOtlpEndpoint => !string.IsNullOrWhiteSpace(OtlpEndpoint);
+    /// <summary>
+    /// Whether an OTLP collector endpoint is configured (and well-formed).
+    /// </summary>
+    public bool HasOtlpEndpoint => TryGetOtlpUri(out _);
 
     /// <summary>
-    /// Sampling ratio clamped to 0..1 and with NaN/Infinity coerced to the
-    /// safe defaults (NaN -&gt; 1.0, +Infinity -&gt; 1.0, -Infinity -&gt; 0.0).
+    /// Sampling probability clamped to the <c>[0, 1]</c> range.
     /// </summary>
-    public double NormalizedSamplingRatio
+    public double GetSamplingRatio()
     {
-        get
+        if (double.IsNaN(SamplingRatio))
         {
-            if (double.IsNaN(SamplingRatio))
-            {
-                return 1.0;
-            }
-
-            if (double.IsPositiveInfinity(SamplingRatio))
-            {
-                return 1.0;
-            }
-
-            if (double.IsNegativeInfinity(SamplingRatio))
-            {
-                return 0.0;
-            }
-
-            return Math.Clamp(SamplingRatio, 0.0, 1.0);
+            return 0;
         }
+
+        return Math.Clamp(SamplingRatio, 0, 1);
     }
 
-    /// <summary>
-    /// Effective service name, falling back to <c>AsistOff.MES</c> when blank.
-    /// </summary>
-    public string EffectiveServiceName =>
-        string.IsNullOrWhiteSpace(ServiceName) ? "AsistOff.MES" : ServiceName.Trim();
+    internal bool TryGetOtlpUri(out Uri? uri)
+    {
+        uri = null;
+        if (string.IsNullOrWhiteSpace(OtlpEndpoint))
+        {
+            return false;
+        }
 
-    /// <summary>
-    /// Effective service version, falling back to <c>1.0.0</c> when blank.
-    /// </summary>
-    public string EffectiveServiceVersion =>
-        string.IsNullOrWhiteSpace(ServiceVersion) ? "1.0.0" : ServiceVersion.Trim();
+        return Uri.TryCreate(OtlpEndpoint, UriKind.Absolute, out uri);
+    }
 }
