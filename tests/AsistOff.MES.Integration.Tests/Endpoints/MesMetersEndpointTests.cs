@@ -260,9 +260,11 @@ public sealed class MesMetersEndpointTests(MesApplicationFixture fixture) : Inte
 
             // Bounded label set: only the Work Center / reason / tenant tags
             // (plus the histogram bucket bound) may appear — never lot,
-            // serial, operator or token labels.
+            // serial, operator or token labels. The otel_scope_* keys are
+            // standard bounded OpenTelemetry Prometheus-exporter scope
+            // labels, not business cardinality leakage.
             var allowedKeys = new HashSet<string>(
-                new[] { "work_center_id", "reason_code", "tenant_id", "le" },
+                new[] { "work_center_id", "reason_code", "tenant_id", "le", "otel_scope_name", "otel_scope_version" },
                 StringComparer.Ordinal);
             foreach (var line in meterLines)
             {
