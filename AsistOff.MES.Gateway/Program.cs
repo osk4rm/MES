@@ -8,6 +8,7 @@ using AsistOff.MES.Shared.Infrastructure.Boot;
 using AsistOff.MES.Shared.Infrastructure.Correlation;
 using AsistOff.MES.Shared.Infrastructure.Extensions;
 using AsistOff.MES.Shared.Infrastructure.Health;
+using AsistOff.MES.Shared.Infrastructure.Observability;
 using AsistOff.MES.Shared.Infrastructure.Protection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
@@ -63,6 +64,10 @@ try
     builder.Services.AddMesHealthChecks();
 
     builder.Services.AddExceptionHandling();
+
+    // OpenTelemetry traces/metrics (issue #252): OTLP export when an endpoint
+    // is configured, Prometheus exposition when enabled, no-op otherwise.
+    builder.Services.AddMesObservability(builder.Configuration);
 
     builder.Services.AddAbuseProtection(builder.Configuration);
 
@@ -127,6 +132,14 @@ try
     // pushes the value into Serilog LogContext. Runs before tenant
     // resolution and never reads TenantId.
     app.UseMiddleware<CorrelationIdMiddleware>();
+
+    // Stash the resolved tenant id for trace enrichment (issue #252): the
+    // OTel response callback tags the server span after the request scope is
+    // torn down, so the tenant must be captured while the scope is alive.
+    // Runs before tenant resolution on the way in and captures on the way
+    // out, after authentication has resolved the tenant; reads TenantId as
+    // an opaque tag value only.
+    app.UseMiddleware<TenantTraceContextMiddleware>();
 
     // Security headers first: every API response (including error responses
     // from the exception handler) carries nosniff / CSP / Referrer-Policy
@@ -262,6 +275,9 @@ try
     app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
+    // Prometheus scrape endpoint (issue #252): mapped only when
+    // Observability:PrometheusEnabled is true; otherwise GET /metrics is 404.
+    app.UseMesObservability();
     // Health probes for container orchestrators (issue #249). All three are
     // anonymous infrastructure endpoints with no tenant context: orchestrators
     // call them with no user or tenant. AllowAnonymous makes the opt-out
@@ -286,7 +302,8 @@ try
     };
     app.MapHealthChecks(HealthProbes.LivePath, liveOptions).AllowAnonymous().DisableRateLimiting();
     app.MapHealthChecks(HealthProbes.ReadyPath, readyOptions).AllowAnonymous().DisableRateLimiting();
-    app.MapHealthChecks(HealthProbes.AliasPath, readyOptions).AllowAnonymous().DisableRateLimiting();    app.MapControllers();
+    app.MapHealthChecks(HealthProbes.AliasPath, readyOptions).AllowAnonymous().DisableRateLimiting();
+    app.MapControllers();
 
     app.Run();
 }
