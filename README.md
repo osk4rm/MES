@@ -40,9 +40,18 @@ docker compose up --build
 
 On boot the Gateway:
 
-1. Applies all pending EF Core migrations for every registered `DbContext` (see
-   `AsistOff.MES.Shared.Infrastructure.MigrationExtensions.ApplyAllPendingMigrations`).
-2. Runs every registered `ISeeder`. When the environment is `Development` and
+1. Reads the `Boot` gate (`AsistOff.MES.Shared.Infrastructure.Boot.BootOptions`).
+   In `Development` (`appsettings.Development.json`: `Boot:ApplyMigrations` /
+   `Boot:RunSeeders` = `true`) it applies all pending EF Core migrations for
+   every registered `DbContext` (see
+   `AsistOff.MES.Shared.Infrastructure.MigrationExtensions.ApplyAllPendingMigrations`)
+   and then runs every registered `ISeeder`. In production both default to
+   `false` (pinned off in `appsettings.Production.json`), so a production boot
+   never migrates or seeds — schema upgrades run via the `migrate` compose job
+   and backups via the `backup` service. See
+   [`docs/production-runbook.md`](docs/production-runbook.md) for the
+   migrate / seed / backup / restore commands.
+2. Runs every registered `ISeeder` (only when the boot gate allows it). When the environment is `Development` and
    `Seed:Enabled` is `true`, `DevTenantSeeder` provisions the tenants configured under
    `Seed:Tenants` in `appsettings.Development.json`. The seeder is **idempotent** — it skips
    any tenant whose `Name` already exists — and uses the exact same `CreateTenantCommand`
@@ -105,7 +114,7 @@ dotnet restore AsistOff.MES.sln
 dotnet run --project AsistOff.MES.Gateway         # http://localhost:5080
 ```
 
-Connection string is in `AsistOff.MES.Gateway/appsettings.*.json` (key: `Postgres:ConnectionString`). Migrations are applied automatically at startup.
+Connection string is in `AsistOff.MES.Gateway/appsettings.*.json` (key: `Postgres:ConnectionString`). In `Development`, migrations and seeders run automatically at startup (`Boot:ApplyMigrations` / `Boot:RunSeeders`); production boots skip both unless explicitly enabled — see [`docs/production-runbook.md`](docs/production-runbook.md).
 
 ### Health probes
 

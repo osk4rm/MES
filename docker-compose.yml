@@ -68,6 +68,85 @@ services:
       api:
         condition: service_healthy
 
+  # Production schema upgrades (issue #257). One-shot job that applies all
+  # pending EF Core migrations (plus seeders when Boot__RunSeeders=true) and
+  # then exits. Run standalone (`docker compose --profile migrate run --rm
+  # migrate`) or as part of the production profile, where api-prod waits for
+  # it via service_completed_successfully before serving traffic.
+  migrate:
+    profiles: ["migrate", "production"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["--migrate-only"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:-root}"
+      Boot__ApplyMigrations: "true"
+      Boot__RunSeeders: "${BOOT_RUN_SEEDERS:-false}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # Production gateway: never migrates or seeds on boot (Boot defaults are
+  # false and appsettings.Production.json pins them). The schema is upgraded
+  # by the migrate job above, which must complete successfully first.
+  api-prod:
+    profiles: ["production"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:-root}"
+      Boot__ApplyMigrations: "false"
+      Boot__RunSeeders: "false"
+      Serilog__WriteTo__1__Args__serverUrl: "http://seq:80"
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seq:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: on-failure
+
+  # Nightly pg_dump backup example (issue #257). Loops forever: writes a
+  # timestamped dump to the pg_backups volume, prunes beyond
+  # BACKUP_RETENTION_COUNT, sleeps BACKUP_INTERVAL_SECONDS (86400 = nightly).
+  # Included in the production profile; also runnable standalone with
+  # `docker compose --profile backup up backup`.
+  backup:
+    profiles: ["production", "backup"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-mes}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-root}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-7}
+    volumes:
+      - ./docker/backup/backup.sh:/backup.sh:ro
+      - pg_backups:/backups
+    command: ["sh", "/backup.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   # Agent swarm: dashboard + dispatcher, always on, working on an isolated
   # clone of the repo (named volume `swarm_work`). Starts with the stack
   # (`docker compose up -d`) and survives reboots (`restart: unless-stopped`).
@@ -113,5 +192,6 @@ services:
 
 volumes:
   postgres_data:
+  pg_backups:
   seq_data:
   swarm_work:

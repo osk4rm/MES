@@ -4,6 +4,7 @@ using AsistOff.MES.Multitenancy;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure;
+using AsistOff.MES.Shared.Infrastructure.Boot;
 using AsistOff.MES.Shared.Infrastructure.Correlation;
 using AsistOff.MES.Shared.Infrastructure.Extensions;
 using AsistOff.MES.Shared.Infrastructure.Health;
@@ -177,13 +178,79 @@ try
         module.Use(app);
     }
 
+    // Production boot gate (issue #257): migrations and seeders only run
+    // when the operator explicitly opts in via the Boot section
+    // (Boot:ApplyMigrations / Boot:RunSeeders, or the Boot__* env vars).
+    // Production defaults are both false, so a production boot never
+    // auto-migrates the plant database and never runs seeders; Development
+    // opts back in via appsettings.Development.json (true/true), preserving
+    // the historical dev behavior. Fail fast on contradictory flags.
+    var bootOptions = builder.Configuration.GetSection(BootOptions.SectionName).Get<BootOptions>()
+        ?? new BootOptions();
+    BootOptionsValidator.Validate(bootOptions);
+
+    // Migrate-job entrypoint for compose/production: `dotnet
+    // AsistOff.MES.Gateway.dll --migrate-only` applies pending migrations
+    // (and seeders when Boot:RunSeeders is set) and then exits without
+    // serving traffic. The production compose profile runs this as a job
+    // that must complete before the gateway container starts.
+    if (args.Contains("--migrate-only", StringComparer.OrdinalIgnoreCase))
+    {
+        using (var migrateScope = app.Services.CreateScope())
+        {
+            migrateScope.ServiceProvider.ApplyAllPendingMigrations(assemblies);
+            Log.Information("Migrate-only job applied pending EF Core migrations.");
+
+            if (bootOptions.RunSeeders)
+            {
+                var migrateSeeders = migrateScope.ServiceProvider.GetServices(typeof(ISeeder));
+                var migrateSeederCount = 0;
+                foreach (var seeder in migrateSeeders)
+                {
+                    await ((ISeeder)seeder!).Seed();
+                    migrateSeederCount++;
+                }
+
+                Log.Information("Migrate-only job ran {SeederCount} seeders (Boot:RunSeeders=true).", migrateSeederCount);
+            }
+            else
+            {
+                Log.Information("Migrate-only job skipped seeders (Boot:RunSeeders=false).");
+            }
+        }
+
+        return;
+    }
+
     using (var scope = app.Services.CreateScope())
     {
-        scope.ServiceProvider.ApplyAllPendingMigrations(assemblies);
-        var seeders = scope.ServiceProvider.GetServices(typeof(ISeeder));
-        foreach (var seeder in seeders)
+        if (bootOptions.ApplyMigrations)
         {
-            await ((ISeeder)seeder!).Seed();
+            scope.ServiceProvider.ApplyAllPendingMigrations(assemblies);
+            Log.Information("Applied pending EF Core migrations on boot (Boot:ApplyMigrations=true).");
+        }
+        else
+        {
+            Log.Information(
+                "Skipped EF Core migrations on boot (Boot:ApplyMigrations=false). " +
+                "Run the migrate job (dotnet AsistOff.MES.Gateway.dll --migrate-only) to upgrade the schema.");
+        }
+
+        if (bootOptions.RunSeeders)
+        {
+            var seeders = scope.ServiceProvider.GetServices(typeof(ISeeder));
+            var seederCount = 0;
+            foreach (var seeder in seeders)
+            {
+                await ((ISeeder)seeder!).Seed();
+                seederCount++;
+            }
+
+            Log.Information("Ran {SeederCount} seeders on boot (Boot:RunSeeders=true).", seederCount);
+        }
+        else
+        {
+            Log.Information("Skipped seeders on boot (Boot:RunSeeders=false).");
         }
     }
 

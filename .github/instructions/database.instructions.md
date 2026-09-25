@@ -103,7 +103,13 @@ dotnet ef migrations remove \
   --startup-project AsistOff.MES.Gateway
 ```
 
-Migrations are **applied automatically on startup** via `ApplyAllPendingMigrations()` called in `Program.cs`.
+Migrations are **gated on startup** via the `Boot` section (`BootOptions` in
+`Shared.Infrastructure/Boot`, bound in `Program.cs`): `Boot:ApplyMigrations`
+applies `ApplyAllPendingMigrations()` and `Boot:RunSeeders` runs `ISeeder`s
+afterwards (`RunSeeders=true` without `ApplyMigrations=true` fails startup
+validation). Both default to `false` (production-safe); Development opts in
+via `appsettings.Development.json`. Production upgrades run through the
+`migrate` compose job — see `docs/production-runbook.md`.
 
 ## Seeders
 
