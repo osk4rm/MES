@@ -3,7 +3,7 @@ using AsistOff.MES.Shared.Abstractions.DAL;
 
 namespace AsistOff.MES.Configuration.Domain.Entities;
 
-public class Machine : IEntity, ISaasy, ISyncable
+public class Machine : IEntity, ISaasy, ISyncable, IAuditable
 {
     public Guid Id { get; set; }
     public Guid TenantId { get; set; }
@@ -15,6 +15,10 @@ public class Machine : IEntity, ISaasy, ISyncable
     public decimal Capacity { get; set; } = 1;
     public decimal EfficiencyFactor { get; set; } = 1.0m;
     public Guid? DepartmentId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedBy { get; set; }
+    public Guid? ModifiedBy { get; set; }
 
     public virtual Department? Department { get; set; }
 }

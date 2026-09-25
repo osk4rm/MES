@@ -26,4 +26,6 @@ public class Lot : IEntity, ISaasy, IAuditable
 
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedBy { get; set; }
+    public Guid? ModifiedBy { get; set; }
 }

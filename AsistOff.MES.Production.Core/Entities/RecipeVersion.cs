@@ -22,6 +22,8 @@ public class RecipeVersion : IEntity, ISaasy, IAuditable
     public string? ChangeNotes { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedBy { get; set; }
+    public Guid? ModifiedBy { get; set; }
 
     public virtual Recipe Recipe { get; set; } = null!;
     public virtual ICollection<OperationNode> Operations { get; set; } = new List<OperationNode>();

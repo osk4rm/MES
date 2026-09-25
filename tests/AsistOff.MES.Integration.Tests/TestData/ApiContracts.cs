@@ -56,6 +56,8 @@ public sealed record ProductionOrderDto(
     string? SyncId,
     DateTime CreatedAt,
     DateTime? UpdatedAt,
+    Guid? CreatedBy,
+    Guid? ModifiedBy,
     decimal ProducedQuantity,
     decimal ScrappedQuantity,
     decimal RemainingQuantity,
@@ -160,7 +162,11 @@ public sealed record MachineDto(
     Guid? DepartmentId,
     string? DepartmentCode,
     string? DepartmentName,
-    string? SyncId);
+    string? SyncId,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt,
+    Guid? CreatedBy,
+    Guid? ModifiedBy);
 
 /// <summary>Shape of a maintenance work order as returned by <c>/api/maintenance-work-orders</c>.</summary>
 public sealed record MaintenanceWorkOrderDto(

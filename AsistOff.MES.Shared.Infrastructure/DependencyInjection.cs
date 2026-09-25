@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using AsistOff.MES.Shared.Abstractions.Auth;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using AsistOff.MES.Shared.Infrastructure.Auth;
 using AsistOff.MES.Shared.Infrastructure.Behaviors;
@@ -48,8 +49,9 @@ namespace AsistOff.MES.Shared.Infrastructure
             IConfiguration configuration)
         {
             services.AddScoped<PublishDomainEventsInterceptor>();
-            services.AddSingleton<AuditableEntityInterceptor>();
+            services.AddScoped<AuditableEntityInterceptor>();
             services.AddScoped<SaasyEntityInterceptor>();
+            services.AddScoped<IEntityConfigurator, SharedAuditEntityConfigurator>();
 
             return services;
         }
