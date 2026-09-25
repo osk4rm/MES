@@ -1,8 +1,15 @@
+using AsistOff.MES.Attachments.Application.Features.Delete;
+using AsistOff.MES.Attachments.Application.Features.Download;
 using AsistOff.MES.Attachments.Application.Features.List;
+using AsistOff.MES.Attachments.Application.Features.Responses;
+using AsistOff.MES.Attachments.Application.Features.Upload;
 using AsistOff.MES.Configuration.Application.Features.Products.Common.Responses;
 using AsistOff.MES.Configuration.Application.Features.Products.Create;
 using AsistOff.MES.Configuration.Application.Features.Products.Update;
 using AsistOff.MES.Configuration.Domain.Enums;
+using AsistOff.MES.Production.Application.Features.Common;
+using AsistOff.MES.Production.Application.Features.ProductionOrders.Create;
+using AsistOff.MES.Production.Application.Features.Schedule;
 using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Infrastructure.Behaviors;
@@ -76,9 +83,11 @@ public class AuthorizationBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_LegacyPassthroughAssembly_PassesThroughWithoutPermission()
+    public async Task Handle_ProductionOrAttachmentRead_PassesThroughViaAllowlist()
     {
-        // Arrange — Attachments requests keep the legacy pass-through until slice 2/2.
+        // Arrange — slice 2/2 (#233): Production and Attachments reads are on the
+        // documented allowlist, so any authenticated tenant user (even with no
+        // permissions) may list attachments; the legacy pass-through is empty.
         var behavior = CreateBehavior<ListAttachmentsRequest, IReadOnlyCollection<object>>(Array.Empty<string>());
 
         // Act
@@ -87,8 +96,19 @@ public class AuthorizationBehaviorTests
             _ => Task.FromResult<IReadOnlyCollection<object>>(Array.Empty<object>()),
             CancellationToken.None);
 
-        // Assert — unchanged behavior for the not-yet-covered module.
+        // Assert — allowlisted reads execute unchanged.
         result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_LegacyPassthrough_IsEmpty()
+    {
+        // Arrange & Act — slice 2/2 closed the legacy pass-through: no assembly
+        // passes without coverage.
+
+        // Assert
+        AuthorizationAllowlist.LegacyPassthroughAssemblyNames.Should().BeEmpty(
+            "slice 2/2 covers every write, so nothing may pass without RequirePermission or an allowlist entry");
     }
 
     [Fact]
@@ -241,6 +261,107 @@ public class AuthorizationBehaviorTests
 
         // Assert
         result.Should().Be(Unit.Value);
+    }
+
+    [Fact]
+    public async Task Handle_CreateProductionOrderRequest_WithoutPermission_ThrowsForbiddenException()
+    {
+        // Arrange — read-only caller holding only production.read; the slice-2
+        // write requires production.write.
+        var behavior = CreateBehavior<CreateProductionOrderRequest, ProductionOrderResponse>(
+            new[] { "production.read" });
+        var nextCalled = false;
+
+        // Act
+        var act = () => behavior.Handle(
+            new CreateProductionOrderRequest(
+                "PO-1", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 10m, null, 0, null, null, null),
+            _ =>
+            {
+                nextCalled = true;
+                return Task.FromResult<ProductionOrderResponse>(null!);
+            },
+            CancellationToken.None);
+
+        // Assert — 403 without invoking the handler.
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*production.write*");
+        nextCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_CreateProductionOrderRequest_WithPermission_CallsNext()
+    {
+        // Arrange — sufficiently privileged caller.
+        var behavior = CreateBehavior<CreateProductionOrderRequest, ProductionOrderResponse>(
+            new[] { "production.read", "production.write" });
+
+        // Act
+        var result = await behavior.Handle(
+            new CreateProductionOrderRequest(
+                "PO-1", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 10m, null, 0, null, null, null),
+            _ => Task.FromResult<ProductionOrderResponse>(null!),
+            CancellationToken.None);
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_UploadAttachmentRequest_WithoutPermission_ThrowsForbiddenException()
+    {
+        // Arrange — read-only caller; upload requires attachments.write.
+        var behavior = CreateBehavior<UploadAttachmentRequest, AttachmentResponse>(
+            new[] { "attachments.read" });
+        var nextCalled = false;
+
+        // Act
+        var act = () => behavior.Handle(
+            new UploadAttachmentRequest(
+                "operation", Guid.NewGuid(), "photo.png", "image/png", 4, Stream.Null, null),
+            _ =>
+            {
+                nextCalled = true;
+                return Task.FromResult<AttachmentResponse>(null!);
+            },
+            CancellationToken.None);
+
+        // Assert — 403 without invoking the handler.
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*attachments.write*");
+        nextCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_DownloadAttachmentRequest_PassesThroughViaAllowlist()
+    {
+        // Arrange — download is an allowlisted read: no permission claim needed.
+        var behavior = CreateBehavior<DownloadAttachmentRequest, DownloadAttachmentResponse>(Array.Empty<string>());
+
+        // Act
+        var result = await behavior.Handle(
+            new DownloadAttachmentRequest(Guid.NewGuid()),
+            _ => Task.FromResult<DownloadAttachmentResponse>(null!),
+            CancellationToken.None);
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_DispatchBoardRequest_PassesThroughViaAllowlist()
+    {
+        // Arrange — the dispatch board is an allowlisted production read.
+        var behavior = CreateBehavior<GetDispatchBoardRequest, DispatchBoardResponse>(Array.Empty<string>());
+
+        // Act
+        var result = await behavior.Handle(
+            new GetDispatchBoardRequest(new DateOnly(2027, 3, 10), new DateOnly(2027, 3, 12)),
+            _ => Task.FromResult<DispatchBoardResponse>(null!),
+            CancellationToken.None);
+
+        // Assert
+        result.Should().BeNull();
     }
 
     private static AuthorizationBehavior<TRequest, TResponse> CreateBehavior<TRequest, TResponse>(

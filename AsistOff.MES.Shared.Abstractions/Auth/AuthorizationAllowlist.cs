@@ -2,9 +2,10 @@ namespace AsistOff.MES.Shared.Abstractions.Auth;
 
 /// <summary>
 /// Documented allowlist for the default-deny <c>AuthorizationBehavior</c> pipeline step
-/// (issue #231, slice 1/2: Users, Multitenancy and Configuration).
+/// (issues #231 slice 1/2 and #233 slice 2/2: Users, Multitenancy, Configuration,
+/// Production, Attachments and Gateway).
 ///
-/// Every MediatR request in those three modules must carry either a
+/// Every MediatR request in those modules must carry either a
 /// <see cref="RequirePermissionAttribute"/> or an entry here. Requests with neither
 /// are rejected for authenticated callers with <c>ForbiddenException</c> (HTTP 403)
 /// instead of executing.
@@ -19,25 +20,29 @@ namespace AsistOff.MES.Shared.Abstractions.Auth;
 /// sign-out are scoped to the ambient tenant and caller user id, so no extra permission applies.</item>
 /// <item>Configuration reads (any authenticated tenant user): browse / get queries expose
 /// no mutation and stay available to the read-only <c>user</c> role.</item>
+/// <item>Production reads (any authenticated tenant user): browse / get / OEE / reliability /
+/// dispatch / traceability / telemetry-export queries expose no mutation and stay
+/// available to the read-only <c>user</c> role. The OPC UA connection test performs
+/// shape-only validation with no persistence or network I/O, so it is a read.</item>
+/// <item>Attachments reads (any authenticated tenant user): list and download expose
+/// no mutation and stay available to the read-only <c>user</c> role.</item>
 /// </list>
 ///
-/// Production, Attachments and Gateway writes are NOT listed here — they keep the
-/// legacy pass-through until slice 2/2 (see <see cref="LegacyPassthroughAssemblyNames"/>).
+/// Gateway owns no MediatR requests (only the errors controller), so it needs no
+/// entries here. The legacy pass-through is empty since slice 2/2: every write
+/// carries <see cref="RequirePermissionAttribute"/>.
 /// </summary>
 public static class AuthorizationAllowlist
 {
     /// <summary>
     /// Assemblies whose MediatR requests keep the legacy pass-through (no
-    /// <see cref="RequirePermissionAttribute"/> required) until slice 2/2 covers
-    /// Production, Attachments and Gateway writes. Intentionally narrow: only the
-    /// two application assemblies that own requests today. Everything else fails closed.
+    /// <see cref="RequirePermissionAttribute"/> required). Empty since slice 2/2
+    /// (issue #233): Production, Attachments and Gateway writes are covered, so
+    /// everything without coverage fails closed. Kept as an explicit empty set so
+    /// the pipeline step and the coverage test keep a single choke point.
     /// </summary>
     public static readonly IReadOnlySet<string> LegacyPassthroughAssemblyNames =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "AsistOff.MES.Production.Application",
-            "AsistOff.MES.Attachments.Application",
-        };
+        new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>
     /// Full type names (<c>Namespace.Type</c>) allowed without a
@@ -94,6 +99,66 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Configuration.Application.Features.Warehouses.Browse.BrowseWarehousesRequest",
             "AsistOff.MES.Configuration.Application.Features.Warehouses.Get.GetWarehouseRequest",
             "AsistOff.MES.Configuration.Application.Features.WorkCenterCalendars.Get.GetWorkCenterCalendarRequest",
+
+            // Production reads — any authenticated tenant user (including the
+            // read-only user role). Browse / get / analytics queries perform no mutation.
+            "AsistOff.MES.Production.Application.Features.AndonSignals.Browse.BrowseAndonSignalsRequest",
+            "AsistOff.MES.Production.Application.Features.AndonSignals.Get.GetAndonSignalRequest",
+            "AsistOff.MES.Production.Application.Features.DowntimeEvents.Browse.BrowseDowntimeEventsRequest",
+            "AsistOff.MES.Production.Application.Features.DowntimeEvents.Get.GetDowntimeEventRequest",
+            "AsistOff.MES.Production.Application.Features.Kanban.Cards.Browse.BrowseKanbanCardsRequest",
+            "AsistOff.MES.Production.Application.Features.Kanban.Cards.Get.GetKanbanCardRequest",
+            "AsistOff.MES.Production.Application.Features.Kanban.Loops.Browse.BrowseKanbanLoopsRequest",
+            "AsistOff.MES.Production.Application.Features.Kanban.Loops.Get.GetKanbanLoopRequest",
+            "AsistOff.MES.Production.Application.Features.LotGenealogy.Browse.BrowseLotGenealogyEdgesRequest",
+            "AsistOff.MES.Production.Application.Features.LotGenealogy.Downstream.GetDownstreamTraceabilityRequest",
+            "AsistOff.MES.Production.Application.Features.LotGenealogy.Get.GetLotGenealogyEdgeRequest",
+            "AsistOff.MES.Production.Application.Features.LotGenealogy.Upstream.GetUpstreamTraceabilityRequest",
+            "AsistOff.MES.Production.Application.Features.Lots.Browse.BrowseLotsRequest",
+            "AsistOff.MES.Production.Application.Features.Lots.Get.GetLotRequest",
+            "AsistOff.MES.Production.Application.Features.Lots.GetByCode.GetLotByCodeRequest",
+            "AsistOff.MES.Production.Application.Features.MachineTelemetryTags.Browse.BrowseMachineTelemetryTagsRequest",
+            "AsistOff.MES.Production.Application.Features.MachineTelemetryTags.Get.GetMachineTelemetryTagRequest",
+            "AsistOff.MES.Production.Application.Features.MachineTelemetryTags.Status.GetTelemetryStatusRequest",
+            "AsistOff.MES.Production.Application.Features.Oee.Losses.GetOeeLossesRequest",
+            "AsistOff.MES.Production.Application.Features.Oee.Snapshot.GetOeeSnapshotRequest",
+            "AsistOff.MES.Production.Application.Features.Oee.Summary.GetOeeSummaryRequest",
+            "AsistOff.MES.Production.Application.Features.Oee.Trend.GetOeeTrendRequest",
+            "AsistOff.MES.Production.Application.Features.OpcUaConnections.Browse.BrowseOpcUaConnectionsRequest",
+            "AsistOff.MES.Production.Application.Features.OpcUaConnections.Get.GetOpcUaConnectionRequest",
+            "AsistOff.MES.Production.Application.Features.OpcUaConnections.Status.GetOpcUaConnectionStatusRequest",
+            "AsistOff.MES.Production.Application.Features.OpcUaConnections.Test.TestOpcUaConnectionRequest",
+            "AsistOff.MES.Production.Application.Features.OperationTemplates.Browse.BrowseOperationTemplatesRequest",
+            "AsistOff.MES.Production.Application.Features.OperationTemplates.Get.GetOperationTemplateRequest",
+            "AsistOff.MES.Production.Application.Features.ProductionConfirmations.Browse.BrowseProductionConfirmationsRequest",
+            "AsistOff.MES.Production.Application.Features.ProductionConfirmations.Get.GetProductionConfirmationRequest",
+            "AsistOff.MES.Production.Application.Features.ProductionConfirmations.Movements.BrowseConfirmationMovementsRequest",
+            "AsistOff.MES.Production.Application.Features.ProductionOrders.Browse.BrowseProductionOrdersRequest",
+            "AsistOff.MES.Production.Application.Features.ProductionOrders.Get.GetProductionOrderRequest",
+            "AsistOff.MES.Production.Application.Features.ProductionOrders.Movements.BrowseOrderMovementsRequest",
+            "AsistOff.MES.Production.Application.Features.RecipeVersions.Get.GetRecipeVersionRequest",
+            "AsistOff.MES.Production.Application.Features.Recipes.Browse.BrowseRecipesRequest",
+            "AsistOff.MES.Production.Application.Features.Recipes.Get.GetRecipeRequest",
+            "AsistOff.MES.Production.Application.Features.Reliability.GetReliabilityFleetRequest",
+            "AsistOff.MES.Production.Application.Features.Reliability.GetReliabilitySnapshotRequest",
+            "AsistOff.MES.Production.Application.Features.Reliability.Trend.GetReliabilityTrendRequest",
+            "AsistOff.MES.Production.Application.Features.Schedule.GetDispatchBoardRequest",
+            "AsistOff.MES.Production.Application.Features.ScrapEvents.Browse.BrowseScrapEventsRequest",
+            "AsistOff.MES.Production.Application.Features.ScrapEvents.Get.GetScrapEventRequest",
+            "AsistOff.MES.Production.Application.Features.SpcCharacteristics.Browse.BrowseSpcCharacteristicsRequest",
+            "AsistOff.MES.Production.Application.Features.SpcCharacteristics.Get.GetSpcCharacteristicRequest",
+            "AsistOff.MES.Production.Application.Features.SpcMeasurements.Browse.BrowseSpcMeasurementsRequest",
+            "AsistOff.MES.Production.Application.Features.SpcMeasurements.Chart.GetSpcMeasurementChartRequest",
+            "AsistOff.MES.Production.Application.Features.SpcMeasurements.Get.GetSpcMeasurementRequest",
+            "AsistOff.MES.Production.Application.Features.TelemetryReadings.Browse.BrowseTelemetryReadingsRequest",
+            "AsistOff.MES.Production.Application.Features.TelemetryReadings.Export.ExportTelemetryReadingsRequest",
+            "AsistOff.MES.Production.Application.Features.TelemetryReadings.Get.GetTelemetryReadingRequest",
+            "AsistOff.MES.Production.Application.Features.TelemetryReadings.Trend.BrowseTelemetryTrendRequest",
+
+            // Attachments reads — any authenticated tenant user (including the
+            // read-only user role). List and download perform no mutation.
+            "AsistOff.MES.Attachments.Application.Features.Download.DownloadAttachmentRequest",
+            "AsistOff.MES.Attachments.Application.Features.List.ListAttachmentsRequest",
         };
 
     public static bool IsAllowed(Type? requestType) =>

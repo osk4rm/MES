@@ -25,6 +25,12 @@ public static class RbacDefaults
     public const string Configuration = "configuration";
     public const string ConfigurationRead = "configuration.read";
     public const string ConfigurationWrite = "configuration.write";
+    public const string Production = "production";
+    public const string ProductionRead = "production.read";
+    public const string ProductionWrite = "production.write";
+    public const string Attachments = "attachments";
+    public const string AttachmentsRead = "attachments.read";
+    public const string AttachmentsWrite = "attachments.write";
     public const string TenantAdmin = "tenant.admin";
 
     /// <summary>
@@ -38,6 +44,12 @@ public static class RbacDefaults
         Configuration,
         ConfigurationRead,
         ConfigurationWrite,
+        Production,
+        ProductionRead,
+        ProductionWrite,
+        Attachments,
+        AttachmentsRead,
+        AttachmentsWrite,
         TenantAdmin,
     ];
 
@@ -48,6 +60,8 @@ public static class RbacDefaults
     [
         UsersRead,
         ConfigurationRead,
+        ProductionRead,
+        AttachmentsRead,
     ];
 
     public static IReadOnlyList<string> AllPermissionCodes =>

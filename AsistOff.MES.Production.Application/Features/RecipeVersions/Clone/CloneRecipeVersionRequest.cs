@@ -1,5 +1,7 @@
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.Common;
+using AsistOff.MES.Shared.Abstractions.Auth;
+using AsistOff.MES.Users.Core.Rbac;
 
 namespace AsistOff.MES.Production.Application.Features.RecipeVersions.Clone;
 
@@ -8,6 +10,7 @@ namespace AsistOff.MES.Production.Application.Features.RecipeVersions.Clone;
 /// same recipe. Deep-copies operations, dependencies, BOM items, outputs and
 /// resource requirements with freshly generated IDs.
 /// </summary>
+[RequirePermission(RbacDefaults.ProductionWrite)]
 public record CloneRecipeVersionRequest(
     Guid SourceVersionId,
     string? ChangeNotes,

@@ -3,9 +3,12 @@ using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Storage;
 using MediatR;
+using AsistOff.MES.Shared.Abstractions.Auth;
+using AsistOff.MES.Users.Core.Rbac;
 
 namespace AsistOff.MES.Attachments.Application.Features.Delete;
 
+[RequirePermission(RbacDefaults.AttachmentsWrite)]
 public record DeleteAttachmentRequest(Guid Id) : ITenantRequest;
 
 internal sealed class DeleteAttachmentRequestHandler(
