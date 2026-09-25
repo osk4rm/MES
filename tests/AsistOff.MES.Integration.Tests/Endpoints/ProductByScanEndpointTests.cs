@@ -167,7 +167,7 @@ public sealed class ProductByScanEndpointTests(MesApplicationFixture fixture) : 
     {
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
         var code = $"SCAN-{suffix}";
-        var ean = $"590{suffix}01";
+        var ean = UniqueEan();
         var barcode = $"BC-{suffix}";
 
         var create = await client.PostAsJsonAsync(BaseUrl, new
@@ -197,4 +197,34 @@ public sealed class ProductByScanEndpointTests(MesApplicationFixture fixture) : 
         string? Barcode,
         int ScanBy,
         bool IsActive);
+
+    /// <summary>Generates a unique, check-digit-valid EAN-13 (issue #212 rejects invalid EANs with 400).</summary>
+    private static string UniqueEan()
+    {
+        var prefix = new char[12];
+        prefix[0] = '5';
+        prefix[1] = '9';
+        prefix[2] = '0';
+        for (var i = 3; i < 12; i++)
+            prefix[i] = (char)('0' + Random.Shared.Next(10));
+
+        var body = new string(prefix);
+        for (var check = 0; check <= 9; check++)
+        {
+            var candidate = body + check;
+            if (HasValidCheckDigit(candidate))
+                return candidate;
+        }
+
+        throw new InvalidOperationException("Unable to compute an EAN check digit.");
+    }
+
+    private static bool HasValidCheckDigit(string value)
+    {
+        var sum = 0;
+        for (var i = 0; i < value.Length; i++)
+            sum += (value[i] - '0') * ((value.Length - i) % 2 == 0 ? 3 : 1);
+
+        return sum % 10 == 0;
+    }
 }
