@@ -48,12 +48,13 @@ public sealed class ObservabilityEndpointTests(MesApplicationFixture fixture) : 
             var response = await client.GetAsync("/metrics");
 
             // Assert - Prometheus exposition content type plus both the
-            // request duration histogram and its count series.
+            // request duration histogram and its count series. The ASP.NET
+            // Core hosting meter includes the unit infix (_seconds).
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             response.Content.Headers.ContentType?.MediaType.Should().Be("text/plain");
             var body = await response.Content.ReadAsStringAsync();
-            body.Should().Contain("http_server_request_duration");
-            body.Should().Contain("http_server_request_duration_count");
+            body.Should().Contain("http_server_request_duration_seconds_bucket");
+            body.Should().Contain("http_server_request_duration_seconds_count");
         }
         finally
         {
