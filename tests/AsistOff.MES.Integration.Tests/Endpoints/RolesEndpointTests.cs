@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using AsistOff.MES.Integration.Tests.Infrastructure;
 using AsistOff.MES.Integration.Tests.TestData;
-using AsistOff.MES.Shared.Infrastructure.Auth;
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
@@ -325,7 +324,9 @@ public sealed class RolesEndpointTests(MesApplicationFixture fixture) : Integrat
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return MesApplicationFixture.ExtractCookie(response, AuthCookies.AccessCookieName);
+        var accessToken = AuthCookieHelper.GetAccessToken(response);
+        accessToken.Should().NotBeNullOrWhiteSpace();
+        return accessToken!;
     }
 
     private async Task<HttpClient> ClientForAsync(string email, string password)
@@ -425,4 +426,6 @@ public sealed class RolesEndpointTests(MesApplicationFixture fixture) : Integrat
             _ => new List<string>()
         };
     }
+
+
 }

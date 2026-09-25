@@ -102,19 +102,21 @@ public static class Extensions
 
                 o.Events = new JwtBearerEvents
                 {
+                    // Cookie transition (issue #241): accept the httpOnly
+                    // access cookie when no Authorization header is present,
+                    // so cookie-only callers authenticate. Header callers
+                    // keep working unchanged — the header wins when both are
+                    // present.
                     OnMessageReceived = context =>
                     {
-                        // Cookie transport (tracker slice #241): accept the httpOnly
-                        // access cookie alongside the Authorization header during
-                        // transition, so cookie-only callers authenticate without
-                        // JavaScript ever touching a token. The header wins when
-                        // both are present.
-                        if (string.IsNullOrEmpty(context.Token) &&
-                            context.Request.Cookies.TryGetValue(AuthCookies.AccessCookieName, out var cookieToken) &&
-                            !string.IsNullOrWhiteSpace(cookieToken))
+                        var authorization = context.Request.Headers.Authorization.ToString();
+                        if (string.IsNullOrWhiteSpace(authorization)
+                            && context.Request.Cookies.TryGetValue(AuthCookies.AccessCookieName, out var cookieToken)
+                            && !string.IsNullOrWhiteSpace(cookieToken))
                         {
                             context.Token = cookieToken;
                         }
+
                         return Task.CompletedTask;
                     },
                     OnTokenValidated = context =>

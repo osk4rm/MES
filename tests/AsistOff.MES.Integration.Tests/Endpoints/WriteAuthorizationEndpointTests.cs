@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AsistOff.MES.Integration.Tests.Infrastructure;
 using AsistOff.MES.Integration.Tests.TestData;
-using AsistOff.MES.Shared.Infrastructure.Auth;
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
@@ -130,8 +129,7 @@ public sealed class WriteAuthorizationEndpointTests(MesApplicationFixture fixtur
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var accessToken = MesApplicationFixture.ExtractCookie(response, AuthCookies.AccessCookieName);
-        accessToken.Should().NotBeNullOrWhiteSpace();
+        AuthCookieHelper.GetAccessToken(response).Should().NotBeNullOrWhiteSpace();
     }
 
     private async Task<string> SignInAsync(string email, string password)
@@ -140,7 +138,9 @@ public sealed class WriteAuthorizationEndpointTests(MesApplicationFixture fixtur
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return MesApplicationFixture.ExtractCookie(response, AuthCookies.AccessCookieName);
+        var accessToken = AuthCookieHelper.GetAccessToken(response);
+        accessToken.Should().NotBeNullOrWhiteSpace();
+        return accessToken!;
     }
 
     private async Task<HttpClient> ClientForAsync(string email, string password)

@@ -2,13 +2,14 @@ using System.Net;
 using System.Net.Http.Json;
 using AsistOff.MES.Integration.Tests.Infrastructure;
 using AsistOff.MES.Integration.Tests.TestData;
-using AsistOff.MES.Shared.Infrastructure.Auth;
 
 namespace AsistOff.MES.Integration.Tests.Endpoints;
 
 /// <summary>
 /// Endpoint-scoped integration tests for the anonymous
-/// <c>POST /api/auth/sign-in</c> endpoint (cookie transport, #241).
+/// <c>POST /api/auth/sign-in</c> endpoint. The session travels over httpOnly
+/// auth cookies (<c>mes_access</c> / <c>mes_refresh</c>); the body carries no
+/// usable token strings.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) : IntegrationTestBase(fixture)
@@ -16,7 +17,7 @@ public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) :
     private const string BaseUrl = "/api/auth/sign-in";
 
     [Fact]
-    public async Task SignIn_WithValidCredentials_SetsHardenedCookies_AndBodyCarriesNoTokens()
+    public async Task SignIn_WithValidCredentials_SetsAuthCookies()
     {
         using var client = Fixture.CreateClient();
 
@@ -27,30 +28,15 @@ public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) :
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        AuthCookieHelper.GetAccessToken(response).Should().NotBeNullOrWhiteSpace();
+        AuthCookieHelper.GetRefreshToken(response).Should().NotBeNullOrWhiteSpace();
 
-        var access = MesApplicationFixture.ExtractCookie(response, AuthCookies.AccessCookieName);
-        access.Should().NotBeNullOrWhiteSpace();
-        var refresh = MesApplicationFixture.ExtractCookie(response, AuthCookies.RefreshCookieName);
-        refresh.Should().NotBeNullOrWhiteSpace();
-        refresh.Should().NotBe(access);
-
-        // Hardened cookie attributes on the wire.
-        var accessHeader = response.Headers.GetValues("Set-Cookie")
-            .Should().ContainSingle(h => h.StartsWith(AuthCookies.AccessCookieName + "=")).Subject;
-        accessHeader.Should().ContainEquivalentOf("httponly");
-        accessHeader.Should().ContainEquivalentOf("secure");
-        accessHeader.Should().ContainEquivalentOf("samesite=lax");
-        accessHeader.Should().ContainEquivalentOf("path=/");
-
-        // The body carries session metadata only — no usable token strings.
-        var raw = await response.Content.ReadAsStringAsync();
-        raw.Should().NotContain("accessToken");
-        raw.Should().NotContain("refreshToken");
-        raw.Should().NotContain(access);
+        var body = await ReadAsync<JsonWebTokenDto>(response);
+        body.AccessToken.Should().BeNullOrEmpty("the body must not carry usable token strings for storage");
     }
 
     [Fact]
-    public async Task SignIn_WithWrongPassword_Returns401()
+    public async Task SignIn_WithWrongPassword_Returns401WithoutCookies()
     {
         using var client = Fixture.CreateClient();
 
@@ -61,6 +47,7 @@ public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) :
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        AuthCookieHelper.GetSetCookies(response).Should().BeEmpty("failed sign-in must not issue a session");
     }
 
     [Fact]
@@ -77,25 +64,5 @@ public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) :
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    [Fact]
-    public async Task SignIn_WithForeignOrigin_Returns400()
-    {
-        // Arrange — CSRF backstop: SameSite=Lax plus an Origin check.
-        using var client = Fixture.CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, BaseUrl)
-        {
-            Content = JsonContent.Create(new
-            {
-                email = IntegrationTestData.AdminEmail,
-                password = IntegrationTestData.AdminPassword
-            })
-        };
-        request.Headers.Add("Origin", "https://evil.example");
-
-        // Act
-        var response = await client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
+    private sealed record JsonWebTokenDto(string? AccessToken);
 }

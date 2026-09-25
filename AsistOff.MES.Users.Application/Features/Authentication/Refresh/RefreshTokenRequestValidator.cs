@@ -7,10 +7,11 @@ public class RefreshTokenRequestValidator : RequestValidator<RefreshTokenRequest
 {
     public RefreshTokenRequestValidator()
     {
-        // RefreshToken is optional at validation: the controller merges the
-        // refresh cookie when the body carries none. When supplied it must be
-        // non-blank; a fully absent token is rejected by the handler with 401
-        // (not 400) so anonymous callers get authentication semantics.
+        // The token may be supplied via the httpOnly refresh cookie instead
+        // of the body (the controller substitutes it before dispatch), so a
+        // missing body token is not a validation failure — the handler
+        // rejects it with AuthenticationException (401). An explicitly
+        // blank body token is still a malformed request.
         When(x => x.RefreshToken is not null, () =>
         {
             RuleFor(x => x.RefreshToken!)

@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AsistOff.MES.Integration.Tests.TestData;
-using AsistOff.MES.Shared.Infrastructure.Auth;
 using Testcontainers.PostgreSql;
 
 namespace AsistOff.MES.Integration.Tests.Infrastructure;
@@ -62,9 +61,10 @@ public sealed class MesApplicationFixture : IAsyncLifetime
 
     /// <summary>
     /// Signs in as the given user and returns a client with the bearer token set.
-    /// Cookie transport (#241): the sign-in body carries no tokens, so the
-    /// access token is read from the <c>mes_access</c> Set-Cookie and replayed
-    /// as a header — proving header callers keep working during transition.
+    /// Sign-in issues the session over httpOnly cookies (no usable tokens in the
+    /// body), so the access JWT is read back from the <c>mes_access</c>
+    /// <c>Set-Cookie</c> header and presented as a header — proving the
+    /// header transport keeps working during the cookie transition.
     /// </summary>
     public async Task<HttpClient> CreateAuthenticatedClientAsync(string email, string password)
     {
@@ -74,33 +74,12 @@ public sealed class MesApplicationFixture : IAsyncLifetime
 
         response.EnsureSuccessStatusCode();
 
-        var accessToken = ExtractCookie(response, AuthCookies.AccessCookieName);
+        var accessToken = AuthCookieHelper.GetAccessToken(response);
+        accessToken.Should().NotBeNullOrWhiteSpace();
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", accessToken);
 
         return client;
-    }
-
-    /// <summary>
-    /// Extracts a cookie value from the <c>Set-Cookie</c> response headers,
-    /// independent of cookie-container <c>Secure</c> handling.
-    /// </summary>
-    public static string ExtractCookie(HttpResponseMessage response, string name)
-    {
-        if (response.Headers.TryGetValues("Set-Cookie", out var values))
-        {
-            foreach (var header in values)
-            {
-                var pair = header.Split(';', 2)[0];
-                var separator = pair.IndexOf('=');
-                if (separator > 0 && pair[..separator].Trim() == name)
-                {
-                    return pair[(separator + 1)..].Trim();
-                }
-            }
-        }
-
-        throw new InvalidOperationException($"Expected Set-Cookie '{name}' in the response.");
     }
 
     /// <summary>

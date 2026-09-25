@@ -1,17 +1,14 @@
-using AsistOff.MES.Shared.Abstractions.Auth;
-using AsistOff.MES.Shared.Abstractions.Exceptions;
 using Microsoft.AspNetCore.Http;
 
 namespace AsistOff.MES.Shared.Infrastructure.Auth;
 
 /// <summary>
-/// httpOnly cookie transport for auth tokens (tracker slice #241, ADR-0003).
-/// Manufacturing customers run shared shopfloor terminals where JWTs in
-/// browser <c>localStorage</c> are exposed to XSS theft, so access and refresh
-/// tokens travel in <c>HttpOnly</c> cookies that JavaScript can never read.
-/// The <c>Authorization</c> header keeps working during transition (see the
-/// <c>OnMessageReceived</c> fallback in <see cref="Extensions"/>); cookie-only
-/// callers are first-class.
+/// HttpOnly cookie transport for auth tokens (issue #241, slice 1 of 2).
+/// Shopfloor terminals share browsers where JWTs in <c>localStorage</c> are
+/// exposed to XSS theft (ADR-0003 known limitation), so the session moves
+/// into httpOnly cookies that JavaScript can never read. The
+/// <c>Authorization</c> header keeps working during transition (see
+/// <c>Extensions.AddAuth</c>); the Web frontend migrates in slice 2.
 /// </summary>
 public static class AuthCookies
 {
@@ -21,128 +18,92 @@ public static class AuthCookies
     /// <summary>Opaque server-side refresh token cookie.</summary>
     public const string RefreshCookieName = "mes_refresh";
 
-    private const string BearerPrefix = "Bearer ";
-
     /// <summary>
-    /// Lifetime of the access cookie, mirroring the access-token lifetime
-    /// (<see cref="AuthOptions.Expiry"/> takes precedence for backwards
-    /// compatibility, otherwise <see cref="AuthOptions.AccessTokenLifetime"/> —
-    /// same precedence as <c>AuthManager</c> token creation).
+    /// Effective lifetime of the access cookie. Honors the legacy
+    /// <c>auth:Expiry</c> override for backwards compatibility, otherwise the
+    /// configured <c>auth:AccessTokenLifetime</c>.
     /// </summary>
-    public static TimeSpan GetAccessCookieLifetime(AuthOptions options)
+    public static TimeSpan GetAccessLifetime(AuthOptions options)
         => options.Expiry != TimeSpan.Zero ? options.Expiry : options.AccessTokenLifetime;
 
     /// <summary>
-    /// Hardened options for the access cookie: <c>HttpOnly</c>, <c>Secure</c>,
-    /// <c>SameSite=Lax</c>, <c>Path=/</c>, expiring with the access token.
+    /// Builds the hardened options shared by both auth cookies: HttpOnly so
+    /// JavaScript can never read the tokens, Secure so they only travel over
+    /// TLS, SameSite=Lax as the CSRF baseline (plus an Origin check on cookie
+    /// writes in <c>AuthenticationController</c>), and Path=/ so every API
+    /// call carries the session.
     /// </summary>
-    public static CookieOptions BuildAccessOptions(AuthOptions options) => new()
+    public static CookieOptions BuildCookieOptions(TimeSpan lifetime) => new()
     {
         HttpOnly = true,
         Secure = true,
         SameSite = SameSiteMode.Lax,
         Path = "/",
-        IsEssential = true,
-        MaxAge = GetAccessCookieLifetime(options)
+        MaxAge = lifetime,
+        Expires = DateTimeOffset.UtcNow.Add(lifetime)
     };
 
-    /// <summary>
-    /// Hardened options for the refresh cookie: <c>HttpOnly</c>, <c>Secure</c>,
-    /// <c>SameSite=Lax</c>, <c>Path=/</c>, expiring with the refresh token.
-    /// </summary>
-    public static CookieOptions BuildRefreshOptions(AuthOptions options) => new()
-    {
-        HttpOnly = true,
-        Secure = true,
-        SameSite = SameSiteMode.Lax,
-        Path = "/",
-        IsEssential = true,
-        MaxAge = options.RefreshTokenLifetime
-    };
+    /// <summary>Options for the access cookie, expiring with the JWT.</summary>
+    public static CookieOptions BuildAccessCookieOptions(AuthOptions options)
+        => BuildCookieOptions(GetAccessLifetime(options));
+
+    /// <summary>Options for the refresh cookie, expiring with the opaque token.</summary>
+    public static CookieOptions BuildRefreshCookieOptions(AuthOptions options)
+        => BuildCookieOptions(options.RefreshTokenLifetime);
 
     /// <summary>
-    /// Sets fresh access and refresh cookies after sign-in or refresh rotation.
-    /// Takes <see cref="IResponseCookies"/> (rather than <c>HttpResponse</c>)
-    /// so the cookie contract stays unit-testable without a server.
+    /// Issues fresh access + refresh cookies. Cookie lifetimes honor the
+    /// configured token lifetimes so sessions and cookies expire together.
     /// </summary>
-    public static void AppendAuthCookies(IResponseCookies cookies, JsonWebToken tokens, AuthOptions options)
+    public static void AppendAuthCookies(
+        HttpResponse response, string accessToken, string refreshToken, AuthOptions options)
     {
-        ArgumentNullException.ThrowIfNull(cookies);
-        ArgumentNullException.ThrowIfNull(tokens);
-        ArgumentNullException.ThrowIfNull(options);
-
-        cookies.Append(AccessCookieName, tokens.AccessToken, BuildAccessOptions(options));
-        cookies.Append(RefreshCookieName, tokens.RefreshToken, BuildRefreshOptions(options));
+        response.Cookies.Append(AccessCookieName, accessToken, BuildAccessCookieOptions(options));
+        response.Cookies.Append(RefreshCookieName, refreshToken, BuildRefreshCookieOptions(options));
     }
 
     /// <summary>
-    /// Expires both auth cookies on sign-out. The options repeat the original
-    /// <c>Path</c>/<c>SameSite</c>/<c>Secure</c> so browsers match and delete
-    /// the exact cookies that were set.
+    /// Clears both auth cookies with immediately-expired <c>Set-Cookie</c>
+    /// headers (same name, path and flags so browsers drop them).
     /// </summary>
-    public static void ClearAuthCookies(IResponseCookies cookies)
+    public static void ClearAuthCookies(HttpResponse response)
     {
-        ArgumentNullException.ThrowIfNull(cookies);
-
         var expired = new CookieOptions
         {
             HttpOnly = true,
             Secure = true,
             SameSite = SameSiteMode.Lax,
             Path = "/",
-            IsEssential = true,
-            Expires = DateTimeOffset.UnixEpoch,
-            MaxAge = TimeSpan.Zero
+            MaxAge = TimeSpan.Zero,
+            Expires = new DateTimeOffset(1970, 1, 1, 0, 0, 0, TimeSpan.Zero)
         };
 
-        cookies.Append(AccessCookieName, string.Empty, expired);
-        cookies.Append(RefreshCookieName, string.Empty, expired);
+        response.Cookies.Append(AccessCookieName, string.Empty, expired);
+        response.Cookies.Append(RefreshCookieName, string.Empty, expired);
     }
 
     /// <summary>
-    /// Resolves the ambient access token for binding checks: the
-    /// <c>Authorization: Bearer</c> header wins when present, otherwise the
-    /// access cookie. Returns <c>null</c> when neither carries a token.
+    /// CSRF guard for cookie-writing auth endpoints. SameSite=Lax already
+    /// blocks cross-site POSTs from third-party contexts; this additionally
+    /// rejects requests whose <c>Origin</c> host differs from the request
+    /// host. Requests without an <c>Origin</c> header (same-origin form posts,
+    /// non-browser clients, TestServer) are allowed. Ports are intentionally
+    /// ignored so the local Vite dev server (<c>localhost:5173</c>) can call
+    /// the API (<c>localhost:5080</c>) on the same host.
     /// </summary>
-    public static string? GetAccessToken(string? authorizationHeader, string? accessCookie)
+    public static bool IsOriginAllowed(HttpRequest request)
     {
-        if (!string.IsNullOrWhiteSpace(authorizationHeader) &&
-            authorizationHeader.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
+        var origin = request.Headers.Origin.ToString();
+        if (string.IsNullOrWhiteSpace(origin))
         {
-            var token = authorizationHeader[BearerPrefix.Length..].Trim();
-            if (!string.IsNullOrWhiteSpace(token))
-            {
-                return token;
-            }
+            return true;
         }
 
-        return string.IsNullOrWhiteSpace(accessCookie) ? null : accessCookie;
-    }
-
-    /// <summary>
-    /// CSRF backstop for the cookie-writing endpoints (<c>sign-in</c>,
-    /// <c>refresh</c>, <c>sign-out</c>), complementing <c>SameSite=Lax</c>.
-    /// Non-browser callers send no <c>Origin</c> header and pass untouched;
-    /// when the header is present its host must equal the request host,
-    /// otherwise the request is rejected with 400. Ports and schemes are
-    /// deliberately ignored so same-host dev proxies keep working.
-    /// </summary>
-    /// <exception cref="ValidationException">Origin host differs from the request host, or is malformed.</exception>
-    public static void RequireSameOrigin(string? originHeader, string? requestHost)
-    {
-        if (string.IsNullOrWhiteSpace(originHeader))
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri))
         {
-            return;
+            return false;
         }
 
-        if (!Uri.TryCreate(originHeader, UriKind.Absolute, out var originUri))
-        {
-            throw new ValidationException("Invalid Origin header");
-        }
-
-        if (!string.Equals(originUri.Host, requestHost, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ValidationException("Cross-origin request rejected");
-        }
+        return string.Equals(originUri.Host, request.Host.Host, StringComparison.OrdinalIgnoreCase);
     }
 }

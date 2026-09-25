@@ -69,16 +69,29 @@ try
         {
             if (allowedOrigins.Length > 0)
             {
+                // AllowCredentials is required for the httpOnly auth-cookie
+                // transport (issue #241): browsers only send cookies
+                // cross-origin when the server opts in.
                 policy.WithOrigins(allowedOrigins)
                     .AllowAnyMethod()
                     .AllowAnyHeader()
+                    .AllowCredentials()
                     .WithExposedHeaders("Content-Disposition");
             }
             else if (builder.Environment.IsDevelopment())
             {
-                policy.AllowAnyOrigin()
+                // Dev fallback without configured origins: mirror the above
+                // but reflect any origin. SetIsOriginAllowed (instead of
+                // AllowAnyOrigin) is required — ASP.NET Core refuses
+                // AllowAnyOrigin combined with AllowCredentials.
+                // NOTE: reflecting any origin together with AllowCredentials
+                // is dev-only. Production requires explicit cors:allowedOrigins
+                // (see the branch above); never enable this wildcard with
+                // credentials outside Development.
+                policy.SetIsOriginAllowed(_ => true)
                     .AllowAnyMethod()
                     .AllowAnyHeader()
+                    .AllowCredentials()
                     .WithExposedHeaders("Content-Disposition");
             }
             else

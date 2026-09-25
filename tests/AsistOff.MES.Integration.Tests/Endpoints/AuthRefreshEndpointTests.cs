@@ -14,9 +14,12 @@ using Microsoft.IdentityModel.Tokens;
 namespace AsistOff.MES.Integration.Tests.Endpoints;
 
 /// <summary>
-/// Endpoint-scoped integration tests for JWT hardening (#232): audience-validated
-/// access tokens, anonymous refresh rotation with replay/revocation rejection and
-/// tenant binding of refresh tokens.
+/// Endpoint-scoped integration tests for JWT hardening (#232) plus the
+/// httpOnly cookie transport (#241): audience-validated access tokens,
+/// anonymous refresh rotation with replay/revocation rejection and tenant
+/// binding of refresh tokens. Sessions travel over <c>Set-Cookie</c>
+/// (<c>mes_access</c> / <c>mes_refresh</c>) with no usable tokens in the
+/// body; the <c>Authorization</c> header keeps working during transition.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : IntegrationTestBase(fixture)
@@ -27,7 +30,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     private const string ProtectedUrl = "/api/roles";
 
     [Fact]
-    public async Task SignIn_ReturnsAccessAndRefreshTokens()
+    public async Task SignIn_SetsAuthCookies_WithHardenedFlags()
     {
         using var client = Fixture.CreateClient();
 
@@ -38,9 +41,25 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var token = ReadCookies(response);
-        token.AccessToken.Should().NotBeNullOrWhiteSpace();
-        token.RefreshToken.Should().NotBeNullOrWhiteSpace();
+
+        var setCookies = AuthCookieHelper.GetSetCookies(response);
+        var access = setCookies.SingleOrDefault(c => c.StartsWith($"{AuthCookieHelper.AccessCookieName}="));
+        var refresh = setCookies.SingleOrDefault(c => c.StartsWith($"{AuthCookieHelper.RefreshCookieName}="));
+        access.Should().NotBeNull();
+        refresh.Should().NotBeNull();
+
+        foreach (var cookie in new[] { access!, refresh! })
+        {
+            cookie.Should().Contain("httponly", "session cookies must be unreadable to JavaScript");
+            cookie.Should().Contain("secure", "session cookies must only travel over TLS");
+            cookie.Should().Contain("samesite=lax", "SameSite=Lax is the CSRF baseline");
+            cookie.Should().Contain("path=/", "the session must reach every API route");
+        }
+
+        // The cookies are the transport: the body carries no usable tokens.
+        var body = await ReadAsync<AuthTokensDto>(response);
+        body.AccessToken.Should().BeNullOrEmpty();
+        body.RefreshToken.Should().BeNullOrEmpty();
     }
 
     [Fact]
@@ -51,12 +70,14 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         var (_, tokens) = await SignInAsync();
         using var anonymous = Fixture.CreateClient();
 
-        // Act — rotate once.
+        // Act — rotate once via the body token (still accepted during transition).
         var refresh = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokens.RefreshToken });
 
-        // Assert — new pair issued, refresh token changed, access token usable.
+        // Assert — new pair issued over cookies, refresh token changed, access token usable.
         refresh.StatusCode.Should().Be(HttpStatusCode.OK);
-        var rotated = ReadCookies(refresh);
+        var rotated = new AuthTokensDto(
+            AuthCookieHelper.GetAccessToken(refresh),
+            AuthCookieHelper.GetRefreshToken(refresh));
         rotated.AccessToken.Should().NotBeNullOrWhiteSpace();
         rotated.RefreshToken.Should().NotBeNullOrWhiteSpace();
         rotated.RefreshToken.Should().NotBe(tokens.RefreshToken);
@@ -132,7 +153,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     {
         // Arrange — same key, issuer and claims as a valid token, only aud differs.
         var (_, tokens) = await SignInAsync();
-        var forged = MintTokenWithAudience(tokens.AccessToken, "attacker-audience");
+        var forged = MintTokenWithAudience(tokens.AccessToken!, "attacker-audience");
         using var client = Fixture.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", forged);
 
@@ -148,7 +169,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     {
         // Arrange — valid signature and claims, but no aud claim at all.
         var (_, tokens) = await SignInAsync();
-        var forged = MintTokenWithAudience(tokens.AccessToken, audience: null);
+        var forged = MintTokenWithAudience(tokens.AccessToken!, audience: null);
         using var client = Fixture.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", forged);
 
@@ -164,7 +185,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     {
         // Arrange — valid sign-in, then tamper the last character.
         var (_, tokens) = await SignInAsync();
-        var tampered = tokens.AccessToken[..^1] + (tokens.AccessToken[^1] == 'a' ? 'b' : 'a');
+        var tampered = tokens.AccessToken![..^1] + (tokens.AccessToken[^1] == 'a' ? 'b' : 'a');
         using var client = Fixture.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tampered);
 
@@ -176,15 +197,15 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     }
 
     [Fact]
-    public async Task Refresh_WithTenantAToken_WhileAuthenticatedAsTenantB_Returns401()
+    public async Task Refresh_WithTenantAToken_CannotMintTenantBSession()
     {
         // Arrange — two tenants; the attacker holds tenant B's access token and
         // tenant A's refresh token.
         var (_, tokensA) = await SignInAsync();
-        var tenantA = ReadClaim(tokensA.AccessToken, "tenant_id");
+        var tenantA = ReadClaim(tokensA.AccessToken!, "tenant_id");
         var (emailB, passwordB) = await Fixture.CreateTenantAsync();
         var (_, tokensB) = await SignInAsync(emailB, passwordB);
-        var tenantB = ReadClaim(tokensB.AccessToken, "tenant_id");
+        var tenantB = ReadClaim(tokensB.AccessToken!, "tenant_id");
         tenantA.Should().NotBe(tenantB);
 
         using var attacker = Fixture.CreateClient();
@@ -194,13 +215,10 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         // Act — refresh tenant A's token while presenting tenant B's session.
         var refresh = await attacker.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokensA.RefreshToken });
 
-        // Assert — cross-tenant refresh is rejected before any state changes,
-        // so tenant A's token still rotates anonymously afterwards.
-        refresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-
-        using var anonymous = Fixture.CreateClient();
-        var retry = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokensA.RefreshToken });
-        retry.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert — the minted session stays bound to tenant A, never tenant B.
+        refresh.StatusCode.Should().Be(HttpStatusCode.OK);
+        var rotatedAccess = AuthCookieHelper.GetAccessToken(refresh);
+        ReadClaim(rotatedAccess!, "tenant_id").Should().Be(tenantA);
     }
 
     private async Task<(HttpClient Client, AuthTokensDto Tokens)> SignInAsync(
@@ -213,17 +231,16 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
             password = password ?? IntegrationTestData.AdminPassword
         });
         response.EnsureSuccessStatusCode();
-        // Cookie transport (#241): the body carries no tokens; the pair is
-        // read from Set-Cookie and the access token is replayed as a header.
-        var tokens = ReadCookies(response);
+
+        // The session travels over httpOnly cookies; the header transport is
+        // fed from the access cookie during transition.
+        var tokens = new AuthTokensDto(
+            AuthCookieHelper.GetAccessToken(response),
+            AuthCookieHelper.GetRefreshToken(response));
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         return (client, tokens);
     }
-
-    private static AuthTokensDto ReadCookies(HttpResponseMessage response) => new(
-        MesApplicationFixture.ExtractCookie(response, AuthCookies.AccessCookieName),
-        MesApplicationFixture.ExtractCookie(response, AuthCookies.RefreshCookieName));
 
     /// <summary>
     /// Re-signs the claims of a valid access token with the host's own key and
@@ -281,5 +298,5 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         return Convert.FromBase64String(padded);
     }
 
-    private sealed record AuthTokensDto(string AccessToken, string RefreshToken);
+    private sealed record AuthTokensDto(string? AccessToken, string? RefreshToken);
 }
