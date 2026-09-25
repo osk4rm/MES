@@ -16,9 +16,11 @@ namespace AsistOff.MES.Integration.Tests.Infrastructure;
 /// Boots the real Gateway host (<see cref="Program"/>) against a Testcontainers
 /// PostgreSQL database. The application starts exactly as it does locally
 /// (Development environment, dev seeder, appsettings.Development.json) - the
-/// only changes are that both EF Core contexts are pointed at the container
-/// and the telemetry simulator poller is disabled so background writes can
-/// never make endpoint assertions flaky.
+/// only changes are that both EF Core contexts are pointed at the container,
+/// the telemetry simulator poller is disabled so background writes can
+/// never make endpoint assertions flaky, and the abuse-protection throttle
+/// budgets are raised so the shared suite can never trip the limiter
+/// (isolated 429 tests opt back into tiny budgets via configureProtection).
 /// </summary>
 public sealed class MesWebApplicationFactory(
     string connectionString,
@@ -52,9 +54,23 @@ public sealed class MesWebApplicationFactory(
             // (live/stale, never-seen) would be timing dependent.
             services.Configure<OpcUaPollingOptions>(options => options.PollingEnabled = false);
 
+            // Abuse protection: the shared suite performs hundreds of sign-in
+            // and tenant-create calls from a single TestServer IP, which would
+            // trip the production budgets (100 sign-ins / 60 creates per
+            // minute). Raise them to a level the suite can never reach; hosts
+            // needing tiny budgets (the 429 tests) pass configureProtection,
+            // which runs after this default so it wins for that host only.
+            services.Configure<AbuseProtectionOptions>(options =>
+            {
+                options.SignIn.PermitLimit = 10000;
+                options.SignIn.WindowSeconds = 60;
+                options.TenantCreate.PermitLimit = 10000;
+                options.TenantCreate.WindowSeconds = 60;
+            });
+
             // Abuse-protection overrides (e.g. tiny throttle budgets for the
-            // 429 tests) run after the production RateLimiting binding, so
-            // the values set here win for this host only.
+            // 429 tests) run after the default above, so the values set here
+            // win for this host only.
             if (configureProtection is not null)
             {
                 services.Configure(configureProtection);

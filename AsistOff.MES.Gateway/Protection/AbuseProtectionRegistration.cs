@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using AsistOff.MES.Shared.Infrastructure.Protection;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 
 namespace AsistOff.MES.Gateway.Protection;
 
@@ -9,6 +10,10 @@ namespace AsistOff.MES.Gateway.Protection;
 /// anonymous bootstrap endpoints (sign-in, tenant self-registration).
 /// Everything else bypasses the limiter via a no-op partition, so
 /// authenticated traffic is never throttled.
+///
+/// Budgets are resolved from <see cref="IOptionsMonitor{AbuseProtectionOptions}"/>
+/// at request time (never snapshotted at startup) so test hosts can override
+/// them via <c>services.Configure</c> after the production binding.
 /// </summary>
 public static class AbuseProtectionRegistration
 {
@@ -16,9 +21,6 @@ public static class AbuseProtectionRegistration
     {
         services.Configure<AbuseProtectionOptions>(
             configuration.GetSection(AbuseProtectionOptions.SectionName));
-
-        var budgets = configuration.GetSection(AbuseProtectionOptions.SectionName).Get<AbuseProtectionOptions>()
-            ?? new AbuseProtectionOptions();
 
         services.AddRateLimiter(options =>
         {
@@ -28,6 +30,9 @@ public static class AbuseProtectionRegistration
             {
                 if (!context.HttpContext.Response.HasStarted)
                 {
+                    var budgets = context.HttpContext.RequestServices
+                        .GetRequiredService<IOptionsMonitor<AbuseProtectionOptions>>()
+                        .CurrentValue;
                     context.HttpContext.Response.Headers.RetryAfter =
                         ResolveRetryAfterSeconds(context, budgets).ToString();
                 }
@@ -40,6 +45,9 @@ public static class AbuseProtectionRegistration
                 var scope = AbuseProtectionPolicy.MatchScope(context.Request);
                 if (scope == AbuseProtectionPolicy.SignInScope)
                 {
+                    var budgets = context.RequestServices
+                        .GetRequiredService<IOptionsMonitor<AbuseProtectionOptions>>()
+                        .CurrentValue;
                     return RateLimitPartition.GetFixedWindowLimiter(
                         AbuseProtectionPolicy.BuildPartitionKey(context, scope),
                         _ => FixedWindow(budgets.SignIn));
@@ -47,6 +55,9 @@ public static class AbuseProtectionRegistration
 
                 if (scope == AbuseProtectionPolicy.TenantCreateScope)
                 {
+                    var budgets = context.RequestServices
+                        .GetRequiredService<IOptionsMonitor<AbuseProtectionOptions>>()
+                        .CurrentValue;
                     return RateLimitPartition.GetFixedWindowLimiter(
                         AbuseProtectionPolicy.BuildPartitionKey(context, scope),
                         _ => FixedWindow(budgets.TenantCreate));
