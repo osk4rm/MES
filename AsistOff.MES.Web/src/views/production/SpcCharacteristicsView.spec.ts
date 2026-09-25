@@ -294,4 +294,32 @@ describe('SpcCharacteristicsView measurements dialog', () => {
     expect(wrapper.findAll('.modal-stub')).toHaveLength(0);
     expect(wrapper.find('[data-testid="spc-chart-svg"]').exists()).toBe(false);
   });
+
+  it('renders the log table in ascending time order even when the browse payload is unsorted', async () => {
+    const early = measurementRow({
+      id: 'measurement-early',
+      value: 10.1,
+      measuredAt: new Date('2026-09-24T10:00:00Z').toISOString()
+    });
+    const late = measurementRow({
+      id: 'measurement-late',
+      value: 12,
+      measuredAt: new Date('2026-09-24T10:05:00Z').toISOString()
+    });
+    // Payload arrives late-first; the view must still render early-first.
+    browseMeasurementsMock.mockResolvedValue({ items: [late, early], totalCount: 2, totalPages: 1 } as never);
+    getChartMock.mockResolvedValue(chartPayload() as never);
+
+    const wrapper = mountCharacteristics();
+    await flushPromises();
+    await openMeasurementsDialog(wrapper);
+
+    const logRows = wrapper.findAll('.app-table__row');
+    // First row is the characteristic row; the rest belong to the log table.
+    expect(logRows.length).toBeGreaterThanOrEqual(3);
+    const logTexts = logRows.slice(1).map((r) => r.text());
+    expect(logTexts).toHaveLength(2);
+    expect(logTexts[0]).toContain('10.1');
+    expect(logTexts[1]).toContain('12');
+  });
 });
