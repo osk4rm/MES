@@ -70,6 +70,7 @@ import AppInput from '../components/ui/AppInput.vue';
 import AppFormField from '../components/ui/AppFormField.vue';
 import AppButton from '../components/ui/AppButton.vue';
 import { signIn } from '../services/authService';
+import { resolveSafeRedirect } from '../composables/useSafeRedirect';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import { extractErrorMessage } from '../services/http';
@@ -94,7 +95,7 @@ async function onSubmit() {
     authStore.setAuth(response.accessToken ?? '', { email: email.value });
     toast.success(t('auth.signInSuccess'));
     const redirect = route.query['redirect'];
-    await router.push(typeof redirect === 'string' && redirect.startsWith('/') ? redirect : '/dashboard');
+    await router.push(resolveSafeRedirect(redirect));
   } catch (err) {
     toast.error(extractErrorMessage(err, t('auth.signInError')));
   } finally {
