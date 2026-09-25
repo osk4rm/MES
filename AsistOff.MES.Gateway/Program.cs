@@ -6,6 +6,7 @@ using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure;
 using AsistOff.MES.Shared.Infrastructure.Extensions;
 using AsistOff.MES.Shared.Infrastructure.Health;
+using AsistOff.MES.Shared.Infrastructure.Observability;
 using AsistOff.MES.Shared.Infrastructure.Protection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
@@ -62,6 +63,10 @@ try
 
     builder.Services.AddExceptionHandling();
 
+    // OpenTelemetry traces/metrics (issue #252): OTLP export when an endpoint
+    // is configured, Prometheus exposition when enabled, no-op otherwise.
+    builder.Services.AddMesObservability(builder.Configuration);
+
     builder.Services.AddAbuseProtection(builder.Configuration);
 
     var allowedOrigins = builder.Configuration.GetSection("cors:allowedOrigins").Get<string[]>() ?? [];
@@ -104,6 +109,12 @@ try
 
     var app = builder.Build();
 
+    // Correlation id first (bridge for issue #251): every response echoes the
+    // effective X-Correlation-ID, and downstream middleware / handlers see it
+    // in HttpContext.Items, Serilog LogContext and the active trace. Runs
+    // before tenant resolution and never reads tenant state.
+    app.UseMiddleware<CorrelationIdMiddleware>();
+
     // Security headers first: every API response (including error responses
     // from the exception handler) carries nosniff / CSP / Referrer-Policy
     // and, over TLS, HSTS.
@@ -120,7 +131,8 @@ try
             diagnosticContext.Set("RequestScheme", httpContext.Request.Scheme);
             diagnosticContext.Set("ClientIp", httpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty);
             diagnosticContext.Set("UserAgent", httpContext.Request.Headers.UserAgent.ToString());
-            diagnosticContext.Set("CorrelationId", httpContext.TraceIdentifier);
+            diagnosticContext.Set("CorrelationId",
+                CorrelationIdHelper.GetEffectiveCorrelationId(httpContext) ?? httpContext.TraceIdentifier);
 
             var tenantAccessor = httpContext.RequestServices.GetService<ICurrentTenantAccessor>();
             if (tenantAccessor is not null && tenantAccessor.TryGetTenantId(out var tenantId))
@@ -172,6 +184,9 @@ try
     app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
+    // Prometheus scrape endpoint (issue #252): mapped only when
+    // Observability:PrometheusEnabled is true; otherwise GET /metrics is 404.
+    app.UseMesObservability();
     // Health probes for container orchestrators (issue #249). All three are
     // anonymous infrastructure endpoints with no tenant context: orchestrators
     // call them with no user or tenant. AllowAnonymous makes the opt-out

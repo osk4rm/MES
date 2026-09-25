@@ -1,0 +1,190 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using AsistOff.MES.Integration.Tests.Infrastructure;
+
+namespace AsistOff.MES.Integration.Tests.Endpoints;
+
+/// <summary>
+/// Endpoint-scoped integration tests for the observability slice (issue
+/// #252): the <c>X-Correlation-ID</c> bridge (echo on every response,
+/// <c>traceId</c> in error envelopes), the Prometheus scrape endpoint
+/// (200 with exposition content when enabled, 404 when disabled), OTLP
+/// no-op boot, and the tenant-read auth regression guard.
+/// </summary>
+[Collection(IntegrationCollection.Name)]
+public sealed class ObservabilityEndpointTests(MesApplicationFixture fixture) : IntegrationTestBase(fixture)
+{
+    private const string CorrelationHeader = "X-Correlation-ID";
+
+    [Fact]
+    public async Task Request_WithoutCorrelationId_ReturnsEchoedGuid()
+    {
+        // Arrange - anonymous client, no correlation header.
+        using var client = Fixture.CreateClient();
+
+        // Act
+        var response = await client.GetAsync("/health/live");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var echoed = GetCorrelationId(response);
+        Guid.TryParse(echoed, out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Request_WithValidCorrelationId_EchoesItVerbatim()
+    {
+        // Arrange
+        using var client = Fixture.CreateClient();
+        var correlationId = Guid.NewGuid().ToString();
+        client.DefaultRequestHeaders.Add(CorrelationHeader, correlationId);
+
+        // Act
+        var response = await client.GetAsync("/health/live");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        GetCorrelationId(response).Should().Be(correlationId);
+    }
+
+    [Fact]
+    public async Task Request_WithInvalidCorrelationId_ReplacesItWithFreshGuid()
+    {
+        // Arrange
+        using var client = Fixture.CreateClient();
+        client.DefaultRequestHeaders.Add(CorrelationHeader, "not-a-guid");
+
+        // Act
+        var response = await client.GetAsync("/health/live");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var echoed = GetCorrelationId(response);
+        echoed.Should().NotBe("not-a-guid");
+        Guid.TryParse(echoed, out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ErrorResponse_ContainsTraceIdMatchingCorrelationHeader()
+    {
+        // Arrange - authenticated client asking for a product that cannot exist.
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var correlationId = Guid.NewGuid().ToString();
+        client.DefaultRequestHeaders.Add(CorrelationHeader, correlationId);
+
+        // Act
+        var response = await client.GetAsync($"/api/products/{Guid.NewGuid()}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        GetCorrelationId(response).Should().Be(correlationId);
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.TryGetProperty("traceId", out var traceId).Should().BeTrue();
+        traceId.GetString().Should().Be(correlationId);
+    }
+
+    [Fact]
+    public async Task MetricsEndpoint_WhenDisabled_Returns404()
+    {
+        // Arrange - the shared host runs with PrometheusEnabled=false.
+        using var client = Fixture.CreateClient();
+
+        // Act
+        var response = await client.GetAsync("/metrics");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task MetricsEndpoint_WhenEnabled_ReturnsPrometheusExposition()
+    {
+        // Arrange - an isolated host with the scrape endpoint enabled via the
+        // documented environment override. The suite runs sequentially (the
+        // Integration collection disables parallelization), so process-level
+        // env manipulation is safe as long as it is reverted.
+        Environment.SetEnvironmentVariable("Observability__PrometheusEnabled", "true");
+        try
+        {
+            await using var factory = new MesWebApplicationFactory(Fixture.PostgresConnectionString);
+            using var client = factory.CreateClient();
+
+            // Act - hit a tenant endpoint first so request metrics exist.
+            await client.GetAsync("/health/live");
+            var response = await client.GetAsync("/metrics");
+
+            // Assert
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            response.Content.Headers.ContentType?.MediaType.Should().Be("text/plain");
+            var body = await response.Content.ReadAsStringAsync();
+            body.Should().Contain("http_server_request_duration");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("Observability__PrometheusEnabled", null);
+        }
+    }
+
+    [Fact]
+    public async Task Host_WithOtlpEndpointConfigured_BootsAndServesTraffic()
+    {
+        // Arrange - an isolated host with OTLP export pointed at a local
+        // collector address. Proves the app boots with tracing in export mode
+        // and serves traffic with no startup exception.
+        Environment.SetEnvironmentVariable("Observability__OtlpEndpoint", "http://localhost:4317");
+        try
+        {
+            await using var factory = new MesWebApplicationFactory(Fixture.PostgresConnectionString);
+            using var client = factory.CreateClient();
+
+            // Act
+            var response = await client.GetAsync("/health/live");
+
+            // Assert
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            Guid.TryParse(GetCorrelationId(response), out _).Should().BeTrue();
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("Observability__OtlpEndpoint", null);
+        }
+    }
+
+    [Fact]
+    public async Task AuthenticatedTenantRead_WithObservabilityEnabled_Returns200()
+    {
+        // Arrange
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        // Act
+        var response = await client.GetAsync("/api/products");
+
+        // Assert - no 401 regression with the middleware and SDK enabled.
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Guid.TryParse(GetCorrelationId(response), out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AnonymousSignIn_WithObservabilityEnabled_ReturnsTokens()
+    {
+        // Arrange
+        using var client = Fixture.CreateClient();
+
+        // Act
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/sign-in",
+            new { email = TestData.IntegrationTestData.AdminEmail, password = TestData.IntegrationTestData.AdminPassword });
+
+        // Assert - no auth regression with the middleware and SDK enabled.
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Guid.TryParse(GetCorrelationId(response), out _).Should().BeTrue();
+    }
+
+    private static string GetCorrelationId(HttpResponseMessage response)
+    {
+        response.Headers.TryGetValues(CorrelationHeader, out var values).Should().BeTrue();
+        return values!.Single();
+    }
+}

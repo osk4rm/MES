@@ -1,8 +1,10 @@
 using AsistOff.MES.Shared.Abstractions.Exceptions;
+using AsistOff.MES.Shared.Infrastructure.Observability;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Net;
 
 namespace AsistOff.MES.Shared.Infrastructure.Errors;
@@ -17,6 +19,9 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         logger.LogError(exception, "An exception occurred: {Message}", exception.Message);
 
         var problemDetails = CreateProblemDetails(exception);
+        problemDetails.Extensions["traceId"] = CorrelationIdHelper.GetEffectiveCorrelationId(httpContext)
+            ?? Activity.Current?.Id
+            ?? httpContext.TraceIdentifier;
 
         httpContext.Response.StatusCode = problemDetails.Status ?? (int)HttpStatusCode.InternalServerError;
         httpContext.Response.ContentType = "application/problem+json";

@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using AsistOff.MES.Shared.Infrastructure.Observability;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -80,7 +81,9 @@ namespace AsistOff.MES.Gateway.Errors
                 problemDetails.Type ??= clientErrorData.Link;
             }
 
-            var traceId = Activity.Current?.Id ?? httpContext?.TraceIdentifier;
+            var traceId = CorrelationIdHelper.GetEffectiveCorrelationId(httpContext)
+                ?? Activity.Current?.Id
+                ?? httpContext?.TraceIdentifier;
             if (traceId != null)
             {
                 problemDetails.Extensions["traceId"] = traceId;
