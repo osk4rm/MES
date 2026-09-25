@@ -18,13 +18,20 @@ public class TenantsController : ApiController
         _mediator = mediator;
     }
 
+    /// <summary>
+    /// Anonymous tenant self-registration. Per-IP throttled at the Gateway
+    /// (see abuse-protection rate limiting). Returns only the minimal public
+    /// projection (id, name, active status) — never secrets or settings.
+    /// </summary>
     [HttpPost]
     [AllowAnonymous]
-    public async Task<ActionResult<Guid>> CreateTenant([FromBody] CreateTenantCommand command)
+    public async Task<ActionResult<AnonymousTenantResponse>> CreateTenant(
+        [FromBody] CreateTenantCommand command,
+        CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(command);
+        var result = await _mediator.Send(command, cancellationToken);
 
-        return result;
+        return CreatedAtAction(nameof(GetTenant), new { id = result.Id }, result);
     }
 
     [HttpGet("{id}")]
@@ -35,4 +42,3 @@ public class TenantsController : ApiController
         return result;
     }
 }
-

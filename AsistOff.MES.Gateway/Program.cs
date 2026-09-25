@@ -1,9 +1,11 @@
 using AsistOff.MES.Gateway;
+using AsistOff.MES.Gateway.Protection;
 using AsistOff.MES.Multitenancy;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure;
 using AsistOff.MES.Shared.Infrastructure.Extensions;
+using AsistOff.MES.Shared.Infrastructure.Protection;
 using Serilog;
 
 // Two-stage Serilog initialization. The bootstrap logger captures any failure
@@ -58,6 +60,8 @@ try
 
     builder.Services.AddExceptionHandling();
 
+    builder.Services.AddAbuseProtection(builder.Configuration);
+
     var allowedOrigins = builder.Configuration.GetSection("cors:allowedOrigins").Get<string[]>() ?? [];
     builder.Services.AddCors(options =>
     {
@@ -97,6 +101,11 @@ try
     }
 
     var app = builder.Build();
+
+    // Security headers first: every API response (including error responses
+    // from the exception handler) carries nosniff / CSP / Referrer-Policy
+    // and, over TLS, HSTS.
+    app.UseMiddleware<SecurityHeadersMiddleware>();
 
     // Structured request logging: every HTTP request becomes a single log
     // record with method, path, status, elapsed ms, plus tenant/user/correlation
@@ -155,6 +164,10 @@ try
 
     app.UseHttpsRedirection();
     app.UseCors("DefaultPolicy");
+    // Per-IP fixed-window throttle for the anonymous bootstrap endpoints
+    // (sign-in, tenant self-registration). Must precede authentication so
+    // credential-stuffing bursts are rejected before any credential work.
+    app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapHealthChecks("/health");
