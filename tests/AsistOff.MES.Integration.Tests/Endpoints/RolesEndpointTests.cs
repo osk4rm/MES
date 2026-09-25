@@ -227,19 +227,46 @@ public sealed class RolesEndpointTests(MesApplicationFixture fixture) : Integrat
         var tenantId = await GetTenantIdByEmailAsync(adminEmail);
         var (email, password, _) = await CreateUserWithRoleAsync(tenantId, RbacDefaults.UserRoleCode);
         using var client = await ClientForAsync(email, password);
+        var unknownId = Guid.NewGuid();
 
-        // Act
+        // Act — every role-management endpoint is tenant-admin only.
         var browse = await client.GetAsync(RolesUrl);
+        var get = await client.GetAsync($"{RolesUrl}/{unknownId}");
+        var browsePermissions = await client.GetAsync(PermissionsUrl);
         var create = await client.PostAsJsonAsync(RolesUrl, new
         {
             code = "forbidden",
             name = "Forbidden",
             description = (string?)null
         });
+        var update = await client.PutAsJsonAsync($"{RolesUrl}/{unknownId}", new
+        {
+            id = unknownId,
+            name = "Forbidden",
+            description = (string?)null
+        });
+        var setPermissions = await client.PutAsJsonAsync($"{RolesUrl}/{unknownId}/permissions", new
+        {
+            roleId = unknownId,
+            permissionIds = Array.Empty<Guid>()
+        });
+        var assign = await client.PostAsJsonAsync($"{RolesUrl}/{unknownId}/members", new
+        {
+            roleId = unknownId,
+            userId = unknownId
+        });
+        var unassign = await client.DeleteAsync($"{RolesUrl}/{unknownId}/members/{unknownId}");
 
-        // Assert — role management is tenant-admin only.
+        // Assert — authorization runs before the handler, so even unknown ids
+        // are rejected with 403 rather than leaking existence via 404.
         browse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        get.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        browsePermissions.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         create.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        update.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        setPermissions.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        assign.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        unassign.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -383,9 +410,20 @@ public sealed class RolesEndpointTests(MesApplicationFixture fixture) : Integrat
         var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
         using var document = JsonDocument.Parse(json);
 
-        return document.RootElement.TryGetProperty("permissions", out var permissions)
-            ? permissions.EnumerateArray().Select(e => e.GetString()!).ToList()
-            : new List<string>();
+        if (!document.RootElement.TryGetProperty("permissions", out var permissions))
+        {
+            return new List<string>();
+        }
+
+        // AuthManager emits one Claim per permission, so System.IdentityModel
+        // serializes a single-permission token as a JSON string and a
+        // multi-permission token as an array. Accept both forms.
+        return permissions.ValueKind switch
+        {
+            JsonValueKind.Array => permissions.EnumerateArray().Select(e => e.GetString()!).ToList(),
+            JsonValueKind.String => new List<string> { permissions.GetString()! },
+            _ => new List<string>()
+        };
     }
 
     private sealed record SignInResponse(string AccessToken);

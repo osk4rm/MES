@@ -244,9 +244,20 @@ public sealed class RolePermissionsEndpointTests(MesApplicationFixture fixture) 
         var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
         using var document = JsonDocument.Parse(json);
 
-        return document.RootElement.TryGetProperty("permissions", out var permissions)
-            ? permissions.EnumerateArray().Select(e => e.GetString()!).ToList()
-            : new List<string>();
+        if (!document.RootElement.TryGetProperty("permissions", out var permissions))
+        {
+            return new List<string>();
+        }
+
+        // AuthManager emits one Claim per permission, so System.IdentityModel
+        // serializes a single-permission token as a JSON string and a
+        // multi-permission token as an array. Accept both forms.
+        return permissions.ValueKind switch
+        {
+            JsonValueKind.Array => permissions.EnumerateArray().Select(e => e.GetString()!).ToList(),
+            JsonValueKind.String => new List<string> { permissions.GetString()! },
+            _ => new List<string>()
+        };
     }
 
     /// <summary>Generates a unique, check-digit-valid EAN-13 (issue #212 rejects invalid EANs with 400).</summary>
