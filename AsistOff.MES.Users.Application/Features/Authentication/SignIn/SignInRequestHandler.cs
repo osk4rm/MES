@@ -1,7 +1,9 @@
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Multitenancy.Repositories;
 using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Users.Core.Entities;
+using AsistOff.MES.Users.Core.Rbac;
 using AsistOff.MES.Users.Core.Repositories;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
@@ -13,6 +15,8 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
 {
     private readonly IUsersRepository _usersRepository;
     private readonly ITenantRepository _tenantRepository;
+    private readonly IUserRolesRepository _userRolesRepository;
+    private readonly IRolePermissionsRepository _rolePermissionsRepository;
     private readonly IPasswordHasher<User> _hasher;
     private readonly IAuthManager _authManager;
     private readonly ILogger<SignInRequestHandler> _logger;
@@ -20,12 +24,16 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
     public SignInRequestHandler(
         IUsersRepository usersRepository,
         ITenantRepository tenantRepository,
+        IUserRolesRepository userRolesRepository,
+        IRolePermissionsRepository rolePermissionsRepository,
         IPasswordHasher<User> hasher,
         IAuthManager authManager,
         ILogger<SignInRequestHandler> logger)
     {
         _usersRepository = usersRepository;
         _tenantRepository = tenantRepository;
+        _userRolesRepository = userRolesRepository;
+        _rolePermissionsRepository = rolePermissionsRepository;
         _hasher = hasher;
         _authManager = authManager;
         _logger = logger;
@@ -61,7 +69,7 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
             throw new AuthenticationException("Tenant is not active. Please contact your administrator.");
         }
 
-        var permissions = ResolvePermissions(user);
+        var permissions = await ResolvePermissionsAsync(user, cancellationToken);
 
         var claims = new Dictionary<string, IEnumerable<string>>
         {
@@ -88,21 +96,42 @@ public class SignInRequestHandler : IRequestHandler<SignInRequest, JsonWebToken>
     }
 
     /// <summary>
-    /// Temporary permission resolution. Until a proper RBAC model (Roles / Permissions tables)
-    /// is introduced, permissions are derived from the <see cref="User.IsTenantAdmin"/> flag.
+    /// Materialises the permissions claim from the user's role assignments
+    /// through the tenant-scoped <c>UserRole → RolePermission</c> links.
+    /// Users without an explicit role assignment (e.g. users predating the
+    /// RBAC schema) fall back to the seeded parity sets derived from
+    /// <see cref="User.IsTenantAdmin"/>, so sign-in behavior is unchanged
+    /// for them. The lookup runs inside an explicit tenant scope for the
+    /// caller's tenant, so the tenant-filtered repositories (global query
+    /// filter, no <c>IgnoreQueryFilters</c>) can never leak another tenant's
+    /// role assignments into the claim.
     /// </summary>
-    private static IEnumerable<string> ResolvePermissions(User user) =>
-        user.IsTenantAdmin
-            ? new[]
+    private async Task<IReadOnlyList<string>> ResolvePermissionsAsync(User user, CancellationToken cancellationToken)
+    {
+        using (BackgroundTenantContext.BeginScope(user.TenantId))
+        {
+            var assignments = await _userRolesRepository.BrowseByUserAsync(user.Id, cancellationToken);
+
+            if (assignments.Count == 0)
             {
-                "users", "users.read", "users.write",
-                "configuration", "configuration.read", "configuration.write",
-                "tenant.admin"
+                return user.IsTenantAdmin ? RbacDefaults.AdminPermissions : RbacDefaults.UserPermissions;
             }
-            : new[]
+
+            var permissions = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (var assignment in assignments)
             {
-                "users.read",
-                "configuration.read"
-            };
+                var links = await _rolePermissionsRepository.BrowseByRoleAsync(assignment.RoleId, cancellationToken);
+                foreach (var link in links)
+                {
+                    if (!string.IsNullOrWhiteSpace(link.Permission?.Code))
+                    {
+                        permissions.Add(link.Permission.Code);
+                    }
+                }
+            }
+
+            return permissions.ToList();
+        }
+    }
 }
 

@@ -54,6 +54,12 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
                 Status = (int)HttpStatusCode.Unauthorized,
                 Detail = authEx.Message
             },
+            ForbiddenException forbiddenEx => new ProblemDetails
+            {
+                Title = "Forbidden",
+                Status = (int)HttpStatusCode.Forbidden,
+                Detail = forbiddenEx.Message
+            },
             UnauthorizedAccessException uaEx => new ProblemDetails
             {
                 Title = "Unauthorized",

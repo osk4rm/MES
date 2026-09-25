@@ -5,6 +5,7 @@ using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Users.Application.Features.Authentication.SignIn;
 using AsistOff.MES.Users.Core.Entities;
+using AsistOff.MES.Users.Core.Rbac;
 using AsistOff.MES.Users.Core.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
@@ -17,12 +18,23 @@ public class SignInRequestHandlerTests
 {
     private readonly Mock<IUsersRepository> _users = new();
     private readonly Mock<ITenantRepository> _tenants = new();
+    private readonly Mock<IUserRolesRepository> _userRoles = new();
+    private readonly Mock<IRolePermissionsRepository> _rolePermissions = new();
     private readonly Mock<IAuthManager> _authManager = new();
     private readonly IPasswordHasher<User> _hasher = new PasswordHasher<User>();
+    private Dictionary<string, IEnumerable<string>>? _capturedClaims;
 
-    private SignInRequestHandler CreateSut() =>
-        new(_users.Object, _tenants.Object, _hasher, _authManager.Object,
+    private SignInRequestHandler CreateSut()
+    {
+        _userRoles
+            .Setup(r => r.BrowseByUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<UserRole>());
+
+        return new SignInRequestHandler(
+            _users.Object, _tenants.Object, _userRoles.Object, _rolePermissions.Object,
+            _hasher, _authManager.Object,
             NullLogger<SignInRequestHandler>.Instance);
+    }
 
     [Fact]
     public async Task Throws_AuthenticationException_when_user_not_found()
@@ -102,10 +114,148 @@ public class SignInRequestHandlerTests
 
         capturedClaims.Should().NotBeNull();
         capturedClaims!["tenant_id"].Single().Should().Be(tenant.Id.ToString());
-        capturedClaims["tenant_name"].Single().Should().Be("Acme Factory");
-        capturedClaims["tenant_active"].Single().Should().Be("true");
-        capturedClaims["permissions"].Should().Contain("tenant.admin");
+        capturedClaims!["tenant_name"].Single().Should().Be("Acme Factory");
+        capturedClaims!["tenant_active"].Single().Should().Be("true");
+        capturedClaims!["permissions"].Should().Contain("tenant.admin");
     }
+
+    [Fact]
+    public async Task Issues_exact_read_permission_set_for_user_role_assignment()
+    {
+        // Arrange — non-admin user explicitly assigned only the seeded user role.
+        var user = BuildUser("pw", isAdmin: false);
+        SetupTenant(user);
+        var sut = CreateSut();
+
+        var roleId = Guid.NewGuid();
+        _userRoles
+            .Setup(r => r.BrowseByUserAsync(user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<UserRole>
+            {
+                new() { Id = Guid.NewGuid(), TenantId = user.TenantId, UserId = user.Id, RoleId = roleId }
+            });
+        _rolePermissions
+            .Setup(r => r.BrowseByRoleAsync(roleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RbacDefaults.UserPermissions.Select(code => RolePermissionLink(user.TenantId, roleId, code)).ToList());
+
+        CaptureClaims();
+
+        // Act
+        await sut.Handle(new SignInRequest(user.Email, "pw"), CancellationToken.None);
+
+        // Assert — exactly the current read permission set, resolved from role links.
+        _capturedClaims.Should().NotBeNull();
+        _capturedClaims!["permissions"].Should().BeEquivalentTo(RbacDefaults.UserPermissions);
+        _rolePermissions.Verify(r => r.BrowseByRoleAsync(roleId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Issues_exact_admin_permission_set_for_tenant_admin_role_assignment()
+    {
+        // Arrange — user explicitly assigned only the seeded tenant_admin role.
+        var user = BuildUser("pw", isAdmin: true);
+        SetupTenant(user);
+        var sut = CreateSut();
+
+        var roleId = Guid.NewGuid();
+        _userRoles
+            .Setup(r => r.BrowseByUserAsync(user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<UserRole>
+            {
+                new() { Id = Guid.NewGuid(), TenantId = user.TenantId, UserId = user.Id, RoleId = roleId }
+            });
+        _rolePermissions
+            .Setup(r => r.BrowseByRoleAsync(roleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RbacDefaults.AdminPermissions.Select(code => RolePermissionLink(user.TenantId, roleId, code)).ToList());
+
+        CaptureClaims();
+
+        // Act
+        await sut.Handle(new SignInRequest(user.Email, "pw"), CancellationToken.None);
+
+        // Assert — exactly the current admin permission set, resolved from role links.
+        _capturedClaims.Should().NotBeNull();
+        _capturedClaims!["permissions"].Should().BeEquivalentTo(RbacDefaults.AdminPermissions);
+        _rolePermissions.Verify(r => r.BrowseByRoleAsync(roleId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Falls_back_to_read_parity_set_when_user_has_no_role_assignment()
+    {
+        // Arrange — non-admin user predating the RBAC schema (no UserRole rows).
+        var user = BuildUser("pw", isAdmin: false);
+        SetupTenant(user);
+        var sut = CreateSut();
+        CaptureClaims();
+
+        // Act
+        await sut.Handle(new SignInRequest(user.Email, "pw"), CancellationToken.None);
+
+        // Assert — parity with the interim non-admin model.
+        _capturedClaims.Should().NotBeNull();
+        _capturedClaims!["permissions"].Should().BeEquivalentTo(RbacDefaults.UserPermissions);
+        _rolePermissions.Verify(
+            r => r.BrowseByRoleAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Falls_back_to_admin_parity_set_when_admin_has_no_role_assignment()
+    {
+        // Arrange — tenant admin predating the RBAC schema (no UserRole rows).
+        var user = BuildUser("pw", isAdmin: true);
+        SetupTenant(user);
+        var sut = CreateSut();
+        CaptureClaims();
+
+        // Act
+        await sut.Handle(new SignInRequest(user.Email, "pw"), CancellationToken.None);
+
+        // Assert — parity with the interim admin model.
+        _capturedClaims.Should().NotBeNull();
+        _capturedClaims!["permissions"].Should().BeEquivalentTo(RbacDefaults.AdminPermissions);
+        _rolePermissions.Verify(
+            r => r.BrowseByRoleAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    private void SetupTenant(User user, bool isActive = true)
+    {
+        _users.Setup(r => r.GetForAuthenticationAsync(user.Email, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _tenants.Setup(r => r.GetByIdAsync(user.TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Tenant { Id = user.TenantId, Name = "Acme", IsActive = isActive });
+    }
+
+    private void CaptureClaims()
+    {
+        _authManager
+            .Setup(m => m.CreateToken(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<IDictionary<string, IEnumerable<string>>>()))
+            .Callback<string, string, string, IDictionary<string, IEnumerable<string>>?>((_, _, _, claims) =>
+                _capturedClaims = claims is null ? null : new Dictionary<string, IEnumerable<string>>(claims))
+            .Returns(new JsonWebToken { AccessToken = "token" });
+    }
+
+    private static RolePermission RolePermissionLink(Guid tenantId, Guid roleId, string permissionCode) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            RoleId = roleId,
+            PermissionId = Guid.NewGuid(),
+            Permission = new Permission
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                Code = permissionCode,
+                Name = permissionCode,
+                Category = RbacDefaults.CategoryFor(permissionCode)
+            }
+        };
 
     private User BuildUser(string password, bool isAdmin = false)
     {
