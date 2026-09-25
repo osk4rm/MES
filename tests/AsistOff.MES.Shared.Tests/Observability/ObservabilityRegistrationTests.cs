@@ -77,6 +77,47 @@ public class ObservabilityRegistrationTests
         provider.GetService<TracerProvider>().Should().NotBeNull();
     }
 
+    [Fact]
+    public void BuildResource_CarriesConfiguredServiceIdentity()
+    {
+        // Arrange
+        var options = new ObservabilityOptions { ServiceName = "AsistOff.MES", ServiceVersion = "2.1.0" };
+
+        // Act
+        var resource = ObservabilityRegistration.BuildResourceBuilder(options).Build();
+
+        // Assert - the service identity exported with every span and metric.
+        var attributes = resource.Attributes.ToDictionary(kv => kv.Key, kv => kv.Value.ToString());
+        attributes.Should().ContainKey("service.name").WhoseValue.Should().Be("AsistOff.MES");
+        attributes.Should().ContainKey("service.version").WhoseValue.Should().Be("2.1.0");
+    }
+
+    [Fact]
+    public void BuildResource_Defaults_ToProductServiceName()
+    {
+        // Arrange + Act
+        var resource = ObservabilityRegistration.BuildResourceBuilder(new ObservabilityOptions()).Build();
+
+        // Assert - every span carries service.name AsistOff.MES (issue #252 AC1).
+        var attributes = resource.Attributes.ToDictionary(kv => kv.Key, kv => kv.Value.ToString());
+        attributes.Should().ContainKey("service.name").WhoseValue.Should().Be("AsistOff.MES");
+    }
+
+    [Fact]
+    public void BuildSampler_ReturnsParentBasedSampler()
+    {
+        // Arrange
+        var options = new ObservabilityOptions { SamplingRatio = 0.5 };
+
+        // Act
+        var sampler = ObservabilityRegistration.BuildSampler(options);
+
+        // Assert - parent-based so an upstream W3C traceparent decision wins;
+        // the root ratio itself is clamped by GetSamplingRatio (tested in
+        // ObservabilityOptionsTests).
+        sampler.Should().BeOfType<ParentBasedSampler>();
+    }
+
     private static IConfiguration BuildConfiguration(string json) =>
         new ConfigurationBuilder()
             .AddJsonStream(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json)))
