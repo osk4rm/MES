@@ -1,9 +1,11 @@
 ﻿using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Multitenancy.Requests;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using MediatR;
 
 namespace AsistOff.MES.Users.Application.Features.Users.Create;
 
+[RequirePermission("users.write")]
 public record CreateUserRequest(
     string Email,
     string Password,

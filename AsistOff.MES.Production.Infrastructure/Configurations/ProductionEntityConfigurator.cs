@@ -19,11 +19,16 @@ public class ProductionEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<ProductionOrder>();
         modelBuilder.Entity<ProductionConfirmation>();
         modelBuilder.Entity<SpcCharacteristic>();
+        modelBuilder.Entity<SpcMeasurement>();
         modelBuilder.Entity<DowntimeEvent>();
         modelBuilder.Entity<Lot>();
+        modelBuilder.Entity<LotGenealogyEdge>();
         modelBuilder.Entity<ScrapEvent>();
         modelBuilder.Entity<MachineTelemetryTag>();
         modelBuilder.Entity<TelemetryReading>();
+        modelBuilder.Entity<OpcUaConnection>();
+        modelBuilder.Entity<KanbanLoop>();
+        modelBuilder.Entity<KanbanCard>();
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProductionEntityConfigurator).Assembly);
     }

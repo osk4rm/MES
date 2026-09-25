@@ -62,6 +62,10 @@ export const productService = {
     const { data } = await http.get<ProductResponse>(`${BASE}/${id}`);
     return data;
   },
+  async getByScan(value: string): Promise<ProductResponse> {
+    const { data } = await http.get<ProductResponse>(`${BASE}/by-scan`, { params: { value } });
+    return data;
+  },
   async create(req: CreateProductRequest): Promise<ProductResponse> {
     const { data } = await http.post<ProductResponse>(BASE, req);
     return data;

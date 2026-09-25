@@ -149,6 +149,8 @@ public sealed record MachineDto(
     string Name,
     string? Description,
     bool IsActive,
+    decimal Capacity,
+    decimal EfficiencyFactor,
     Guid? DepartmentId,
     string? DepartmentCode,
     string? DepartmentName,
@@ -232,3 +234,318 @@ public sealed record TelemetryStatusDto(
     bool SimulatorEnabled,
     int SimulatorIntervalSeconds,
     IReadOnlyCollection<TelemetryTagStatusDto> Tags);
+
+/// <summary>Shape of a kanban loop as returned by <c>/api/kanban/loops</c>.</summary>
+public sealed record KanbanLoopDto(
+    Guid Id,
+    string Code,
+    Guid ProductId,
+    Guid ConsumingMachineId,
+    Guid SupplyingWarehouseId,
+    decimal CardQuantity,
+    int CardsInCirculation,
+    bool IsActive,
+    string? Notes);
+
+/// <summary>Shape of a kanban card as returned by <c>/api/kanban/loops/{loopId}/cards</c>.</summary>
+public sealed record KanbanCardDto(
+    Guid Id,
+    Guid LoopId,
+    string CardNumber,
+    short Status,
+    string? Notes);
+
+/// <summary>Shape of a lot genealogy edge as returned by <c>/api/lot-genealogy</c>.</summary>
+public sealed record LotGenealogyEdgeDto(
+    Guid Id,
+    Guid ConsumedLotId,
+    Guid ProducedLotId,
+    Guid ProductionOrderId,
+    Guid? ProductionConfirmationId,
+    Guid MachineId,
+    Guid? ReportedByOperatorId,
+    decimal ConsumedQuantity,
+    DateTime OccurredAt,
+    string? Notes,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>Shape of one node returned by the lot traceability endpoints.</summary>
+public sealed record LotTraceabilityNodeDto(
+    Guid LotId,
+    string LotCode,
+    Guid ProductId,
+    int Depth,
+    decimal ConsumedQuantity,
+    Guid ProductionOrderId,
+    string ProductionOrderCode,
+    Guid MachineId,
+    Guid? ReportedByOperatorId,
+    DateTime OccurredAt);
+
+/// <summary>Shape of the transitive closure returned by the lot traceability endpoints.</summary>
+public sealed record LotTraceabilityDto(
+    Guid RootLotId,
+    string RootLotCode,
+    IReadOnlyCollection<LotTraceabilityNodeDto> Nodes,
+    bool Truncated);
+
+/// <summary>Shape of one RW/PW movement preview line returned by the movements endpoints.</summary>
+public sealed record MovementPreviewLineDto(
+    string MovementType,
+    Guid ProductId,
+    decimal Quantity,
+    Guid? MeasureUnitId,
+    Guid? PreferredWarehouseId);
+
+/// <summary>Shape of a persisted stock ledger line returned by <c>/api/stock-movements</c>.</summary>
+public sealed record StockMovementDto(
+    Guid Id,
+    string MovementType,
+    Guid ProductId,
+    decimal Quantity,
+    Guid? MeasureUnitId,
+    Guid? WarehouseId,
+    Guid ProductionConfirmationId,
+    Guid ProductionOrderId,
+    DateTime ReportedAt);
+
+/// <summary>Shape of one signed balance returned by <c>/api/stock-on-hand</c>. A null warehouse is the unassigned bucket.</summary>
+public sealed record StockOnHandDto(
+    Guid ProductId,
+    Guid? WarehouseId,
+    decimal QuantityOnHand);
+
+/// <summary>Shape of the OEE snapshot returned by <c>/api/oee/snapshot</c>.</summary>
+public sealed record OeeSnapshotDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    decimal IdealCycleTimeSeconds,
+    double? Availability,
+    double? Performance,
+    double? Quality,
+    double? Oee,
+    bool AvailabilityComputed,
+    bool PerformanceComputed,
+    bool QualityComputed,
+    double PlannedProductionTimeMinutes,
+    double RunTimeMinutes,
+    double DowntimeMinutes,
+    decimal TotalCount,
+    decimal GoodCount,
+    decimal ScrapCount);
+
+/// <summary>Shape of the OEE summary returned by <c>/api/oee</c>: counts, Quality, Availability, auto-resolved ideal cycle time, Performance (clamped at 1) and composite OEE.</summary>
+public sealed record OeeSummaryDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    decimal GoodCount,
+    decimal ScrapCount,
+    decimal TotalCount,
+    double? Quality,
+    double PlannedTimeMinutes,
+    double RunTimeMinutes,
+    double DowntimeMinutes,
+    double? Availability,
+    decimal? IdealCycleTimeSeconds,
+    double? Performance,
+    double? Oee);
+
+/// <summary>Shape of the OEE trend returned by <c>/api/oee/trend</c>.</summary>
+public sealed record OeeTrendDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    decimal IdealCycleTimeSeconds,
+    string Bucket,
+    IReadOnlyCollection<OeeSnapshotDto> Buckets);
+
+/// <summary>Shape of one downtime Pareto row returned by <c>/api/oee/losses</c>.</summary>
+public sealed record DowntimeParetoEntryDto(
+    Guid ReasonCodeId,
+    string? Code,
+    string? DisplayName,
+    double Minutes,
+    double Share);
+
+/// <summary>Shape of one scrap Pareto row returned by <c>/api/oee/losses</c>.</summary>
+public sealed record ScrapParetoEntryDto(
+    Guid ReasonCodeId,
+    string? Code,
+    string? DisplayName,
+    decimal Quantity,
+    double Share);
+
+/// <summary>Shape of the loss Pareto returned by <c>/api/oee/losses</c>.</summary>
+public sealed record OeeLossesDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    double TotalDowntimeMinutes,
+    IReadOnlyCollection<DowntimeParetoEntryDto> DowntimePareto,
+    decimal TotalScrapQuantity,
+    IReadOnlyCollection<ScrapParetoEntryDto> ScrapPareto);
+
+/// <summary>Shape of the reliability snapshot returned by <c>/api/reliability/snapshot</c>.</summary>
+public sealed record ReliabilitySnapshotDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    int FailureCount,
+    int RepairCount,
+    double WindowMinutes,
+    double UptimeMinutes,
+    double TotalDowntimeMinutes,
+    double? MtbfMinutes,
+    double? MttrMinutes,
+    double? AvgRepairMinutes);
+
+/// <summary>Shape of the reliability trend returned by <c>/api/reliability/trend</c>.</summary>
+public sealed record ReliabilityTrendDto(
+    Guid MachineId,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    string Bucket,
+    IReadOnlyCollection<ReliabilitySnapshotDto> Buckets);
+
+/// <summary>Shape of one fleet row returned by <c>/api/reliability/fleet</c>.</summary>
+public sealed record ReliabilityFleetRowDto(
+    Guid MachineId,
+    string MachineCode,
+    string MachineName,
+    Guid? DepartmentId,
+    int FailureCount,
+    int RepairCount,
+    double WindowMinutes,
+    double UptimeMinutes,
+    double TotalDowntimeMinutes,
+    double? MtbfMinutes,
+    double? MttrMinutes,
+    double? AvgRepairMinutes);
+
+/// <summary>Shape of an OPC UA connection as returned by <c>/api/opcua-connections</c>.</summary>
+public sealed record OpcUaConnectionDto(
+    Guid Id,
+    Guid MachineId,
+    string EndpointUrl,
+    short SecurityPolicy,
+    int PollIntervalSeconds,
+    bool IsEnabled,
+    DateTime? LastSeenAtUtc,
+    string? LastError,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>Shape of the endpoint check returned by <c>/api/opcua-connections/{id}/test</c>.</summary>
+public sealed record OpcUaConnectionTestDto(
+    Guid Id,
+    string EndpointUrl,
+    bool Reachable,
+    DateTime CheckedAt);
+
+/// <summary>Shape of one per-connection entry returned by <c>/api/opcua-connections/status</c>.</summary>
+public sealed record OpcUaConnectionStatusEntryDto(
+    Guid ConnectionId,
+    Guid MachineId,
+    string EndpointUrl,
+    bool IsEnabled,
+    DateTime? LastSeenAtUtc,
+    string? LastError,
+    bool IsLive,
+    int TotalTags,
+    int ReportingTags,
+    int StaleTags);
+
+/// <summary>Shape of an operator shift assignment as returned by <c>/api/operator-shift-assignments</c>. Date is ISO 8601 <c>yyyy-MM-dd</c>.</summary>
+public sealed record OperatorShiftAssignmentDto(
+    Guid Id,
+    Guid OperatorId,
+    string? OperatorIdentifier,
+    string? OperatorName,
+    Guid ShiftId,
+    string? ShiftCode,
+    string? ShiftName,
+    string Date,
+    string? Notes);
+
+/// <summary>Shape of the connection-status readout returned by <c>/api/opcua-connections/status</c>.</summary>
+public sealed record OpcUaConnectionStatusDto(
+    IReadOnlyCollection<OpcUaConnectionStatusEntryDto> Connections,
+    int TotalCount,
+    int LiveCount,
+    int StaleCount,
+    int DisabledCount);
+
+/// <summary>Shape of an SPC measurement as returned by <c>/api/spc-measurements</c>.</summary>
+public sealed record SpcMeasurementDto(
+    Guid Id,
+    Guid CharacteristicId,
+    decimal Value,
+    DateTime MeasuredAt,
+    string? Notes,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+/// <summary>Shape of one evaluated point returned by <c>/api/spc-measurements/chart</c>.</summary>
+public sealed record SpcMeasurementChartPointDto(
+    Guid Id,
+    decimal Value,
+    DateTime MeasuredAt,
+    bool IsOutOfControl,
+    bool IsOutOfSpec,
+    IReadOnlyCollection<int> ViolatedRules);
+
+/// <summary>Shape of the control chart evaluation returned by <c>/api/spc-measurements/chart</c>.</summary>
+public sealed record SpcMeasurementChartDto(
+    Guid CharacteristicId,
+    decimal? NominalValue,
+    decimal? LowerSpecLimit,
+    decimal? UpperSpecLimit,
+    decimal? LowerControlLimit,
+    decimal? UpperControlLimit,
+    IReadOnlyCollection<SpcMeasurementChartPointDto> Points,
+    int TotalCount,
+    int OutOfControlCount,
+    int OutOfSpecCount,
+    int Rule2ViolationCount,
+    int Rule3ViolationCount,
+    int Rule4ViolationCount);
+
+/// <summary>Shape of one shift entry in a dispatch day bucket returned by <c>/api/schedule/dispatch</c>. Times are ISO 8601 <c>HH:mm:ss</c>.</summary>
+public sealed record DispatchShiftDto(
+    Guid ShiftId,
+    string Code,
+    string Name,
+    string StartTime,
+    string EndTime,
+    bool IsOvernight,
+    int Headcount,
+    bool IsUncovered);
+
+/// <summary>Shape of one day bucket returned by <c>/api/schedule/dispatch</c>. Date is ISO 8601 <c>yyyy-MM-dd</c>.</summary>
+public sealed record DispatchDayDto(
+    string Date,
+    IReadOnlyCollection<DispatchShiftDto> Shifts);
+
+/// <summary>Shape of one order row returned by <c>/api/schedule/dispatch</c>.</summary>
+public sealed record DispatchOrderRowDto(
+    Guid Id,
+    string Code,
+    Guid ProductId,
+    decimal PlannedQuantity,
+    decimal ProducedQuantity,
+    decimal ScrappedQuantity,
+    decimal RemainingQuantity,
+    int Priority,
+    DateTime? DueDate,
+    short Status,
+    bool IsOverdue);
+
+/// <summary>Shape of the dispatch board returned by <c>/api/schedule/dispatch</c>. Dates are ISO 8601 <c>yyyy-MM-dd</c>.</summary>
+public sealed record DispatchBoardDto(
+    string From,
+    string To,
+    IReadOnlyCollection<DispatchDayDto> Days,
+    IReadOnlyCollection<DispatchOrderRowDto> Orders);

@@ -7,7 +7,8 @@ namespace AsistOff.MES.Production.Application.Features.ProductionConfirmations.D
 
 internal sealed class DeleteProductionConfirmationRequestHandler(
     IProductionConfirmationsRepository confirmationsRepository,
-    IProductionOrdersRepository ordersRepository)
+    IProductionOrdersRepository ordersRepository,
+    ILotGenealogyEdgesRepository genealogyEdgesRepository)
     : IRequestHandler<DeleteProductionConfirmationRequest>
 {
     public async Task Handle(DeleteProductionConfirmationRequest request, CancellationToken cancellationToken)
@@ -20,6 +21,11 @@ internal sealed class DeleteProductionConfirmationRequestHandler(
 
         if (order.Status is ProductionOrderStatus.Completed or ProductionOrderStatus.Closed)
             throw new ConflictException("Confirmations of Completed or Closed orders cannot be deleted.");
+
+        // Delete the auto-posted genealogy edges in code so the delete plus
+        // re-create correction model stays consistent. Runs under the tenant
+        // global query filter.
+        await genealogyEdgesRepository.DeleteByConfirmationAsync(confirmation.Id, cancellationToken);
 
         await confirmationsRepository.DeleteAsync(confirmation.Id, cancellationToken);
     }

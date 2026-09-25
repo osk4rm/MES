@@ -9,6 +9,8 @@ export interface MachineResponse {
   description?: string | null;
   departmentId?: string | null;
   isActive: boolean;
+  capacity: number;
+  efficiencyFactor: number;
 }
 
 export interface BrowseMachinesRequest extends IPagedRequest {
@@ -24,6 +26,8 @@ export interface CreateMachineRequest {
   description?: string | null;
   departmentId?: string | null;
   isActive: boolean;
+  capacity?: number | null;
+  efficiencyFactor?: number | null;
 }
 
 export interface UpdateMachineRequest extends CreateMachineRequest {

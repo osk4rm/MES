@@ -305,9 +305,10 @@ function Invoke-Implement {
     Set-LockTimestamp $State 'issue' $num
     $raw = Invoke-Agent -Agent 'mes-implementer' -Prompt (
         "Implement GitHub issue #$num. Read it with 'gh issue view $num --comments'. " +
-        "Follow AGENT.md and the area instructions. Write tests, run " +
-        "'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and " +
-        "'cd AsistOff.MES.Web; npm run build', then open a PR that closes #$num. " +
+        "Follow AGENT.md and the area instructions. Write unit tests AND endpoint integration tests, but only run " +
+        "'dotnet build AsistOff.MES.sln', 'dotnet test tests/AsistOff.MES.Shared.Tests' and " +
+        "'cd AsistOff.MES.Web; npm run build' (CI runs the integration suite; do not start Docker, the app, or a database). " +
+        "Then open a PR that closes #$num. " +
         "Use branch name ai/issue-$num-<slug>."
     )
     $session = Get-SessionId $raw
@@ -353,8 +354,8 @@ function Invoke-Fix {
     Set-LockTimestamp $State 'pr' $prNum
     $prompt = "Review/e2e feedback on PR #$prNum requested changes. " +
         "Read it with 'gh pr view $prNum --comments'. Fix every point, re-run " +
-        "'dotnet build AsistOff.MES.sln', 'dotnet test AsistOff.MES.sln' and " +
-        "'cd AsistOff.MES.Web; npm run build', then push to the same branch and reply."
+        "'dotnet build AsistOff.MES.sln', 'dotnet test tests/AsistOff.MES.Shared.Tests' and " +
+        "'cd AsistOff.MES.Web; npm run build' (not the integration suite), then push to the same branch and reply."
     if ($Reason -eq 'ci') { $prompt = "CI on PR #$prNum is red. Inspect 'gh pr checks $prNum' and the logs, fix the failure, re-run build/test locally, then push to the same branch." }
     Invoke-Agent -Agent 'mes-implementer' -Session $session -Prompt $prompt | Out-Null
     Remove-Label pr $prNum 'ai:running'

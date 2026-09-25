@@ -6,6 +6,8 @@ public record MachineResponse(
     string Name,
     string? Description,
     bool IsActive,
+    decimal Capacity,
+    decimal EfficiencyFactor,
     Guid? DepartmentId,
     string? DepartmentCode,
     string? DepartmentName,

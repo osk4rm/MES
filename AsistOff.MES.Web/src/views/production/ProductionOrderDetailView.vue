@@ -105,6 +105,43 @@
     </AppCard>
 
     <section class="confirmations-section">
+      <div class="section-header">
+        <h3>{{ $t('movements.title') }}</h3>
+        <AppButton variant="ghost" icon="pi pi-refresh" :loading="movementsLoading" @click="loadMovements">
+          {{ $t('common.refresh') }}
+        </AppButton>
+      </div>
+      <p class="section-subtitle">{{ $t('movements.subtitle') }}</p>
+
+      <AppTable
+        :items="movements"
+        :columns="movementColumns"
+        :loading="movementsLoading"
+      >
+        <template #cell-movementType="{ value }">
+          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" dot>
+            {{ value }}
+          </AppBadge>
+        </template>
+        <template #cell-productId="{ value }">
+          {{ productLabel(value) }}
+        </template>
+        <template #cell-quantity="{ value }">
+          {{ formatQuantity(value) }}
+        </template>
+        <template #cell-preferredWarehouseId="{ value }">
+          {{ warehouseLabel(value) }}
+        </template>
+      </AppTable>
+
+      <AppEmptyState
+        v-if="!movementsLoading && movements.length === 0"
+        icon="pi pi-list"
+        :title="$t('movements.empty')"
+      />
+    </section>
+
+    <section class="confirmations-section">
       <h3>{{ $t('productionConfirmations.title') }}</h3>
 
       <AppTable
@@ -132,10 +169,7 @@
         </template>
         <template #cell-actions="{ item }">
           <AppRowActions
-            v-if="canReport"
-            :actions="[
-              { key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger' }
-            ]"
+            :actions="confirmationActions(item)"
             @action="(k) => onRowAction(k, item)"
           />
         </template>
@@ -200,6 +234,61 @@
             <AppTextarea :id="id" v-model="form.notes" :rows="2" />
           </template>
         </AppFormField>
+        <AppFormField
+          :label="`${$t('productionConfirmations.producedLot')} (${$t('common.optional')})`"
+          class="form-grid__full"
+          :error="producedLotError"
+        >
+          <template #default="{ id }">
+            <AppSelect
+              :id="id"
+              v-model="form.producedLotId"
+              :options="lotOptions"
+              :placeholder="$t('productionConfirmations.selectProducedLot')"
+              allow-empty
+              :empty-label="$t('productionConfirmations.noLot')"
+            />
+          </template>
+        </AppFormField>
+        <div class="form-grid__full consumed-block">
+          <div class="consumed-header">
+            <span class="consumed-title">{{ $t('productionConfirmations.consumedLots') }} ({{ $t('common.optional') }})</span>
+            <AppButton variant="ghost" icon="pi pi-plus" @click="addConsumedRow">
+              {{ $t('productionConfirmations.addConsumedLot') }}
+            </AppButton>
+          </div>
+          <p class="consumed-hint">{{ $t('productionConfirmations.genealogyHint') }}</p>
+          <div v-for="(row, idx) in form.consumedLots" :key="idx" class="consumed-row">
+            <AppFormField
+              :label="$t('productionConfirmations.consumedLot')"
+              :error="consumedRowError(idx)"
+              class="consumed-row__lot"
+            >
+              <template #default="{ id }">
+                <AppSelect
+                  :id="id"
+                  v-model="row.lotId"
+                  :options="lotOptions"
+                  :placeholder="$t('productionConfirmations.selectConsumedLot')"
+                />
+              </template>
+            </AppFormField>
+            <AppFormField :label="$t('productionConfirmations.consumedQuantity')" class="consumed-row__qty">
+              <template #default="{ id }">
+                <AppNumberInput :id="id" v-model="row.quantity" :min="0" :step="0.001" />
+              </template>
+            </AppFormField>
+            <AppButton
+              variant="ghost"
+              icon="pi pi-trash"
+              :aria-label="$t('common.delete')"
+              class="consumed-row__remove"
+              @click="removeConsumedRow(idx)"
+            >
+              {{ $t('common.delete') }}
+            </AppButton>
+          </div>
+        </div>
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="saving" @click="closeModal">{{ $t('common.cancel') }}</AppButton>
@@ -224,6 +313,37 @@
       @confirm="confirmLifecycle"
       @cancel="cancelLifecycle"
     />
+
+    <AppModal :open="movementsModalOpen" :title="$t('movements.perConfirmationTitle')" @close="closeMovementsModal">
+      <AppTable
+        :items="confirmationMovements"
+        :columns="movementColumns"
+        :loading="confirmationMovementsLoading"
+      >
+        <template #cell-movementType="{ value }">
+          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" dot>
+            {{ value }}
+          </AppBadge>
+        </template>
+        <template #cell-productId="{ value }">
+          {{ productLabel(value) }}
+        </template>
+        <template #cell-quantity="{ value }">
+          {{ formatQuantity(value) }}
+        </template>
+        <template #cell-preferredWarehouseId="{ value }">
+          {{ warehouseLabel(value) }}
+        </template>
+      </AppTable>
+      <AppEmptyState
+        v-if="!confirmationMovementsLoading && confirmationMovements.length === 0"
+        icon="pi pi-list"
+        :title="$t('movements.empty')"
+      />
+      <template #footer>
+        <AppButton variant="ghost" @click="closeMovementsModal">{{ $t('common.close') }}</AppButton>
+      </template>
+    </AppModal>
   </div>
   <div v-else-if="loading" class="loading"><i class="pi pi-spin pi-spinner" /> {{ $t('common.loading') }}</div>
   <div v-else class="loading">{{ $t('common.notFound') }}</div>
@@ -256,10 +376,21 @@ import {
 } from '../../services/productionOrderService';
 import {
   productionConfirmationService,
+  type MovementPreviewLine,
   type ProductionConfirmationResponse
 } from '../../services/productionConfirmationService';
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { operatorService, type OperatorResponse } from '../../services/operatorService';
+import { productService, type ProductResponse } from '../../services/productService';
+import { warehouseService, type WarehouseResponse } from '../../services/warehouseService';
+import { lotService, type LotResponse } from '../../services/lotService';
+import {
+  buildConsumedLotLines,
+  createConsumedLotRow,
+  validateConsumedLotRow,
+  validateProducedLot,
+  type ConsumedLotFormRow
+} from '../../services/confirmationLots';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -346,12 +477,17 @@ function formatQuantity(v: number): string {
 
 const machines = ref<MachineResponse[]>([]);
 const operators = ref<OperatorResponse[]>([]);
+const products = ref<ProductResponse[]>([]);
+const warehouses = ref<WarehouseResponse[]>([]);
+const lots = ref<LotResponse[]>([]);
 
 const machineOptions = computed(() => machines.value.map(m => ({ value: m.id, label: `${m.code} — ${m.name}` })));
 const operatorFilterOptions = computed(() => [
   { value: null, label: t('productionConfirmations.selectOperator') },
   ...operators.value.map(o => ({ value: o.id, label: `${o.identifier} — ${o.firstName} ${o.lastName}` }))
 ]);
+
+const lotOptions = computed(() => lots.value.map(l => ({ value: l.id, label: l.code })));
 
 function machineLabel(id: string): string {
   const m = machines.value.find(x => x.id === id);
@@ -362,6 +498,17 @@ function operatorLabel(id: string | null | undefined): string {
   if (!id) return '—';
   const o = operators.value.find(x => x.id === id);
   return o ? `${o.identifier} — ${o.firstName} ${o.lastName}` : id;
+}
+
+function productLabel(id: string): string {
+  const p = products.value.find(x => x.id === id);
+  return p ? `${p.code} — ${p.name}` : id;
+}
+
+function warehouseLabel(id: string | null | undefined): string {
+  if (!id) return '—';
+  const w = warehouses.value.find(x => x.id === id);
+  return w ? w.name : id;
 }
 
 async function loadOrder(): Promise<void> {
@@ -377,12 +524,18 @@ async function loadOrder(): Promise<void> {
 
 async function loadLookups(): Promise<void> {
   try {
-    const [m, o] = await Promise.all([
+    const [m, o, p, w, l] = await Promise.all([
       machineService.browse({ pageNumber: 1, pageSize: 500 }),
-      operatorService.browse({ pageNumber: 1, pageSize: 500 })
+      operatorService.browse({ pageNumber: 1, pageSize: 500 }),
+      productService.browse({ pageNumber: 1, pageSize: 500 }),
+      warehouseService.browse({ pageNumber: 1, pageSize: 500 }),
+      lotService.browse({ pageNumber: 1, pageSize: 500 })
     ]);
     machines.value = m.items;
     operators.value = o.items;
+    products.value = p.items;
+    warehouses.value = w.items;
+    lots.value = l.items;
   } catch {
     /* ignore — table still renders */
   }
@@ -408,14 +561,40 @@ function toLocalInputValue(d: Date): string {
 
 const modalOpen = ref(false);
 const saving = ref(false);
+
 const form = reactive({
   machineId: null as string | null,
   operatorId: null as string | null,
   reportedAt: '',
   goodQuantity: null as number | null,
   scrapQuantity: null as number | null,
-  notes: '' as string | null
+  notes: '' as string | null,
+  producedLotId: null as string | null,
+  consumedLots: [] as ConsumedLotFormRow[]
 });
+
+function addConsumedRow(): void {
+  form.consumedLots.push(createConsumedLotRow());
+}
+
+function removeConsumedRow(idx: number): void {
+  form.consumedLots.splice(idx, 1);
+}
+
+const producedLotError = computed((): string | null => {
+  const code = validateProducedLot(form.producedLotId, form.consumedLots.length);
+  return code ? t('productionConfirmations.producedLotRequired') : null;
+});
+
+function consumedRowError(idx: number): string | null {
+  const row = form.consumedLots[idx];
+  if (!row) return null;
+  const code = validateConsumedLotRow(row, form.producedLotId);
+  if (!code) return null;
+  if (code === 'required') return t('validation.required');
+  if (code === 'consumedQuantityPositive') return t('productionConfirmations.consumedQuantityPositive');
+  return t('productionConfirmations.selfLinkNotAllowed');
+}
 
 function openReport(): void {
   Object.assign(form, {
@@ -424,7 +603,9 @@ function openReport(): void {
     reportedAt: toLocalInputValue(new Date()),
     goodQuantity: null,
     scrapQuantity: null,
-    notes: ''
+    notes: '',
+    producedLotId: null,
+    consumedLots: []
   });
   modalOpen.value = true;
 }
@@ -446,6 +627,17 @@ async function onSave(): Promise<void> {
     toast.error(t('productionConfirmations.positiveQuantityRequired'));
     return;
   }
+  if (producedLotError.value) {
+    toast.error(producedLotError.value);
+    return;
+  }
+  for (let i = 0; i < form.consumedLots.length; i++) {
+    const rowError = consumedRowError(i);
+    if (rowError) {
+      toast.error(rowError);
+      return;
+    }
+  }
   saving.value = true;
   try {
     await productionConfirmationService.create({
@@ -455,12 +647,14 @@ async function onSave(): Promise<void> {
       reportedAt: new Date(form.reportedAt).toISOString(),
       goodQuantity: good,
       scrapQuantity: scrap,
-      notes: form.notes || null
+      notes: form.notes || null,
+      producedLotId: form.producedLotId,
+      consumedLots: buildConsumedLotLines(form.consumedLots)
     });
     toast.success(t('toasts.created'));
     modalOpen.value = false;
-    // First confirmation moves the order to InProgress — refresh header and list in place.
-    await Promise.all([loadOrder(), table.fetch()]);
+    // First confirmation moves the order to InProgress — refresh header, list and movements in place.
+    await Promise.all([loadOrder(), table.fetch(), loadMovements()]);
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.saveFailed')));
   } finally {
@@ -475,8 +669,65 @@ const deleteMessage = computed(() => confirmTarget.value
   ? `${t('common.delete')}: ${formatDateTime(confirmTarget.value.reportedAt)}`
   : '');
 
+const movements = ref<MovementPreviewLine[]>([]);
+const movementsLoading = ref(false);
+const movementColumns = computed(() => [
+  { key: 'movementType', label: t('movements.type'), width: '90px' },
+  { key: 'productId', label: t('movements.product') },
+  { key: 'quantity', label: t('movements.quantity'), align: 'right' as const },
+  { key: 'preferredWarehouseId', label: t('movements.warehouseHint') }
+]);
+
+async function loadMovements(): Promise<void> {
+  movementsLoading.value = true;
+  try {
+    movements.value = await productionOrderService.getMovements(orderId);
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  } finally {
+    movementsLoading.value = false;
+  }
+}
+
+const movementsModalOpen = ref(false);
+const confirmationMovements = ref<MovementPreviewLine[]>([]);
+const confirmationMovementsLoading = ref(false);
+
+async function openConfirmationMovements(item: ProductionConfirmationResponse): Promise<void> {
+  movementsModalOpen.value = true;
+  confirmationMovements.value = [];
+  confirmationMovementsLoading.value = true;
+  try {
+    confirmationMovements.value = await productionConfirmationService.getMovements(item.id);
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    movementsModalOpen.value = false;
+  } finally {
+    confirmationMovementsLoading.value = false;
+  }
+}
+
+function closeMovementsModal(): void {
+  if (confirmationMovementsLoading.value) return;
+  movementsModalOpen.value = false;
+}
+
+interface RowAction { key: string; label: string; icon: string; variant?: 'danger' }
+
+function confirmationActions(_item: ProductionConfirmationResponse): RowAction[] {
+  const actions: RowAction[] = [
+    { key: 'movements', label: t('movements.show'), icon: 'pi-list' }
+  ];
+  if (canReport.value) {
+    actions.push({ key: 'delete', label: t('common.delete'), icon: 'pi-trash', variant: 'danger' });
+  }
+  return actions;
+}
+
 function onRowAction(key: string, item: ProductionConfirmationResponse): void {
-  if (key === 'delete') {
+  if (key === 'movements') {
+    void openConfirmationMovements(item);
+  } else if (key === 'delete') {
     confirmTarget.value = item;
     confirmOpen.value = true;
   }
@@ -490,7 +741,7 @@ async function confirmDelete(): Promise<void> {
     toast.success(t('toasts.deleted'));
     confirmOpen.value = false;
     confirmTarget.value = null;
-    await table.fetch();
+    await Promise.all([table.fetch(), loadMovements()]);
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.saveFailed')));
   } finally {
@@ -554,6 +805,7 @@ onMounted(() => {
   void loadOrder();
   void loadLookups();
   void table.fetch();
+  void loadMovements();
 });
 </script>
 
@@ -588,6 +840,20 @@ onMounted(() => {
 .confirmations-section h3 {
   margin: 0;
 }
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.section-header h3 {
+  margin: 0;
+}
+.section-subtitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
 .progress {
   height: 8px;
   border-radius: var(--radius-sm);
@@ -601,6 +867,37 @@ onMounted(() => {
 }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+.consumed-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+.consumed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.consumed-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+.consumed-hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+.consumed-row {
+  display: grid;
+  grid-template-columns: 1fr 160px auto;
+  gap: var(--space-2);
+  align-items: end;
+}
+.consumed-row__remove { white-space: nowrap; }
 .loading {
   display: flex;
   align-items: center;

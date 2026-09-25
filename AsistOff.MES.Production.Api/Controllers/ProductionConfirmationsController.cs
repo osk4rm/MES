@@ -1,8 +1,10 @@
+using AsistOff.MES.Production.Application.Features.Common;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Browse;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Create;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Delete;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Get;
+using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Movements;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Infrastructure.Controllers;
 using MediatR;
@@ -38,4 +40,10 @@ public class ProductionConfirmationsController(ISender sender) : ApiController
         await sender.Send(new DeleteProductionConfirmationRequest(id), cancellationToken);
         return NoContent();
     }
+
+    /// <summary>Read-only RW/PW movement preview for a single confirmation.</summary>
+    [HttpGet("{id:guid}/movements")]
+    public async Task<ActionResult<IReadOnlyList<MovementPreviewLine>>> GetMovementsAsync(
+        [FromRoute] Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new BrowseConfirmationMovementsRequest(id), cancellationToken));
 }

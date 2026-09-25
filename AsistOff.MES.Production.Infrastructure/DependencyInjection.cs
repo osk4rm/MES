@@ -22,17 +22,26 @@ public static class DependencyInjection
         services.AddScoped<IProductionOrdersRepository, ProductionOrdersRepository>();
         services.AddScoped<IProductionConfirmationsRepository, ProductionConfirmationsRepository>();
         services.AddScoped<ISpcCharacteristicsRepository, SpcCharacteristicsRepository>();
+        services.AddScoped<ISpcMeasurementsRepository, SpcMeasurementsRepository>();
         services.AddScoped<IDowntimeEventsRepository, DowntimeEventsRepository>();
         services.AddScoped<IAndonSignalsRepository, AndonSignalsRepository>();
         services.AddScoped<ILotsRepository, LotsRepository>();
+        services.AddScoped<ILotGenealogyEdgesRepository, LotGenealogyEdgesRepository>();
         services.AddScoped<IScrapEventsRepository, ScrapEventsRepository>();
         services.AddScoped<IMachineTelemetryTagsRepository, MachineTelemetryTagsRepository>();
         services.AddScoped<ITelemetryReadingsRepository, TelemetryReadingsRepository>();
+        services.AddScoped<IKanbanLoopsRepository, KanbanLoopsRepository>();
+        services.AddScoped<IKanbanCardsRepository, KanbanCardsRepository>();
+        services.AddScoped<IOpcUaConnectionsRepository, OpcUaConnectionsRepository>();
 
         services.AddScoped<IEntityConfigurator, ProductionEntityConfigurator>();
 
         services.Configure<TelemetryOptions>(configuration.GetSection(TelemetryOptions.SectionName));
         services.AddHostedService<TelemetrySimulatorService>();
+
+        services.Configure<OpcUaPollingOptions>(configuration.GetSection(OpcUaPollingOptions.SectionName));
+        services.AddScoped<IOpcUaReader, SimulatorBackedOpcUaReader>();
+        services.AddHostedService<OpcUaPollingService>();
 
         return services;
     }

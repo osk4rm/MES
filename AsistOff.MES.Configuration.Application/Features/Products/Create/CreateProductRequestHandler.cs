@@ -1,7 +1,9 @@
 using AsistOff.MES.Configuration.Application.Features.Products.Common.Responses;
+using AsistOff.MES.Configuration.Application.Features.Products.Common;
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -17,6 +19,14 @@ internal sealed class CreateProductRequestHandler(
 {
     public async Task<ProductResponse> Handle(CreateProductRequest request, CancellationToken cancellationToken)
     {
+        var ean = GtinValidator.Normalize(request.Ean);
+
+        if (!GtinValidator.IsValid(request.Ean))
+            throw new ValidationException(nameof(request.Ean), "Ean must be 8, 12, 13 or 14 digits with a valid GTIN check digit.");
+
+        if (ean is not null && await productsRepository.EanExistsAsync(ean, null, cancellationToken))
+            throw new ConflictException($"Product with EAN '{ean}' already exists.");
+
         var entity = new Product
         {
             Id = guidProvider.NewGuid(),
@@ -25,7 +35,7 @@ internal sealed class CreateProductRequestHandler(
             Code = request.Code,
             Name = request.Name,
             Description = request.Description,
-            Ean = request.Ean,
+            Ean = ean,
             Barcode = request.Barcode,
             ScanBy = request.ScanBy,
             IsActive = request.IsActive,

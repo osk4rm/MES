@@ -49,8 +49,12 @@ const pl = {
     productionLots: 'Partie',
     productionTelemetry: 'Telemetria',
     productionTelemetryDashboard: 'Panel telemetrii',
+    productionOpcUaConnections: 'Połączenia OPC UA',
+    productionKanban: 'Kanban',
     schedule: 'Harmonogram',
     reports: 'Raporty',
+    oeeDashboard: 'Panel OEE',
+    reliabilityDashboard: 'Panel niezawodności',
     configuration: 'Konfiguracja',
     products: 'Produkty',
     productGroups: 'Grupy produktów',
@@ -63,6 +67,7 @@ const pl = {
     shifts: 'Zmiany',
     reasonCodes: 'Kody przyczyn',
     operationTemplates: 'Wzorcowe operacje',
+    maintenance: 'Utrzymanie ruchu',
     settings: 'Ustawienia'
   },
   auth: {
@@ -108,7 +113,14 @@ const pl = {
     group: 'Grupa',
     isActive: 'Aktywny',
     syncId: 'Sync ID',
-    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…', group: 'Grupa', isActive: 'Stan' }
+    filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…', group: 'Grupa', isActive: 'Stan' },
+    scan: {
+      title: 'Skanowanie',
+      placeholder: 'Zeskanuj kod / EAN…',
+      search: 'Znajdź',
+      matched: 'Znaleziony produkt',
+      notFound: 'Nie znaleziono aktywnego produktu dla zeskanowanego kodu.'
+    }
   },
   productGroups: {
     title: 'Grupy produktów',
@@ -141,7 +153,16 @@ const pl = {
     create: 'Nowy magazyn',
     name: 'Nazwa',
     syncId: 'Sync ID',
-    filters: { name: 'Nazwa zawiera…' }
+    filters: { name: 'Nazwa zawiera…' },
+    stock: {
+      title: 'Stany magazynowe',
+      subtitle: 'Salda PW / RW według produktu i magazynu',
+      product: 'Produkt',
+      warehouse: 'Magazyn',
+      quantity: 'Stan',
+      unassigned: 'Nieprzypisany',
+      empty: 'Brak sald — zgłoś wykonanie na zleceniu, aby zobaczyć stany.'
+    }
   },
   departments: {
     title: 'Działy',
@@ -167,6 +188,19 @@ const pl = {
       rateFrom: 'Stawka od',
       rateTo: 'Stawka do',
       department: 'Dział'
+    },
+    roster: {
+      title: 'Grafik zmian',
+      subtitle: 'Przypisania operatorów do zmian w wybranym dniu',
+      date: 'Data',
+      operator: 'Operator',
+      selectOperator: 'Wybierz operatora…',
+      shift: 'Zmiana',
+      selectShift: 'Wybierz zmianę…',
+      notes: 'Uwagi',
+      assign: 'Przypisz',
+      empty: 'Brak przypisań w tym dniu — dodaj pierwsze.',
+      assignedToast: 'Przypisano operatora do zmiany'
     }
   },
   machines: {
@@ -176,6 +210,8 @@ const pl = {
     code: 'Kod',
     name: 'Nazwa',
     description: 'Opis',
+    capacity: 'Wydajność (pojemność)',
+    efficiencyFactor: 'Współczynnik efektywności',
     calendar: 'Kalendarz',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
   },
@@ -231,7 +267,30 @@ const pl = {
     scrapQuantity: 'Ilość braków',
     notes: 'Uwagi',
     empty: 'Brak potwierdzeń dla tego zlecenia',
-    positiveQuantityRequired: 'Przynajmniej jedna ilość (dobra lub braków) musi być większa od zera'
+    positiveQuantityRequired: 'Przynajmniej jedna ilość (dobra lub braków) musi być większa od zera',
+    producedLot: 'Partia wyprodukowana',
+    selectProducedLot: 'Wybierz partię wyprodukowaną…',
+    noLot: 'Bez partii',
+    consumedLots: 'Partie zużyte',
+    consumedLot: 'Partia zużyta',
+    selectConsumedLot: 'Wybierz partię…',
+    consumedQuantity: 'Ilość zużyta',
+    addConsumedLot: 'Dodaj partię zużytą',
+    genealogyHint: 'Po zapisie ślad pojawi się w zakładce genealogii partii wyprodukowanej.',
+    producedLotRequired: 'Partia wyprodukowana jest wymagana, gdy podano partie zużyte',
+    selfLinkNotAllowed: 'Partia zużyta musi różnić się od wyprodukowanej',
+    consumedQuantityPositive: 'Zużyta ilość musi być większa od zera'
+  },
+  movements: {
+    title: 'Podgląd ruchów RW / PW',
+    subtitle: 'Planowane przyjęcie wyrobu (PW) i rozchody materiałowe (RW) — bez księgowania stanów magazynowych',
+    type: 'Typ',
+    product: 'Produkt',
+    quantity: 'Ilość',
+    warehouseHint: 'Magazyn (podpowiedź)',
+    empty: 'Brak linii ruchów do wyświetlenia',
+    show: 'Ruchy',
+    perConfirmationTitle: 'Ruchy potwierdzenia'
   },
   recipes: {
     title: 'Receptury',
@@ -362,6 +421,30 @@ const pl = {
     description: 'Opis',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' }
   },
+  maintenance: {
+    title: 'Utrzymanie ruchu',
+    subtitle: 'Zlecenia corrective maintenance dla stanowisk — zgłoś, rozpocznij i zamknij',
+    create: 'Nowe zlecenie',
+    code: 'Kod',
+    orderTitle: 'Tytuł',
+    description: 'Opis',
+    machine: 'Stanowisko',
+    selectMachine: 'Wybierz stanowisko…',
+    priority: 'Priorytet',
+    selectPriority: 'Wybierz priorytet…',
+    reportedAt: 'Zgłoszono',
+    startedAt: 'Rozpoczęto',
+    completedAt: 'Zakończono',
+    resolutionNotes: 'Notatki z realizacji',
+    resolutionNotesPlaceholder: 'Opisz wykonaną naprawę…',
+    start: 'Rozpocznij',
+    complete: 'Zakończ',
+    completeTitle: 'Zakończenie zlecenia',
+    cancelOrder: 'Anuluj zlecenie',
+    statuses: { open: 'Otwarte', inProgress: 'W realizacji', done: 'Zakończone', cancelled: 'Anulowane' },
+    priorities: { low: 'Niski', medium: 'Średni', high: 'Wysoki', critical: 'Krytyczny' },
+    filters: { machine: 'Stanowisko', status: 'Status' }
+  },
   andon: {
     title: 'Andon',
     subtitle: 'Sygnalizacja stanów awaryjnych na stanowiskach',
@@ -447,7 +530,29 @@ const pl = {
       3: 'X / MR',
       4: 'Karta p',
       5: 'Karta c'
-    }
+    },
+    measurements: 'Pomiary',
+    measurementsTitle: 'Pomiary: {name}'
+  },
+  spcMeasurements: {
+    title: 'Pomiary SPC',
+    chartTitle: 'Karta kontrolna',
+    logTitle: 'Dziennik pomiarów',
+    measuredAt: 'Czas pomiaru',
+    value: 'Wartość',
+    notes: 'Notatki',
+    from: 'Od',
+    to: 'Do',
+    apply: 'Zastosuj',
+    outOfControl: 'Poza kontrolą',
+    outOfSpec: 'Poza specyfikacją',
+    inControl: 'W kontroli',
+    summary: 'Razem {total} • poza kontrolą {ooc} • poza specyfikacją {oos}',
+    noMeasurements: 'Brak pomiarów dla tej charakterystyki w wybranym zakresie',
+    notFound: 'Nie znaleziono charakterystyki',
+    notFoundHint: 'Charakterystyka mogła zostać usunięta lub należy do innego tenanta. Zamknij okno i odśwież listę.',
+    chartEmpty: 'Za mało pomiarów do wykresu',
+    loadFailed: 'Nie udało się wczytać pomiarów'
   },
   downtime: {
     title: 'Przestoje',
@@ -464,6 +569,8 @@ const pl = {
     notes: 'Notatki',
     selectMachine: 'Wybierz stanowisko…',
     selectReason: 'Wybierz przyczynę…',
+    order: 'Zlecenie (opcjonalnie)',
+    selectOrder: 'Wybierz zlecenie…',
     status: { open: 'Otwarty', closed: 'Zamknięty' },
     filters: { machine: 'Stanowisko', reason: 'Przyczyna' }
   },
@@ -511,6 +618,30 @@ const pl = {
     ageMinutes: 'sprzed {n} min',
     ageHours: 'sprzed {n} godz.'
   },
+  opcUaConnections: {
+    title: 'Połączenia OPC UA',
+    subtitle: 'Stan połączeń ze sterownikami PLC/SCADA z wykrywaniem zastoju',
+    endpoint: 'Endpoint',
+    machine: 'Stanowisko',
+    health: 'Stan',
+    lastSeen: 'Ostatni odczyt',
+    lastError: 'Ostatni błąd',
+    tags: 'Tagi',
+    test: 'Testuj',
+    testOk: 'Endpoint osiągalny',
+    testFailed: 'Test połączenia nie powiódł się',
+    allMachines: 'Wszystkie stanowiska',
+    noConnections: 'Brak połączeń OPC UA',
+    noConnectionsHint: 'Zarejestruj endpoint OPC UA, aby monitorować jego stan.',
+    statusLive: 'Aktywne',
+    statusStale: 'Nieaktualne',
+    statusNever: 'Nigdy nie widziano',
+    statusDisabled: 'Wyłączone',
+    liveCount: 'Aktywne: {n}',
+    staleCount: 'Nieaktualne: {n}',
+    disabledCount: 'Wyłączone: {n}',
+    tagsLine: '{reporting} z {total} tagów raportuje'
+  },
   lots: {
     title: 'Partie',
     subtitle: 'Rejestr partii do śledzenia i identyfikacji',
@@ -543,8 +674,177 @@ const pl = {
     actions: {
       hold: 'Wstrzymaj',
       release: 'Przywróć',
-      scrap: 'Złomuj'
+      scrap: 'Złomuj',
+      details: 'Szczegóły i genealogia'
+    },
+    tabs: {
+      details: 'Szczegóły',
+      genealogy: 'Genealogia'
+    },
+    genealogy: {
+      depth: 'Głębokość',
+      level: 'Poziom',
+      quantity: 'Ilość',
+      order: 'Zlecenie',
+      workCenter: 'Stanowisko',
+      occurredAt: 'Data zdarzenia',
+      upstream: 'Pochodzenie (upstream) — skąd pochodzi',
+      downstream: 'Wykorzystanie (downstream) — gdzie użyto',
+      empty: 'Brak powiązanych partii',
+      truncated: 'Wyniki przycięte — zawęź głębokość lub zmień partię główną',
+      switchRoot: 'Ustaw jako główną',
+      notFound: 'Nie znaleziono partii lub brak dostępu'
     }
+  },
+  kanban: {
+    title: 'Kanban',
+    subtitle: 'Tablica uzupełnień ssących — sygnały Full / Empty / Ordered',
+    loop: 'Pętla kanban',
+    selectLoop: 'Wybierz pętlę…',
+    noLoops: 'Brak pętli kanban',
+    loopEmpty: 'Ta pętla nie ma żadnych kart',
+    columnEmpty: 'Brak kart o tym statusie',
+    notFound: 'Nie znaleziono pętli lub brak dostępu',
+    notFoundHint: 'Pętla może należeć do innej organizacji — wybierz inną pętlę.',
+    cardNumber: 'Numer karty',
+    product: 'Produkt',
+    workCenter: 'Stanowisko',
+    warehouse: 'Magazyn',
+    cardQuantity: 'Ilość na karcie',
+    consume: 'Zużyj',
+    order: 'Zamów',
+    replenish: 'Uzupełnij',
+    consumed: 'Karta zużyta — status Empty',
+    ordered: 'Karta zamówiona — status Ordered',
+    replenished: 'Karta uzupełniona — status Full',
+    illegalTransition: 'Niedozwolona zmiana statusu — odśwież tablicę',
+    wipLimitNotice: 'Przekroczono limit obiegu (WIP) — nie można zamówić kolejnej karty',
+    inactiveLoopNotice: 'Pętla jest nieaktywna — nie można uzupełnić karty',
+    statuses: {
+      1: 'Pełne',
+      2: 'Puste',
+      3: 'Zamówione'
+    }
+  },
+  oeeDashboard: {
+    title: 'Panel OEE',
+    subtitle: 'Wskaźniki efektywności stanowisk z trendem i stratami',
+    workCenter: 'Stanowisko',
+    selectWorkCenter: 'Wybierz stanowisko…',
+    from: 'Okno od',
+    to: 'Okno do',
+    idealCycleTime: 'Idealny czas cyklu [s]',
+    bucket: 'Agregacja',
+    apply: 'Zastosuj',
+    buckets: {
+      Day: 'Dzienna',
+      Week: 'Tygodniowa'
+    },
+    factors: {
+      oee: 'OEE',
+      availability: 'Dostępność',
+      performance: 'Wydajność',
+      quality: 'Jakość'
+    },
+    computed: 'Obliczony',
+    notComputed: 'Nieobliczony',
+    totalsHint: 'Plan: {planned}, praca: {run}',
+    downtimeHint: 'Przestoje: {minutes}',
+    countHint: 'Wyprodukowano: {total}',
+    qualityHint: 'Dobre: {good}, braki: {scrap}',
+    minUnit: 'min',
+    nullFactorsTitle: 'Brak zaplanowanego czasu w oknie',
+    nullFactorsHint: 'Wybrane okno nie zawiera czasu planowanego z kalendarza stanowiska, więc wskaźników nie można obliczyć. Zmień okno lub uzupełnij kalendarz.',
+    trendTitle: 'Trend w podziale na okresy',
+    trendEmpty: 'Brak okresów w wybranym oknie',
+    bucketFrom: 'Okres od',
+    bucketTo: 'Okres do',
+    downtimeParetoTitle: 'Straty przestojów (Pareto)',
+    downtimeEmpty: 'Brak zamkniętych przestojów w oknie',
+    scrapParetoTitle: 'Straty braków (Pareto)',
+    scrapEmpty: 'Brak braków w oknie',
+    reason: 'Kod przyczyny',
+    minutes: 'Minuty',
+    quantity: 'Ilość',
+    share: 'Udział',
+    noMachine: 'Wybierz stanowisko',
+    noMachineHint: 'Wybierz stanowisko robocze, aby zobaczyć wskaźniki OEE.',
+    notFound: 'Nie znaleziono stanowiska lub brak dostępu',
+    notFoundHint: 'Stanowisko może należeć do innej organizacji — wybierz inne stanowisko.',
+    invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko, okno i idealny czas cyklu'
+  },
+  reliabilityDashboard: {
+    title: 'Panel niezawodności',
+    subtitle: 'MTBF i MTTR stanowisk na podstawie przestojów i napraw',
+    workCenter: 'Stanowisko',
+    selectWorkCenter: 'Wybierz stanowisko…',
+    preset: 'Zakres',
+    presets: {
+      last8h: 'Ostatnie 8 h',
+      last24h: 'Ostatnie 24 h',
+      last7d: 'Ostatnie 7 dni',
+      last30d: 'Ostatnie 30 dni',
+      custom: 'Własny zakres'
+    },
+    from: 'Okno od',
+    to: 'Okno do',
+    apply: 'Zastosuj',
+    bucket: 'Agregacja',
+    buckets: {
+      Day: 'Dzienna',
+      Week: 'Tygodniowa'
+    },
+    trendTitle: 'Trend w podziale na okresy',
+    trendEmpty: 'Brak okresów w wybranym oknie',
+    bucketFrom: 'Okres od',
+    bucketTo: 'Okres do',
+    fleetTitle: 'Porównanie floty (od najgorszej)',
+    fleetEmpty: 'Brak aktywnych stanowisk w oknie',
+    cards: {
+      failures: 'Awarie',
+      repairs: 'Naprawy',
+      window: 'Okno',
+      uptime: 'Czas pracy',
+      downtime: 'Przestoje',
+      mtbf: 'MTBF',
+      mttr: 'MTTR',
+      avgRepair: 'Śr. naprawa'
+    },
+    computed: 'Obliczony',
+    notComputed: 'Nieobliczony',
+    downtimeHint: 'Przestoje: {minutes}',
+    uptimeHint: 'Czas pracy: {minutes}',
+    avgRepairHint: 'Śr. naprawa: {value}',
+    repairsHint: 'Naprawy: {count}',
+    failuresHint: 'Awarie: {count}',
+    windowHint: 'Okno UTC 93 dni maks.',
+    nullMtbfTitle: 'Brak awarii w oknie',
+    nullMtbfHint: 'Wybrane okno nie zawiera zamkniętych przestojów, więc MTBF i MTTR nie mogą być obliczone. Zmień okno lub stanowisko.',
+    noMachine: 'Wybierz stanowisko',
+    noMachineHint: 'Wybierz stanowisko robocze, aby zobaczyć MTBF i MTTR.',
+    notFound: 'Nie znaleziono stanowiska lub brak dostępu',
+    notFoundHint: 'Stanowisko może należeć do innej organizacji — wybierz inne stanowisko.',
+    invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko i okno (maks. 93 dni)'
+  },
+  scheduleDispatch: {
+    title: 'Harmonogram',
+    subtitle: 'Tablica dyspozytorska — zaległe zlecenia i obsada zmian',
+    from: 'Okno od',
+    to: 'Okno do',
+    apply: 'Zastosuj',
+    noShifts: 'Brak aktywnych zmian tego dnia',
+    headcount: '{count} op.',
+    uncovered: 'Nieobsadzona',
+    ordersTitle: 'Zlecenia do dyspozycji',
+    ordersEmpty: 'Brak zleceń Released / InProgress w wybranym oknie',
+    code: 'Kod',
+    dueDate: 'Termin',
+    priority: 'Priorytet',
+    remaining: 'Pozostało',
+    overdue: 'Zaległe',
+    onTime: 'W terminie',
+    noDueDate: 'Brak terminu',
+    invalidWindow: 'Nieprawidłowe okno dat — data początkowa nie może być późniejsza niż końcowa (maks. 31 dni)'
   },
   scrap: {
     title: 'Braki',
@@ -557,6 +857,8 @@ const pl = {
     notes: 'Uwagi',
     selectMachine: 'Wybierz maszynę…',
     selectReason: 'Wybierz przyczynę…',
+    order: 'Zlecenie (opcjonalnie)',
+    selectOrder: 'Wybierz zlecenie…',
     filters: {
       machine: 'Maszyna',
       reasonCode: 'Kod przyczyny'
@@ -635,8 +937,12 @@ const en: typeof pl = {
     productionLots: 'Lots',
     productionTelemetry: 'Telemetry',
     productionTelemetryDashboard: 'Telemetry dashboard',
+    productionOpcUaConnections: 'OPC UA connections',
+    productionKanban: 'Kanban',
     schedule: 'Schedule',
     reports: 'Reports',
+    oeeDashboard: 'OEE dashboard',
+    reliabilityDashboard: 'Reliability dashboard',
     configuration: 'Configuration',
     products: 'Products',
     productGroups: 'Product groups',
@@ -649,6 +955,7 @@ const en: typeof pl = {
     shifts: 'Shifts',
     reasonCodes: 'Reason codes',
     operationTemplates: 'Operation templates',
+    maintenance: 'Maintenance',
     settings: 'Settings'
   },
   auth: {
@@ -694,7 +1001,14 @@ const en: typeof pl = {
     group: 'Group',
     isActive: 'Active',
     syncId: 'Sync ID',
-    filters: { code: 'Code contains…', name: 'Name contains…', group: 'Group', isActive: 'State' }
+    filters: { code: 'Code contains…', name: 'Name contains…', group: 'Group', isActive: 'State' },
+    scan: {
+      title: 'Scanning',
+      placeholder: 'Scan code / EAN…',
+      search: 'Find',
+      matched: 'Matched product',
+      notFound: 'No active product found for the scanned value.'
+    }
   },
   productGroups: {
     title: 'Product groups',
@@ -727,7 +1041,16 @@ const en: typeof pl = {
     create: 'New warehouse',
     name: 'Name',
     syncId: 'Sync ID',
-    filters: { name: 'Name contains…' }
+    filters: { name: 'Name contains…' },
+    stock: {
+      title: 'Stock on hand',
+      subtitle: 'PW / RW balances by product and warehouse',
+      product: 'Product',
+      warehouse: 'Warehouse',
+      quantity: 'On hand',
+      unassigned: 'Unassigned',
+      empty: 'No balances yet — report an execution on an order to see stock.'
+    }
   },
   departments: {
     title: 'Departments',
@@ -753,6 +1076,19 @@ const en: typeof pl = {
       rateFrom: 'Rate from',
       rateTo: 'Rate to',
       department: 'Department'
+    },
+    roster: {
+      title: 'Shift roster',
+      subtitle: 'Operator-to-shift assignments for the selected date',
+      date: 'Date',
+      operator: 'Operator',
+      selectOperator: 'Select an operator…',
+      shift: 'Shift',
+      selectShift: 'Select a shift…',
+      notes: 'Notes',
+      assign: 'Assign',
+      empty: 'No assignments on this date — add the first one.',
+      assignedToast: 'Operator assigned to shift'
     }
   },
   machines: {
@@ -762,6 +1098,8 @@ const en: typeof pl = {
     code: 'Code',
     name: 'Name',
     description: 'Description',
+    capacity: 'Capacity',
+    efficiencyFactor: 'Efficiency factor',
     calendar: 'Calendar',
     filters: { code: 'Code contains…', name: 'Name contains…' }
   },
@@ -817,7 +1155,30 @@ const en: typeof pl = {
     scrapQuantity: 'Scrap quantity',
     notes: 'Notes',
     empty: 'No confirmations for this order yet',
-    positiveQuantityRequired: 'At least one quantity (good or scrap) must be greater than zero'
+    positiveQuantityRequired: 'At least one quantity (good or scrap) must be greater than zero',
+    producedLot: 'Produced lot',
+    selectProducedLot: 'Select produced lot…',
+    noLot: 'No lot',
+    consumedLots: 'Consumed lots',
+    consumedLot: 'Consumed lot',
+    selectConsumedLot: 'Select lot…',
+    consumedQuantity: 'Consumed quantity',
+    addConsumedLot: 'Add consumed lot',
+    genealogyHint: 'After saving, the trace appears in the produced lot genealogy tab.',
+    producedLotRequired: 'Produced lot is required when consumed lots are provided',
+    selfLinkNotAllowed: 'Consumed lot must differ from the produced lot',
+    consumedQuantityPositive: 'Consumed quantity must be greater than zero'
+  },
+  movements: {
+    title: 'RW / PW movement preview',
+    subtitle: 'Planned finished-goods receipt (PW) and material issues (RW) — no inventory posting',
+    type: 'Type',
+    product: 'Product',
+    quantity: 'Quantity',
+    warehouseHint: 'Warehouse (hint)',
+    empty: 'No movement lines to display',
+    show: 'Movements',
+    perConfirmationTitle: 'Confirmation movements'
   },
   recipes: {
     title: 'Recipes',
@@ -948,6 +1309,30 @@ const en: typeof pl = {
     description: 'Description',
     filters: { code: 'Code contains…', name: 'Name contains…' }
   },
+  maintenance: {
+    title: 'Maintenance',
+    subtitle: 'Corrective maintenance work orders for work centers — raise, start and close',
+    create: 'New work order',
+    code: 'Code',
+    orderTitle: 'Title',
+    description: 'Description',
+    machine: 'Work center',
+    selectMachine: 'Select a work center…',
+    priority: 'Priority',
+    selectPriority: 'Select a priority…',
+    reportedAt: 'Reported at',
+    startedAt: 'Started at',
+    completedAt: 'Completed at',
+    resolutionNotes: 'Resolution notes',
+    resolutionNotesPlaceholder: 'Describe the repair performed…',
+    start: 'Start',
+    complete: 'Complete',
+    completeTitle: 'Complete work order',
+    cancelOrder: 'Cancel work order',
+    statuses: { open: 'Open', inProgress: 'In progress', done: 'Done', cancelled: 'Cancelled' },
+    priorities: { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' },
+    filters: { machine: 'Work center', status: 'Status' }
+  },
   andon: {
     title: 'Andon',
     subtitle: 'Work-center abnormal condition signals',
@@ -1033,7 +1418,29 @@ const en: typeof pl = {
       3: 'X / MR',
       4: 'p-chart',
       5: 'c-chart'
-    }
+    },
+    measurements: 'Measurements',
+    measurementsTitle: 'Measurements: {name}'
+  },
+  spcMeasurements: {
+    title: 'SPC measurements',
+    chartTitle: 'Control chart',
+    logTitle: 'Measurement log',
+    measuredAt: 'Measured at',
+    value: 'Value',
+    notes: 'Notes',
+    from: 'From',
+    to: 'To',
+    apply: 'Apply',
+    outOfControl: 'Out of control',
+    outOfSpec: 'Out of spec',
+    inControl: 'In control',
+    summary: '{total} total • {ooc} out of control • {oos} out of spec',
+    noMeasurements: 'No measurements for this characteristic in the selected range',
+    notFound: 'Characteristic not found',
+    notFoundHint: 'The characteristic may have been deleted or belongs to another tenant. Close the dialog and refresh the list.',
+    chartEmpty: 'Not enough measurements for a chart',
+    loadFailed: 'Failed to load measurements'
   },
   downtime: {
     title: 'Downtime',
@@ -1050,6 +1457,8 @@ const en: typeof pl = {
     notes: 'Notes',
     selectMachine: 'Select a work center…',
     selectReason: 'Select a reason…',
+    order: 'Order (optional)',
+    selectOrder: 'Select an order…',
     status: { open: 'Open', closed: 'Closed' },
     filters: { machine: 'Work center', reason: 'Reason' }
   },
@@ -1097,6 +1506,30 @@ const en: typeof pl = {
     ageMinutes: '{n}m ago',
     ageHours: '{n}h ago'
   },
+  opcUaConnections: {
+    title: 'OPC UA connections',
+    subtitle: 'PLC/SCADA endpoint health with stale detection',
+    endpoint: 'Endpoint',
+    machine: 'Work center',
+    health: 'Health',
+    lastSeen: 'Last seen',
+    lastError: 'Last error',
+    tags: 'Tags',
+    test: 'Test',
+    testOk: 'Endpoint reachable',
+    testFailed: 'Connection test failed',
+    allMachines: 'All work centers',
+    noConnections: 'No OPC UA connections',
+    noConnectionsHint: 'Register an OPC UA endpoint to monitor its health.',
+    statusLive: 'Live',
+    statusStale: 'Stale',
+    statusNever: 'Never seen',
+    statusDisabled: 'Disabled',
+    liveCount: 'Live: {n}',
+    staleCount: 'Stale: {n}',
+    disabledCount: 'Disabled: {n}',
+    tagsLine: '{reporting} of {total} tags reporting'
+  },
   lots: {
     title: 'Lots',
     subtitle: 'Lot registry for traceability and lookup',
@@ -1129,8 +1562,177 @@ const en: typeof pl = {
     actions: {
       hold: 'Hold',
       release: 'Release',
-      scrap: 'Scrap'
+      scrap: 'Scrap',
+      details: 'Details & genealogy'
+    },
+    tabs: {
+      details: 'Details',
+      genealogy: 'Genealogy'
+    },
+    genealogy: {
+      depth: 'Depth',
+      level: 'Level',
+      quantity: 'Quantity',
+      order: 'Order',
+      workCenter: 'Work Center',
+      occurredAt: 'Occurred at',
+      upstream: 'Origin (upstream) — where from',
+      downstream: 'Where used (downstream)',
+      empty: 'No related lots',
+      truncated: 'Results truncated — narrow the depth or change the root lot',
+      switchRoot: 'Set as root',
+      notFound: 'Lot not found or access denied'
     }
+  },
+  kanban: {
+    title: 'Kanban',
+    subtitle: 'Pull replenishment board — Full / Empty / Ordered signals',
+    loop: 'Kanban loop',
+    selectLoop: 'Select a loop…',
+    noLoops: 'No kanban loops',
+    loopEmpty: 'This loop has no cards',
+    columnEmpty: 'No cards with this status',
+    notFound: 'Loop not found or access denied',
+    notFoundHint: 'The loop may belong to another organization — pick a different loop.',
+    cardNumber: 'Card number',
+    product: 'Product',
+    workCenter: 'Work center',
+    warehouse: 'Warehouse',
+    cardQuantity: 'Card quantity',
+    consume: 'Consume',
+    order: 'Order',
+    replenish: 'Replenish',
+    consumed: 'Card consumed — Empty status',
+    ordered: 'Card ordered — Ordered status',
+    replenished: 'Card replenished — Full status',
+    illegalTransition: 'Illegal status transition — refresh the board',
+    wipLimitNotice: 'Circulation (WIP) limit exceeded — cannot order another card',
+    inactiveLoopNotice: 'Loop is inactive — cannot replenish the card',
+    statuses: {
+      1: 'Full',
+      2: 'Empty',
+      3: 'Ordered'
+    }
+  },
+  oeeDashboard: {
+    title: 'OEE dashboard',
+    subtitle: 'Work-center effectiveness with trend and losses',
+    workCenter: 'Work center',
+    selectWorkCenter: 'Select a work center…',
+    from: 'Window from',
+    to: 'Window to',
+    idealCycleTime: 'Ideal cycle time [s]',
+    bucket: 'Bucket',
+    apply: 'Apply',
+    buckets: {
+      Day: 'Daily',
+      Week: 'Weekly'
+    },
+    factors: {
+      oee: 'OEE',
+      availability: 'Availability',
+      performance: 'Performance',
+      quality: 'Quality'
+    },
+    computed: 'Computed',
+    notComputed: 'Not computed',
+    totalsHint: 'Planned: {planned}, run: {run}',
+    downtimeHint: 'Downtime: {minutes}',
+    countHint: 'Produced: {total}',
+    qualityHint: 'Good: {good}, scrap: {scrap}',
+    minUnit: 'min',
+    nullFactorsTitle: 'No planned time in the window',
+    nullFactorsHint: 'The selected window has no planned calendar time for this work center, so the factors cannot be computed. Change the window or fill in the calendar.',
+    trendTitle: 'Per-bucket trend',
+    trendEmpty: 'No buckets in the selected window',
+    bucketFrom: 'Bucket from',
+    bucketTo: 'Bucket to',
+    downtimeParetoTitle: 'Downtime losses (Pareto)',
+    downtimeEmpty: 'No closed downtime in the window',
+    scrapParetoTitle: 'Scrap losses (Pareto)',
+    scrapEmpty: 'No scrap in the window',
+    reason: 'Reason code',
+    minutes: 'Minutes',
+    quantity: 'Quantity',
+    share: 'Share',
+    noMachine: 'Select a work center',
+    noMachineHint: 'Pick a work center to see its OEE factors.',
+    notFound: 'Work center not found or access denied',
+    notFoundHint: 'The work center may belong to another organization — pick a different one.',
+    invalidInput: 'Invalid input — check the work center, window and ideal cycle time'
+  },
+  reliabilityDashboard: {
+    title: 'Reliability dashboard',
+    subtitle: 'Work-center MTBF and MTTR from downtime and repairs',
+    workCenter: 'Work center',
+    selectWorkCenter: 'Select a work center…',
+    preset: 'Range',
+    presets: {
+      last8h: 'Last 8 hours',
+      last24h: 'Last 24 hours',
+      last7d: 'Last 7 days',
+      last30d: 'Last 30 days',
+      custom: 'Custom range'
+    },
+    from: 'Window from',
+    to: 'Window to',
+    apply: 'Apply',
+    bucket: 'Bucket',
+    buckets: {
+      Day: 'Daily',
+      Week: 'Weekly'
+    },
+    trendTitle: 'Per-bucket trend',
+    trendEmpty: 'No buckets in the selected window',
+    bucketFrom: 'Bucket from',
+    bucketTo: 'Bucket to',
+    fleetTitle: 'Fleet comparison (worst first)',
+    fleetEmpty: 'No active work centers in the window',
+    cards: {
+      failures: 'Failures',
+      repairs: 'Repairs',
+      window: 'Window',
+      uptime: 'Uptime',
+      downtime: 'Downtime',
+      mtbf: 'MTBF',
+      mttr: 'MTTR',
+      avgRepair: 'Avg repair'
+    },
+    computed: 'Computed',
+    notComputed: 'Not computed',
+    downtimeHint: 'Downtime: {minutes}',
+    uptimeHint: 'Uptime: {minutes}',
+    avgRepairHint: 'Avg repair: {value}',
+    repairsHint: 'Repairs: {count}',
+    failuresHint: 'Failures: {count}',
+    windowHint: 'UTC window, 93 days max',
+    nullMtbfTitle: 'No failures in the window',
+    nullMtbfHint: 'The selected window has no closed downtime, so MTBF and MTTR cannot be computed. Change the window or work center.',
+    noMachine: 'Select a work center',
+    noMachineHint: 'Pick a work center to see its MTBF and MTTR.',
+    notFound: 'Work center not found or access denied',
+    notFoundHint: 'The work center may belong to another organization — pick a different one.',
+    invalidInput: 'Invalid input — check the work center and window (93 days max)'
+  },
+  scheduleDispatch: {
+    title: 'Schedule',
+    subtitle: 'Dispatch board — overdue orders and shift staffing',
+    from: 'Window from',
+    to: 'Window to',
+    apply: 'Apply',
+    noShifts: 'No active shifts this day',
+    headcount: '{count} ops',
+    uncovered: 'Uncovered',
+    ordersTitle: 'Orders ready to dispatch',
+    ordersEmpty: 'No Released / InProgress orders in the selected window',
+    code: 'Code',
+    dueDate: 'Due date',
+    priority: 'Priority',
+    remaining: 'Remaining',
+    overdue: 'Overdue',
+    onTime: 'On time',
+    noDueDate: 'No due date',
+    invalidWindow: 'Invalid date window — the start date must not be after the end date (31 days max)'
   },
   scrap: {
     title: 'Scrap',
@@ -1143,6 +1745,8 @@ const en: typeof pl = {
     notes: 'Notes',
     selectMachine: 'Select a machine…',
     selectReason: 'Select a reason…',
+    order: 'Order (optional)',
+    selectOrder: 'Select an order…',
     filters: {
       machine: 'Machine',
       reasonCode: 'Reason code'

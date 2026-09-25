@@ -56,6 +56,8 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Machines / resources | Work Center | Configuration | partial | — | `Machine`; calendar done (#83); no capacity / efficiency |
 | Operators | Operator | Configuration | done | — | `Operator` (code / RFID) |
 | Skills | — | Configuration | done | — | `Skill` |
+| EAN / GTIN product identification | EAN / GTIN | Configuration | gap | — | barcode scan lookup on the shopfloor; depends on Products |
+| Operator shift assignment (roster) | Shift | Configuration | done | — | `OperatorShiftAssignment`; which operators work which shift; depends on Work-center calendar / shifts |
 
 ## Production engineering
 
@@ -92,5 +94,6 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | CMMS | CMMS | Configuration | done | #100 | corrective work orders (PR #102) |
 | OPC UA / SCADA telemetry | OPC UA | Production | done | #114, #115, #116 | tag dictionary + readings; simulator + stale dashboard (PRs #118, #127, #132) |
 | Kanban | Kanban | — | gap | — | |
+| MTBF / MTTR reliability KPIs | MTBF / MTTR | — | gap | — | per-work-center failure / repair KPIs; depends on Downtime capture + CMMS |
 
 _Last reconciled: 2026-09-24 — #80/#83/#84/#85/#97/#98/#99/#100/#114/#115/#116/#129/#130 done (PRs merged); confirmations partial, RW/PW preview open (#131); #88/#89 are fixes with no capability rows._

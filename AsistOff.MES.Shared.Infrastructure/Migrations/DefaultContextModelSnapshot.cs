@@ -116,6 +116,12 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("Capacity")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasDefaultValue(1m);
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -127,6 +133,12 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal>("EfficiencyFactor")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)")
+                        .HasDefaultValue(1.0m);
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -317,6 +329,44 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.ToTable("Operators", "config");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.OperatorShiftAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("OperatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date");
+
+                    b.HasIndex("OperatorId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "OperatorId", "ShiftId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("OperatorShiftAssignments", "config");
+                });
+
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -374,6 +424,10 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "Ean")
+                        .IsUnique()
+                        .HasFilter("\"Ean\" IS NOT NULL");
 
                     b.ToTable("Products", "config");
                 });
@@ -666,6 +720,60 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.ToTable("Skills", "config");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.StockMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("MeasureUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MovementType")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductionConfirmationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductionOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric(14,4)");
+
+                    b.Property<DateTime>("ReportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductionConfirmationId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ProductionConfirmationId");
+
+                    b.HasIndex("TenantId", "ProductionOrderId");
+
+                    b.ToTable("StockMovements", "config");
+                });
+
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.Warehouse", b =>
                 {
                     b.Property<Guid>("Id")
@@ -910,6 +1018,104 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.ToTable("DowntimeEvents", "production");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.KanbanCard", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CardNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LoopId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<short>("Status")
+                        .HasColumnType("smallint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoopId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "LoopId", "CardNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "LoopId", "Status");
+
+                    b.ToTable("KanbanCards", "production");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.KanbanLoop", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("CardQuantity")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("CardsInCirculation")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("ConsumingMachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SupplyingWarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ProductId");
+
+                    b.ToTable("KanbanLoops", "production");
+                });
+
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.Lot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -968,6 +1174,70 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.ToTable("Lots", "production");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.LotGenealogyEdge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConsumedLotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ConsumedQuantity")
+                        .HasColumnType("numeric(14,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ProducedLotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProductionConfirmationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductionOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ReportedByOperatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConsumedLotId");
+
+                    b.HasIndex("ProducedLotId");
+
+                    b.HasIndex("ProductionConfirmationId");
+
+                    b.HasIndex("ProductionOrderId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ConsumedLotId");
+
+                    b.HasIndex("TenantId", "ProducedLotId");
+
+                    b.HasIndex("TenantId", "ProductionOrderId", "OccurredAt");
+
+                    b.ToTable("LotGenealogyEdges", "production");
+                });
+
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.MachineTelemetryTag", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1017,6 +1287,55 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("MachineTelemetryTags", "production");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.OpcUaConnection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EndpointUrl")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTime?>("LastSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("PollIntervalSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<short>("SecurityPolicy")
+                        .HasColumnType("smallint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "IsEnabled");
+
+                    b.HasIndex("TenantId", "MachineId", "EndpointUrl")
+                        .IsUnique();
+
+                    b.ToTable("OpcUaConnections", "production");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.OperationDependency", b =>
@@ -1632,6 +1951,45 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.ToTable("SpcCharacteristics", "production");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.SpcMeasurement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CharacteristicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("MeasuredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Value")
+                        .HasColumnType("numeric(18,6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CharacteristicId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "CharacteristicId", "MeasuredAt");
+
+                    b.ToTable("SpcMeasurements", "production");
+                });
+
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.TelemetryReading", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1669,6 +2027,122 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.HasIndex("TenantId", "TagId", "ReadAt");
 
                     b.ToTable("TelemetryReadings", "production");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Users.Core.Entities.Permission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("Permissions", "users");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Users.Core.Entities.Role", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("Roles", "users");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Users.Core.Entities.RolePermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PermissionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PermissionId");
+
+                    b.HasIndex("RoleId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "RoleId", "PermissionId")
+                        .IsUnique();
+
+                    b.ToTable("RolePermissions", "users");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Users.Core.Entities.User", b =>
@@ -1715,6 +2189,41 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.ToTable("Users", "users");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Users.Core.Entities.UserRole", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RoleId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "UserId", "RoleId")
+                        .IsUnique();
+
+                    b.ToTable("UserRoles", "users");
+                });
+
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.Machine", b =>
                 {
                     b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Department", "Department")
@@ -1754,6 +2263,25 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Department");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.OperatorShiftAssignment", b =>
+                {
+                    b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Operator", "Operator")
+                        .WithMany()
+                        .HasForeignKey("OperatorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Shift", "Shift")
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Operator");
+
+                    b.Navigation("Shift");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.Product", b =>
@@ -1813,6 +2341,15 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.StockMovement", b =>
+                {
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.ProductionConfirmation", null)
+                        .WithMany()
+                        .HasForeignKey("ProductionConfirmationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.WorkCenterCalendar", b =>
                 {
                     b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Machine", null)
@@ -1847,6 +2384,51 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("OperationNode");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.KanbanCard", b =>
+                {
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.KanbanLoop", "Loop")
+                        .WithMany("Cards")
+                        .HasForeignKey("LoopId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Loop");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.LotGenealogyEdge", b =>
+                {
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.Lot", "ConsumedLot")
+                        .WithMany()
+                        .HasForeignKey("ConsumedLotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.Lot", "ProducedLot")
+                        .WithMany()
+                        .HasForeignKey("ProducedLotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.ProductionConfirmation", "ProductionConfirmation")
+                        .WithMany()
+                        .HasForeignKey("ProductionConfirmationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.ProductionOrder", "ProductionOrder")
+                        .WithMany()
+                        .HasForeignKey("ProductionOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ConsumedLot");
+
+                    b.Navigation("ProducedLot");
+
+                    b.Navigation("ProductionConfirmation");
+
+                    b.Navigation("ProductionOrder");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.OperationDependency", b =>
@@ -1923,6 +2505,17 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Navigation("OperationNode");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.SpcMeasurement", b =>
+                {
+                    b.HasOne("AsistOff.MES.Production.Domain.Entities.SpcCharacteristic", "Characteristic")
+                        .WithMany()
+                        .HasForeignKey("CharacteristicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Characteristic");
+                });
+
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.TelemetryReading", b =>
                 {
                     b.HasOne("AsistOff.MES.Production.Domain.Entities.MachineTelemetryTag", "Tag")
@@ -1932,6 +2525,44 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Tag");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Users.Core.Entities.RolePermission", b =>
+                {
+                    b.HasOne("AsistOff.MES.Users.Core.Entities.Permission", "Permission")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AsistOff.MES.Users.Core.Entities.Role", "Role")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Users.Core.Entities.UserRole", b =>
+                {
+                    b.HasOne("AsistOff.MES.Users.Core.Entities.Role", "Role")
+                        .WithMany("UserRoles")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AsistOff.MES.Users.Core.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Role");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.Department", b =>
@@ -1965,6 +2596,11 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Navigation("Entries");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.KanbanLoop", b =>
+                {
+                    b.Navigation("Cards");
+                });
+
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.OperationNode", b =>
                 {
                     b.Navigation("BomItems");
@@ -1984,6 +2620,18 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.RecipeVersion", b =>
                 {
                     b.Navigation("Operations");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Users.Core.Entities.Permission", b =>
+                {
+                    b.Navigation("RolePermissions");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Users.Core.Entities.Role", b =>
+                {
+                    b.Navigation("RolePermissions");
+
+                    b.Navigation("UserRoles");
                 });
 #pragma warning restore 612, 618
         }

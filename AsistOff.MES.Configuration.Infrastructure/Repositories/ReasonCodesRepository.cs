@@ -30,6 +30,18 @@ internal sealed class ReasonCodesRepository(DefaultContext context) : IReasonCod
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<ReasonCode>> ListByIdsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+            return Array.Empty<ReasonCode>();
+
+        return await context.Set<ReasonCode>()
+            .AsNoTracking()
+            .Where(x => ids.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<bool> CodeExistsAsync(
         string code, Guid? excludeId, CancellationToken cancellationToken = default)
     {

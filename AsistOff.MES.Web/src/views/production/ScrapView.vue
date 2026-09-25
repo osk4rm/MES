@@ -97,6 +97,16 @@
             <AppInput :id="id" v-model="form.reportedAt" type="datetime-local" :disabled="isEditing" />
           </template>
         </AppFormField>
+        <AppFormField v-if="!isEditing" :label="$t('scrap.order')">
+          <template #default="{ id }">
+            <AppSelect
+              :id="id"
+              v-model="form.productionOrderId"
+              :options="orderOptions"
+              :placeholder="$t('scrap.selectOrder')"
+            />
+          </template>
+        </AppFormField>
         <AppFormField :label="$t('scrap.notes')" class="form-grid__full">
           <template #default="{ id }">
             <AppTextarea :id="id" v-model="form.notes" :rows="2" />
@@ -140,6 +150,7 @@ import { useCrudPage } from '../../composables/useCrudPage';
 import { scrapEventService, type ScrapEventResponse } from '../../services/scrapEventService';
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { reasonCodeService, ReasonCodeCategory, type ReasonCodeResponse } from '../../services/reasonCodeService';
+import { productionOrderService, ProductionOrderStatus, type ProductionOrderResponse } from '../../services/productionOrderService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -169,15 +180,19 @@ const columns = computed(() => [
 
 const machines = ref<MachineResponse[]>([]);
 const reasonCodes = ref<ReasonCodeResponse[]>([]);
+const orders = ref<ProductionOrderResponse[]>([]);
 
 async function loadLookups() {
   try {
-    const [m, r] = await Promise.all([
+    const [m, r, o] = await Promise.all([
       machineService.browse({ pageNumber: 1, pageSize: 200 }),
-      reasonCodeService.browse({ pageNumber: 1, pageSize: 200, category: ReasonCodeCategory.Scrap })
+      reasonCodeService.browse({ pageNumber: 1, pageSize: 200, category: ReasonCodeCategory.Scrap }),
+      productionOrderService.browse({ pageNumber: 1, pageSize: 200 })
     ]);
     machines.value = m.items;
     reasonCodes.value = r.items;
+    orders.value = o.items.filter(x =>
+      x.status === ProductionOrderStatus.Released || x.status === ProductionOrderStatus.InProgress);
   } catch { /* ignore — table still renders */ }
 }
 
@@ -202,6 +217,10 @@ function formatQuantity(v: number): string {
 
 const machineOptions = computed(() => machines.value.map(m => ({ value: m.id, label: `${m.code} — ${m.name}` })));
 const reasonOptions = computed(() => reasonCodes.value.map(r => ({ value: r.id, label: `${r.code} — ${r.name}` })));
+const orderOptions = computed(() => [
+  { value: null, label: t('scrap.selectOrder') },
+  ...orders.value.map(o => ({ value: o.id, label: o.code }))
+]);
 const machineFilterOptions = computed(() => [
   { value: null, label: t('scrap.filters.machine') },
   ...machineOptions.value
@@ -255,6 +274,7 @@ const form = reactive({
   reasonCodeId: null as string | null,
   quantity: null as number | null,
   reportedAt: '',
+  productionOrderId: null as string | null,
   notes: '' as string | null
 });
 
@@ -265,6 +285,7 @@ function openCreate() {
     reasonCodeId: null,
     quantity: null,
     reportedAt: toLocalInputValue(new Date()),
+    productionOrderId: null,
     notes: ''
   });
   modalOpen.value = true;
@@ -310,7 +331,7 @@ async function onSave() {
         reportedAt: new Date(form.reportedAt).toISOString(),
         notes: form.notes || null,
         reportedByOperatorId: null,
-        productionOrderId: null
+        productionOrderId: form.productionOrderId
       });
       toast.success(t('toasts.created'));
     }

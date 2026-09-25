@@ -55,6 +55,15 @@ internal sealed class ChildEntitiesRepository(DefaultContext context) : IChildEn
         await context.Set<ResourceRequirement>().Where(x => x.Id == id).ExecuteDeleteAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<BomItem>> ListBomItemsForVersionAsync(
+        Guid recipeVersionId, CancellationToken cancellationToken = default)
+        => await context.Set<BomItem>()
+            .AsNoTracking()
+            .Where(x => x.OperationNode.RecipeVersionId == recipeVersionId)
+            .OrderBy(x => x.SortIndex)
+            .ThenBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         => context.SaveChangesAsync(cancellationToken);
 }

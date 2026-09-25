@@ -20,11 +20,20 @@ export const sitemap: NavItem[] = [
       { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' },
       { label: 'nav.spcCharacteristics', icon: 'pi pi-chart-line', route: '/production/spc-characteristics' },
       { label: 'nav.productionTelemetry', icon: 'pi pi-wave-pulse', route: '/production/telemetry' },
-      { label: 'nav.productionTelemetryDashboard', icon: 'pi pi-chart-line', route: '/production/telemetry-dashboard' }
+      { label: 'nav.productionOpcUaConnections', icon: 'pi pi-link', route: '/production/opcua-connections' },
+      { label: 'nav.productionTelemetryDashboard', icon: 'pi pi-chart-line', route: '/production/telemetry-dashboard' },
+      { label: 'nav.productionKanban', icon: 'pi pi-th-large', route: '/production/kanban' }
     ]
   },
   { label: 'nav.schedule', icon: 'pi pi-calendar', route: '/schedule' },
-  { label: 'nav.reports', icon: 'pi pi-chart-bar', route: '/reports' },
+  {
+    label: 'nav.reports',
+    icon: 'pi pi-chart-bar',
+    children: [
+      { label: 'nav.oeeDashboard', icon: 'pi pi-chart-bar', route: '/reports/oee' },
+      { label: 'nav.reliabilityDashboard', icon: 'pi pi-wrench', route: '/reports/reliability' }
+    ]
+  },
   {
     label: 'nav.configuration',
     icon: 'pi pi-sliders-h',
@@ -39,7 +48,8 @@ export const sitemap: NavItem[] = [
       { label: 'nav.skills', icon: 'pi pi-star', route: '/configuration/skills' },
       { label: 'nav.shifts', icon: 'pi pi-clock', route: '/configuration/shifts' },
       { label: 'nav.reasonCodes', icon: 'pi pi-exclamation-circle', route: '/configuration/reason-codes' },
-      { label: 'nav.operationTemplates', icon: 'pi pi-copy', route: '/configuration/operation-templates' }
+      { label: 'nav.operationTemplates', icon: 'pi pi-copy', route: '/configuration/operation-templates' },
+      { label: 'nav.maintenance', icon: 'pi pi-wrench', route: '/configuration/maintenance' }
     ]
   },
   { label: 'nav.settings', icon: 'pi pi-cog', route: '/settings' }

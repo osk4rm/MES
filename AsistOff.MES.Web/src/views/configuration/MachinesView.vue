@@ -57,6 +57,12 @@
         <AppFormField :label="$t('machines.description')" class="form-grid__full">
           <template #default="{ id }"><AppInput :id="id" v-model="form.description" /></template>
         </AppFormField>
+        <AppFormField :label="$t('machines.capacity')" required>
+          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.capacity" :min="0" step="any" required :invalid="invalid" /></template>
+        </AppFormField>
+        <AppFormField :label="$t('machines.efficiencyFactor')" required>
+          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.efficiencyFactor" :min="0" :max="1" step="any" required :invalid="invalid" /></template>
+        </AppFormField>
         <AppFormField :label="$t('common.active')" class="form-grid__full">
           <template #default><input type="checkbox" v-model="form.isActive" /></template>
         </AppFormField>
@@ -124,6 +130,7 @@ import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import AppSelect from '../../components/ui/AppSelect.vue';
 import AppCheckbox from '../../components/ui/AppCheckbox.vue';
+import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import { machineService, type MachineResponse, type SaveWorkCenterCalendarEntryRequest } from '../../services/machineService';
 import { shiftService, type ShiftResponse } from '../../services/shiftService';
@@ -143,6 +150,8 @@ const table = useCrudPage<MachineResponse, Filters>({
 const columns = computed(() => [
   { key: 'code', label: t('machines.code'), sortable: true },
   { key: 'name', label: t('machines.name'), sortable: true },
+  { key: 'capacity', label: t('machines.capacity') },
+  { key: 'efficiencyFactor', label: t('machines.efficiencyFactor') },
   { key: 'isActive', label: t('common.status') },
   { key: 'actions', label: t('common.actions'), width: '130px' }
 ]);
@@ -157,16 +166,16 @@ function clearFilters() { codeFilter.value = ''; nameFilter.value = ''; table.re
 const modalOpen = ref(false);
 const editing = ref<MachineResponse | null>(null);
 const saving = ref(false);
-const form = reactive({ code: '', name: '', description: '' as string | null, isActive: true });
+const form = reactive({ code: '', name: '', description: '' as string | null, isActive: true, capacity: 1 as number | null, efficiencyFactor: 1 as number | null });
 
 function openCreate() {
   editing.value = null;
-  Object.assign(form, { code: '', name: '', description: '', isActive: true });
+  Object.assign(form, { code: '', name: '', description: '', isActive: true, capacity: 1, efficiencyFactor: 1 });
   modalOpen.value = true;
 }
 function openEdit(item: MachineResponse) {
   editing.value = item;
-  Object.assign(form, { code: item.code, name: item.name, description: item.description ?? '', isActive: item.isActive });
+  Object.assign(form, { code: item.code, name: item.name, description: item.description ?? '', isActive: item.isActive, capacity: item.capacity, efficiencyFactor: item.efficiencyFactor });
   modalOpen.value = true;
 }
 function closeModal() { if (saving.value) return; modalOpen.value = false; editing.value = null; }
@@ -178,7 +187,9 @@ async function onSave() {
       code: form.code,
       name: form.name,
       description: form.description || null,
-      isActive: form.isActive
+      isActive: form.isActive,
+      capacity: form.capacity,
+      efficiencyFactor: form.efficiencyFactor
     };
     if (editing.value) {
       await machineService.update(editing.value.id, { id: editing.value.id, ...payload });

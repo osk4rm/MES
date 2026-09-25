@@ -21,6 +21,17 @@ internal sealed class ScrapEventsRepository(DefaultContext context) : IScrapEven
     public Task<ScrapEvent?> GetAsync(Guid id, CancellationToken cancellationToken = default)
         => context.Set<ScrapEvent>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyCollection<ScrapEvent>> ListForMachineInWindowAsync(
+        Guid machineId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
+        => await context.Set<ScrapEvent>()
+            .AsNoTracking()
+            .Where(x => x.MachineId == machineId
+                && x.ReportedAt >= fromUtc
+                && x.ReportedAt <= toUtc)
+            .OrderBy(x => x.ReportedAt)
+            .ThenBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+
     public async Task<ScrapEvent> AddAsync(ScrapEvent entity, CancellationToken cancellationToken = default)
     {
         context.Set<ScrapEvent>().Add(entity);

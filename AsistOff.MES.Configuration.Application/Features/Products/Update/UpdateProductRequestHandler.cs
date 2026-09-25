@@ -1,4 +1,5 @@
 using AsistOff.MES.Configuration.Application.Features.Products.Common.Responses;
+using AsistOff.MES.Configuration.Application.Features.Products.Common;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using MediatR;
@@ -18,12 +19,20 @@ internal sealed class UpdateProductRequestHandler(
         if (entity is null)
             throw new NotFoundException("Product", request.Id);
 
+        var ean = GtinValidator.Normalize(request.Ean);
+
+        if (!GtinValidator.IsValid(request.Ean))
+            throw new ValidationException(nameof(request.Ean), "Ean must be 8, 12, 13 or 14 digits with a valid GTIN check digit.");
+
+        if (ean is not null && await productsRepository.EanExistsAsync(ean, request.Id, cancellationToken))
+            throw new ConflictException($"Product with EAN '{ean}' already exists.");
+
         try
         {
             entity.Code = request.Code;
             entity.Name = request.Name;
             entity.Description = request.Description;
-            entity.Ean = request.Ean;
+            entity.Ean = ean;
             entity.Barcode = request.Barcode;
             entity.ScanBy = request.ScanBy;
             entity.IsActive = request.IsActive;
