@@ -36,6 +36,30 @@ export interface OeeSnapshot {
   scrapCount: number;
 }
 
+/**
+ * OEE summary contract. Mirrors `OeeSummaryResponse` from the backend:
+ * echoed inputs, raw confirmation counts, the Quality and Availability
+ * factors plus the auto-resolved ideal cycle time, the Performance factor
+ * (clamped at 1) and the composite OEE. Nullable factors are null (never
+ * zeros) when they cannot be computed.
+ */
+export interface OeeSummary {
+  machineId: string;
+  fromUtc: string;
+  toUtc: string;
+  goodCount: number;
+  scrapCount: number;
+  totalCount: number;
+  quality: number | null;
+  plannedTimeMinutes: number;
+  runTimeMinutes: number;
+  downtimeMinutes: number;
+  availability: number | null;
+  idealCycleTimeSeconds: number | null;
+  performance: number | null;
+  oee: number | null;
+}
+
 /** OEE trend contract: normalized bucket plus one snapshot per bucket. */
 export interface OeeTrend {
   machineId: string;
@@ -75,6 +99,12 @@ export interface OeeLosses {
   scrapPareto: OeeScrapParetoEntry[];
 }
 
+export interface GetOeeSummaryQuery {
+  machineId: string;
+  fromUtc: string;
+  toUtc: string;
+}
+
 export interface GetOeeSnapshotQuery {
   machineId: string;
   fromUtc: string;
@@ -95,6 +125,15 @@ export interface GetOeeLossesQuery {
 const BASE = '/api/oee';
 
 export const oeeService = {
+  /**
+   * Per-Work Center OEE summary over a UTC time window. The backend resolves
+   * the ideal cycle time from the confirmed orders' operations, so unlike the
+   * snapshot no ideal cycle time parameter is needed.
+   */
+  async getSummary(query: GetOeeSummaryQuery): Promise<OeeSummary> {
+    const { data } = await http.get<OeeSummary>(`${BASE}`, { params: { ...query } });
+    return data;
+  },
   /** Per-Work Center OEE snapshot over a UTC time window. */
   async getSnapshot(query: GetOeeSnapshotQuery): Promise<OeeSnapshot> {
     const { data } = await http.get<OeeSnapshot>(`${BASE}/snapshot`, { params: { ...query } });

@@ -18,6 +18,8 @@ public class GetOeeSummaryRequestHandlerTests
     private readonly Mock<IWorkCenterCalendarsRepository> _calendars = new();
     private readonly Mock<IDowntimeEventsRepository> _downtimes = new();
     private readonly Mock<IProductionConfirmationsRepository> _confirmations = new();
+    private readonly Mock<IProductionOrdersRepository> _orders = new();
+    private readonly Mock<IOperationNodesRepository> _operations = new();
 
     public GetOeeSummaryRequestHandlerTests()
     {
@@ -32,7 +34,8 @@ public class GetOeeSummaryRequestHandlerTests
     }
 
     private GetOeeSummaryRequestHandler CreateSut() => new(
-        _machines.Object, _calendars.Object, _downtimes.Object, _confirmations.Object);
+        _machines.Object, _calendars.Object, _downtimes.Object, _confirmations.Object,
+        _orders.Object, _operations.Object);
 
     private static Machine AMachine(Guid id) => new()
     {
@@ -43,11 +46,11 @@ public class GetOeeSummaryRequestHandlerTests
     };
 
     private static ProductionConfirmation Confirmation(
-        Guid machineId, DateTime reportedAt, decimal good, decimal scrap) => new()
+        Guid machineId, DateTime reportedAt, decimal good, decimal scrap, Guid? orderId = null) => new()
     {
         Id = Guid.NewGuid(),
         TenantId = Guid.NewGuid(),
-        ProductionOrderId = Guid.NewGuid(),
+        ProductionOrderId = orderId ?? Guid.NewGuid(),
         MachineId = machineId,
         ReportedAt = reportedAt,
         GoodQuantity = good,
@@ -109,6 +112,40 @@ public class GetOeeSummaryRequestHandlerTests
         _downtimes.Setup(d => d.ListOverlappingAsync(
                 It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(events);
+    }
+
+    private static OperationNode Operation(Guid versionId) => new()
+    {
+        Id = Guid.NewGuid(),
+        TenantId = Guid.NewGuid(),
+        RecipeVersionId = versionId,
+        Code = $"OP-{Guid.NewGuid():N}"[..8],
+        Name = "Operation"
+    };
+
+    private void ArrangeIdeal(Guid orderId, Guid versionId, params decimal?[] secondsPerUnit)
+    {
+        _orders.Setup(o => o.GetAsync(orderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProductionOrder
+            {
+                Id = orderId,
+                TenantId = Guid.NewGuid(),
+                Code = "PO-1",
+                ProductId = Guid.NewGuid(),
+                RecipeId = Guid.NewGuid(),
+                RecipeVersionId = versionId,
+                PlannedQuantity = 100m
+            });
+        var operations = secondsPerUnit
+            .Select(s =>
+            {
+                var op = Operation(versionId);
+                op.RunTimePerUnitSeconds = s;
+                return op;
+            })
+            .ToList();
+        _operations.Setup(o => o.ListForVersionAsync(versionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(operations);
     }
 
     [Fact]
@@ -455,5 +492,206 @@ public class GetOeeSummaryRequestHandlerTests
         _downtimes.Verify(d => d.ListOverlappingAsync(
             machineId, Monday.ToUniversalTime(), Monday.AddHours(8).ToUniversalTime(),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_Performance_MatchesTotalTimesIdealDividedByRun()
+    {
+        // Arrange - 480 planned, 60 downtime -> run 420; 100 units at a
+        // 60s ideal: ideal minutes = 100, performance = 100/420 ≈ 0.2381
+        var machineId = Guid.NewGuid();
+        var from = Monday;
+        var to = Monday.AddHours(8);
+        var orderId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        ArrangeMachine(machineId);
+        ArrangeCalendar(WorkingEntry(DayOfWeek.Monday, "06:00", "14:00"));
+        ArrangeDowntimes(ClosedDowntime(machineId, Monday.AddHours(1), Monday.AddHours(2)));
+        ArrangeIdeal(orderId, versionId, 60m);
+        _confirmations.Setup(c => c.ListForMachineInWindowAsync(
+                machineId, from, to, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                Confirmation(machineId, Monday.AddHours(2), 90m, 10m, orderId)]);
+
+        // Act
+        var result = await CreateSut().Handle(
+            new GetOeeSummaryRequest(machineId, from, to), CancellationToken.None);
+
+        // Assert
+        result.IdealCycleTimeSeconds.Should().Be(60m);
+        result.TotalCount.Should().Be(100m);
+        result.Performance.Should().BeApproximately(100.0 / 420.0, 0.0001);
+    }
+
+    [Fact]
+    public async Task Handle_CompositeOee_EqualsAvailabilityTimesPerformanceTimesQuality()
+    {
+        // Arrange - availability 420/480 = 0.875, quality 90/100 = 0.9,
+        // performance 100/420 ≈ 0.2381: oee = 0.875 * 0.2381 * 0.9
+        var machineId = Guid.NewGuid();
+        var from = Monday;
+        var to = Monday.AddHours(8);
+        var orderId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        ArrangeMachine(machineId);
+        ArrangeCalendar(WorkingEntry(DayOfWeek.Monday, "06:00", "14:00"));
+        ArrangeDowntimes(ClosedDowntime(machineId, Monday.AddHours(1), Monday.AddHours(2)));
+        ArrangeIdeal(orderId, versionId, 60m);
+        _confirmations.Setup(c => c.ListForMachineInWindowAsync(
+                machineId, from, to, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                Confirmation(machineId, Monday.AddHours(2), 90m, 10m, orderId)]);
+
+        // Act
+        var result = await CreateSut().Handle(
+            new GetOeeSummaryRequest(machineId, from, to), CancellationToken.None);
+
+        // Assert
+        var expectedPerformance = Math.Round(100.0 / 420.0, 4, MidpointRounding.AwayFromZero);
+        var expectedOee = Math.Round(0.875 * expectedPerformance * 0.9, 4, MidpointRounding.AwayFromZero);
+        result.Performance.Should().BeApproximately(expectedPerformance, 0.0001);
+        result.Oee.Should().BeApproximately(expectedOee, 0.0001);
+    }
+
+    [Fact]
+    public async Task Handle_MissingIdealCycleTime_ReturnsNullPerformanceAndNullOee()
+    {
+        // Arrange - the confirmed order's version has no usable operation
+        // timing (null RunTimePerUnitSeconds): ideal stays null
+        var machineId = Guid.NewGuid();
+        var from = Monday;
+        var to = Monday.AddHours(8);
+        var orderId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        ArrangeMachine(machineId);
+        ArrangeCalendar(WorkingEntry(DayOfWeek.Monday, "06:00", "14:00"));
+        ArrangeDowntimes(ClosedDowntime(machineId, Monday.AddHours(1), Monday.AddHours(2)));
+        ArrangeIdeal(orderId, versionId, (decimal?)null);
+        _confirmations.Setup(c => c.ListForMachineInWindowAsync(
+                machineId, from, to, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                Confirmation(machineId, Monday.AddHours(2), 90m, 10m, orderId)]);
+
+        // Act
+        var result = await CreateSut().Handle(
+            new GetOeeSummaryRequest(machineId, from, to), CancellationToken.None);
+
+        // Assert - 200 with nulls, never zeros; availability and quality stay computed
+        result.IdealCycleTimeSeconds.Should().BeNull();
+        result.Performance.Should().BeNull();
+        result.Oee.Should().BeNull();
+        result.Availability.Should().BeApproximately(420.0 / 480.0, 0.0001);
+        result.Quality.Should().BeApproximately(0.9, 0.0001);
+    }
+
+    [Fact]
+    public async Task Handle_ZeroRunTime_ReturnsNullPerformanceAndNullOee()
+    {
+        // Arrange - full downtime floors run at zero: performance is null
+        // (never zero or divide-by-zero), availability is 0, oee is null
+        var machineId = Guid.NewGuid();
+        var from = Monday;
+        var to = Monday.AddHours(8);
+        var orderId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        ArrangeMachine(machineId);
+        ArrangeCalendar(WorkingEntry(DayOfWeek.Monday, "06:00", "07:00"));
+        ArrangeDowntimes(ClosedDowntime(machineId, Monday.AddHours(-2), Monday.AddHours(3)));
+        ArrangeIdeal(orderId, versionId, 60m);
+        _confirmations.Setup(c => c.ListForMachineInWindowAsync(
+                machineId, from, to, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                Confirmation(machineId, Monday.AddMinutes(30), 10m, 0m, orderId)]);
+
+        // Act
+        var result = await CreateSut().Handle(
+            new GetOeeSummaryRequest(machineId, from, to), CancellationToken.None);
+
+        // Assert
+        result.RunTimeMinutes.Should().Be(0);
+        result.IdealCycleTimeSeconds.Should().Be(60m);
+        result.Performance.Should().BeNull();
+        result.Oee.Should().BeNull();
+        result.Availability.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Handle_OverCyclePerformance_ClampsAtOne()
+    {
+        // Arrange - tiny run window (60 planned minutes, no downtime) with a
+        // huge output at a generous ideal: raw = 600*60s/60min = 10 -> clamp 1.
+        // Over-cycle means the ideal is overstated or stops went unrecorded;
+        // the ideal stays the fastest sustainable time, so the factor caps.
+        var machineId = Guid.NewGuid();
+        var from = Monday;
+        var to = Monday.AddHours(8);
+        var orderId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        ArrangeMachine(machineId);
+        ArrangeCalendar(WorkingEntry(DayOfWeek.Monday, "06:00", "07:00"));
+        ArrangeIdeal(orderId, versionId, 60m);
+        _confirmations.Setup(c => c.ListForMachineInWindowAsync(
+                machineId, from, to, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                Confirmation(machineId, Monday.AddMinutes(30), 600m, 0m, orderId)]);
+
+        // Act
+        var result = await CreateSut().Handle(
+            new GetOeeSummaryRequest(machineId, from, to), CancellationToken.None);
+
+        // Assert
+        result.Performance.Should().Be(1.0);
+        result.Oee.Should().BeApproximately(1.0 * 1.0 * 1.0, 0.0001);
+    }
+
+    [Fact]
+    public async Task Handle_MultipleOperations_ResolvesMinimumPositiveIdeal()
+    {
+        // Arrange - three operations on one version (120s, 30s fastest, null
+        // ignored): the fastest sustainable per-unit time wins
+        var machineId = Guid.NewGuid();
+        var from = Monday;
+        var to = Monday.AddHours(8);
+        var orderId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        ArrangeMachine(machineId);
+        ArrangeCalendar(WorkingEntry(DayOfWeek.Monday, "06:00", "14:00"));
+        ArrangeIdeal(orderId, versionId, 120m, 30m, (decimal?)null);
+        _confirmations.Setup(c => c.ListForMachineInWindowAsync(
+                machineId, from, to, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                Confirmation(machineId, Monday.AddHours(2), 90m, 10m, orderId)]);
+
+        // Act
+        var result = await CreateSut().Handle(
+            new GetOeeSummaryRequest(machineId, from, to), CancellationToken.None);
+
+        // Assert - ideal minutes = 100 * 30/60 = 50; performance = 50/480
+        result.IdealCycleTimeSeconds.Should().Be(30m);
+        result.Performance.Should().BeApproximately(50.0 / 480.0, 0.0001);
+    }
+
+    [Fact]
+    public async Task Handle_EmptyPeriod_ReturnsNullIdealPerformanceAndOee()
+    {
+        // Arrange - no confirmations: no ideal can be resolved
+        var machineId = Guid.NewGuid();
+        var from = Monday;
+        var to = Monday.AddHours(8);
+        ArrangeMachine(machineId);
+        ArrangeCalendar(WorkingEntry(DayOfWeek.Monday, "06:00", "14:00"));
+        _confirmations.Setup(c => c.ListForMachineInWindowAsync(
+                machineId, from, to, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        // Act
+        var result = await CreateSut().Handle(
+            new GetOeeSummaryRequest(machineId, from, to), CancellationToken.None);
+
+        // Assert
+        result.TotalCount.Should().Be(0m);
+        result.IdealCycleTimeSeconds.Should().BeNull();
+        result.Performance.Should().BeNull();
+        result.Oee.Should().BeNull();
     }
 }

@@ -1,5 +1,6 @@
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Production.Application.Features.Oee.Snapshot;
+using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using MediatR;
@@ -10,7 +11,9 @@ internal sealed class GetOeeSummaryRequestHandler(
     IMachinesRepository machinesRepository,
     IWorkCenterCalendarsRepository calendarsRepository,
     IDowntimeEventsRepository downtimeEventsRepository,
-    IProductionConfirmationsRepository confirmationsRepository)
+    IProductionConfirmationsRepository confirmationsRepository,
+    IProductionOrdersRepository ordersRepository,
+    IOperationNodesRepository operationsRepository)
     : IRequestHandler<GetOeeSummaryRequest, OeeSummaryResponse>
 {
     public async Task<OeeSummaryResponse> Handle(GetOeeSummaryRequest request, CancellationToken cancellationToken)
@@ -69,6 +72,31 @@ internal sealed class GetOeeSummaryRequestHandler(
             ? OeeMath.Round4(runMinutes / plannedMinutes)
             : null;
 
+        // Performance (slice 3): the ideal cycle time is the minimum positive
+        // RunTimePerUnitSeconds across the recipe versions of the confirmed
+        // Production Orders in the window. All lookups run under the tenant
+        // global query filter, so cross-tenant orders and operations stay
+        // invisible and surface as a null ideal (never foreign data).
+        decimal? idealCycleTimeSeconds = null;
+        if (totalCount > 0)
+            idealCycleTimeSeconds = await ResolveIdealCycleTimeSecondsAsync(confirmations, cancellationToken);
+
+        // Null rules: unknown ideal, zero run time or zero total count ->
+        // null Performance (never zero). Raw values above 1 (over-cycle: ideal
+        // overstated or unrecorded stops) clamp at 1 — the ideal is defined as
+        // the fastest sustainable per-unit time.
+        double? performance = null;
+        if (idealCycleTimeSeconds.HasValue && runMinutes > 0 && totalCount > 0)
+        {
+            var raw = (double)(totalCount * idealCycleTimeSeconds.Value / 60m) / runMinutes;
+            performance = OeeMath.Round4(Math.Min(1.0, raw));
+        }
+
+        // Composite OEE: null when any factor is null (never zero).
+        double? oee = availability.HasValue && performance.HasValue && quality.HasValue
+            ? OeeMath.Round4(availability.Value * performance.Value * quality.Value)
+            : null;
+
         return new OeeSummaryResponse(
             request.MachineId,
             fromUtc,
@@ -80,6 +108,36 @@ internal sealed class GetOeeSummaryRequestHandler(
             plannedMinutes,
             runMinutes,
             downtimeMinutes,
-            availability);
+            availability,
+            idealCycleTimeSeconds,
+            performance,
+            oee);
+    }
+
+    private async Task<decimal?> ResolveIdealCycleTimeSecondsAsync(
+        IReadOnlyCollection<ProductionConfirmation> confirmations,
+        CancellationToken cancellationToken)
+    {
+        var versionIds = new HashSet<Guid>();
+        foreach (var orderId in confirmations.Select(c => c.ProductionOrderId).Distinct())
+        {
+            var order = await ordersRepository.GetAsync(orderId, cancellationToken);
+            if (order is not null)
+                versionIds.Add(order.RecipeVersionId);
+        }
+
+        decimal? best = null;
+        foreach (var versionId in versionIds)
+        {
+            var operations = await operationsRepository.ListForVersionAsync(versionId, cancellationToken);
+            foreach (var operation in operations)
+            {
+                if (operation.RunTimePerUnitSeconds is { } seconds && seconds > 0
+                    && (best is null || seconds < best))
+                    best = seconds;
+            }
+        }
+
+        return best;
     }
 }
