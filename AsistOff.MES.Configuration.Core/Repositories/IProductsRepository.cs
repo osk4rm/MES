@@ -12,6 +12,7 @@ public interface IProductsRepository
     
     Task<Product?> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Product?> GetByScanAsync(string value, CancellationToken cancellationToken = default);
+    Task<bool> EanExistsAsync(string ean, Guid? excludeId, CancellationToken cancellationToken = default);
     Task<int> CountAsync(ExpressionStarter<Product> predicate, CancellationToken cancellationToken = default);
     Task<Product> AddAsync(Product entity, CancellationToken cancellationToken = default);
     Task UpdateAsync(Product entity, CancellationToken cancellationToken = default);

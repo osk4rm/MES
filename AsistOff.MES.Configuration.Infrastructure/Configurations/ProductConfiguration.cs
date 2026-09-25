@@ -39,6 +39,7 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+        builder.HasIndex(x => new { x.TenantId, x.Ean }).IsUnique().HasFilter("\"Ean\" IS NOT NULL");
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.ProductGroupId);
         builder.HasIndex(x => x.Ean);

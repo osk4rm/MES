@@ -60,6 +60,18 @@ internal sealed class ProductsRepository(DefaultContext context) : IProductsRepo
             .FirstOrDefaultAsync(x => x.IsActive && x.Barcode == value, cancellationToken);
     }
 
+    public async Task<bool> EanExistsAsync(string ean, Guid? excludeId, CancellationToken cancellationToken = default)
+    {
+        // Tenant isolation is enforced by the EF Core global query filter (ISaasy):
+        // the same Ean may exist in another tenant without conflicting.
+        var query = context.Products.Where(x => x.Ean == ean);
+
+        if (excludeId.HasValue)
+            query = query.Where(x => x.Id != excludeId.Value);
+
+        return await query.AnyAsync(cancellationToken);
+    }
+
     public async Task<int> CountAsync(ExpressionStarter<Product> predicate, CancellationToken cancellationToken = default)
     {
         return await context.Products.Where(predicate).CountAsync(cancellationToken);
