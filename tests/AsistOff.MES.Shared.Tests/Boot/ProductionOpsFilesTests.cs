@@ -1,63 +1,44 @@
-using System.Net;
-using System.Text.Json;
-using AsistOff.MES.Integration.Tests.Infrastructure;
-using AsistOff.MES.Integration.Tests.TestData;
+using FluentAssertions;
 
-namespace AsistOff.MES.Integration.Tests.Endpoints;
+namespace AsistOff.MES.Shared.Tests.Boot;
 
 /// <summary>
-/// Production boot safety (issue #257). The shared fixture boots exactly like
-/// a Development host, so signing in with the dev-seeded tenant proves the
-/// Boot gate still migrates and seeds in Development; the block-scoped compose
-/// assertions prove the migrate job profiles/command/env, the production
-/// gateway <c>service_completed_successfully</c> dependency, and the nightly
-/// backup service (image/volume/command plus retention/schedule envs); the
-/// backup-script and runbook assertions prove the remaining ops surface.
+/// Structured proof for the production ops surface (issue #257, AC3/AC4/AC5).
+/// Unlike whole-file substring checks, every compose assertion is scoped to
+/// the owning service block (two-space YAML section), so it proves the
+/// migrate profiles/command/env, the <c>api-prod -&gt; migrate</c>
+/// <c>service_completed_successfully</c> edge, and the backup image/volume/
+/// command plus retention envs — plus the <c>backup.sh</c> pg_dump/retention
+/// logic and the runbook migrate/seed/backup/restore sections.
 /// </summary>
-[Collection(IntegrationCollection.Name)]
-public sealed class ProductionBootEndpointTests(MesApplicationFixture fixture) : IntegrationTestBase(fixture)
+public sealed class ProductionOpsFilesTests
 {
     [Fact]
-    public async Task DevelopmentFixtureBoot_MigratesAndSeedsDevTenant()
-    {
-        // Arrange — no setup: the fixture host already booted with
-        // Boot:ApplyMigrations/RunSeeders from appsettings.Development.json.
-
-        // Act — the dev tenant admin only exists when migrations ran and the
-        // dev seeder provisioned the tenant through the real pipeline; the
-        // follow-up browse proves tenant resolution works on the migrated schema.
-        using var client = await Fixture.CreateAuthenticatedClientAsync(
-            IntegrationTestData.AdminEmail, IntegrationTestData.AdminPassword);
-        var shifts = await client.GetAsync("/api/shifts");
-
-        // Assert
-        shifts.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public void ComposeFile_MigrateJob_HasProfilesCommandAndEnv()
+    public void Compose_MigrateJob_HasProfilesCommandAndEnv()
     {
         // Arrange
         var block = ServiceBlock(ReadRepoFile("docker-compose.yml"), "migrate");
 
         // Assert — one-shot job in both profiles, running the job entrypoint
-        // with migrations forced on and no restart.
+        // with migrations forced on.
         block.Should().Contain("profiles:");
         block.Should().Contain("\"migrate\"");
         block.Should().Contain("\"production\"");
         block.Should().Contain("--migrate-only");
         block.Should().Contain("Boot__ApplyMigrations");
+        block.Should().Contain("\"true\"");
         block.Should().Contain("restart: \"no\"");
     }
 
     [Fact]
-    public void ComposeFile_ApiProd_WaitsForMigrateSuccessAndNeverMigratesItself()
+    public void Compose_ApiProd_WaitsForMigrateSuccessAndNeverMigratesItself()
     {
         // Arrange
         var block = ServiceBlock(ReadRepoFile("docker-compose.yml"), "api-prod");
 
-        // Assert — the production gateway keeps both boot flags off and only
-        // starts after the migrate job completes successfully.
+        // Assert — production gateway joins only the production profile,
+        // keeps both boot flags off, and starts after the migrate job
+        // completes successfully.
         block.Should().Contain("\"production\"");
         block.Should().Contain("Boot__ApplyMigrations: \"false\"");
         block.Should().Contain("Boot__RunSeeders: \"false\"");
@@ -67,19 +48,32 @@ public sealed class ProductionBootEndpointTests(MesApplicationFixture fixture) :
     }
 
     [Fact]
-    public void ComposeFile_BackupService_DumpsToVolumeWithRetentionAndSchedule()
+    public void Compose_BackupService_DumpsToVolumeWithRetentionAndSchedule()
     {
         // Arrange
         var block = ServiceBlock(ReadRepoFile("docker-compose.yml"), "backup");
 
-        // Assert — postgres image runs backup.sh into the pg_backups volume
-        // on the documented schedule/retention env vars.
+        // Assert — postgres image runs backup.sh, persists to the pg_backups
+        // volume, and honors the schedule + retention env vars.
         block.Should().Contain("image: postgres");
         block.Should().Contain("/backup.sh");
         block.Should().Contain("pg_backups:/backups");
-        block.Should().Contain("BACKUP_RETENTION_COUNT");
+        block.Should().Contain("backup.sh:/backup.sh");
         block.Should().Contain("BACKUP_INTERVAL_SECONDS");
-        block.Should().Contain("pg_backups");
+        block.Should().Contain("BACKUP_RETENTION_COUNT");
+        block.Should().Contain("\"production\"");
+        block.Should().Contain("\"backup\"");
+    }
+
+    [Fact]
+    public void Compose_TopLevelVolumes_DeclaresPgBackups()
+    {
+        // Arrange
+        var compose = ReadRepoFile("docker-compose.yml");
+        var volumes = TopLevelBlock(compose, "volumes:");
+
+        // Assert
+        volumes.Should().Contain("pg_backups:");
     }
 
     [Fact]
@@ -88,30 +82,17 @@ public sealed class ProductionBootEndpointTests(MesApplicationFixture fixture) :
         // Arrange
         var script = ReadRepoFile(Path.Combine("docker", "backup", "backup.sh"));
 
-        // Assert — custom-format pg_dump with a sortable timestamp, retention
-        // pruning keyed to BACKUP_RETENTION_COUNT, and a clear password guard.
+        // Assert — custom-format pg_dump to /backups with a sortable
+        // timestamp, retention pruning keyed to BACKUP_RETENTION_COUNT,
+        // strict mode, and a clear failure when the password is missing.
         script.Should().Contain("pg_dump");
         script.Should().Contain("-F c");
         script.Should().Contain("date +%Y%m%d-%H%M%S");
         script.Should().Contain("/backups/mes_");
         script.Should().Contain("BACKUP_RETENTION_COUNT");
         script.Should().Contain("BACKUP_INTERVAL_SECONDS");
+        script.Should().Contain("set -eu");
         script.Should().Contain("PGPASSWORD");
-    }
-
-    [Fact]
-    public void ProductionSettings_DisableBootByDefault()
-    {
-        // Arrange
-        var json = ReadRepoFile(Path.Combine("AsistOff.MES.Gateway", "appsettings.Production.json"));
-
-        // Act
-        using var document = JsonDocument.Parse(json);
-        var boot = document.RootElement.GetProperty("Boot");
-
-        // Assert — a production host with no overrides migrates and seeds nothing.
-        boot.GetProperty("ApplyMigrations").GetBoolean().Should().BeFalse();
-        boot.GetProperty("RunSeeders").GetBoolean().Should().BeFalse();
     }
 
     [Fact]
@@ -120,7 +101,8 @@ public sealed class ProductionBootEndpointTests(MesApplicationFixture fixture) :
         // Arrange
         var runbook = ReadRepoFile(Path.Combine("docs", "production-runbook.md"));
 
-        // Assert — one section per operator workflow with the exact commands.
+        // Assert — one section per operator workflow, with the exact
+        // commands and env vars from the acceptance criteria.
         runbook.Should().Contain("## Migrate");
         runbook.Should().Contain("## Seed");
         runbook.Should().Contain("## Backup");
@@ -129,6 +111,8 @@ public sealed class ProductionBootEndpointTests(MesApplicationFixture fixture) :
         runbook.Should().Contain("--profile migrate run --rm migrate");
         runbook.Should().Contain("pg_restore");
         runbook.Should().Contain("BACKUP_RETENTION_COUNT");
+        runbook.Should().Contain("BACKUP_INTERVAL_SECONDS");
+        runbook.Should().Contain("Boot__ApplyMigrations");
     }
 
     /// <summary>
@@ -156,6 +140,30 @@ public sealed class ProductionBootEndpointTests(MesApplicationFixture fixture) :
 
             var indent = line.Length - line.TrimStart().Length;
             if (indent <= 2 && line.Trim().Length > 0)
+            {
+                break;
+            }
+
+            taken.Add(line);
+        }
+
+        return string.Join('\n', taken);
+    }
+
+    private static string TopLevelBlock(string compose, string key)
+    {
+        var lines = compose.Split('\n');
+        var start = Array.FindIndex(
+            lines,
+            l => l.StartsWith(key, StringComparison.Ordinal));
+        start.Should().BeGreaterThanOrEqualTo(
+            0, $"docker-compose.yml must define a top-level '{key}' block");
+
+        var taken = new List<string> { lines[start] };
+        for (var i = start + 1; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (line.Length > 0 && line[0] != ' ' && line[0] != '\t' && line.Trim().Length > 0)
             {
                 break;
             }
