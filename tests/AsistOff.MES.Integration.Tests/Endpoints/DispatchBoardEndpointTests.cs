@@ -86,13 +86,17 @@ public sealed class DispatchBoardEndpointTests(MesApplicationFixture fixture) : 
         var firstDay = board.Days.Single(d => d.Date == From);
         firstDay.Shifts.Should().ContainSingle(s => s.Code == $"DSP-{tag}-AM").Which.Headcount.Should().Be(2);
         firstDay.Shifts.Single(s => s.Code == $"DSP-{tag}-AM").IsOvernight.Should().BeFalse();
+        firstDay.Shifts.Single(s => s.Code == $"DSP-{tag}-AM").IsUncovered.Should().BeFalse();
         var nightShift = firstDay.Shifts.Single(s => s.Code == $"DSP-{tag}-NI");
         nightShift.Headcount.Should().Be(0);
         nightShift.IsOvernight.Should().BeTrue();
+        nightShift.IsUncovered.Should().BeTrue();
 
         var secondDay = board.Days.Single(d => d.Date == "2027-03-11");
         secondDay.Shifts.Single(s => s.Code == $"DSP-{tag}-NI").Headcount.Should().Be(1);
+        secondDay.Shifts.Single(s => s.Code == $"DSP-{tag}-NI").IsUncovered.Should().BeFalse();
         secondDay.Shifts.Single(s => s.Code == $"DSP-{tag}-AM").Headcount.Should().Be(0);
+        secondDay.Shifts.Single(s => s.Code == $"DSP-{tag}-AM").IsUncovered.Should().BeTrue();
 
         // Overdue first, then due-date ascending, nulls last.
         var codes = board.Orders.Select(o => o.Code).ToList();
@@ -111,6 +115,41 @@ public sealed class DispatchBoardEndpointTests(MesApplicationFixture fixture) : 
         confirmed.ScrappedQuantity.Should().Be(2m);
         confirmed.RemainingQuantity.Should().Be(80m);
         confirmed.Status.Should().Be(3); // InProgress after the confirmation
+    }
+
+    [Fact]
+    public async Task GetDispatch_FlagsUncoveredShift_AndClearsAfterAssignment()
+    {
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var tag = UniqueTag();
+        var shift = await CreateShiftAsync(client, $"DSP-{tag}-EMPTY");
+
+        // Empty shift is flagged uncovered on every day of the window.
+        var emptyResponse = await client.GetAsync($"{BaseUrl}?from={From}&to={To}");
+
+        emptyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var emptyBoard = await ReadAsync<DispatchBoardDto>(emptyResponse);
+        var emptyEntries = emptyBoard.Days.Select(d => d.Shifts.Single(s => s.Code == $"DSP-{tag}-EMPTY")).ToList();
+        emptyEntries.Should().OnlyContain(s => s.Headcount == 0);
+        emptyEntries.Should().OnlyContain(s => s.IsUncovered);
+
+        // Assigning an operator for the first day clears the flag only there.
+        var operatorId = await CreateOperatorAsync(client);
+        await CreateAssignmentAsync(client, operatorId, shift, From);
+
+        var coveredResponse = await client.GetAsync($"{BaseUrl}?from={From}&to={To}");
+
+        coveredResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var coveredBoard = await ReadAsync<DispatchBoardDto>(coveredResponse);
+
+        var coveredDay = coveredBoard.Days.Single(d => d.Date == From);
+        var coveredShift = coveredDay.Shifts.Single(s => s.Code == $"DSP-{tag}-EMPTY");
+        coveredShift.Headcount.Should().Be(1);
+        coveredShift.IsUncovered.Should().BeFalse();
+
+        coveredBoard.Days.Where(d => d.Date != From)
+            .Select(d => d.Shifts.Single(s => s.Code == $"DSP-{tag}-EMPTY"))
+            .Should().OnlyContain(s => s.IsUncovered);
     }
 
     [Fact]

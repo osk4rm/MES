@@ -297,4 +297,68 @@ public class GetDispatchBoardRequestHandlerTests
         // Assert
         result.Days.Should().ContainSingle().Which.Date.Should().Be(From);
     }
+
+    [Fact]
+    public async Task Handle_ShiftWithoutAssignments_IsUncovered()
+    {
+        // Arrange
+        var morning = MakeShift("A-MORNING");
+        ArrangeEmpty(shifts: [morning], roster: []);
+
+        // Act
+        var result = await CreateSut().Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
+
+        // Assert
+        result.Days.Should().OnlyContain(d => d.Shifts.Single(s => s.ShiftId == morning.Id).Headcount == 0);
+        result.Days.Should().OnlyContain(d => d.Shifts.Single(s => s.ShiftId == morning.Id).IsUncovered);
+    }
+
+    [Fact]
+    public async Task Handle_ShiftWithAssignment_IsNotUncovered()
+    {
+        // Arrange
+        var morning = MakeShift("A-MORNING");
+        var opA = Guid.NewGuid();
+        ArrangeEmpty(
+            shifts: [morning],
+            roster: [MakeAssignment(opA, morning.Id, From)]);
+
+        // Act
+        var result = await CreateSut().Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
+
+        // Assert
+        var coveredDay = result.Days.Single(d => d.Date == From);
+        coveredDay.Shifts.Single(s => s.ShiftId == morning.Id).Headcount.Should().Be(1);
+        coveredDay.Shifts.Single(s => s.ShiftId == morning.Id).IsUncovered.Should().BeFalse();
+
+        result.Days.Where(d => d.Date != From).Should().OnlyContain(
+            d => d.Shifts.Single(s => s.ShiftId == morning.Id).IsUncovered);
+    }
+
+    [Fact]
+    public async Task Handle_OvernightShift_UncoveredFollowsHeadcount()
+    {
+        // Arrange
+        var night = MakeShift("B-NIGHT", start: "22:00", end: "06:00");
+        var opA = Guid.NewGuid();
+        ArrangeEmpty(
+            shifts: [night],
+            roster: [MakeAssignment(opA, night.Id, From.AddDays(1))]);
+
+        // Act
+        var result = await CreateSut().Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
+
+        // Assert - overnight detection is orthogonal to the uncovered flag.
+        var emptyDay = result.Days.Single(d => d.Date == From);
+        var emptyShift = emptyDay.Shifts.Single(s => s.ShiftId == night.Id);
+        emptyShift.IsOvernight.Should().BeTrue();
+        emptyShift.Headcount.Should().Be(0);
+        emptyShift.IsUncovered.Should().BeTrue();
+
+        var coveredDay = result.Days.Single(d => d.Date == From.AddDays(1));
+        var coveredShift = coveredDay.Shifts.Single(s => s.ShiftId == night.Id);
+        coveredShift.IsOvernight.Should().BeTrue();
+        coveredShift.Headcount.Should().Be(1);
+        coveredShift.IsUncovered.Should().BeFalse();
+    }
 }

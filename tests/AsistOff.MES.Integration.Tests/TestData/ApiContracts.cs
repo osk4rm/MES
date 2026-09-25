@@ -478,7 +478,8 @@ public sealed record DispatchShiftDto(
     string StartTime,
     string EndTime,
     bool IsOvernight,
-    int Headcount);
+    int Headcount,
+    bool IsUncovered);
 
 /// <summary>Shape of one day bucket returned by <c>/api/schedule/dispatch</c>. Date is ISO 8601 <c>yyyy-MM-dd</c>.</summary>
 public sealed record DispatchDayDto(

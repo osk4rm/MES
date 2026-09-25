@@ -69,14 +69,19 @@ internal sealed class GetDispatchBoardRequestHandler(
         for (var date = request.From; date <= request.To; date = date.AddDays(1))
         {
             var dayShifts = shifts
-                .Select(s => new DispatchShiftResponse(
-                    s.Id,
-                    s.Code,
-                    s.Name,
-                    s.StartTime,
-                    s.EndTime,
-                    s.EndTime <= s.StartTime,
-                    headcounts.TryGetValue((date, s.Id), out var headcount) ? headcount : 0))
+                .Select(s =>
+                {
+                    var headcount = headcounts.TryGetValue((date, s.Id), out var hc) ? hc : 0;
+                    return new DispatchShiftResponse(
+                        s.Id,
+                        s.Code,
+                        s.Name,
+                        s.StartTime,
+                        s.EndTime,
+                        s.EndTime <= s.StartTime,
+                        headcount,
+                        headcount == 0);
+                })
                 .ToList();
 
             days.Add(new DispatchDayResponse(date, dayShifts));

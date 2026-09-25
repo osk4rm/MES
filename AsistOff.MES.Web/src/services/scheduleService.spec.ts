@@ -49,7 +49,8 @@ function board(overrides: Partial<DispatchBoard> = {}): DispatchBoard {
             startTime: '06:00:00',
             endTime: '14:00:00',
             isOvernight: false,
-            headcount: 2
+            headcount: 2,
+            isUncovered: false
           }
         ]
       }

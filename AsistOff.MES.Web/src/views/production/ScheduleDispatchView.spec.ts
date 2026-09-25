@@ -102,7 +102,8 @@ function boardFixture(): DispatchBoard {
             startTime: '06:00:00',
             endTime: '14:00:00',
             isOvernight: false,
-            headcount: 2
+            headcount: 2,
+            isUncovered: false
           },
           {
             shiftId: 'shift-ni',
@@ -111,7 +112,8 @@ function boardFixture(): DispatchBoard {
             startTime: '22:00:00',
             endTime: '06:00:00',
             isOvernight: true,
-            headcount: 0
+            headcount: 0,
+            isUncovered: true
           }
         ]
       },
@@ -183,6 +185,19 @@ describe('ScheduleDispatchView', () => {
     const text = wrapper.text();
     expect(text.indexOf('OVD-1')).toBeLessThan(text.indexOf('SOON-1'));
     expect(text.indexOf('SOON-1')).toBeLessThan(text.indexOf('NODUE-1'));
+  });
+
+  it('shows a warning badge on uncovered shifts and none on covered ones', async () => {
+    seedDeepLink();
+
+    const wrapper = mountBoard();
+    await flushPromises();
+
+    // One uncovered shift (NI, headcount 0) gets the badge; the covered
+    // morning shift (headcount 2) does not.
+    expect(wrapper.text()).toContain('scheduleDispatch.uncovered');
+    const badges = wrapper.text().split('scheduleDispatch.uncovered').length - 1;
+    expect(badges).toBe(1);
   });
 
   it('shows an empty state for days without shifts instead of an error', async () => {
