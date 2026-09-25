@@ -7,8 +7,10 @@ using AsistOff.MES.Shared.Infrastructure;
 using AsistOff.MES.Shared.Infrastructure.Correlation;
 using AsistOff.MES.Shared.Infrastructure.Extensions;
 using AsistOff.MES.Shared.Infrastructure.Health;
+using AsistOff.MES.Shared.Infrastructure.Observability;
 using AsistOff.MES.Shared.Infrastructure.Protection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using OpenTelemetry.Exporter;
 using Serilog;
 
 // Two-stage Serilog initialization. The bootstrap logger captures any failure
@@ -64,6 +66,13 @@ try
     builder.Services.AddExceptionHandling();
 
     builder.Services.AddAbuseProtection(builder.Configuration);
+
+    // OpenTelemetry traces + metrics (issue #252): ASP.NET Core, HttpClient
+    // and EF Core instrumentation with W3C propagation; OTLP export only when
+    // Observability:OtlpEndpoint is set, Prometheus scrape only when
+    // Observability:PrometheusEnabled is true. Never throws for missing
+    // endpoint configuration (no-op mode).
+    builder.Services.AddMesObservability(builder.Configuration);
 
     var allowedOrigins = builder.Configuration.GetSection("cors:allowedOrigins").Get<string[]>() ?? [];
     builder.Services.AddCors(options =>
@@ -219,7 +228,19 @@ try
     };
     app.MapHealthChecks(HealthProbes.LivePath, liveOptions).AllowAnonymous().DisableRateLimiting();
     app.MapHealthChecks(HealthProbes.ReadyPath, readyOptions).AllowAnonymous().DisableRateLimiting();
-    app.MapHealthChecks(HealthProbes.AliasPath, readyOptions).AllowAnonymous().DisableRateLimiting();    app.MapControllers();
+    app.MapHealthChecks(HealthProbes.AliasPath, readyOptions).AllowAnonymous().DisableRateLimiting();
+    // Prometheus scrape endpoint (issue #252): mapped only when
+    // Observability:PrometheusEnabled is true, otherwise /metrics falls
+    // through to the normal 404 pipeline. Anonymous infrastructure endpoint
+    // with no tenant context, like the health probes above.
+    var observability = app.Configuration.GetSection(ObservabilityOptions.SectionName)
+        .Get<ObservabilityOptions>() ?? new ObservabilityOptions();
+    if (observability.PrometheusEnabled)
+    {
+        app.MapPrometheusScrapingEndpoint().AllowAnonymous().DisableRateLimiting();
+    }
+
+    app.MapControllers();
 
     app.Run();
 }
