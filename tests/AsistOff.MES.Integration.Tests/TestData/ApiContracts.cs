@@ -434,3 +434,39 @@ public sealed record OpcUaConnectionStatusDto(
     int LiveCount,
     int StaleCount,
     int DisabledCount);
+
+/// <summary>Shape of one shift entry in a dispatch day bucket returned by <c>/api/schedule/dispatch</c>. Times are ISO 8601 <c>HH:mm:ss</c>.</summary>
+public sealed record DispatchShiftDto(
+    Guid ShiftId,
+    string Code,
+    string Name,
+    string StartTime,
+    string EndTime,
+    bool IsOvernight,
+    int Headcount);
+
+/// <summary>Shape of one day bucket returned by <c>/api/schedule/dispatch</c>. Date is ISO 8601 <c>yyyy-MM-dd</c>.</summary>
+public sealed record DispatchDayDto(
+    string Date,
+    IReadOnlyCollection<DispatchShiftDto> Shifts);
+
+/// <summary>Shape of one order row returned by <c>/api/schedule/dispatch</c>.</summary>
+public sealed record DispatchOrderRowDto(
+    Guid Id,
+    string Code,
+    Guid ProductId,
+    decimal PlannedQuantity,
+    decimal ProducedQuantity,
+    decimal ScrappedQuantity,
+    decimal RemainingQuantity,
+    int Priority,
+    DateTime? DueDate,
+    short Status,
+    bool IsOverdue);
+
+/// <summary>Shape of the dispatch board returned by <c>/api/schedule/dispatch</c>. Dates are ISO 8601 <c>yyyy-MM-dd</c>.</summary>
+public sealed record DispatchBoardDto(
+    string From,
+    string To,
+    IReadOnlyCollection<DispatchDayDto> Days,
+    IReadOnlyCollection<DispatchOrderRowDto> Orders);
