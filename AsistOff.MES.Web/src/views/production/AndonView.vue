@@ -8,11 +8,15 @@
     </AppPageHeader>
 
     <AppCard :title="$t('andon.board')">
-      <div v-if="boardLoading" class="board-loading">
-        <AppSpinner />
-      </div>
-      <AppEmptyState v-else-if="boardSignals.length === 0" :title="$t('andon.boardEmpty')" />
-      <div v-else class="board">
+      <AppDataState
+        :loading="boardLoading"
+        :error="boardError"
+        :empty="boardSignals.length === 0"
+        :empty-title="$t('andon.boardEmpty')"
+        compact
+        @retry="fetchBoard"
+      >
+        <div class="board">
         <div
           v-for="signal in boardSignals"
           :key="signal.id"
@@ -42,7 +46,8 @@
             </AppButton>
           </div>
         </div>
-      </div>
+        </div>
+      </AppDataState>
     </AppCard>
 
     <AppFilterBar @clear="clearFilters">
@@ -70,9 +75,11 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-machineId="{ value }">
         {{ machineLabel(String(value)) }}
@@ -165,8 +172,7 @@ import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
-import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
@@ -288,9 +294,11 @@ function clearFilters() {
 
 const boardSignals = ref<AndonSignalResponse[]>([]);
 const boardLoading = ref(false);
+const boardError = ref<string | null>(null);
 
 async function fetchBoard() {
   boardLoading.value = true;
+  boardError.value = null;
   try {
     const [active, acknowledged] = await Promise.all([
       andonSignalService.browse({ status: AndonSignalStatus.Active, pageSize: 50 }),
@@ -299,7 +307,7 @@ async function fetchBoard() {
     boardSignals.value = [...active.items, ...acknowledged.items]
       .sort((a, b) => +new Date(b.raisedAt) - +new Date(a.raisedAt));
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    boardError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     boardLoading.value = false;
   }

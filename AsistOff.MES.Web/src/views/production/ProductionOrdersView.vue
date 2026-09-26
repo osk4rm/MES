@@ -17,21 +17,15 @@
       />
     </AppFilterBar>
 
-    <div v-if="table.error.value" class="list-error" role="alert">
-      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-      <span class="list-error__message">{{ table.error.value }}</span>
-      <AppButton variant="secondary" icon="pi pi-refresh" :loading="table.loading.value" @click="table.retry">
-        {{ $t('common.retry') }}
-      </AppButton>
-    </div>
-
     <AppTable
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-code="{ item }">
         <code>{{ item.code }}</code>
@@ -404,16 +398,4 @@ onMounted(() => { void loadLookups(); void table.fetch(); });
 <style scoped>
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
-.list-error {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-md);
-  color: var(--color-danger);
-  background: var(--color-bg);
-}
-.list-error__message { flex: 1; }
 </style>

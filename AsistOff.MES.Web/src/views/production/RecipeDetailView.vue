@@ -67,8 +67,9 @@
       </template>
     </AppModal>
   </div>
-  <div v-else-if="loading" class="loading"><i class="pi pi-spin pi-spinner" /> {{ $t('common.loading') }}</div>
-  <div v-else class="loading">{{ $t('common.notFound') }}</div>
+  <AppLoadingState v-else-if="loading" />
+  <AppErrorState v-else-if="recipeError" :message="recipeError" :loading="loading" @retry="loadRecipe" />
+  <AppEmptyState v-else icon="pi pi-exclamation-circle" :title="$t('common.notFound')" />
 </template>
 
 <script setup lang="ts">
@@ -78,6 +79,9 @@ import { useI18n } from 'vue-i18n';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppModal from '../../components/ui/AppModal.vue';
+import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppLoadingState from '../../components/ui/AppLoadingState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import RecipeVersionEditor from '../../components/production/RecipeVersionEditor.vue';
 import { recipeService, type RecipeResponse, type RecipeVersionSummary, RecipeVersionStatus } from '../../services/recipeService';
 import { recipeVersionService, type RecipeVersionDetailResponse } from '../../services/recipeVersionService';
@@ -93,6 +97,7 @@ const recipe = ref<RecipeResponse | null>(null);
 const selectedVersionId = ref<string | null>(null);
 const selectedVersion = ref<RecipeVersionDetailResponse | null>(null);
 const loading = ref(false);
+const recipeError = ref<string | null>(null);
 
 // "No versions left" cleanup prompt state.
 const cleanupModalOpen = ref(false);
@@ -119,10 +124,11 @@ function statusPillClass(status: RecipeVersionStatus): string {
 
 async function fetchRecipeData() {
   loading.value = true;
+  recipeError.value = null;
   try {
     recipe.value = await recipeService.get(recipeId.value);
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    recipeError.value = extractErrorMessage(err, t('errors.loadFailed'));
     recipe.value = null;
   } finally {
     loading.value = false;

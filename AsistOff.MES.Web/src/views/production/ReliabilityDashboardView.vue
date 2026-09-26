@@ -48,7 +48,8 @@
       </template>
     </AppFilterBar>
 
-    <AppSpinner v-if="loading && !loadedOnce" />
+    <AppErrorState v-if="loadError" :message="loadError" :loading="loading" @retry="refresh" />
+    <AppSpinner v-else-if="loading && !loadedOnce" />
     <AppEmptyState
       v-else-if="!machineId"
       icon="pi pi-wrench"
@@ -137,6 +138,7 @@ import AppBadge from '../../components/ui/AppBadge.vue';
 import AppCard from '../../components/ui/AppCard.vue';
 import AppSpinner from '../../components/ui/AppSpinner.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import AppTable from '../../components/ui/AppTable.vue';
 import {
   ReliabilityPreset,
@@ -178,6 +180,7 @@ const fleet = ref<ReliabilityFleetRow[]>([]);
 const loading = ref(false);
 const loadedOnce = ref(false);
 const notFound = ref(false);
+const loadError = ref<string | null>(null);
 
 const nullReliability = computed(() => hasNullReliability(snapshot.value));
 const trendBuckets = computed<ReliabilitySnapshot[]>(() => trend.value?.buckets ?? []);
@@ -425,6 +428,7 @@ function syncQuery(q: ValidatedQuery): void {
 async function loadPanels(q: ValidatedQuery): Promise<void> {
   loading.value = true;
   notFound.value = false;
+  loadError.value = null;
   try {
     const [s, tr, fl] = await Promise.all([
       reliabilityService.getSnapshot(q.snapshot),
@@ -444,7 +448,7 @@ async function loadPanels(q: ValidatedQuery): Promise<void> {
       trend.value = null;
       fleet.value = [];
     } else {
-      toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+      loadError.value = extractErrorMessage(err, t('errors.loadFailed'));
     }
   } finally {
     loading.value = false;
@@ -463,6 +467,7 @@ function clearPanels(): void {
   trend.value = null;
   fleet.value = [];
   notFound.value = false;
+  loadError.value = null;
   loadedOnce.value = false;
 }
 

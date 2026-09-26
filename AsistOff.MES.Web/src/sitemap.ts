@@ -11,6 +11,9 @@ export const sitemap: NavItem[] = [
   {
     label: 'nav.production',
     icon: 'pi pi-cog',
+    // Base/overview route (issue #314): the group highlights while any
+    // descendant — including detail pages with no own entry — is active.
+    route: '/production',
     children: [
       { label: 'nav.productionOrders', icon: 'pi pi-list', route: '/production/orders' },
       { label: 'nav.productionDowntime', icon: 'pi pi-pause-circle', route: '/production/downtime' },
@@ -29,6 +32,7 @@ export const sitemap: NavItem[] = [
   {
     label: 'nav.reports',
     icon: 'pi pi-chart-bar',
+    route: '/reports',
     children: [
       { label: 'nav.oeeDashboard', icon: 'pi pi-chart-bar', route: '/reports/oee' },
       { label: 'nav.reliabilityDashboard', icon: 'pi pi-wrench', route: '/reports/reliability' }
@@ -37,6 +41,7 @@ export const sitemap: NavItem[] = [
   {
     label: 'nav.configuration',
     icon: 'pi pi-sliders-h',
+    route: '/configuration',
     children: [
       { label: 'nav.products', icon: 'pi pi-box', route: '/configuration/products' },
       { label: 'nav.productGroups', icon: 'pi pi-tags', route: '/configuration/product-groups' },
@@ -56,6 +61,9 @@ export const sitemap: NavItem[] = [
   {
     label: 'nav.settings',
     icon: 'pi pi-cog',
+    // The `/settings` overview stub (ComingSoonView) has no own leaf entry;
+    // the base route keeps the group highlighted while it is open.
+    route: '/settings',
     children: [
       { label: 'nav.roles', icon: 'pi pi-lock', route: '/settings/roles' }
     ]

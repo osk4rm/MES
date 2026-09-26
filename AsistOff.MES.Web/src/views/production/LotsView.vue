@@ -43,10 +43,12 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       data-testid="lots-table"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-code="{ item }">
         <code>{{ item.code }}</code>
@@ -123,7 +125,7 @@
     </AppModal>
 
     <AppModal :open="detailOpen" size="xl" :title="detailLot ? detailLot.code : $t('common.notFound')" data-testid="lot-detail-modal" @close="closeDetail">
-      <div v-if="detailLoading" class="loading"><i class="pi pi-spin pi-spinner" /> {{ $t('common.loading') }}</div>
+      <AppLoadingState v-if="detailLoading" />
       <div v-else-if="detailNotFound || !detailLot">
         <AppEmptyState icon="pi pi-exclamation-circle" :title="$t('lots.genealogy.notFound')" />
       </div>
@@ -201,7 +203,9 @@
             </AppButton>
           </div>
 
-          <div class="genealogy-grid">
+          <AppErrorState v-if="genealogyError" :message="genealogyError" :loading="genealogyLoading" compact @retry="loadGenealogy" />
+
+          <div v-else class="genealogy-grid">
             <section class="genealogy-pane" data-testid="lot-genealogy-upstream">
               <h4>{{ $t('lots.genealogy.upstream') }}</h4>
               <p v-if="upstream?.truncated" class="truncation-notice">
@@ -211,8 +215,10 @@
                 :items="upstream?.nodes ?? []"
                 :columns="genealogyColumns"
                 :loading="genealogyLoading"
+                :error="genealogyError"
                 row-key="lotId"
                 :empty-label="$t('lots.genealogy.empty')"
+                @retry="loadGenealogy"
               >
                 <template #cell-consumedQuantity="{ value }">
                   {{ formatQuantity(value) }}
@@ -238,8 +244,10 @@
                 :items="downstream?.nodes ?? []"
                 :columns="genealogyColumns"
                 :loading="genealogyLoading"
+                :error="genealogyError"
                 row-key="lotId"
                 :empty-label="$t('lots.genealogy.empty')"
+                @retry="loadGenealogy"
               >
                 <template #cell-consumedQuantity="{ value }">
                   {{ formatQuantity(value) }}
@@ -290,6 +298,8 @@ import AppFormField from '../../components/ui/AppFormField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppLoadingState from '../../components/ui/AppLoadingState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
@@ -565,6 +575,7 @@ const depth = ref<number>(LotGenealogyDepth.default);
 const upstream = ref<LotTraceabilityResponse | null>(null);
 const downstream = ref<LotTraceabilityResponse | null>(null);
 const genealogyLoading = ref(false);
+const genealogyError = ref<string | null>(null);
 
 const depthOptions = computed(() => {
   const options: Array<{ value: number; label: string }> = [];
@@ -617,6 +628,7 @@ async function loadGenealogy(): Promise<void> {
   const lotId = detailLot.value.id;
   const currentDepth = depth.value;
   genealogyLoading.value = true;
+  genealogyError.value = null;
   try {
     const [up, down] = await Promise.all([
       lotGenealogyService.getUpstream(lotId, currentDepth),
@@ -630,8 +642,9 @@ async function loadGenealogy(): Promise<void> {
     if (isNotFoundError(err)) {
       // Cross-tenant or deleted lot: the API hides it behind 404.
       detailNotFound.value = true;
+    } else {
+      genealogyError.value = extractErrorMessage(err, t('errors.loadFailed'));
     }
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
   } finally {
     genealogyLoading.value = false;
   }

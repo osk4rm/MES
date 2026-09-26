@@ -21,7 +21,10 @@
           />
         </template>
       </AppFormField>
-      <div v-if="loopsLoading" class="loading"><AppSpinner /></div>
+      <div v-if="loopsError" class="loop-error">
+        <AppErrorState :message="loopsError" :loading="loopsLoading" compact @retry="loadLoops" />
+      </div>
+      <div v-else-if="loopsLoading" class="loading"><AppSpinner /></div>
       <AppEmptyState
         v-else-if="loopsLoaded && loops.length === 0"
         icon="pi pi-th-large"
@@ -55,8 +58,10 @@
             :items="col.items"
             :columns="cardColumns"
             :loading="col.loading"
+            :error="col.error"
             row-key="id"
             :empty-label="$t('kanban.columnEmpty')"
+            @retry="() => onColumnRetry(col)"
           >
             <template #cell-cardNumber="{ item }">
               <code>{{ item.cardNumber }}</code>
@@ -131,6 +136,7 @@ import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppSpinner from '../../components/ui/AppSpinner.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import {
   KanbanCardStatus,
   kanbanService,
@@ -152,6 +158,7 @@ interface BoardColumn {
   status: KanbanCardStatus;
   items: KanbanCardResponse[];
   loading: boolean;
+  error: string | null;
   page: number;
   pageSize: number;
   totalCount: number;
@@ -160,7 +167,7 @@ interface BoardColumn {
 }
 
 function createColumn(status: KanbanCardStatus): BoardColumn {
-  return { status, items: [], loading: false, page: 1, pageSize: BOARD_PAGE_SIZE, totalCount: 0, totalPages: 0, actingId: null };
+  return { status, items: [], loading: false, error: null, page: 1, pageSize: BOARD_PAGE_SIZE, totalCount: 0, totalPages: 0, actingId: null };
 }
 
 const board = ref<BoardColumn[]>([
@@ -172,6 +179,7 @@ const board = ref<BoardColumn[]>([
 const loops = ref<KanbanLoopResponse[]>([]);
 const loopsLoading = ref(false);
 const loopsLoaded = ref(false);
+const loopsError = ref<string | null>(null);
 const refreshing = ref(false);
 const selectedLoopId = ref<string | null>(null);
 
@@ -179,8 +187,9 @@ const selectedLoop = computed(() => loops.value.find((l) => l.id === selectedLoo
 const loopMissing = computed(() => loopsLoaded.value && selectedLoopId.value !== null && selectedLoop.value === null);
 
 const anyColumnLoading = computed(() => board.value.some((c) => c.loading));
+const anyColumnError = computed(() => board.value.some((c) => c.error !== null));
 const boardEmpty = computed(
-  () => selectedLoop.value !== null && !anyColumnLoading.value && board.value.every((c) => c.totalCount === 0)
+  () => selectedLoop.value !== null && !anyColumnLoading.value && !anyColumnError.value && board.value.every((c) => c.totalCount === 0)
 );
 
 const loopOptions = computed(() => loops.value.map((l) => ({
@@ -237,6 +246,7 @@ async function loadColumn(col: BoardColumn): Promise<void> {
     return;
   }
   col.loading = true;
+  col.error = null;
   try {
     const page = await kanbanService.browseCards(loopId, col.status, {
       pageNumber: col.page,
@@ -249,7 +259,7 @@ async function loadColumn(col: BoardColumn): Promise<void> {
     col.items = [];
     col.totalCount = 0;
     col.totalPages = 0;
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    col.error = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     col.loading = false;
   }
@@ -261,6 +271,7 @@ async function loadBoard(): Promise<void> {
 
 async function loadLoops(): Promise<void> {
   loopsLoading.value = true;
+  loopsError.value = null;
   try {
     const page = await kanbanService.browseLoops({ pageNumber: 1, pageSize: LOOP_PAGE_SIZE });
     loops.value = page.items;
@@ -275,7 +286,7 @@ async function loadLoops(): Promise<void> {
   } catch (err) {
     loops.value = [];
     loopsLoaded.value = true;
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    loopsError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     loopsLoading.value = false;
   }
@@ -312,6 +323,10 @@ function onPageChange(col: BoardColumn, page: number): void {
 function onPageSizeChange(col: BoardColumn, size: number): void {
   col.pageSize = size;
   col.page = 1;
+  void loadColumn(col);
+}
+
+function onColumnRetry(col: BoardColumn): void {
   void loadColumn(col);
 }
 

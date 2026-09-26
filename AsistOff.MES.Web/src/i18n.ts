@@ -910,6 +910,11 @@ const pl = {
     title: 'Moduł w przygotowaniu',
     description: 'Ten obszar zostanie udostępniony po implementacji odpowiednich endpointów na backendzie.'
   },
+  notFound: {
+    title: 'Nie znaleziono strony',
+    description: 'Ten adres nie pasuje do żadnego widoku. Sprawdź adres lub wróć na pulpit — nawigacja została zachowana.',
+    backToDashboard: 'Wróć na pulpit'
+  },
   validation: {
     required: 'Pole jest wymagane',
     tooShort: 'Wartość jest za krótka',
@@ -1842,8 +1847,13 @@ const en: typeof pl = {
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
   stubs: {
-    title: 'Module coming soon',
-    description: 'This area will be enabled once the corresponding backend endpoints ship.'
+    title: 'Module in preparation',
+    description: 'This area will be available once the matching backend endpoints are implemented.'
+  },
+  notFound: {
+    title: 'Page not found',
+    description: 'This address does not match any view. Check the URL or go back to the dashboard — your navigation state is kept.',
+    backToDashboard: 'Back to dashboard'
   },
   validation: {
     required: 'Field is required',

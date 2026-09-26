@@ -41,6 +41,9 @@ All primitives are namespaced with the `App` prefix.
 | `AppBreadcrumbs`   | Breadcrumb trail                                        |
 | `AppEmptyState`    | Empty/Coming-soon placeholder                           |
 | `AppSpinner`       | Minimal CSS spinner                                     |
+| `AppLoadingState`  | Shared loading presentation (spinner + `common.loading` label, `role="status"`) |
+| `AppErrorState`    | Shared error panel (`role="alert"`) with a working retry button (`common.retry` → `retry` event) |
+| `AppDataState`     | List-region state machine: fixed `error > loading > empty > content` precedence with `retry` event |
 
 Layout components live in `src/components/layout/`:
 
@@ -79,6 +82,13 @@ All CRUD list pages follow the same pattern (see `views/configuration/*View.vue`
 1. `useCrudPage<TItem, TFilters>({ fetch })` from `src/composables/useCrudPage.ts` owns page / size / sort / filters / items / loading.
 2. `AppPageHeader` + `AppFilterBar` + `AppTable` + `AppPagination`.
 3. `AppModal` for create/edit, `AppConfirmDialog` for delete, `useToastStore` for outcome feedback, `extractErrorMessage` for error messages.
+4. List fetch failures surface through `AppTable`'s `error` prop + `retry` event (wired to `table.error` / `table.retry`); custom regions use `AppDataState` (`loading` / `error` / `empty` + `retry`) or `AppErrorState` directly. Never invent a one-off error banner.
+
+## Navigation
+
+- Sidebar entries come from [`src/sitemap.ts`](./src/sitemap.ts); group items carry their base `route` so the group highlights on overview routes (e.g. `/settings`).
+- Active-state matching lives in [`src/utils/navigation.ts`](./src/utils/navigation.ts) (`isNavRouteActive`, `isNavGroupActive`, `findActiveNavTrail`) — segment-aware, so `/production/telemetry` never lights up on `/production/telemetry-dashboard`, while detail pages (`/production/orders/:id`) highlight their browse parent.
+- Unknown routes render the guarded `NotFoundView` inside `AppShell` (auth + permission guards apply first) instead of silently bouncing to the dashboard.
 
 ## i18n
 

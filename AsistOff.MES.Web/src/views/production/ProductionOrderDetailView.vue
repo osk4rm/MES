@@ -118,6 +118,8 @@
         :items="movements"
         :columns="movementColumns"
         :loading="movementsLoading"
+        :error="movementsError"
+        @retry="loadMovements"
       >
         <template #cell-movementType="{ value }">
           <AppBadge :variant="value === 'PW' ? 'success' : 'info'" dot>
@@ -136,7 +138,7 @@
       </AppTable>
 
       <AppEmptyState
-        v-if="!movementsLoading && movements.length === 0"
+        v-if="!movementsLoading && !movementsError && movements.length === 0"
         icon="pi pi-list"
         :title="$t('movements.empty')"
       />
@@ -149,10 +151,12 @@
         :items="table.items.value"
         :columns="columns"
         :loading="table.loading.value"
+        :error="table.error.value"
         :sort-key="table.sortKey.value"
         :sort-direction="table.sortDirection.value"
         data-testid="confirmations-table"
         @sort-change="table.setSort"
+        @retry="table.retry"
       >
         <template #cell-reportedAt="{ value }">
           {{ formatDateTime(value) }}
@@ -187,7 +191,7 @@
       />
 
       <AppEmptyState
-        v-if="!table.loading.value && table.items.value.length === 0"
+        v-if="!table.loading.value && !table.error.value && table.items.value.length === 0"
         icon="pi pi-check-square"
         :title="$t('productionConfirmations.empty')"
       />
@@ -324,6 +328,8 @@
         :items="confirmationMovements"
         :columns="movementColumns"
         :loading="confirmationMovementsLoading"
+        :error="confirmationMovementsError"
+        @retry="retryConfirmationMovements"
       >
         <template #cell-movementType="{ value }">
           <AppBadge :variant="value === 'PW' ? 'success' : 'info'" dot>
@@ -341,7 +347,7 @@
         </template>
       </AppTable>
       <AppEmptyState
-        v-if="!confirmationMovementsLoading && confirmationMovements.length === 0"
+        v-if="!confirmationMovementsLoading && !confirmationMovementsError && confirmationMovements.length === 0"
         icon="pi pi-list"
         :title="$t('movements.empty')"
       />
@@ -350,8 +356,9 @@
       </template>
     </AppModal>
   </div>
-  <div v-else-if="loading" class="loading"><i class="pi pi-spin pi-spinner" /> {{ $t('common.loading') }}</div>
-  <div v-else class="loading">{{ $t('common.notFound') }}</div>
+  <AppLoadingState v-else-if="loading" />
+  <AppErrorState v-else-if="orderError" :message="orderError" :loading="loading" @retry="reloadAll" />
+  <AppEmptyState v-else icon="pi pi-exclamation-circle" :title="$t('common.notFound')" />
 </template>
 
 <script setup lang="ts">
@@ -373,6 +380,8 @@ import AppSelect from '../../components/ui/AppSelect.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppLoadingState from '../../components/ui/AppLoadingState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import {
   productionOrderService,
@@ -406,6 +415,7 @@ const toast = useToastStore();
 const orderId = route.params.id as string;
 const order = ref<ProductionOrderResponse | null>(null);
 const loading = ref(false);
+const orderError = ref<string | null>(null);
 const releasing = ref(false);
 
 const canReport = computed(() =>
@@ -518,10 +528,11 @@ function warehouseLabel(id: string | null | undefined): string {
 
 async function loadOrder(): Promise<void> {
   loading.value = true;
+  orderError.value = null;
   try {
     order.value = await productionOrderService.get(orderId);
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    orderError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     loading.value = false;
   }
@@ -676,6 +687,7 @@ const deleteMessage = computed(() => confirmTarget.value
 
 const movements = ref<MovementPreviewLine[]>([]);
 const movementsLoading = ref(false);
+const movementsError = ref<string | null>(null);
 const movementColumns = computed(() => [
   { key: 'movementType', label: t('movements.type'), width: '90px' },
   { key: 'productId', label: t('movements.product') },
@@ -685,10 +697,11 @@ const movementColumns = computed(() => [
 
 async function loadMovements(): Promise<void> {
   movementsLoading.value = true;
+  movementsError.value = null;
   try {
     movements.value = await productionOrderService.getMovements(orderId);
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    movementsError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     movementsLoading.value = false;
   }
@@ -697,18 +710,27 @@ async function loadMovements(): Promise<void> {
 const movementsModalOpen = ref(false);
 const confirmationMovements = ref<MovementPreviewLine[]>([]);
 const confirmationMovementsLoading = ref(false);
+const confirmationMovementsError = ref<string | null>(null);
+const confirmationMovementsItem = ref<ProductionConfirmationResponse | null>(null);
 
 async function openConfirmationMovements(item: ProductionConfirmationResponse): Promise<void> {
   movementsModalOpen.value = true;
+  confirmationMovementsItem.value = item;
   confirmationMovements.value = [];
+  confirmationMovementsError.value = null;
   confirmationMovementsLoading.value = true;
   try {
     confirmationMovements.value = await productionConfirmationService.getMovements(item.id);
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
-    movementsModalOpen.value = false;
+    confirmationMovementsError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     confirmationMovementsLoading.value = false;
+  }
+}
+
+function retryConfirmationMovements(): void {
+  if (confirmationMovementsItem.value) {
+    void openConfirmationMovements(confirmationMovementsItem.value);
   }
 }
 
@@ -806,11 +828,12 @@ async function confirmLifecycle(): Promise<void> {
   }
 }
 
+async function reloadAll(): Promise<void> {
+  await Promise.all([loadOrder(), loadLookups(), table.fetch(), loadMovements()]);
+}
+
 onMounted(() => {
-  void loadOrder();
-  void loadLookups();
-  void table.fetch();
-  void loadMovements();
+  void reloadAll();
 });
 </script>
 

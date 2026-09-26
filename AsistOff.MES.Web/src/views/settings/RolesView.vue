@@ -11,6 +11,8 @@
       :items="roles"
       :columns="columns"
       :loading="loading"
+      :error="rolesError"
+      @retry="refresh"
     >
       <template #cell-code="{ item }">
         <code>{{ item.code }}</code>
@@ -35,7 +37,8 @@
     </AppTable>
 
     <AppCard :title="$t('roles.permissionMatrix')" :subtitle="$t('roles.matrixSubtitle')">
-      <div v-if="matrixLoading" class="matrix-state">{{ $t('common.loading') }}</div>
+      <AppErrorState v-if="matrixError" :message="matrixError" :loading="loading" compact @retry="refresh" />
+      <AppLoadingState v-else-if="matrixLoading" />
       <table v-else class="matrix-table">
         <thead>
           <tr>
@@ -76,6 +79,8 @@
         :items="members"
         :columns="memberColumns"
         :loading="membersLoading"
+        :error="membersError"
+        @retry="loadMembers"
       >
         <template #cell-actions="{ item }">
           <AppRowActions
@@ -149,6 +154,8 @@ import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppLoadingState from '../../components/ui/AppLoadingState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import {
   roleService,
   type PermissionResponse,
@@ -168,6 +175,9 @@ const permissions = ref<PermissionResponse[]>([]);
 const members = ref<RoleMemberResponse[]>([]);
 const loading = ref(false);
 const membersLoading = ref(false);
+const rolesError = ref<string | null>(null);
+const membersError = ref<string | null>(null);
+const matrixError = ref<string | null>(null);
 const matrixSaving = ref(false);
 const assigning = ref(false);
 const unassigning = ref(false);
@@ -205,6 +215,8 @@ function permissionIdByCode(code: string): string | null {
 
 async function refresh(): Promise<void> {
   loading.value = true;
+  rolesError.value = null;
+  matrixError.value = null;
   try {
     const [fetchedRoles, fetchedPermissions] = await Promise.all([
       roleService.browse(),
@@ -219,7 +231,9 @@ async function refresh(): Promise<void> {
     }
     await loadMembers();
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    const message = extractErrorMessage(err, t('errors.loadFailed'));
+    rolesError.value = message;
+    matrixError.value = message;
   } finally {
     loading.value = false;
   }
@@ -231,11 +245,12 @@ async function loadMembers(): Promise<void> {
     return;
   }
   membersLoading.value = true;
+  membersError.value = null;
   try {
     const detail = await roleService.get(selectedRoleId.value);
     members.value = detail.members;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    membersError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     membersLoading.value = false;
   }
@@ -392,7 +407,6 @@ onMounted(() => {
 <style scoped>
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
-.matrix-state { padding: var(--space-4); color: var(--color-text-muted); }
 .matrix-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-md); }
 .matrix-table__head {
   text-align: left;
