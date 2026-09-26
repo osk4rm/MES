@@ -220,6 +220,31 @@ public sealed class AttachmentsEndpointTests(MesApplicationFixture fixture) : In
     }
 
     [Fact]
+    public async Task Upload_OtherTenantOwnerId_Returns404AndStoresNothing()
+    {
+        // Arrange - operation owner created under the seeded dev tenant
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+        var ownerId = await CreateOperationOwnerAsync(devClient);
+
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+
+        // Act - other tenant guesses the owner id in an upload
+        var upload = await otherClient.PostAsync(BaseUrl,
+            UploadContent("operation", ownerId, "photo.png", "image/png", PngBytes));
+
+        // Assert - 404 with no existence leak and nothing persisted
+        upload.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var otherList = await otherClient.GetAsync($"{BaseUrl}?ownerType=operation&ownerId={ownerId}");
+        otherList.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var ownList = await devClient.GetAsync($"{BaseUrl}?ownerType=operation&ownerId={ownerId}");
+        ownList.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadAsync<List<AttachmentDto>>(ownList)).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Delete_HappyPath_RemovesAttachment()
     {
         // Arrange
