@@ -164,5 +164,21 @@ public class UploadAttachmentRequestHandlerTests
         _repository.Verify(r => r.AddAsync(It.IsAny<Attachment>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task Handle_NullContent_ThrowsValidationExceptionAndPersistsNothing()
+    {
+        // Arrange - a null stream must fail closed with 400, never NRE into a 500
+        var request = new UploadAttachmentRequest(
+            "operation", _ownerId, "photo.png", "image/png", PngBytes.Length, null!, null);
+
+        // Act
+        var act = () => CreateSut().Handle(request, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+        _storage.Verify(s => s.SaveAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.AddAsync(It.IsAny<Attachment>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static byte[] ExeBytes() => [0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00];
 }

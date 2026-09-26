@@ -27,6 +27,8 @@ internal sealed class UploadAttachmentRequestHandler(
             throw new ValidationException(nameof(request.OwnerType), "Owner type is required");
         if (string.IsNullOrWhiteSpace(request.FileName))
             throw new ValidationException(nameof(request.FileName), "File name is required");
+        if (request.Content is null)
+            throw new ValidationException(nameof(request.Content), "Attachment content is required.");
         if (request.SizeBytes <= 0)
             throw new ValidationException(nameof(request.SizeBytes), "Attachment cannot be empty");
 
