@@ -7,6 +7,7 @@ using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Brows
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Observability;
 using AsistOff.MES.Shared.Abstractions.Providers;
@@ -23,7 +24,8 @@ internal sealed class CreateProductionConfirmationRequestHandler(
     ILotGenealogyEdgesRepository genealogyEdgesRepository,
     IGuidProvider guidProvider,
     IDateTimeProvider dateTimeProvider,
-    ITenantContext tenantContext)
+    ITenantContext tenantContext,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<CreateProductionConfirmationRequest, ProductionConfirmationResponse>
 {
     public async Task<ProductionConfirmationResponse> Handle(CreateProductionConfirmationRequest request, CancellationToken cancellationToken)
@@ -111,10 +113,8 @@ internal sealed class CreateProductionConfirmationRequestHandler(
             CreatedAt = dateTimeProvider.UtcNow
         };
 
-        await confirmationsRepository.AddAsync(confirmation, cancellationToken);
-
-        // Post the RW/PW ledger lines using the same BOM inputs as the
-        // movement preview, so persisted lines match the preview lines for
+        // Resolve the RW/PW ledger lines before opening the transaction so
+        // the persisted lines equal MovementCalculator.BuildPreview lines for
         // this confirmation (PW for the good quantity plus RW per BOM item).
         var bomItems = await childEntitiesRepository.ListBomItemsForVersionAsync(
             order.RecipeVersionId, cancellationToken);
@@ -133,35 +133,59 @@ internal sealed class CreateProductionConfirmationRequestHandler(
             ReportedAt = confirmation.ReportedAt,
             CreatedAt = dateTimeProvider.UtcNow
         }).ToList();
-        await stockMovementsRepository.AddRangeAsync(movements, cancellationToken);
 
-        // Post one genealogy edge per consumed lot entry so every confirmed
-        // production run leaves an auditable trace without a second manual
-        // call. Edges carry the same order, confirmation, Work Center,
-        // Operator and ReportedAt timestamp as the confirmation.
-        foreach (var (entry, _) in consumedResolved)
+        // Build the genealogy edges up front so the transaction body only
+        // performs writes. All validation above runs before any write, so
+        // failed validations still leave no partial rows behind.
+        var edges = consumedResolved.Select(pair => new LotGenealogyEdge
         {
-            var edge = new LotGenealogyEdge
+            Id = guidProvider.NewGuid(),
+            TenantId = tenantContext.TenantId,
+            ConsumedLotId = pair.Entry.LotId,
+            ProducedLotId = producedLot!.Id,
+            ProductionOrderId = order.Id,
+            ProductionConfirmationId = confirmation.Id,
+            MachineId = confirmation.MachineId,
+            ReportedByOperatorId = confirmation.ReportedByOperatorId,
+            ConsumedQuantity = pair.Entry.Quantity,
+            OccurredAt = confirmation.ReportedAt,
+            CreatedAt = dateTimeProvider.UtcNow
+        }).ToList();
+
+        var flipToInProgress = order.Status == ProductionOrderStatus.Released;
+
+        // The confirmation plus movements plus genealogy edges plus order
+        // status flip must commit together: every repository shares the same
+        // scoped DefaultContext, so one transaction covers all SaveChanges
+        // calls below and rolls everything back on any failure (issue #265).
+        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await confirmationsRepository.AddAsync(confirmation, cancellationToken);
+
+            await stockMovementsRepository.AddRangeAsync(movements, cancellationToken);
+
+            // Post one genealogy edge per consumed lot entry so every confirmed
+            // production run leaves an auditable trace without a second manual
+            // call. Edges carry the same order, confirmation, Work Center,
+            // Operator and ReportedAt timestamp as the confirmation.
+            foreach (var edge in edges)
             {
-                Id = guidProvider.NewGuid(),
-                TenantId = tenantContext.TenantId,
-                ConsumedLotId = entry.LotId,
-                ProducedLotId = producedLot!.Id,
-                ProductionOrderId = order.Id,
-                ProductionConfirmationId = confirmation.Id,
-                MachineId = confirmation.MachineId,
-                ReportedByOperatorId = confirmation.ReportedByOperatorId,
-                ConsumedQuantity = entry.Quantity,
-                OccurredAt = confirmation.ReportedAt,
-                CreatedAt = dateTimeProvider.UtcNow
-            };
-            await genealogyEdgesRepository.AddAsync(edge, cancellationToken);
-        }
+                await genealogyEdgesRepository.AddAsync(edge, cancellationToken);
+            }
 
-        if (order.Status == ProductionOrderStatus.Released)
+            if (flipToInProgress)
+            {
+                order.Status = ProductionOrderStatus.InProgress;
+                await ordersRepository.UpdateAsync(order, cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
         {
-            order.Status = ProductionOrderStatus.InProgress;
-            await ordersRepository.UpdateAsync(order, cancellationToken);
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
         }
 
         // Throughput + latency, success path only: rejected confirmations
