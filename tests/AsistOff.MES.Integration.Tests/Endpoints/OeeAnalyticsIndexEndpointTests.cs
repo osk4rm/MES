@@ -68,7 +68,7 @@ public sealed class OeeAnalyticsIndexEndpointTests(MesApplicationFixture fixture
         var trend = await ReadAsync<OeeTrendDto>(trendResponse);
 
         // Assert: snapshot and summary agree on every factor for the window.
-        // Raw performance here (≈0.04) sits far below the summary 1.0 clamp,
+        // Raw performance here (?0.04) sits far below the summary 1.0 clamp,
         // so the clamped and unclamped formulas coincide.
         snapshot.MachineId.Should().Be(machine.Id);
         snapshot.TotalCount.Should().Be(summary.TotalCount);
