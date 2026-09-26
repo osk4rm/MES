@@ -1,16 +1,44 @@
-import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { copyFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Pins the AC3/AC4 contract (issue #272) without needing Docker/DB:
-// the versioned workflow patch must stay in sync with the failure-artifact
-// config the committed suite relies on. A maintainer with `workflows`
-// permission lands it via `git apply scripts/e2e/e2e-smoke-ci.patch`.
+// Pins the AC3/AC4 contract (issue #272) without needing Docker/DB.
+// The e2e-smoke workflow ships as a versioned patch because the automation
+// token cannot push `.github/workflows/*` itself (GitHub refuses with
+// "refusing to allow a GitHub App to create or update workflow ... without
+// 'workflows' permission"); a maintainer lands it with:
+//   git apply scripts/e2e/e2e-smoke-ci.patch
+// These tests prove the patch is landing-ready: it applies cleanly onto the
+// current ci.yml, and the patched workflow actually defines the e2e-smoke
+// job with failure-artifact upload.
 const webDir = join(__dirname, '..', '..');
 const repoRoot = join(webDir, '..');
 
 function readRepo(relativePath: string): string {
   return readFileSync(join(repoRoot, relativePath), 'utf8');
+}
+
+function patchedWorkflow(): string {
+  const scratch = join(tmpdir(), `e2e-smoke-ci-${process.pid}`);
+  const targetDir = join(scratch, '.github', 'workflows');
+  try {
+    mkdirSync(targetDir, { recursive: true });
+    copyFileSync(
+      join(repoRoot, '.github/workflows/ci.yml'),
+      join(targetDir, 'ci.yml'),
+    );
+    // `git apply` works outside a repo; run it with the scratch tree as cwd
+    // so the patch lands on the copied ci.yml.
+    execSync(
+      `git apply "${join(repoRoot, 'scripts/e2e/e2e-smoke-ci.patch')}"`,
+      { cwd: scratch, stdio: 'pipe' },
+    );
+    return readFileSync(join(targetDir, 'ci.yml'), 'utf8');
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 }
 
 describe('e2e-smoke CI contract', () => {
@@ -25,17 +53,27 @@ describe('e2e-smoke CI contract', () => {
     expect(patch).toContain('scripts/e2e/**');
   });
 
-  it('defines the e2e-smoke job with Postgres, stack start, smoke run and artifact upload', () => {
-    const patch = readRepo('scripts/e2e/e2e-smoke-ci.patch');
+  it('applies cleanly onto the current ci.yml base', () => {
+    expect(() =>
+      execSync(
+        `git apply --check --unsafe-paths "${join(repoRoot, 'scripts/e2e/e2e-smoke-ci.patch')}"`,
+        { cwd: repoRoot, stdio: 'pipe' },
+      ),
+    ).not.toThrow();
+  });
 
-    expect(patch).toContain('e2e-smoke:');
-    expect(patch).toContain('postgres:16-alpine');
-    expect(patch).toContain('app.ps1');
-    expect(patch).toContain('npx playwright test');
-    expect(patch).toContain('actions/upload-artifact@');
-    expect(patch).toContain('playwright-report/');
-    expect(patch).toContain('test-results/');
-    expect(patch).toContain('retention-days: 7');
+  it('defines the e2e-smoke job with Postgres, stack start, smoke run and artifact upload once applied', () => {
+    const workflow = patchedWorkflow();
+
+    expect(workflow).toContain('e2e-smoke:');
+    expect(workflow).toContain('needs.changes.outputs.e2e');
+    expect(workflow).toContain('postgres:16-alpine');
+    expect(workflow).toContain('app.ps1');
+    expect(workflow).toContain('npx playwright test');
+    expect(workflow).toContain('actions/upload-artifact@');
+    expect(workflow).toContain('playwright-report/');
+    expect(workflow).toContain('test-results/');
+    expect(workflow).toContain('retention-days: 7');
   });
 
   it('keeps failure artifacts enabled in the Playwright config', () => {
