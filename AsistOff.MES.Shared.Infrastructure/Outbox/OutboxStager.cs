@@ -94,11 +94,25 @@ public static class OutboxStager
     public static IQueryable<OutboxMessage> ApplyUndispatched(
         IQueryable<OutboxMessage> query,
         int batchSize)
+        => ApplyUndispatched(query, batchSize, int.MaxValue);
+
+    /// <summary>
+    /// Slice-2 (#259) relay query: as above, but rows whose
+    /// <c>RetryCount</c> reached <paramref name="maxAttempts"/> are treated
+    /// as parked poison and excluded, so the relay never refetches them.
+    /// Raising the attempt budget re-enlists parked rows automatically.
+    /// Tenant isolation rides on the <c>DefaultContext</c> global query
+    /// filter, so no manual <c>TenantId</c> predicate is added here.
+    /// </summary>
+    public static IQueryable<OutboxMessage> ApplyUndispatched(
+        IQueryable<OutboxMessage> query,
+        int batchSize,
+        int maxAttempts)
     {
         var take = Math.Clamp(batchSize, 1, MaxBatchSize);
 
         return query
-            .Where(x => !x.Dispatched)
+            .Where(x => !x.Dispatched && x.RetryCount < maxAttempts)
             .OrderBy(x => x.OccurredOnUtc)
             .ThenBy(x => x.Id)
             .Take(take);

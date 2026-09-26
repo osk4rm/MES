@@ -7,6 +7,7 @@ using AsistOff.MES.Shared.Infrastructure.Behaviors;
 using AsistOff.MES.Shared.Infrastructure.Events;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Messaging;
+using AsistOff.MES.Shared.Infrastructure.Outbox;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using AsistOff.MES.Shared.Infrastructure.Providers;
 using AsistOff.MES.Shared.Infrastructure.Validation;
@@ -54,6 +55,10 @@ namespace AsistOff.MES.Shared.Infrastructure
             services.AddScoped<SaasyEntityInterceptor>();
             services.AddScoped<IEntityConfigurator, SharedAuditEntityConfigurator>();
             services.AddScoped<IEntityConfigurator, SharedOutboxEntityConfigurator>();
+            services.Configure<OutboxRelayOptions>(configuration.GetSection(OutboxRelayOptions.SectionName));
+            services.AddScoped<OutboxDispatcher>();
+            services.AddSingleton<OutboxRelayService>();
+            services.AddHostedService(sp => sp.GetRequiredService<OutboxRelayService>());
 
             return services;
         }
