@@ -44,21 +44,21 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Multi-tenancy (tenant isolation) | Tenant | Multitenancy | done | — | ADR-0002; `ISaasy` + global query filter |
 | Authentication / JWT + RBAC | — | Users, Auth | done | #208, #209, #210 | RBAC schema + role-derived sign-in (PRs #217, #219); roles mgmt UI (PR #224) |
 | Polymorphic attachments | — | Attachments | done | — | `Attachment` |
-| JWT hardening (audience, key strength, revocation) | — | Users, Auth | gap | - | ValidateAudience + key-entropy floor + refresh rotation/revocation; depends on Authentication / JWT + RBAC |
-| Attachment upload hardening | — | Attachments | gap | - | MIME/extension allowlist, sniffed type, download disposition + nosniff, owner existence/permission check; depends on Polymorphic attachments |
-| Write-endpoint authorization (default-deny + full RBAC) | — | Users, Auth | gap | - | `RequirePermission` on all writes per ADR-0003, permissions from data; depends on Authentication / JWT + RBAC |
-| Abuse protection (rate limiting, security headers, signup gating) | — | Gateway | gap | - | per-IP throttle on sign-in/tenant-create, HSTS/CSP/nosniff, minimal anonymous tenant DTO; depends on Authentication / JWT + RBAC |
-| BFF cookie auth + refresh flow | — | Gateway, Web | gap | - | httpOnly cookies replace localStorage JWT, refresh rotation, honor post-login redirect; depends on Authentication / JWT + RBAC |
-| Audit trail (actor + history) | — | Shared | gap | - | CreatedBy/ModifiedBy + append-only history of who changed what |
-| Health readiness split | — | Gateway | gap | - | Npgsql readiness probe, `/health/live` vs `/health/ready` for orchestrators |
-| Correlation ID end-to-end | — | Gateway, Web | gap | - | generate/echo X-Correlation-ID, LogContext, axios header, traceId in every error path incl. exception handler |
-| OpenTelemetry metrics + traces | OEE | Gateway, Production | gap | - | OTLP/Prometheus export, business meters (confirmations/scrap/downtime), OEE latency histograms |
-| Prod deploy + backup safety | — | Ops | gap | - | gated migration job (no auto-migrate+seed on prod boot), nightly pg_dump, env separation, deploy pipeline |
-| Transactional outbox for domain events | — | Shared | gap | - | OutboxMessages + relay instead of pre-commit publish; no ghost events on rollback |
-| Optimistic concurrency tokens | Production Order | Production | gap | - | rowversion/xmin + 409/retry, starting with Production Order; depends on Production Order |
-| Container + runtime hardening | — | Ops | gap | - | non-root USER, pinned digests, resource limits, restart policies, runtime API URL, generated secrets |
-| Committed Playwright smoke suite | — | Web, CI | gap | - | login→orders→confirm→lots on scripts/e2e/app.ps1 harness, wired into CI |
-| Frontend resilience bundle | — | Web | gap | - | axios timeout/retry/abort, useCrudPage error state + retry, route permission guards, global error boundary |
+| JWT hardening (audience, key strength, revocation) | — | Users, Auth | done | #227, #232, #280 | ValidateAudience + key-entropy floor + refresh rotation/revocation (PRs #230, #236, #283) |
+| Attachment upload hardening | — | Attachments | done | #228, #234, #281 | MIME/extension allowlist, sniffed type, safe download disposition (PRs #229, #237, #284, #288) |
+| Write-endpoint authorization (default-deny + full RBAC) | — | Users, Auth | done | #231, #233 | `RequirePermission` on all writes per ADR-0003 (PRs #238, #243) |
+| Abuse protection (rate limiting, security headers, signup gating) | — | Gateway | done | #235 | per-IP throttle, HSTS/CSP/nosniff, minimal anonymous DTO (PRs #239, #240) |
+| BFF cookie auth + refresh flow | — | Gateway, Web | done | #241, #242 | httpOnly cookies replace localStorage JWT, refresh rotation + redirect (PRs #244, #256) |
+| Audit trail (actor + history) | — | Shared | done | #245, #246 | CreatedBy/ModifiedBy + append-only history (PRs #247, #248) |
+| Health readiness split | — | Gateway | done | #249 | Npgsql readiness probe, `/health/live` vs `/health/ready` (PR #250) |
+| Correlation ID end-to-end | — | Gateway, Web | done | #251 | X-Correlation-ID echo, LogContext, axios header, traceId in errors (PR #254) |
+| OpenTelemetry metrics + traces | OEE | Gateway, Production | done | #252, #253 | OTLP/Prometheus export, business meters, OEE latency histograms (PRs #255, #264) |
+| Prod deploy + backup safety | — | Ops | done | #257 | gated migration job, nightly pg_dump, env separation (PR #261) |
+| Transactional outbox for domain events | — | Shared | done | #258, #259, #260 | OutboxMessages + relay with retry, no ghost events (PRs #262, #267, #282) |
+| Optimistic concurrency tokens | Production Order | Production | done | #263 | xmin rowversion + 409/retry on Production Order (PR #269) |
+| Container + runtime hardening | — | Ops | done | #271 | non-root USER, pinned digests, limits, generated secrets (PR #275) |
+| Committed Playwright smoke suite | — | Web, CI | in-progress | #272 | login→orders→confirm→lots on scripts/e2e harness (PR #276 open) |
+| Frontend resilience bundle | — | Web | done | #273 | axios timeout/retry/abort, error state + retry, guards, boundary (PR #278) |
 
 ## Configuration (master data)
 
@@ -101,8 +101,8 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Work-center calendar / shifts | Shift | Configuration | done | #83 | calendar + entries per machine; shifts dictionary (PR #105) |
 | Lot / Serial tracking | Lot / Serial | Production | done | #85 | `Lot` registry (PR #93) |
 | Genealogy / traceability | Genealogy | Production | done | #142, #143, #144, #207 | `LotGenealogyEdge` auto-derived on confirmation; upstream/downstream traceability + lot tree (PRs #148, #151, #152, #211) |
-| Atomic confirmation fan-out | Confirmation | Production | gap | - | single transaction across confirmation + movements + edges + order status; depends on Operator confirmations (RW / PW) |
-| Read-path performance (paging, no-tracking, batch fetch) | Shift | Production | gap | - | server-side DispatchBoard filtering/Take, AsNoTracking browses, batched lot/tag loads, lookup typeahead + MaxPageSize; depends on Dispatch board (shift-aware) |
+| Atomic confirmation fan-out | Confirmation | Production | done | #265 | single transaction across confirmation + movements + edges + order (PRs #286, #287) |
+| Read-path performance (paging, no-tracking, batch fetch) | Shift | Production | done | #274 | server-side DispatchBoard filtering/Take, AsNoTracking, MaxPageSize caps (PRs #277, #279) |
 
 ## Analytics / integration
 
@@ -115,6 +115,6 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | OPC UA / SCADA telemetry | OPC UA | Production | done | #114, #115, #116, #160, #161 | tag dictionary + readings; simulator + stale dashboard; connection registry + polling (PRs #118, #127, #132, #162, #164) |
 | Kanban | Kanban | Production | done | #145, #146, #147 | `KanbanLoop` dictionary + card registry; pull transitions with WIP limits; board UI (PRs #149, #155, #158) |
 | MTBF / MTTR reliability KPIs | MTBF / MTTR | Production | done | #170, #171, #213, #214, #220 | per-Work Center snapshot query + API + dashboard; trend + fleet comparison (PRs #173, #175, #215, #216, #222) |
-| OEE/analytics index review | OEE | Production | gap | - | (TenantId,MachineId,ReportedAt) confirmations index, tenant-scoped FK indexes; depends on OEE |
+| OEE/analytics index review | OEE | Production | done | #266 | (TenantId,MachineId,ReportedAt) confirmations index, tenant FK indexes (PR #270) |
 
-_Last reconciled: 2026-09-25 — genealogy (#142–#144, #207), kanban (#145–#147), OEE (#153/#154/#156, #180–#182), MTBF/MTTR (#170/#171, #213/#214/#220), EAN/GTIN scan (#166/#176/#212), dispatch board (#189/#190/#201), RW/PW persist (#199), stock on hand (#200), machine capacity/efficiency (#204), RBAC backend (#208/#209) + roles UI (#210) done (PRs merged); #221 done via #225 with cross-tenant consumed-lot regression tests from #223; #88/#89 are fixes with no capability rows._
+_Last reconciled: 2026-09-26 — cross-cutting hardening done: JWT (#227/#232/#280), attachments (#228/#234/#281), default-deny authz (#231/#233), abuse protection (#235), cookie auth (#241/#242), audit (#245/#246), health split (#249), correlation ID (#251), OTel (#252/#253), prod boot gate (#257), outbox 3/3 (#258–#260), concurrency (#263), containers (#271), frontend resilience (#273); production atomic fan-out (#265), read paths (#274), OEE indexes (#266); #272/#276 open (smoke suite in-progress); #88/#89 are fixes with no capability rows._
