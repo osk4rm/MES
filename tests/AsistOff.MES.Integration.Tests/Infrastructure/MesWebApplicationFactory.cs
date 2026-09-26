@@ -1,13 +1,17 @@
+using AsistOff.MES.Integration.Tests.Outbox;
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Production.Application.Telemetry;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
+using AsistOff.MES.Shared.Infrastructure.Outbox;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using AsistOff.MES.Shared.Infrastructure.Protection;
+using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace AsistOff.MES.Integration.Tests.Infrastructure;
@@ -53,6 +57,26 @@ public sealed class MesWebApplicationFactory(
             // explicit test actions, otherwise connection-status assertions
             // (live/stale, never-seen) would be timing dependent.
             services.Configure<OpcUaPollingOptions>(options => options.PollingEnabled = false);
+
+            // Same for the outbox relay: undispatched rows must only be
+            // dispatched via explicit RelayTenantAsync calls in
+            // OutboxRelayEndpointTests, otherwise staged-row assertions
+            // (undispatched status, retry counts) would be timing dependent.
+            // The relay logic itself is still exercised — only the timer loop
+            // is off.
+            services.Configure<OutboxRelayOptions>(options => options.Enabled = false);
+
+            // Slice 2 (#259): controllable outbox handler failure for the
+            // retry-then-success / retry-then-poison endpoint tests. The
+            // handler fires exclusively for the test-only FlakyOutboxEvent,
+            // so no other test's traffic is affected. TryAdd (not Add):
+            // ModuleLoader scans every AsistOff.MES.*.dll in the bin folder,
+            // which includes the test assembly itself, so MediatR's
+            // RegisterServicesFromAssembly already registers this handler —
+            // a second AddTransient would invoke it twice per publish and
+            // break the exact-call assertions (fail-once then succeeds would
+            // observe 3 calls instead of 2).
+            services.TryAddTransient<INotificationHandler<FlakyOutboxEvent>, FlakyOutboxHandler>();
 
             // Abuse protection: the shared suite performs hundreds of sign-in
             // and tenant-create calls from a single TestServer IP, which would
