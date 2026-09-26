@@ -46,6 +46,9 @@ let confirmationId = '';
 const pageErrors: string[] = [];
 
 function randomId(): string {
+  // ProductId / MeasureUnitId are free-form references on orders and lots
+  // (no FK existence check in the handlers — endpoint tests seed them with
+  // Guid.NewGuid() the same way), so a random GUID is a valid seed value.
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = Math.floor(Math.random() * 16);
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
