@@ -6,5 +6,23 @@
 AsistOff.MES.Web
 **/*.md
 **/*.user
-# Never bake local secrets into images — compose injects env at runtime.
+# Never bake local secrets into images — compose injects env at runtime
+# (issue #308). Patterns cover the repo root and any nested copy, while the
+# csproj-first COPY layering in the Dockerfile stays untouched.
 .env
+.env.local
+.env.production
+.env.*
+**/.env
+**/.env.local
+**/.env.production
+**/.env.*
+# .NET user-secrets / ad-hoc secret files must never enter the context.
+**/secrets.json
+**/*.secrets.json
+# Compose overrides carry host ports and secret references for local dev;
+# the image never needs them (Coolify deploys with an explicit -f and
+# ignores the override file).
+docker-compose.override.yml
+docker-compose.swarm.yml
+compose.override.yml
