@@ -51,7 +51,9 @@ public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : In
             using var scope = Fixture.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
 
-            var row = await context.OutboxMessages.AsNoTracking().SingleAsync();
+            // Slice 3 (#260): tenant bootstrap leaves its dispatched
+            // tenant-created row; the probe row is matched by payload marker.
+            var row = await context.OutboxMessages.AsNoTracking().SingleAsync(x => x.Payload.Contains(code));
             row.TenantId.Should().Be(tenantId);
             row.Type.Should().Contain(nameof(RelayProbeEvent));
             row.Payload.Should().Contain(code);
@@ -86,13 +88,16 @@ public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : In
         var dispatched = await relay.RelayTenantAsync(tenantId);
 
         // Assert — the rolled-back write left no rows, hence zero dispatches.
+        // Slice 3 (#260): tenant bootstrap leaves its dispatched
+        // tenant-created row, so only undispatched rows are asserted here.
         dispatched.Should().Be(0);
 
         using (BackgroundTenantContext.BeginScope(tenantId))
         {
             using var scope = Fixture.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
-            (await context.OutboxMessages.AsNoTracking().ToListAsync()).Should().BeEmpty();
+            (await OutboxStager.ApplyUndispatched(context.OutboxMessages, 100, GetMaxAttempts())
+                .AsNoTracking().ToListAsync()).Should().BeEmpty();
         }
     }
 
@@ -144,7 +149,9 @@ public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : In
         {
             using var scope = Fixture.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
-            var row = await context.OutboxMessages.SingleAsync();
+            // Slice 3 (#260): tenant bootstrap leaves its dispatched
+            // tenant-created row; the probe row is the only undispatched one.
+            var row = await context.OutboxMessages.SingleAsync(x => !x.Dispatched);
             row.RetryCount = maxAttempts;
             await context.SaveChangesAsync();
             parkedId = row.Id;
@@ -192,7 +199,10 @@ public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : In
                 using var scope = Fixture.Services.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
 
-                var row = await context.OutboxMessages.AsNoTracking().SingleAsync();
+                // Slice 3 (#260): tenant bootstrap leaves its dispatched
+                // tenant-created row; the flaky row is matched by marker.
+                var row = await context.OutboxMessages.AsNoTracking()
+                    .SingleAsync(x => x.Payload.Contains("FLAKY"));
                 row.Dispatched.Should().BeTrue();
                 row.RetryCount.Should().Be(1);
             }
@@ -253,18 +263,22 @@ public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : In
         // Arrange — two tenants, each with one staged row.
         var (emailA, _) = await Fixture.CreateTenantAsync();
         var tenantA = await GetTenantIdByEmailAsync(emailA);
-        await SaveReasonCodeWithEventAsync(tenantA, $"RC-{Guid.NewGuid():N}"[..12].ToUpperInvariant());
+        var codeA = $"RC-{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+        await SaveReasonCodeWithEventAsync(tenantA, codeA);
 
         var (emailB, _) = await Fixture.CreateTenantAsync();
         var tenantB = await GetTenantIdByEmailAsync(emailB);
-        await SaveReasonCodeWithEventAsync(tenantB, $"RC-{Guid.NewGuid():N}"[..12].ToUpperInvariant());
+        var codeB = $"RC-{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+        await SaveReasonCodeWithEventAsync(tenantB, codeB);
 
         var relay = Fixture.Services.GetRequiredService<OutboxRelayService>();
 
         // Act — relay tenant A only.
         var dispatchedA = await relay.RelayTenantAsync(tenantA);
 
-        // Assert — A's row dispatched under A; B's row untouched.
+        // Assert — A's probe row dispatched under A; B's probe row untouched.
+        // Slice 3 (#260): tenant bootstrap leaves each tenant's dispatched
+        // tenant-created row, so probe rows are matched by payload marker.
         dispatchedA.Should().Be(1);
 
         using (BackgroundTenantContext.BeginScope(tenantA))
@@ -272,7 +286,7 @@ public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : In
             using var scope = Fixture.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
             (await context.OutboxMessages.AsNoTracking().ToListAsync())
-                .Should().ContainSingle()
+                .Should().ContainSingle(x => x.Payload.Contains(codeA))
                 .Which.Dispatched.Should().BeTrue();
         }
 
@@ -281,7 +295,7 @@ public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : In
             using var scope = Fixture.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
             (await context.OutboxMessages.AsNoTracking().ToListAsync())
-                .Should().ContainSingle()
+                .Should().ContainSingle(x => x.Payload.Contains(codeB))
                 .Which.Dispatched.Should().BeFalse();
         }
 
@@ -295,7 +309,8 @@ public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : In
         {
             using var scope = Fixture.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
-            var row = await context.OutboxMessages.AsNoTracking().SingleAsync();
+            var row = await context.OutboxMessages.AsNoTracking()
+                .SingleAsync(x => x.Payload.Contains(codeB));
             row.TenantId.Should().Be(tenantB);
             row.Dispatched.Should().BeTrue();
         }
