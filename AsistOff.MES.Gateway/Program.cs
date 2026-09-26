@@ -40,6 +40,18 @@ try
         builder.Configuration.AddCommandLine(args);
     }
 
+    // Hardened container secrets (issue #271): in Production the host refuses
+    // to boot with a missing or weak POSTGRES_PASSWORD / auth:IssuerSigningKey
+    // instead of silently running with the historical root / empty defaults.
+    // Compose already fails fast via `:?` interpolation; this second layer
+    // covers non-compose production runs (systemd, raw docker run). No-op
+    // outside Production so Development and the integration-test host boot
+    // unchanged.
+    ContainerSecretsValidator.Validate(
+        builder.Configuration["POSTGRES_PASSWORD"],
+        builder.Configuration["auth:IssuerSigningKey"],
+        builder.Environment.IsProduction());
+
     // Pull all logging configuration from appsettings (Serilog section). Sinks,
     // minimum levels, enrichers, and Seq URL are all declarative — no code
     // changes are required to add another sink or change verbosity per env.

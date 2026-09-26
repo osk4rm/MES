@@ -112,3 +112,85 @@ docker compose --profile production up -d
 
 Always restore into a staging copy first when the plant database is at stake,
 and confirm `/health/ready` is `200` before reopening traffic.
+
+## Hardened containers and runtime defaults (issue #271)
+
+### Non-root runtimes
+
+Both runtime images run as non-root users: the API as the image's built-in
+`app` user, the web frontend as `nginx` on unprivileged port **8080**
+(compose maps `3000:8080`). Verify after `up`:
+
+```bash
+docker exec <project>-api-1 id -u   # non-zero (e.g. 1654)
+docker exec <project>-web-1 whoami  # nginx
+```
+
+### Pinned base images
+
+Every `FROM` line in `Dockerfile` and `AsistOff.MES.Web/Dockerfile`, plus the
+prebuilt compose images (`postgres:16-alpine`, `datalust/seq:2024.3`), pins a
+manifest digest (`image:tag@sha256:<digest>`). To refresh a pin after an
+upstream patch release:
+
+```bash
+docker build --provenance=false .
+docker inspect <image> --format '{{.RepoDigests}}'
+# copy the sha256 digest back onto the matching FROM / image line
+```
+
+### Restart policies and resource limits
+
+Every long-lived service (`postgres`, `seq`, `api`, `web`, `api-prod`,
+`backup`, `swarm`) declares `restart:` plus memory/CPU
+`deploy.resources.limits`. Only the one-shot `migrate` job uses
+`restart: "no"` with no limits. Validate without starting anything:
+
+```bash
+docker compose config > /dev/null  # fails fast on bad interpolation
+```
+
+### Runtime API URL (no rebuild to repoint the backend)
+
+The web container resolves its backend URL at startup
+(`docker-entrypoint.sh` → `/config.js`, loaded by `index.html` before the
+bundle). Precedence: `API_BASE_URL` env → build-time `VITE_API_BASE_URL` →
+documented default `http://localhost:8080`.
+
+```bash
+# Plant backend reachable from operator browsers:
+API_BASE_URL=https://mes.plant.local docker compose up -d web
+
+# Inspect what a running container serves:
+docker compose exec web cat /usr/share/nginx/html/config.js
+```
+
+An explicitly emptied value fails fast at container start:
+
+```text
+web: API_BASE_URL is set but empty. Set it to the browser-reachable API URL ...
+```
+
+### Secrets: generate, never default
+
+Compose defines **no** default passwords or keys. Missing values fail fast at
+`docker compose config` / `up` time:
+
+```text
+POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh
+```
+
+First boot on any machine:
+
+```bash
+cp .env.example .env
+sh scripts/generate-env.sh   # fills POSTGRES_PASSWORD (32 bytes) + AUTH_ISSUER_SIGNING_KEY (48 bytes)
+docker compose --profile production up -d
+```
+
+`AUTH_ISSUER_SIGNING_KEY` (min 32 bytes / 256 bits) maps to
+`auth:IssuerSigningKey` via `auth__IssuerSigningKey`. As a second layer, the
+Gateway itself refuses a Production boot with a missing/weak
+`POSTGRES_PASSWORD` or signing key (`ContainerSecretsValidator`) instead of
+serving with the historical `root` / empty defaults. Development and CI are
+unaffected: the guard is a no-op outside Production.
