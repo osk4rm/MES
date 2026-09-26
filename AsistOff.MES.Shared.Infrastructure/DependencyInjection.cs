@@ -54,6 +54,7 @@ namespace AsistOff.MES.Shared.Infrastructure
             services.AddScoped<SaasyEntityInterceptor>();
             services.AddScoped<IEntityConfigurator, SharedAuditEntityConfigurator>();
             services.AddScoped<IEntityConfigurator, SharedOutboxEntityConfigurator>();
+            services.AddScoped<IUnitOfWork, EfUnitOfWork>();
 
             return services;
         }
