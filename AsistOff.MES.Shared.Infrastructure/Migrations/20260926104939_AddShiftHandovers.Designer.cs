@@ -3,6 +3,7 @@ using System;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AsistOff.MES.Shared.Infrastructure.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    partial class DefaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260926104939_AddShiftHandovers")]
+    partial class AddShiftHandovers
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -307,59 +310,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("MaintenanceWorkOrders", "config");
-                });
-
-            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.MaterialReservation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ModifiedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ProductionOrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("QuantityRelieved")
-                        .HasColumnType("numeric(14,4)");
-
-                    b.Property<decimal>("QuantityReserved")
-                        .HasColumnType("numeric(14,4)");
-
-                    b.Property<short>("Status")
-                        .HasColumnType("smallint");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("WarehouseId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex("TenantId", "ProductionOrderId");
-
-                    b.HasIndex("TenantId", "ProductionOrderId", "ProductId", "WarehouseId")
-                        .IsUnique();
-
-                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "ProductionOrderId", "ProductId", "WarehouseId"), false);
-
-                    b.ToTable("MaterialReservations", "config");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.MeasureUnit", b =>
