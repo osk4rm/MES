@@ -162,6 +162,16 @@ public class MaterialReservationsHandlerTests
     }
 
     [Fact]
+    public void BrowseRequest_SupportsSortingByCreatedAtAndUpdatedAt()
+    {
+        // Relief (confirmation) and close both bump UpdatedAt, so the browse
+        // read must accept sorting by either audit timestamp.
+        var request = new BrowseMaterialReservationsRequest();
+        request.SupportedSortFields.Should().Contain("CreatedAt");
+        request.SupportedSortFields.Should().Contain("UpdatedAt");
+    }
+
+    [Fact]
     public async Task Validate_FiltersAndPaging_AreValid()
     {
         // Arrange

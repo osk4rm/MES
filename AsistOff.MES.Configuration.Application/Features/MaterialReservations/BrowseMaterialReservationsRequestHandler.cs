@@ -16,6 +16,9 @@ internal sealed class BrowseMaterialReservationsRequestHandler(
     {
         // Tenant isolation comes from the global EF query filter inside the
         // repository; no manual TenantId predicate is written here.
+        // Warehouse filter note: there is no null-only bucket filter — a set
+        // WarehouseId matches that warehouse, an omitted one lists every
+        // bucket including the unassigned (null) one.
         var predicate = PredicateBuilder.New<MaterialReservation>(true);
 
         if (request.ProductionOrderId.HasValue)
