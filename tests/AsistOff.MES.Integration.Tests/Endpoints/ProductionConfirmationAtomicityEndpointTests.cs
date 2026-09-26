@@ -1,10 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using AsistOff.MES.Configuration.Domain.Entities;
+using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Integration.Tests.Infrastructure;
 using AsistOff.MES.Integration.Tests.TestData;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
+using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,6 +87,92 @@ public sealed class ProductionConfirmationAtomicityEndpointTests(MesApplicationF
         var orderResponse = await client.GetAsync($"{OrdersUrl}/{order.Id}");
         var fetchedOrder = await ReadAsync<ProductionOrderDto>(orderResponse);
         fetchedOrder.Status.Should().Be((short)ProductionOrderStatus.InProgress);
+    }
+
+    [Fact]
+    public async Task Create_MidFanOutFailure_RollsBackConfirmationMovementsAndEdges()
+    {
+        // Arrange — real Released order plus real lots via HTTP so the tenant
+        // and FK targets are valid. Then replicate the handler fan-out order
+        // (confirmation, movements, edges) inside one real IUnitOfWork
+        // transaction against the Testcontainers PostgreSQL and fail before
+        // the edge/status writes, simulating a mid-fan-out edge failure.
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var order = await CreateReleasedOrderAsync(client);
+        _ = await CreateLotAsync(client);
+        _ = await CreateLotAsync(client);
+
+        Guid tenantId;
+        using (var scope = Fixture.Services.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
+            var orderRow = await context.Set<ProductionOrder>()
+                .IgnoreQueryFilters()
+                .FirstAsync(x => x.Id == order.Id);
+            tenantId = orderRow.TenantId;
+        }
+
+        var confirmationId = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+        var confirmation = new ProductionConfirmation
+        {
+            Id = confirmationId,
+            TenantId = tenantId,
+            ProductionOrderId = order.Id,
+            MachineId = Guid.NewGuid(),
+            ReportedAt = now,
+            GoodQuantity = 10m,
+            ScrapQuantity = 0m,
+            CreatedAt = now
+        };
+        var movement = new StockMovement
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            MovementType = StockMovement.ReceiptType,
+            ProductId = Guid.NewGuid(),
+            Quantity = 10m,
+            ProductionConfirmationId = confirmationId,
+            ProductionOrderId = order.Id,
+            ReportedAt = now,
+            CreatedAt = now
+        };
+
+        // Act
+        using (var scope = Fixture.Services.CreateScope())
+        {
+            var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            var confirmations = scope.ServiceProvider.GetRequiredService<IProductionConfirmationsRepository>();
+            var movements = scope.ServiceProvider.GetRequiredService<IStockMovementsRepository>();
+
+            var act = () => unitOfWork.ExecuteInTransactionAsync(async () =>
+            {
+                await confirmations.AddAsync(confirmation);
+                await movements.AddRangeAsync(new[] { movement });
+                throw new InvalidOperationException("simulated genealogy edge insert failure");
+            });
+
+            await act.Should().ThrowAsync<InvalidOperationException>();
+        }
+
+        // Assert — no orphan rows by DB count, nothing in browse, nothing by
+        // id, and the order is still Released.
+        (await CountConfirmationsAsync(order.Id)).Should().Be(0);
+        (await CountMovementsForOrderAsync(order.Id)).Should().Be(0);
+        (await CountEdgesForOrderAsync(order.Id)).Should().Be(0);
+
+        var browse = await client.GetAsync($"{BaseUrl}?productionOrderId={order.Id}");
+        browse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var page = await ReadAsync<PagedResponseDto<ProductionConfirmationDto>>(browse);
+        page.Items.Should().BeEmpty();
+
+        var getById = await client.GetAsync($"{BaseUrl}/{confirmationId}");
+        getById.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var orderResponse = await client.GetAsync($"{OrdersUrl}/{order.Id}");
+        orderResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var fetchedOrder = await ReadAsync<ProductionOrderDto>(orderResponse);
+        fetchedOrder.Status.Should().Be((short)ProductionOrderStatus.Released);
     }
 
     [Fact]
