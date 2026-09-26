@@ -61,7 +61,7 @@ internal sealed class BrowseProductsRequestHandler(
     {
         public List<string> RawSort { get; set; } = inner.RawSort.Count == 0 ? ["Code"] : inner.RawSort;
         public IReadOnlyCollection<string> SupportedSortFields => inner.SupportedSortFields;
-        public int? PageNumber => inner.PageNumber;
+        public int? PageNumber => 1;
         public int? PageSize => pageSize;
         public int? MaxPageSize => inner.MaxPageSize;
     }

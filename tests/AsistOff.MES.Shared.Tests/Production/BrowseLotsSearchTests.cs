@@ -81,11 +81,12 @@ public class BrowseLotsSearchTests
             .ReturnsAsync(Array.Empty<Lot>());
 
         // Act - default PageSize is 50, Search must cap it to 20 with code sort.
-        await CreateSut().Handle(new BrowseLotsRequest { Search = "LOT", PageSize = 50 }, CancellationToken.None);
+        await CreateSut().Handle(new BrowseLotsRequest { Search = "LOT", PageSize = 50, PageNumber = 3 }, CancellationToken.None);
 
         // Assert
         captured.Should().NotBeNull();
         captured!.Paging.PageSize.Should().Be(20);
+        captured.Paging.PageNumber.Should().Be(1);
         captured.Paging.RawSort.Should().ContainSingle().Which.Should().Be("Code");
     }
 

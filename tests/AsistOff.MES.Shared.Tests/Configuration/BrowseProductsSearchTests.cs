@@ -61,11 +61,12 @@ public class BrowseProductsSearchTests
 
         // Act - default PageSize is 10, Search still forces code sort; large
         // PageSize values are capped to 20.
-        await CreateSut().Handle(new BrowseProductsRequest { Search = "PRD", PageSize = 50 }, CancellationToken.None);
+        await CreateSut().Handle(new BrowseProductsRequest { Search = "PRD", PageSize = 50, PageNumber = 3 }, CancellationToken.None);
 
         // Assert
         captured.Should().NotBeNull();
         captured!.Paging.PageSize.Should().Be(20);
+        captured.Paging.PageNumber.Should().Be(1);
         captured.Paging.RawSort.Should().ContainSingle().Which.Should().Be("Code");
     }
 

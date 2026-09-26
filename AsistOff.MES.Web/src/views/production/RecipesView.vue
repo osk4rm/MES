@@ -117,7 +117,7 @@ const router = useRouter();
 const productOptions = ref<AutocompleteOption[]>([]);
 onMounted(async () => {
   try {
-    const result = await productService.browse({ pageSize: 500 });
+    const result = await productService.browse({ pageNumber: 1, pageSize: 100 });
     productOptions.value = result.items.map(p => ({ value: p.id, label: `${p.code} — ${p.name}` }));
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.loadFailed')));
