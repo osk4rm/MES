@@ -44,6 +44,15 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
                 Detail = concurrencyEx.Message,
                 Extensions = { ["concurrencyToken"] = concurrencyEx.CurrentToken }
             },
+            // Derived before its base: GanttScheduleConflictException extends
+            // ConflictException, so this arm must precede the plain 409 arm.
+            GanttScheduleConflictException ganttEx => new ProblemDetails
+            {
+                Title = "Conflict",
+                Status = (int)HttpStatusCode.Conflict,
+                Detail = ganttEx.Message,
+                Extensions = { ["conflictingSegmentIds"] = ganttEx.ConflictingSegmentIds }
+            },
             ConflictException conflictEx => new ProblemDetails
             {
                 Title = "Conflict",

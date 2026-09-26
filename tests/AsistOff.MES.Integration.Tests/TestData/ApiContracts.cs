@@ -692,6 +692,17 @@ public sealed record GanttScheduleDto(
     string To,
     IReadOnlyCollection<GanttMachineGroupDto> Groups);
 
+/// <summary>Shape of the moved segment returned by <c>PUT /api/schedule/gantt/segments/{id}</c>.</summary>
+public sealed record GanttRescheduleDto(
+    Guid Id,
+    Guid ProductionOrderId,
+    Guid OperationNodeId,
+    Guid MachineId,
+    DateTime PlannedStart,
+    DateTime PlannedEnd,
+    bool ShiftCoverageWarning,
+    IReadOnlyList<Guid> ConflictingSegmentIds);
+
 /// <summary>Shape of a tenant permission as returned by <c>/api/permissions</c>.</summary>
 public sealed record PermissionDto(
     Guid Id,

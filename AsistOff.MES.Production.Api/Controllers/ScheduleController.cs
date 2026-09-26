@@ -19,4 +19,37 @@ public class ScheduleController(ISender sender) : ApiController
     public async Task<ActionResult<GanttScheduleResponse>> GetGanttAsync(
         [FromQuery] DateOnly from, [FromQuery] DateOnly to, [FromQuery] Guid? machineId, CancellationToken cancellationToken)
         => Ok(await sender.Send(new GetGanttScheduleRequest(from, to, machineId), cancellationToken));
+
+    /// <summary>
+    /// Move a Gantt segment: pins the operation ({id} is the OperationNodeId)
+    /// of the given Production Order to a new window and Work Center. The body
+    /// must carry the order <c>concurrencyToken</c> from the last <c>GET</c>; a
+    /// stale token is rejected with 409 carrying the current token (reload the
+    /// order, re-apply the move, resubmit). An overlapping move on the same
+    /// Work Center is rejected with 409 listing the conflicting segment ids
+    /// unless <c>force</c> is set.
+    /// </summary>
+    [HttpPut("gantt/segments/{id:guid}")]
+    public async Task<ActionResult<RescheduleGanttSegmentResponse>> RescheduleSegmentAsync(
+        [FromRoute] Guid id, [FromBody] RescheduleGanttSegmentBody body, CancellationToken cancellationToken)
+        => Ok(await sender.Send(
+            new RescheduleGanttSegmentRequest(
+                id,
+                body.ProductionOrderId,
+                body.PlannedStart,
+                body.PlannedEnd,
+                body.MachineId,
+                body.ConcurrencyToken,
+                body.Force,
+                body.Notes),
+            cancellationToken));
+
+    public sealed record RescheduleGanttSegmentBody(
+        Guid ProductionOrderId,
+        DateTime PlannedStart,
+        DateTime PlannedEnd,
+        Guid MachineId,
+        string? ConcurrencyToken,
+        bool Force,
+        string? Notes);
 }
