@@ -96,6 +96,16 @@ describe('e2e-smoke CI contract', () => {
     expect(workflow).toContain('E2E_API_URL: http://localhost:5243');
   });
 
+  it('probes Postgres health with the job credentials once applied', () => {
+    const workflow = patchedWorkflow();
+
+    // The service creates role `admin` / db `mes`, so a bare `pg_isready`
+    // (which probes role/db `postgres`) can report unhealthy forever and
+    // stall the job before the stack even starts. The probe must target
+    // the created role and database.
+    expect(workflow).toContain('pg_isready -U admin -d mes');
+  });
+
   it('keeps failure artifacts enabled in the Playwright config', () => {
     const config = readRepo('AsistOff.MES.Web/playwright.config.ts');
 
