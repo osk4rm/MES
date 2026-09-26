@@ -206,9 +206,24 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     [Fact]
     public async Task AuthenticatedEndpoint_WithTamperedAccessToken_Returns401()
     {
-        // Arrange — valid sign-in, then tamper the last character.
+        // Arrange — valid sign-in, then break the signature.
+        //
+        // The character to change must be one that carries significant bits.
+        // A base64url signature ends in a character whose low 2 bits are
+        // padding: 32 bytes = 256 bits = 42 full 6-bit groups + 4 significant
+        // bits in the 43rd character. Swapping that last character for another
+        // one in the same 4-bit group (e.g. 'a' -> 'b') decodes to the very
+        // same bytes, so the token stays VALID and this test failed
+        // intermittently with 200 instead of 401 - which turned a healthy PR
+        // into a fix round every time it landed. A middle character is fully
+        // significant, so the signature really changes.
         var (_, tokens) = await SignInAsync();
-        var tampered = tokens.AccessToken![..^1] + (tokens.AccessToken[^1] == 'a' ? 'b' : 'a');
+        var parts = tokens.AccessToken!.Split('.');
+        var signature = parts[2].ToCharArray();
+        var middle = signature.Length / 2;
+        signature[middle] = signature[middle] == 'A' ? 'B' : 'A';
+        var tampered = string.Join('.', parts[0], parts[1], new string(signature));
+        tampered.Should().NotBe(tokens.AccessToken);
         using var client = Fixture.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tampered);
 
