@@ -1,4 +1,5 @@
 import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+import { currentApiBaseUrl } from './apiBaseUrl';
 import { CORRELATION_ID_HEADER, generateCorrelationId } from './correlation';
 import { useAuthStore } from '../stores/authStore';
 
@@ -39,7 +40,10 @@ export function resolveRequestTimeout(env: { [key: string]: unknown }): number {
 }
 
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  // Runtime-resolved (issue #271): the web container renders /config.js from
+  // the API_BASE_URL env at startup; that wins over the build-time
+  // VITE_API_BASE_URL, then the documented default.
+  baseURL: currentApiBaseUrl(),
   // Abort stalled calls instead of spinning forever on a dead terminal.
   timeout: resolveRequestTimeout(import.meta.env),
   // Cookie transport (issue #242): the session lives in httpOnly
