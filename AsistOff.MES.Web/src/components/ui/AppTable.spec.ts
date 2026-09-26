@@ -32,9 +32,9 @@ describe('AppTable error state', () => {
     expect(wrapper.text()).toContain('Zero rows');
   });
 
-  it('renders the shared error row with retry, winning over loading and data', async () => {
+  it('renders the shared error row with retry, winning over data', async () => {
     const wrapper = mountTable({
-      loading: true,
+      loading: false,
       error: 'Request failed',
       items: [{ id: '1', code: 'A', name: 'Alpha' }]
     });
@@ -46,6 +46,24 @@ describe('AppTable error state', () => {
     await error.find('button').trigger('click');
 
     expect(wrapper.emitted('retry')).toHaveLength(1);
+  });
+
+  it('renders the error row while a retry is in flight, with retry disabled', async () => {
+    const wrapper = mountTable({ loading: true, error: 'Request failed' });
+
+    const error = wrapper.find('.app-error-state');
+    expect(error.exists()).toBe(true);
+    expect(error.text()).toContain('Request failed');
+
+    // The shared retry button forwards `loading` to AppButton, which
+    // disables the button while the retry request is in flight — the row
+    // stays visible instead of flashing back to a loader.
+    const button = error.find('button');
+    expect(button.attributes('disabled')).toBeDefined();
+
+    await button.trigger('click');
+
+    expect(wrapper.emitted('retry')).toBeUndefined();
   });
 
   it('hides the error row once the error clears', async () => {
