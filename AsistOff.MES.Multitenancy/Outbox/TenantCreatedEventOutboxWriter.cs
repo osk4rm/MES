@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AsistOff.MES.Multitenancy.Contracts.Events;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using AsistOff.MES.Shared.Infrastructure.Outbox;
@@ -32,9 +33,14 @@ public interface ITenantCreatedEventOutbox
 /// on rollback are impossible by ordering, and a tenant-save failure never
 /// reaches this writer, leaving zero undispatched rows for that attempt.
 /// Tenant isolation rides on the explicit <c>TenantId</c> (the created tenant
-/// id): anonymous signup has no ambient tenant, and the
-/// <c>SaasyEntityInterceptor</c> is a no-op for explicitly-scoped inserts, so
-/// no manual predicate and no <c>IgnoreQueryFilters</c> bypass are needed.
+/// id): anonymous signup has no ambient tenant, and an authenticated
+/// <c>/register</c> submit carries the caller's ambient tenant, which always
+/// differs from the newly created tenant id. Staging therefore enters an
+/// explicit <see cref="BackgroundTenantContext"/> scope for the created tenant
+/// (the same pattern as the slice-2 relay and sign-in permission resolution),
+/// so the <c>SaasyEntityInterceptor</c> sees a matching ambient tenant instead
+/// of throwing a cross-tenant write. No manual predicate and no
+/// <c>IgnoreQueryFilters</c> bypass are needed.
 /// The generic <see cref="OutboxStager"/> secret scan is deliberately not
 /// used here: its <c>password</c> fragment would reject the
 /// <c>HashedPassword</c> member, but that member is a one-way hash (never
@@ -65,18 +71,27 @@ public sealed class TenantCreatedEventOutboxWriter(
                 $"Tenant-created event payload of {payload.Length} characters exceeds the maximum of {OutboxStager.MaxPayloadLength} characters and cannot be staged to the outbox.");
         }
 
-        context.OutboxMessages.Add(new OutboxMessage
+        // Scope the ambient tenant to the created tenant before the insert:
+        // an authenticated /register submit carries the caller's ambient
+        // tenant (e.g. the dev tenant), which differs from the new tenant id
+        // and would otherwise trip SaasyEntityInterceptor's cross-tenant
+        // guard. The scope only affects this async flow and is restored on
+        // dispose; the row's tenant binding still comes from the event only.
+        using (BackgroundTenantContext.BeginScope(tenantCreatedEvent.Id))
         {
-            Id = guidProvider.NewGuid(),
-            TenantId = tenantCreatedEvent.Id,
-            IdempotencyKey = guidProvider.NewGuid().ToString("N"),
-            Type = typeof(TenantCreatedEvent).AssemblyQualifiedName ?? typeof(TenantCreatedEvent).FullName!,
-            Payload = payload,
-            OccurredOnUtc = dateTimeProvider.UtcNow,
-            Dispatched = false,
-            RetryCount = 0,
-        });
+            context.OutboxMessages.Add(new OutboxMessage
+            {
+                Id = guidProvider.NewGuid(),
+                TenantId = tenantCreatedEvent.Id,
+                IdempotencyKey = guidProvider.NewGuid().ToString("N"),
+                Type = typeof(TenantCreatedEvent).AssemblyQualifiedName ?? typeof(TenantCreatedEvent).FullName!,
+                Payload = payload,
+                OccurredOnUtc = dateTimeProvider.UtcNow,
+                Dispatched = false,
+                RetryCount = 0,
+            });
 
-        await context.SaveChangesAsync(cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

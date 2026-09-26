@@ -135,11 +135,38 @@ public class TenantCreatedOutboxTests
         public Guid NewGuid() => Guid.NewGuid();
     }
 
+    private sealed class AmbientTenantAccessor(Guid ambientTenantId) : ICurrentTenantAccessor
+    {
+        // Production-like accessor (mirrors TenantContext): an explicit
+        // BackgroundTenantContext scope wins over the ambient HTTP tenant, so
+        // the writer's scope for the created tenant satisfies the
+        // SaasyEntityInterceptor even when the caller is authenticated as a
+        // different tenant (e.g. /register submitted while logged in).
+        public Guid CurrentTenantId => TryGetTenantId(out var tenantId) ? tenantId : Guid.Empty;
+
+        public bool TryGetTenantId(out Guid tenantId)
+        {
+            var background = BackgroundTenantContext.Current;
+            if (background.HasValue && background.Value != Guid.Empty)
+            {
+                tenantId = background.Value;
+                return true;
+            }
+
+            tenantId = ambientTenantId;
+            return ambientTenantId != Guid.Empty;
+        }
+    }
+
     private DefaultContext BuildDefaultContext(DateTime now)
+    {
+        return BuildDefaultContextWithAccessor(new AnonymousTenantAccessor(), now);
+    }
+
+    private DefaultContext BuildDefaultContextWithAccessor(ICurrentTenantAccessor tenants, DateTime now)
     {
         var clock = new TestClock(now);
         var guids = new TestGuids();
-        var tenants = new AnonymousTenantAccessor();
         var users = new AnonymousUserAccessor();
 
         return new DefaultContext(
@@ -217,6 +244,32 @@ public class TenantCreatedOutboxTests
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
         (await context.OutboxMessages.IgnoreQueryFilters().ToListAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Stage_AuthenticatedAmbientTenant_StagesRowForNewTenant()
+    {
+        // Arrange — E2E regression (PR #282): /register submitted while
+        // logged in carries the caller's ambient tenant, which differs from
+        // the newly created tenant id. Staging must succeed under that
+        // ambient without a cross-tenant write error.
+        var ambientTenantId = Guid.NewGuid();
+        using var context = BuildDefaultContextWithAccessor(new AmbientTenantAccessor(ambientTenantId), _now);
+        var newTenantId = Guid.NewGuid();
+        var @event = new TenantCreatedEvent(newTenantId, "new@acme.local", "HASHED");
+
+        // Act
+        await BuildWriter(context, _now).StageAsync(@event);
+
+        // Assert — one undispatched row bound to the new tenant, not ambient.
+        var rows = await context.OutboxMessages.IgnoreQueryFilters().ToListAsync();
+        rows.Should().ContainSingle();
+        rows.Single().TenantId.Should().Be(newTenantId);
+        rows.Single().TenantId.Should().NotBe(ambientTenantId);
+        rows.Single().Dispatched.Should().BeFalse();
+
+        // The writer's background scope must not leak into the caller flow.
+        BackgroundTenantContext.Current.Should().BeNull();
     }
 
     [Fact]
