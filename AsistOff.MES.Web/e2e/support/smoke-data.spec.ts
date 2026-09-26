@@ -8,6 +8,7 @@ import {
   isDispatchBoardShape,
   machineOptionLabel,
   smokeCodes,
+  smokeCleanupPlan,
   upstreamContainsLot,
   type TraceabilityResponse
 } from './smoke-data';
@@ -151,5 +152,50 @@ describe('isDispatchBoardShape', () => {
     expect(isDispatchBoardShape(null)).toBe(false);
     expect(isDispatchBoardShape({})).toBe(false);
     expect(isDispatchBoardShape({ orders: 'nope' })).toBe(false);
+  });
+});
+
+describe('smokeCleanupPlan', () => {
+  it('deletes the confirmation before either lot', () => {
+    const steps = smokeCleanupPlan({
+      confirmationId: 'conf-1',
+      producedLotId: 'lot-prd',
+      consumedLotId: 'lot-con'
+    });
+
+    expect(steps.map((s) => s.path)).toEqual([
+      '/api/production-confirmations/conf-1',
+      '/api/lots/lot-prd',
+      '/api/lots/lot-con'
+    ]);
+  });
+
+  it('skips ids a half-finished run never created', () => {
+    expect(
+      smokeCleanupPlan({ confirmationId: '', producedLotId: 'lot-prd', consumedLotId: '' }).map((s) => s.path)
+    ).toEqual(['/api/lots/lot-prd']);
+    expect(smokeCleanupPlan({ confirmationId: '', producedLotId: '', consumedLotId: '' })).toEqual([]);
+  });
+
+  it('never touches the audit trail (order / machine / recipe)', () => {
+    const steps = smokeCleanupPlan({
+      confirmationId: 'conf-1',
+      producedLotId: 'lot-prd',
+      consumedLotId: 'lot-con'
+    });
+    const blob = JSON.stringify(steps);
+
+    expect(blob).not.toContain('production-orders');
+    expect(blob).not.toContain('machines');
+    expect(blob).not.toContain('recipes');
+  });
+
+  it('keeps repeat runs disjoint via unique per-run codes', () => {
+    const first = smokeCodes('AB12CD');
+    const second = smokeCodes('EF34GH');
+
+    expect(first.orderCode).not.toBe(second.orderCode);
+    expect(first.producedLotCode).not.toBe(second.producedLotCode);
+    expect(first.consumedLotCode).not.toBe(second.consumedLotCode);
   });
 });

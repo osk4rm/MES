@@ -161,3 +161,49 @@ export function isDispatchBoardShape(value: unknown): value is { orders: Dispatc
   const orders = (value as { orders?: unknown }).orders;
   return Array.isArray(orders);
 }
+
+/** Ids collected during a smoke run that may need cleanup. */
+export interface SmokeCleanupIds {
+  confirmationId: string;
+  producedLotId: string;
+  consumedLotId: string;
+}
+
+/** A single ordered cleanup step (relative API path + label for warnings). */
+export interface SmokeCleanupStep {
+  path: string;
+  label: string;
+}
+
+/**
+ * Ordered best-effort cleanup plan for a smoke run.
+ *
+ * The confirmation must be deleted before either lot (it references both),
+ * then the produced lot, then the consumed lot. Empty ids are skipped so a
+ * run that failed halfway still cleans up whatever it created. The Released
+ * order, machine and recipe are intentionally never included — they stay
+ * behind as an audit trail while unique per-run codes keep repeat runs
+ * green without manual reset.
+ */
+export function smokeCleanupPlan(ids: SmokeCleanupIds): SmokeCleanupStep[] {
+  const steps: SmokeCleanupStep[] = [];
+  if (ids.confirmationId) {
+    steps.push({
+      path: `/api/production-confirmations/${ids.confirmationId}`,
+      label: `confirmation ${ids.confirmationId}`
+    });
+  }
+  if (ids.producedLotId) {
+    steps.push({
+      path: `/api/lots/${ids.producedLotId}`,
+      label: `produced lot ${ids.producedLotId}`
+    });
+  }
+  if (ids.consumedLotId) {
+    steps.push({
+      path: `/api/lots/${ids.consumedLotId}`,
+      label: `consumed lot ${ids.consumedLotId}`
+    });
+  }
+  return steps;
+}

@@ -26,6 +26,7 @@ import {
   isDispatchBoardShape,
   machineOptionLabel,
   smokeCodes,
+  smokeCleanupPlan,
   SMOKE_EMAIL,
   SMOKE_PASSWORD,
   upstreamContainsLot,
@@ -155,21 +156,17 @@ async function seedSmokeRun(): Promise<void> {
 async function cleanupSmokeRun(): Promise<void> {
   // Best-effort: a failed DELETE must not fail the suite, but it must not be
   // silent either — warn so a leaking run shows up in the reporter output.
+  // Order and audit-trail scope come from smokeCleanupPlan (covered by
+  // support/smoke-data.spec.ts): confirmation first, then lots; the Released
+  // order, machine and recipe stay behind as an audit trail.
   const warn = (what: string) => (error: unknown): null => {
     // eslint-disable-next-line no-console
     console.warn(`smoke cleanup: DELETE ${what} failed: ${String(error)}`);
     return null;
   };
-  const attempts: Array<Promise<unknown>> = [];
-  if (confirmationId) {
-    attempts.push(api.delete(`${API}/api/production-confirmations/${confirmationId}`).catch(warn(`confirmation ${confirmationId}`)));
-  }
-  if (producedLotId) {
-    attempts.push(api.delete(`${API}/api/lots/${producedLotId}`).catch(warn(`produced lot ${producedLotId}`)));
-  }
-  if (consumedLotId) {
-    attempts.push(api.delete(`${API}/api/lots/${consumedLotId}`).catch(warn(`consumed lot ${consumedLotId}`)));
-  }
+  const attempts = smokeCleanupPlan({ confirmationId, producedLotId, consumedLotId }).map((step) =>
+    api.delete(`${API}${step.path}`).catch(warn(step.label))
+  );
   // The Released order, machine and recipe stay behind as an audit trail;
   // unique per-run codes keep repeat runs green without manual reset.
   await Promise.all(attempts);
