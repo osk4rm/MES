@@ -57,7 +57,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Transactional outbox for domain events | — | Shared | done | #258, #259, #260 | OutboxMessages + relay with retry, no ghost events (PRs #262, #267, #282) |
 | Optimistic concurrency tokens | Production Order | Production | done | #263 | xmin rowversion + 409/retry on Production Order (PR #269) |
 | Container + runtime hardening | — | Ops | done | #271 | non-root USER, pinned digests, limits, generated secrets (PR #275) |
-| Committed Playwright smoke suite | — | Web, CI | in-progress | #272 | login→orders→confirm→lots on scripts/e2e harness (PR #276 open) |
+| Committed Playwright smoke suite | — | Web, CI | done | #272 | login→orders→confirm→lots on scripts/e2e harness (PR #276) |
 | Frontend resilience bundle | — | Web | done | #273 | axios timeout/retry/abort, error state + retry, guards, boundary (PR #278) |
 
 ## Configuration (master data)
@@ -69,7 +69,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Warehouses | RW / PW | Configuration | done | — | `Warehouse`; movements + stock rows below |
 | RW/PW warehouse movements (persisted) | RW / PW | Configuration | done | #199 | `StockMovement` persisted on confirmation (PR #203) |
 | Stock on hand | — | Configuration | done | #200 | per product + warehouse; WarehousesView card (PR #205) |
-| Material reservations for released orders | RW / PW | Configuration | in-progress | #291 | depends on Stock on hand + Production Order; soft-allocate on release, relieve on RW confirmation (PR #295 open) |
+| Material reservations for released orders | RW / PW | Configuration | done | #291 | depends on Stock on hand + Production Order; soft-allocate on release, relieve on RW confirmation (PR #295) |
 | Departments | — | Configuration | done | — | `Department` |
 | Machines / resources | Work Center | Configuration | done | #204 | `Machine` + calendar (#83); capacity + efficiency factor (PR #206) |
 | Operators | Operator | Configuration | done | — | `Operator` (code / RFID) |
@@ -104,7 +104,8 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Genealogy / traceability | Genealogy | Production | done | #142, #143, #144, #207 | `LotGenealogyEdge` auto-derived on confirmation; upstream/downstream traceability + lot tree (PRs #148, #151, #152, #211) |
 | Atomic confirmation fan-out | Confirmation | Production | done | #265 | single transaction across confirmation + movements + edges + order (PRs #286, #287) |
 | Read-path performance (paging, no-tracking, batch fetch) | Shift | Production | done | #274 | server-side DispatchBoard filtering/Take, AsNoTracking, MaxPageSize caps (PRs #277, #279) |
-| Shift handover logbook | Shift | Production | in-progress | #292, #293 | depends on Work-center calendar / shifts + Operator confirmations (RW / PW); context API slice 1/2 (PR #294 open), persisted entries slice 2/2 |
+| Shift handover logbook | Shift | Production | done | #292, #293 | depends on Work-center calendar / shifts + Operator confirmations (RW / PW); context API + persisted entries with notes (PRs #294, #302) |
+| Gantt scheduler (Harmonogram) | Operation / Routing | Production | gap | — | depends on Operations / routing + Work-center calendar / shifts + Production Order; time-phased Gantt of operations across Work Centers (drag/resize/level); takes over the "Harmonogram" name — the current day/shift dispatch board stays but must be renamed |
 
 ## Analytics / integration
 
@@ -114,10 +115,41 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Andon | Andon | Production | done | #98 | signals for abnormal conditions (PR #104) |
 | SPC | SPC | Production | done | #99, #187, #188, #195, #196 | characteristic dictionary + measurements with out-of-control evaluation; log + control chart; Western Electric rules 2-4 (PRs #103, #191, #193, #197, #198) |
 | CMMS | CMMS | Configuration | done | #100, #172 | corrective work orders + board UI (PRs #102, #174) |
-| Preventive maintenance plans | CMMS | Configuration | gap | — | depends on CMMS; time/meter-based schedules that auto-raise work orders before breakdown |
+| Preventive maintenance plans | CMMS | Configuration | done | #297, #298, #299 | depends on CMMS; time/meter-based schedules + due state + auto-raise of work orders (PRs #300, #301, #303) |
 | OPC UA / SCADA telemetry | OPC UA | Production | done | #114, #115, #116, #160, #161 | tag dictionary + readings; simulator + stale dashboard; connection registry + polling (PRs #118, #127, #132, #162, #164) |
 | Kanban | Kanban | Production | done | #145, #146, #147 | `KanbanLoop` dictionary + card registry; pull transitions with WIP limits; board UI (PRs #149, #155, #158) |
 | MTBF / MTTR reliability KPIs | MTBF / MTTR | Production | done | #170, #171, #213, #214, #220 | per-Work Center snapshot query + API + dashboard; trend + fleet comparison (PRs #173, #175, #215, #216, #222) |
 | OEE/analytics index review | OEE | Production | done | #266 | (TenantId,MachineId,ReportedAt) confirmations index, tenant FK indexes (PR #270) |
 
-_Last reconciled: 2026-09-26 — #291 in-progress (material reservations, PR #295 open), #292/#293 in-progress (handover logbook: context PR #294 open, entries proposed); #272/#276 still open (smoke suite in-progress); #88/#89 are fixes with no capability rows._
+## Security hardening
+
+Gaps from the 2026-09-26 security audit. No GitHub issues exist for these yet;
+`mes-analyst` can promote them. Severity is recorded in `Notes`; `Critical`/`High`
+should be addressed before the `Medium`/`Low` items.
+
+| Capability | Glossary | Module | Status | Work item | Notes |
+|---|---|---|---|---|---|
+| Agent CI/CD workflow isolation | — | CI/CD | gap | — | **Critical**; `ai-swarm.yml` uses `pull_request_target` + checks out `refs/pull/N/{merge,head}` then runs the PR-controlled local action `./.github/actions/setup-opencode` (and npm/dotnet on PR code) with `SWARM_PAT`/`OPENCODE_API_KEY`/`GITHUB_TOKEN` in scope — pwn-request / secret exfiltration |
+| Build-context secret exclusion | — | Ops | gap | — | **High**; `Dockerfile` `COPY . .` + `.dockerignore` missing `.env` bakes `POSTGRES_PASSWORD` / `auth:IssuerSigningKey` into image layers and BuildKit cache |
+| Sort-field whitelist enforcement (dynamic LINQ) | — | Shared | gap | — | **High**; `QueryableExtensions.Sort` passes the unvalidated `sort` field to `System.Linq.Dynamic.Core` `OrderBy(string)`; `SortableValidator` is a closed generic over `ISortable` and never runs for concrete browse requests — expression injection (info disclosure / DoS) |
+| Attachment object-level authorization | — | Attachments | gap | — | **High**; download/list/delete enforce tenant scope only; any authenticated tenant user can read/delete any attachment and `attachments.read` is never enforced |
+| Rate-limit client-IP hardening | — | Gateway | gap | — | **High**; throttle partitions on the raw left-most `X-Forwarded-For`, spoofable to defeat the only anti-credential-stuffing control; use `Connection.RemoteIpAddress` after trusted-proxy config |
+| Anonymous tenant lookup minimization | — | Multitenancy | gap | — | **Medium**; `GET /api/tenants/{id}` returns `ContactEmail` + `Settings` to anonymous callers, contradicting the minimal-public-projection contract |
+| Module authorization policy wiring | — | Shared | gap | — | **Medium**; `AddAuth` is called without the module list so module `Policies` register nothing and are dead code |
+| Authentication-disable guard scope | — | Shared, Auth | gap | — | **Medium**; `auth:AuthenticationDisabled` registers an evaluator that succeeds for all authz checks in any non-Production env |
+| SPA security headers + CSP | — | Web | gap | — | **Medium**; nginx emits no CSP / `X-Frame-Options` / nosniff / `Referrer-Policy`; backend headers cover `/api` only |
+| Attachment upload limits + quota + malware scan | — | Attachments | gap | — | **Medium**; 100 MB request buffered vs 10 MiB app cap, no per-tenant quota/rate limit and no AV scanning |
+| Dev seed credential out of shipped image | — | Ops | gap | — | **Medium**; hardcoded `Passw0rd!` in `appsettings.Development.json` ships in the published image and the compose override runs Development |
+| Swarm container privilege + socket | — | Ops | gap | — | **Medium**; swarm runs as root with the host Docker socket and host opencode auth dirs bind-mounted |
+| GitHub Actions SHA pinning | — | CI/CD | gap | — | **Medium**; third-party actions pinned to mutable major tags, not commit SHAs |
+| Host header / HSTS / dev CORS hardening | — | Gateway | gap | — | **Medium**; `AllowedHosts: "*"`, HSTS only when the request already arrives HTTPS, Development reflects any origin with credentials |
+| Attachment upload attribution | — | Attachments | gap | — | **Low**; `UploadedByUserId` is never populated, relying on generic `CreatedBy` |
+| Sensitive read projections | — | Production | gap | — | **Low**; full audit-event `Payload` JSON and raw OPC UA `LastError` visible to the read-only role |
+| Attachment storage durability | — | Ops, Attachments | gap | — | **Low**; storage root resolves against process CWD and no persistent volume is mounted in compose |
+| `.env` ignore coverage | — | Ops | gap | — | **Low**; `.gitignore` pattern `*.env` misses `.env.local` / `.env.production` |
+| Global fallback authorization policy | — | Shared | gap | — | **Low**; no fallback policy, so non-`ApiController` controllers (`ErrorsController`) are anonymous by default |
+| Frontend CSRF token + error-text sink | — | Web | gap | — | **Low**; no CSRF token on cookie writes; server error text rendered in toasts (safe today, XSS sink if `v-html` is added) |
+| Seq authentication | — | Ops | gap | — | **Low**; Seq runs unauthenticated and is host-exposed in dev |
+| Legacy dependency modernization | — | Shared, Users, Multitenancy | gap | — | **Low**; EOL `Microsoft.AspNetCore.*` 2.3.9 runtime packages and stale `Swashbuckle.AspNetCore` 6.6.2 |
+
+_Last reconciled: 2026-09-26 — no `gap`, `proposed` or `in-progress` rows remain. #291 (material reservations, PR #295), #292/#293 (handover logbook, PRs #294, #302), #272/#276 (Playwright smoke suite, PR #276) and preventive maintenance (#297–#299, PRs #300/#301/#303) all merged to `done`. New `gap`: Gantt scheduler ("Harmonogram"), and the current day/shift dispatch board must be renamed so it no longer owns that label. #88/#89 are fixes with no capability rows. Security audit (2026-09-26) added a "Security hardening" section with 22 `gap` rows — 1 Critical, 4 High, 9 Medium, 8 Low — no GitHub issues yet._
