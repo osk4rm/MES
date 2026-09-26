@@ -12,6 +12,8 @@ const pl = {
     close: 'Zamknij',
     add: 'Dodaj',
     refresh: 'Odśwież',
+    retry: 'Ponów',
+    reload: 'Przeładuj',
     search: 'Szukaj…',
     filter: 'Filtruj',
     clear: 'Wyczyść',
@@ -899,7 +901,12 @@ const pl = {
     loadFailed: 'Nie udało się załadować danych',
     saveFailed: 'Nie udało się zapisać',
     deleteFailed: 'Nie udało się usunąć',
-    unauthorized: 'Sesja wygasła, zaloguj się ponownie'
+    unauthorized: 'Sesja wygasła, zaloguj się ponownie',
+    accessDenied: 'Brak uprawnień do tej strony',
+    boundaryTitle: 'Coś poszło nie tak',
+    boundaryHint: 'Widok napotkał błąd. Spróbuj przeładować stronę — reszta aplikacji działa dalej.',
+    correlationId: 'Id korelacji',
+    details: 'Szczegóły'
   },
   toasts: {
     created: 'Utworzono',
@@ -920,6 +927,8 @@ const en: typeof pl = {
     close: 'Close',
     add: 'Add',
     refresh: 'Refresh',
+    retry: 'Retry',
+    reload: 'Reload',
     search: 'Search…',
     filter: 'Filter',
     clear: 'Clear',
@@ -1808,7 +1817,12 @@ const en: typeof pl = {
     loadFailed: 'Failed to load data',
     saveFailed: 'Failed to save',
     deleteFailed: 'Failed to delete',
-    unauthorized: 'Session expired, please sign in again'
+    unauthorized: 'Session expired, please sign in again',
+    accessDenied: 'You do not have permission to open this page',
+    boundaryTitle: 'Something went wrong',
+    boundaryHint: 'This view ran into an error. Try reloading the page — the rest of the app keeps running.',
+    correlationId: 'Correlation ID',
+    details: 'Details'
   },
   toasts: {
     created: 'Created',

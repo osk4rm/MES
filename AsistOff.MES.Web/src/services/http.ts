@@ -1,13 +1,51 @@
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { currentApiBaseUrl } from './apiBaseUrl';
 import { CORRELATION_ID_HEADER, generateCorrelationId } from './correlation';
 import { useAuthStore } from '../stores/authStore';
+
+/**
+ * Frontend resilience (issue #273): shopfloor tablets run on flaky plant
+ * WiFi, so the shared axios instance aborts stalled calls, retries an
+ * idempotent GET exactly once, and lets views cancel in-flight work on
+ * unmount or route change. POST/PUT/PATCH/DELETE never auto-retry.
+ */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+
+const RETRYABLE_STATUS_CODES = new Set([502, 503, 504]);
+
+/** Minimal init bag forwarded from composables to axios (no `any`). */
+export interface HttpRequestInit {
+  signal?: AbortSignal;
+}
+
+/** Extra resilience marker carried on the axios config across the retry. */
+interface ResilienceRequestState {
+  __resilienceRetried?: boolean;
+}
+
+type ResilientConfig = InternalAxiosRequestConfig & ResilienceRequestState;
+
+/**
+ * Delay before the single retry. Mutable (not a const) so Vitest can set it
+ * to zero and avoid real timers; production keeps the default backoff.
+ */
+export const httpResilienceOptions = {
+  retryDelayMs: 250
+};
+
+export function resolveRequestTimeout(env: { [key: string]: unknown }): number {
+  const raw = env['VITE_API_TIMEOUT_MS'];
+  const parsed = typeof raw === 'string' ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_REQUEST_TIMEOUT_MS;
+}
 
 const http = axios.create({
   // Runtime-resolved (issue #271): the web container renders /config.js from
   // the API_BASE_URL env at startup; that wins over the build-time
   // VITE_API_BASE_URL, then the documented default.
   baseURL: currentApiBaseUrl(),
+  // Abort stalled calls instead of spinning forever on a dead terminal.
+  timeout: resolveRequestTimeout(import.meta.env),
   // Cookie transport (issue #242): the session lives in httpOnly
   // mes_access/mes_refresh cookies, so every API call must carry
   // cookies even cross-origin (Vite :5173 -> API :5080). No bearer token
@@ -73,9 +111,81 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
+/** True for user- or router-initiated aborts, which must never be retried. */
+export function isCanceledError(err: unknown): boolean {
+  if (axios.isCancel(err)) return true;
+  const code = (err as { code?: unknown }).code;
+  return code === 'ERR_CANCELED';
+}
+
+/**
+ * True when a failed call may be retried exactly once: idempotent GET only,
+ * never retried before, and the failure is a network error, a timeout, or a
+ * retryable gateway status. Aborts and mutations always return false.
+ */
+export function isRetryableHttpError(err: unknown): boolean {
+  const ax = err as AxiosError | undefined;
+  const config = ax?.config as ResilientConfig | undefined;
+  if (!config) return false;
+  if (config.method?.toLowerCase() !== 'get') return false;
+  if (config.__resilienceRetried) return false;
+  if (isCanceledError(err)) return false;
+  const status = ax?.response?.status;
+  if (status !== undefined) return RETRYABLE_STATUS_CODES.has(status);
+  // No response: connection refused / DNS / offline (or a timeout, which
+  // axios also surfaces without a response under ECONNABORTED).
+  return true;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Re-dispatches a retryable GET once. The same config object is reused, so
+ * the request interceptor preserves the original X-Correlation-ID instead
+ * of minting a new one, and the per-attempt axios timeout applies again.
+ */
+async function retryOnce(error: AxiosError): Promise<AxiosResponse | null> {
+  if (!isRetryableHttpError(error)) return null;
+  const config = error.config as ResilientConfig;
+  config.__resilienceRetried = true;
+  await delay(httpResilienceOptions.retryDelayMs);
+  return http.request(config);
+}
+
+// Controllers created via createRequestController (used by useCrudPage) are
+// tracked so a route change can abort the previous page's in-flight calls.
+// Untracked direct service calls are unaffected, so views that toast on
+// failure cannot emit stray toasts after navigation.
+const trackedControllers = new Set<AbortController>();
+
+export function createRequestController(): AbortController {
+  const controller = new AbortController();
+  trackedControllers.add(controller);
+  controller.signal.addEventListener('abort', () => {
+    trackedControllers.delete(controller);
+  }, { once: true });
+  return controller;
+}
+
+/** Aborts every tracked in-flight request (called on route change). */
+export function abortPendingRequests(): void {
+  for (const controller of Array.from(trackedControllers)) {
+    try {
+      controller.abort();
+    } catch { /* ignore - abort must never throw */ }
+  }
+  trackedControllers.clear();
+}
+
 http.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<any>) => {
+  async (error: AxiosError) => {
+    const retried = await retryOnce(error);
+    if (retried) return retried;
     if (error.response?.status === 401 && !isAuthEndpoint(error.config?.url)) {
       const target = buildLoginRedirectUrl(window.location.pathname, window.location.search);
       if (target) {
