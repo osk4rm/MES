@@ -74,6 +74,11 @@ describe('e2e-smoke CI contract', () => {
     expect(workflow).toContain('playwright-report/');
     expect(workflow).toContain('test-results/');
     expect(workflow).toContain('retention-days: 7');
+    // AC4: failure bundle must include the stack logs under a stable
+    // artifact name and upload even when the smoke run itself fails.
+    expect(workflow).toContain('e2e-smoke-report');
+    expect(workflow).toContain('e2e-*.log');
+    expect(workflow).toContain('if: always()');
   });
 
   it('keeps failure artifacts enabled in the Playwright config', () => {
