@@ -48,6 +48,10 @@ export GITHUB_REPOSITORY=osk4rm/MES
 export ACTIONS_TOKEN=fake-token
 export MAX_PARALLEL=3
 export CI_APPROVAL_TRIES=2
+# Pin the block budget/cooldown: the CI job exports BLOCK_RETRY_MAX/MINUTES from
+# ai-swarm.yml, so the assertions below must not depend on ambient values.
+export BLOCK_RETRY_MAX=2
+export BLOCK_RETRY_MINUTES=120
 
 SHA=aaaa1111bbbb2222cccc3333dddd4444eeee5555
 HEAD=$SHA
