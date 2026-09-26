@@ -14,14 +14,17 @@ public class RawSortFieldValidator : RequestValidator<string>
         RuleFor(x => x)
             .Custom((rawSort, context) =>
             {
-                if (supportedSortFields is null)
-                    return;
-                
-                var sortPhraseParts = rawSort.Split(",", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-                if (sortPhraseParts.Length < 1)
+                if (string.IsNullOrWhiteSpace(rawSort))
                 {
                     context.AddFailure("RawSort", "Sort parameter must include a field name");
+                    return;
+                }
+
+                var sortPhraseParts = rawSort.Split(",", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                if (sortPhraseParts.Length < 1 || sortPhraseParts.Length > 2)
+                {
+                    context.AddFailure("RawSort", "Sort parameter must be 'Field' or 'Field,asc|desc'");
                     return;
                 }
 
@@ -30,19 +33,35 @@ public class RawSortFieldValidator : RequestValidator<string>
                     context.AddFailure("RawSort", "Sort parameter cannot be empty");
                 }
 
-                // Validate field name is supported (case-insensitive)
-                if (!supportedSortFields.Any(s => s.Equals(sortPhraseParts[FieldNameIndex], StringComparison.OrdinalIgnoreCase)))
+                var fieldName = sortPhraseParts[FieldNameIndex];
+
+                // Strict identifier grammar first: nothing outside
+                // [A-Za-z_][A-Za-z0-9_]* may pass, so Dynamic LINQ method
+                // calls, navigation traversal (dots) and expressions are
+                // rejected before the whitelist is even consulted (#311).
+                if (!SortableResolver.IsValidFieldName(fieldName))
                 {
-                    context.AddFailure("RawSort", $"Sort field '{sortPhraseParts[FieldNameIndex]}' must be supported.");
+                    context.AddFailure("RawSort", $"Sort field '{fieldName}' must be supported.");
+                    return;
                 }
 
-                // If order provided, validate it (supports asc/desc shorthands)
+                // Validate field name is supported (case-insensitive).
+                // A null whitelist means grammar-only validation; an empty
+                // whitelist means sorting is not allowed at all (fail closed).
+                if (supportedSortFields is null)
+                {
+                    // Grammar already checked above; nothing more to enforce.
+                }
+                else if (!supportedSortFields.Any(s => s.Equals(fieldName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    context.AddFailure("RawSort", $"Sort field '{fieldName}' must be supported.");
+                }
+
+                // If order provided, only asc/desc are accepted.
                 if (sortPhraseParts.Length > 1)
                 {
                     var token = sortPhraseParts[SortingOrderIndex];
-                    if (!(token.Equals("asc", StringComparison.OrdinalIgnoreCase)
-                          || token.Equals("desc", StringComparison.OrdinalIgnoreCase)
-                          || Enum.TryParse(token, true, out SortOrder _)))
+                    if (!SortableResolver.IsValidOrderToken(token))
                     {
                         context.AddFailure("RawSort", "Invalid sort order");
                     }
