@@ -25,7 +25,8 @@ internal sealed class CreateProductionConfirmationRequestHandler(
     IGuidProvider guidProvider,
     IDateTimeProvider dateTimeProvider,
     ITenantContext tenantContext,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IMaterialReservationsRepository reservationsRepository)
     : IRequestHandler<CreateProductionConfirmationRequest, ProductionConfirmationResponse>
 {
     public async Task<ProductionConfirmationResponse> Handle(CreateProductionConfirmationRequest request, CancellationToken cancellationToken)
@@ -156,6 +157,15 @@ internal sealed class CreateProductionConfirmationRequestHandler(
 
         var flipToInProgress = order.Status == ProductionOrderStatus.Released;
 
+        // Soft reservation relief (issue #291): relieve the order reservations
+        // from the same RW lines this confirmation persists, computed up
+        // front and flushed inside the fan-out transaction below so relief
+        // and ledger lines commit atomically.
+        var reservations = await reservationsRepository.ListForOrderAsync(order.Id, cancellationToken);
+        var relievedBefore = reservations.ToDictionary(r => r.Id, r => r.QuantityRelieved);
+        ReservationCalculator.ApplyRelief(reservations, preview);
+        var relieved = reservations.Where(r => r.QuantityRelieved != relievedBefore[r.Id]).ToList();
+
         try
         {
             await unitOfWork.ExecuteInTransactionAsync(async () =>
@@ -166,6 +176,9 @@ internal sealed class CreateProductionConfirmationRequestHandler(
                 // movement preview, so persisted lines match the preview lines for
                 // this confirmation (PW for the good quantity plus RW per BOM item).
                 await stockMovementsRepository.AddRangeAsync(movements, cancellationToken);
+
+                foreach (var reservation in relieved)
+                    await reservationsRepository.UpdateAsync(reservation, cancellationToken);
 
                 // Post one genealogy edge per consumed lot entry so every confirmed
                 // production run leaves an auditable trace without a second manual

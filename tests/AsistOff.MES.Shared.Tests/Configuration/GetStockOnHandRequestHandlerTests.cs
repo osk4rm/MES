@@ -1,6 +1,7 @@
 using AsistOff.MES.Configuration.Application.Features.StockMovements.Responses;
 using AsistOff.MES.Configuration.Application.Features.StockMovements.StockOnHand;
 using AsistOff.MES.Configuration.Domain.Entities;
+using AsistOff.MES.Configuration.Domain.Enums;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using FluentAssertions;
@@ -11,8 +12,15 @@ namespace AsistOff.MES.Shared.Tests.Configuration;
 public class GetStockOnHandRequestHandlerTests
 {
     private readonly Mock<IStockMovementsRepository> _movements = new();
+    private readonly Mock<IMaterialReservationsRepository> _reservations = new();
 
-    private GetStockOnHandRequestHandler CreateSut() => new(_movements.Object);
+    public GetStockOnHandRequestHandlerTests()
+    {
+        _reservations.Setup(r => r.ListOpenAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MaterialReservation>());
+    }
+
+    private GetStockOnHandRequestHandler CreateSut() => new(_movements.Object, _reservations.Object);
 
     private static StockMovement Line(string type, Guid productId, Guid? warehouseId, decimal quantity) => new()
     {
@@ -50,7 +58,7 @@ public class GetStockOnHandRequestHandlerTests
 
         // Assert
         result.Should().ContainSingle()
-            .Which.Should().Be(new StockOnHandResponse(productId, warehouseId, 6m));
+            .Which.Should().Be(new StockOnHandResponse(productId, warehouseId, 6m, 0m, 6m));
     }
 
     [Fact]
@@ -93,7 +101,7 @@ public class GetStockOnHandRequestHandlerTests
 
         // Assert
         result.Should().ContainSingle()
-            .Which.Should().Be(new StockOnHandResponse(wanted, null, 5m));
+            .Which.Should().Be(new StockOnHandResponse(wanted, null, 5m, 0m, 5m));
     }
 
     [Fact]
@@ -114,7 +122,7 @@ public class GetStockOnHandRequestHandlerTests
 
         // Assert
         result.Should().ContainSingle()
-            .Which.Should().Be(new StockOnHandResponse(productId, wanted, 5m));
+            .Which.Should().Be(new StockOnHandResponse(productId, wanted, 5m, 0m, 5m));
     }
 
     [Fact]
@@ -136,6 +144,69 @@ public class GetStockOnHandRequestHandlerTests
         // Assert
         result.Should().HaveCount(2);
     }
+
+    [Fact]
+    public async Task Handle_OpenReservations_ReduceAvailableQuantity()
+    {
+        // Arrange — on hand 10, open reservation remainder 4 => available 6.
+        var productId = Guid.NewGuid();
+        var warehouseId = Guid.NewGuid();
+        _movements.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                Line(StockMovement.ReceiptType, productId, warehouseId, 10m)
+            ]);
+        _reservations.Setup(r => r.ListOpenAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                OpenReservation(productId, warehouseId, reserved: 10m, relieved: 6m),
+                OpenReservation(productId, null, reserved: 5m, relieved: 0m)
+            ]);
+
+        // Act
+        var result = await CreateSut().Handle(new GetStockOnHandRequest(), CancellationToken.None);
+
+        // Assert — only the same-pair reservation counts; the null-warehouse
+        // row has no stock row and stays invisible.
+        result.Should().ContainSingle()
+            .Which.Should().Be(new StockOnHandResponse(productId, warehouseId, 10m, 4m, 6m));
+    }
+
+    [Fact]
+    public async Task Handle_ReservationExceedingOnHand_ReportsNegativeAvailable()
+    {
+        // Arrange — soft allocation only: shortages surface as negative
+        // availability instead of blocking.
+        var productId = Guid.NewGuid();
+        _movements.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                Line(StockMovement.ReceiptType, productId, null, 10m),
+                Line(StockMovement.IssueType, productId, null, 4m)
+            ]);
+        _reservations.Setup(r => r.ListOpenAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                OpenReservation(productId, null, reserved: 20m, relieved: 0m)
+            ]);
+
+        // Act
+        var result = await CreateSut().Handle(new GetStockOnHandRequest(), CancellationToken.None);
+
+        // Assert — on hand 6, reserved 20 => available -14.
+        result.Should().ContainSingle()
+            .Which.Should().Be(new StockOnHandResponse(productId, null, 6m, 20m, -14m));
+    }
+
+    private static MaterialReservation OpenReservation(
+        Guid productId, Guid? warehouseId, decimal reserved, decimal relieved) => new()
+    {
+        Id = Guid.NewGuid(),
+        TenantId = Guid.NewGuid(),
+        ProductionOrderId = Guid.NewGuid(),
+        ProductId = productId,
+        WarehouseId = warehouseId,
+        QuantityReserved = reserved,
+        QuantityRelieved = relieved,
+        Status = ReservationStatus.Active,
+        CreatedAt = DateTime.UtcNow
+    };
 
     [Fact]
     public async Task Validate_EmptyGuidFilters_AreInvalid()

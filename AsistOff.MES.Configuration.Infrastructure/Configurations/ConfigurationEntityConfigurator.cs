@@ -20,6 +20,7 @@ public class ConfigurationEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<WorkCenterCalendar>();
         modelBuilder.Entity<WorkCenterCalendarEntry>();
         modelBuilder.Entity<StockMovement>();
+        modelBuilder.Entity<MaterialReservation>();
         
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ConfigurationEntityConfigurator).Assembly);
         
