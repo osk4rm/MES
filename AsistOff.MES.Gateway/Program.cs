@@ -82,15 +82,41 @@ try
     // asiki): TLS terminates at the Coolify proxy (Traefik) and the web
     // nginx forwards X-Forwarded-* headers, so the API sees the original
     // https scheme and client IP (auth cookies, Origin checks, Swagger).
-    // Known proxies/networks are cleared because the only ingress is the
-    // trusted compose network behind the proxy — never expose the api
-    // container directly to the internet.
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.KnownIPNetworks.Clear();
-        options.KnownProxies.Clear();
-    });
+    // Issue #323 (abuse-protection hardening): forwarded headers are only
+    // honored from explicitly trusted proxies/networks bound from the
+    // TrustedProxies section (default-deny when empty). The Forwarded Headers
+    // middleware runs first in the pipeline (app.UseForwardedHeaders below)
+    // and rewrites Connection.RemoteIpAddress to the real client IP only for
+    // trusted peers; AbuseProtectionPolicy then partitions by RemoteIpAddress
+    // alone and never reads X-Forwarded-For directly, so spoofed headers on
+    // untrusted connections cannot escape the throttle. Behind the shipped
+    // nginx (proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for) set
+    // e.g. TrustedProxies__KnownNetworks__0=172.18.0.0/16 (docker network) or
+    // TrustedProxies__KnownProxies__0=<web-container-ip>; see
+    // TrustedProxyOptions docs and docker-compose.yml notes. Never expose the
+    // api container directly to the internet while trusting private ranges.
+    builder.Services.Configure<TrustedProxyOptions>(builder.Configuration.GetSection(TrustedProxyOptions.SectionName));
+    builder.Services.AddOptions<ForwardedHeadersOptions>().Configure<Microsoft.Extensions.Options.IOptions<TrustedProxyOptions>>(
+        (options, trusted) =>
+        {
+            // Default-deny: clear the framework defaults, then trust only the
+            // explicitly configured proxies/networks. Malformed entries were
+            // already filtered by TrustedProxyOptions parsing, so this never
+            // throws and never opens the throttle to spoofing.
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+
+            foreach (var proxy in trusted.Value.GetKnownProxies())
+            {
+                options.KnownProxies.Add(proxy);
+            }
+
+            foreach (var network in trusted.Value.GetKnownNetworks())
+            {
+                options.KnownIPNetworks.Add(network);
+            }
+        });
 
     // OpenTelemetry traces/metrics (issue #252): OTLP export when an endpoint
     // is configured, Prometheus exposition when enabled, no-op otherwise.
