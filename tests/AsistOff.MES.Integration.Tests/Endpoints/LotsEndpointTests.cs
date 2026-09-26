@@ -181,6 +181,29 @@ public sealed class LotsEndpointTests(MesApplicationFixture fixture) : Integrati
     }
 
     [Fact]
+    public async Task Browse_WithSearch_ReturnsAtMost20MatchesOrderedByCode()
+    {
+        // Arrange - 25 lots sharing one code prefix.
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var tag = $"SCH-{Guid.NewGuid():N}"[..10].ToUpperInvariant();
+        for (var i = 0; i < 25; i++)
+        {
+            var create = await client.PostAsJsonAsync(BaseUrl, NewPayload($"{tag}-{i:000}"));
+            create.EnsureSuccessStatusCode();
+        }
+
+        // Act - the typeahead asks for a huge page; the server caps it.
+        var response = await client.GetAsync($"{BaseUrl}?search={tag}&pageNumber=1&pageSize=500");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var page = await ReadAsync<PagedResponseDto<LotDto>>(response);
+        page.Items.Should().HaveCount(20);
+        page.Items.Select(l => l.Code).Should().BeInAscendingOrder();
+        page.Items.Should().OnlyContain(l => l.Code.Contains(tag));
+    }
+
+    [Fact]
     public async Task ChangeStatus_LegalTransition_AppliesAndIllegalTransitionReturns400()
     {
         using var client = await Fixture.CreateAuthenticatedClientAsync();

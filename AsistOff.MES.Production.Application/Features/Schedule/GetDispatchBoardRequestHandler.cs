@@ -2,7 +2,6 @@ using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Production.Application.Features.ProductionOrders;
 using AsistOff.MES.Production.Domain.Entities;
-using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
@@ -87,26 +86,16 @@ internal sealed class GetDispatchBoardRequestHandler(
             days.Add(new DispatchDayResponse(date, dayShifts));
         }
 
-        // Released/InProgress orders only. The DB predicate narrows the read;
-        // the in-memory filter below owns the due-date window and ordering so
-        // the contract holds regardless of repository behaviour.
-        var orderPredicate = PredicateBuilder.New<ProductionOrder>(true)
-            .And(x => x.Status == ProductionOrderStatus.Released || x.Status == ProductionOrderStatus.InProgress);
-        var candidates = (await ordersRepository.BrowseAsync(
-                new Paginator<ProductionOrder>(orderPredicate, UnboundedPaging.Instance), cancellationToken))
-            .Where(x => x.Status == ProductionOrderStatus.Released || x.Status == ProductionOrderStatus.InProgress)
-            .ToList();
+        // Released/InProgress orders only, overdue / due-in-window / no-due-date,
+        // ordered overdue-first with Take applied inside the database query so a
+        // busy Work Center never pays a full-table read (issue #274). The
+        // defensive in-memory Take below only guards mocked repositories.
+        var candidates = await ordersRepository.BrowseDispatchBoardAsync(
+            request.From, request.To, MaxOrderRows, cancellationToken);
 
         var rows = candidates
-            .Select(o => (Order: o, DueDay: o.DueDate.HasValue ? DateOnly.FromDateTime(o.DueDate.Value) : (DateOnly?)null))
-            .Where(x => !x.DueDay.HasValue || x.DueDay.Value < request.From || (x.DueDay.Value >= request.From && x.DueDay.Value <= request.To))
-            .Select(x => (x.Order, IsOverdue: x.DueDay.HasValue && x.DueDay.Value < request.From))
-            .OrderByDescending(x => x.IsOverdue)
-            .ThenBy(x => x.Order.DueDate.HasValue ? 0 : 1)
-            .ThenBy(x => x.Order.DueDate)
-            .ThenBy(x => x.Order.Priority)
-            .ThenBy(x => x.Order.Code, StringComparer.Ordinal)
             .Take(MaxOrderRows)
+            .Select(o => (Order: o, IsOverdue: o.DueDate.HasValue && DateOnly.FromDateTime(o.DueDate.Value) < request.From))
             .ToList();
 
         var totals = await confirmationsRepository.GetTotalsForOrdersAsync(

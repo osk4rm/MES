@@ -12,6 +12,7 @@ internal sealed class ProductionConfirmationsRepository(DefaultContext context) 
 {
     public async Task<IReadOnlyCollection<ProductionConfirmation>> BrowseAsync(Paginator<ProductionConfirmation> paginator, CancellationToken cancellationToken = default)
         => await context.Set<ProductionConfirmation>()
+            .AsNoTracking()
             .PageFilter(paginator)
             .ToListAsync(cancellationToken);
 

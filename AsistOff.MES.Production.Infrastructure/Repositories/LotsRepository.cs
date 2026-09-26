@@ -12,6 +12,7 @@ internal sealed class LotsRepository(DefaultContext context) : ILotsRepository
 {
     public async Task<IReadOnlyCollection<Lot>> BrowseAsync(Paginator<Lot> paginator, CancellationToken cancellationToken = default)
         => await context.Set<Lot>()
+            .AsNoTracking()
             .PageFilter(paginator)
             .ToListAsync(cancellationToken);
 

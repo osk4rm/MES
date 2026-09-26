@@ -12,6 +12,7 @@ internal sealed class LotGenealogyEdgesRepository(DefaultContext context) : ILot
 {
     public async Task<IReadOnlyCollection<LotGenealogyEdge>> BrowseAsync(Paginator<LotGenealogyEdge> paginator, CancellationToken cancellationToken = default)
         => await context.Set<LotGenealogyEdge>()
+            .AsNoTracking()
             .PageFilter(paginator)
             .ToListAsync(cancellationToken);
 
@@ -41,6 +42,7 @@ internal sealed class LotGenealogyEdgesRepository(DefaultContext context) : ILot
             return Array.Empty<LotGenealogyEdge>();
 
         return await context.Set<LotGenealogyEdge>()
+            .AsNoTracking()
             .Where(x => producedLotIds.Contains(x.ProducedLotId))
             .OrderBy(x => x.OccurredAt)
             .ToListAsync(cancellationToken);
@@ -52,6 +54,7 @@ internal sealed class LotGenealogyEdgesRepository(DefaultContext context) : ILot
             return Array.Empty<LotGenealogyEdge>();
 
         return await context.Set<LotGenealogyEdge>()
+            .AsNoTracking()
             .Where(x => consumedLotIds.Contains(x.ConsumedLotId))
             .OrderBy(x => x.OccurredAt)
             .ToListAsync(cancellationToken);
