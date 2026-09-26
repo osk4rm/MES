@@ -253,17 +253,26 @@ public sealed class ShiftHandoverContextEndpointTests(MesApplicationFixture fixt
         var foreignMachine = await CreateMachineAsync(otherTenantClient, tag);
         var foreignOrder = await CreateReleasedOrderAsync(otherTenantClient, tag, "FRN");
         var foreignSignal = await RaiseAndonAsync(otherTenantClient, foreignMachine.Id);
+        var foreignConfirmResponse = await ConfirmAsync(
+            otherTenantClient, foreignOrder.Id, foreignMachine.Id, DateTime.UtcNow, 7m, 1m, null);
+        foreignConfirmResponse.EnsureSuccessStatusCode();
+        var foreignConfirmation = await ReadAsync<ProductionConfirmationDto>(foreignConfirmResponse);
 
         using var client = await Fixture.CreateAuthenticatedClientAsync();
         var to = DateTime.UtcNow;
         var from = to.AddHours(-2);
 
-        var tenantWide = await client.GetAsync($"{BaseUrl}?from={Q(from)}&to={Q(to)}");
+        // The foreign confirmation is reported at DateTime.UtcNow (after the
+        // foreign release), slightly after the `to` captured above, so query
+        // a fresh upper bound that keeps the window under 24h.
+        var queryTo = DateTime.UtcNow.AddSeconds(30);
+        var tenantWide = await client.GetAsync($"{BaseUrl}?from={Q(from)}&to={Q(queryTo)}");
 
         tenantWide.StatusCode.Should().Be(HttpStatusCode.OK);
         var context = await ReadAsync<ShiftHandoverContextDto>(tenantWide);
         context.OpenOrders.Select(o => o.Code).Should().NotContain(foreignOrder.Code);
         context.ActiveSignals.Select(s => s.Id).Should().NotContain(foreignSignal.Id);
+        context.Confirmations.Select(c => c.Id).Should().NotContain(foreignConfirmation.Id);
 
         var foreignMachineScoped = await client.GetAsync(
             $"{BaseUrl}?machineId={foreignMachine.Id}&from={Q(from)}&to={Q(to)}");

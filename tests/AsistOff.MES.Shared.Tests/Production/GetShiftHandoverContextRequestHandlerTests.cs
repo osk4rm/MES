@@ -216,6 +216,39 @@ public class GetShiftHandoverContextRequestHandlerTests
     }
 
     [Fact]
+    public async Task Handle_OpenOrders_SortsByPriorityThenDueDateThenCode()
+    {
+        // Arrange - reverse-alphabetical codes so the expected order can only
+        // come from priority, then due date, then code (not insertion order).
+        ArrangeEmpty();
+        var machine = ArrangeMachineWithCalendar(
+            MakeEntry(DayOfWeek.Monday, "06:00", "14:00", Guid.NewGuid()));
+        var lowPriority = MakeOrder("PO-ZZZ", ProductionOrderStatus.Released, priority: 1);
+        var earlyDue = MakeOrder(
+            "PO-MMM",
+            ProductionOrderStatus.Released,
+            priority: 5,
+            dueDate: new DateTime(2026, 9, 25, 12, 0, 0, DateTimeKind.Utc));
+        var lateDue = MakeOrder(
+            "PO-NNN",
+            ProductionOrderStatus.InProgress,
+            priority: 5,
+            dueDate: new DateTime(2026, 9, 28, 12, 0, 0, DateTimeKind.Utc));
+        var highPriority = MakeOrder("PO-AAA", ProductionOrderStatus.Released, priority: 9);
+        _orders.Setup(r => r.BrowseAsync(
+                It.IsAny<Paginator<ProductionOrder>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([highPriority, lateDue, earlyDue, lowPriority]);
+
+        // Act
+        var result = await CreateSut().Handle(
+            new GetShiftHandoverContextRequest(machine.Id, From, To), CancellationToken.None);
+
+        // Assert - priority wins over code (ZZZ first despite code order),
+        // then earlier due date breaks the priority-5 tie.
+        result.OpenOrders.Select(o => o.Code).Should().Equal("PO-ZZZ", "PO-MMM", "PO-NNN", "PO-AAA");
+    }
+
+    [Fact]
     public async Task Handle_ActiveSignalsOnly_AcknowledgedResolvedAndForeignExcluded()
     {
         // Arrange
