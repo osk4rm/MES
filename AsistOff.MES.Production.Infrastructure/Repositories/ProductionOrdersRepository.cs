@@ -1,4 +1,5 @@
 using AsistOff.MES.Production.Domain.Entities;
+using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Extensions;
@@ -16,6 +17,24 @@ internal sealed class ProductionOrdersRepository(DefaultContext context) : IProd
         return await context.Set<ProductionOrder>()
             .AsNoTracking()
             .PageFilter(paginator)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<ProductionOrder>> BrowseDispatchAsync(DateOnly from, DateOnly to, int take, CancellationToken cancellationToken = default)
+    {
+        var fromUtc = new DateTime(from.Year, from.Month, from.Day, 0, 0, 0, DateTimeKind.Utc);
+        var toExclusiveUtc = new DateTime(to.Year, to.Month, to.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(1);
+
+        return await context.Set<ProductionOrder>()
+            .AsNoTracking()
+            .Where(x => x.Status == ProductionOrderStatus.Released || x.Status == ProductionOrderStatus.InProgress)
+            .Where(x => x.DueDate == null || x.DueDate < toExclusiveUtc)
+            .OrderByDescending(x => x.DueDate != null && x.DueDate < fromUtc)
+            .ThenBy(x => x.DueDate == null ? 1 : 0)
+            .ThenBy(x => x.DueDate)
+            .ThenBy(x => x.Priority)
+            .ThenBy(x => x.Code)
+            .Take(take)
             .ToListAsync(cancellationToken);
     }
 

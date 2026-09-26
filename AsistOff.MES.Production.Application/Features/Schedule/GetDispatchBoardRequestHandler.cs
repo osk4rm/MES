@@ -87,17 +87,16 @@ internal sealed class GetDispatchBoardRequestHandler(
             days.Add(new DispatchDayResponse(date, dayShifts));
         }
 
-        // Released/InProgress orders only. The DB predicate narrows the read;
-        // the in-memory filter below owns the due-date window and ordering so
-        // the contract holds regardless of repository behaviour.
-        var orderPredicate = PredicateBuilder.New<ProductionOrder>(true)
-            .And(x => x.Status == ProductionOrderStatus.Released || x.Status == ProductionOrderStatus.InProgress);
-        var candidates = (await ordersRepository.BrowseAsync(
-                new Paginator<ProductionOrder>(orderPredicate, UnboundedPaging.Instance), cancellationToken))
-            .Where(x => x.Status == ProductionOrderStatus.Released || x.Status == ProductionOrderStatus.InProgress)
-            .ToList();
+        // Bounded dispatch read: status plus due-date window plus overdue-first
+        // ordering plus Take(200) all happen inside the database query
+        // (BrowseDispatchAsync is AsNoTracking). The in-memory pass below
+        // re-applies the same window and ordering over the bounded page so the
+        // contract holds even for mocked repositories that ignore the query.
+        var dispatched = await ordersRepository.BrowseDispatchAsync(
+            request.From, request.To, MaxOrderRows, cancellationToken);
 
-        var rows = candidates
+        var rows = dispatched
+            .Where(x => x.Status == ProductionOrderStatus.Released || x.Status == ProductionOrderStatus.InProgress)
             .Select(o => (Order: o, DueDay: o.DueDate.HasValue ? DateOnly.FromDateTime(o.DueDate.Value) : (DateOnly?)null))
             .Where(x => !x.DueDay.HasValue || x.DueDay.Value < request.From || (x.DueDay.Value >= request.From && x.DueDay.Value <= request.To))
             .Select(x => (x.Order, IsOverdue: x.DueDay.HasValue && x.DueDay.Value < request.From))

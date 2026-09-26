@@ -15,8 +15,19 @@ internal sealed class BrowseProductsRequestHandler(
     public async Task<PagedResponse<ProductResponse>> Handle(BrowseProductsRequest request, CancellationToken cancellationToken)
     {
         var filter = BuildPredicate(request);
+
+        IPagedRequest paging = request;
+        int? effectivePageSize = request.PageSize;
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            // Capped typeahead: first page ordered by code, at most 20 rows.
+            // MaxPageSize (100) still caps the regular browse path via validation.
+            effectivePageSize = Math.Min(request.PageSize ?? BrowseProductsRequest.MaxLookupRows, BrowseProductsRequest.MaxLookupRows);
+            paging = new LookupPaging(request, effectivePageSize);
+        }
+
         var totalCount = await productsRepository.CountAsync(filter, cancellationToken);
-        var paginator = new Paginator<Product>(filter, request);
+        var paginator = new Paginator<Product>(filter, paging);
 
         var products = await productsRepository.BrowseAsync(paginator, cancellationToken);
 
@@ -38,7 +49,21 @@ internal sealed class BrowseProductsRequestHandler(
                 : null
         )).ToList();
 
-        return new PagedProductsResponse(items, totalCount, request.PageSize);
+        return new PagedProductsResponse(items, totalCount, effectivePageSize);
+    }
+
+    /// <summary>
+    /// Wraps the incoming request for <c>Search</c> typeahead: caps the page to
+    /// <c>MaxLookupRows</c> and defaults the sort to code ascending so shopfloor
+    /// lookups stay bounded and deterministic.
+    /// </summary>
+    private sealed class LookupPaging(BrowseProductsRequest inner, int? pageSize) : IPagedRequest
+    {
+        public List<string> RawSort { get; set; } = inner.RawSort.Count == 0 ? ["Code"] : inner.RawSort;
+        public IReadOnlyCollection<string> SupportedSortFields => inner.SupportedSortFields;
+        public int? PageNumber => inner.PageNumber;
+        public int? PageSize => pageSize;
+        public int? MaxPageSize => inner.MaxPageSize;
     }
 
     private ExpressionStarter<Product> BuildPredicate(BrowseProductsRequest request)
@@ -50,6 +75,9 @@ internal sealed class BrowseProductsRequestHandler(
 
         if (!string.IsNullOrEmpty(request.Code))
             predicate = predicate.And(x => x.Code.Contains(request.Code));
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+            predicate = predicate.And(x => x.Code.Contains(request.Search));
 
         if (request.IsActive.HasValue)
             predicate = predicate.And(x => x.IsActive == request.IsActive);

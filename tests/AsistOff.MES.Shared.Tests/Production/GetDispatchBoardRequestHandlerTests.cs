@@ -67,6 +67,9 @@ public class GetDispatchBoardRequestHandlerTests
         IReadOnlyCollection<Shift>? shifts = null,
         IReadOnlyCollection<OperatorShiftAssignment>? roster = null)
     {
+        _orders.Setup(r => r.BrowseDispatchAsync(
+                It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(orders?.ToList() ?? []);
         _orders.Setup(r => r.BrowseAsync(
                 It.IsAny<Paginator<ProductionOrder>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(orders?.ToList() ?? []);
