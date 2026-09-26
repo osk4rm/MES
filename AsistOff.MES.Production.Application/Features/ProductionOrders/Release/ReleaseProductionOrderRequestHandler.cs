@@ -20,6 +20,8 @@ internal sealed class ReleaseProductionOrderRequestHandler(
         var order = await ordersRepository.GetAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException("ProductionOrder", request.Id);
 
+        ProductionOrderConcurrency.RequireMatchIfPresent(order, request.ConcurrencyToken);
+
         if (order.Status != ProductionOrderStatus.Planned)
             throw new ConflictException("Only orders in Planned status can be released.");
 

@@ -26,4 +26,5 @@ public record ProductionOrderResponse(
     decimal RemainingQuantity,
     int ConfirmationsCount,
     DateTime? CompletedAt,
-    DateTime? ClosedAt);
+    DateTime? ClosedAt,
+    string ConcurrencyToken);

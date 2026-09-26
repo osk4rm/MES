@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using AsistOff.MES.Shared.Abstractions.Observability;
 using AsistOff.MES.Shared.Infrastructure.Correlation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -14,8 +15,9 @@ namespace AsistOff.MES.Shared.Infrastructure.Observability;
 
 /// <summary>
 /// Wires the OpenTelemetry SDK: W3C traces (ASP.NET Core hosting, HttpClient,
-/// EF Core) exported via OTLP plus ASP.NET Core request metrics exposed for
-/// Prometheus scraping. With no OTLP endpoint configured the SDK runs in
+/// EF Core) exported via OTLP plus ASP.NET Core request metrics and the MES
+/// business meters (<see cref="MesMeters"/>) exposed for Prometheus
+/// scraping. With no OTLP endpoint configured the SDK runs in
 /// no-op mode (spans still propagate W3C context, nothing is exported).
 /// </summary>
 public static class ObservabilityRegistration
@@ -54,6 +56,7 @@ public static class ObservabilityRegistration
                 .SetResourceBuilder(resource)
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
+                .AddMeter(MesMeters.MeterName)
                 .AddOtlpExporterIfConfigured(options)
                 .AddPrometheusExporterIfEnabled(options));
 

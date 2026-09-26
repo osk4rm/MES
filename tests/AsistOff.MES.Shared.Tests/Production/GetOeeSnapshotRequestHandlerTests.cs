@@ -18,9 +18,15 @@ public class GetOeeSnapshotRequestHandlerTests
     private readonly Mock<IWorkCenterCalendarsRepository> _calendars = new();
     private readonly Mock<IDowntimeEventsRepository> _downtimes = new();
     private readonly Mock<IProductionConfirmationsRepository> _confirmations = new();
+    private readonly Mock<ITenantContext> _tenant = new();
+    private readonly Guid _tenantId = Guid.NewGuid();
 
-    private GetOeeSnapshotRequestHandler CreateSut() => new(
-        _machines.Object, _calendars.Object, _downtimes.Object, _confirmations.Object);
+    private GetOeeSnapshotRequestHandler CreateSut()
+    {
+        _tenant.SetupGet(t => t.TenantId).Returns(_tenantId);
+        return new(
+            _machines.Object, _calendars.Object, _downtimes.Object, _confirmations.Object, _tenant.Object);
+    }
 
     private static Machine AMachine(Guid id) => new()
     {

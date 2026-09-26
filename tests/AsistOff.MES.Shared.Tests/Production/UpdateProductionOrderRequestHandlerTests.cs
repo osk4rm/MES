@@ -22,11 +22,12 @@ public class UpdateProductionOrderRequestHandlerTests
         RecipeId = Guid.NewGuid(),
         RecipeVersionId = Guid.NewGuid(),
         PlannedQuantity = 10m,
-        Status = status
+        Status = status,
+        Xmin = 42
     };
 
-    private static UpdateProductionOrderRequest ToRequest(ProductionOrder o, string? code = null) =>
-        new(o.Id, code ?? o.Code, o.ProductId, o.RecipeId, o.RecipeVersionId, 25m, null, 1, null, "notes", null);
+    private static UpdateProductionOrderRequest ToRequest(ProductionOrder o, string? code = null, string? concurrencyToken = null) =>
+        new(o.Id, code ?? o.Code, o.ProductId, o.RecipeId, o.RecipeVersionId, 25m, null, 1, null, "notes", null, concurrencyToken ?? o.Xmin.ToString());
 
     [Fact]
     public async Task Throws_ConflictException_when_order_is_released()

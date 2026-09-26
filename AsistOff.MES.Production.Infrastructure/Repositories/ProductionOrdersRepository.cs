@@ -1,5 +1,6 @@
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Extensions;
 using AsistOff.MES.Shared.Abstractions.Pagination;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
@@ -34,7 +35,29 @@ internal sealed class ProductionOrdersRepository(DefaultContext context) : IProd
     public async Task UpdateAsync(ProductionOrder entity, CancellationToken cancellationToken = default)
     {
         context.Set<ProductionOrder>().Update(entity);
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // Two writers passed the handler-level token check at the same
+            // time; the xmin predicate rejected the loser (issue #263).
+            // Detach the stale entries and report 409 with the current token.
+            foreach (var entry in ex.Entries)
+                entry.State = EntityState.Detached;
+
+            var current = await context.Set<ProductionOrder>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == entity.Id, cancellationToken);
+
+            if (current is null)
+                throw new NotFoundException("ProductionOrder", entity.Id);
+
+            throw new ConcurrencyConflictException(
+                current.Xmin.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                $"Production order '{entity.Code}' was modified by another user. Reload the order and retry with the current concurrency token.");
+        }
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)

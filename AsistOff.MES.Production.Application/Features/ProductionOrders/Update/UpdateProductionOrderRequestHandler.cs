@@ -13,6 +13,8 @@ internal sealed class UpdateProductionOrderRequestHandler(IProductionOrdersRepos
         var order = await repository.GetAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException("ProductionOrder", request.Id);
 
+        ProductionOrderConcurrency.RequireMatchForUpdate(order, request.ConcurrencyToken);
+
         if (order.Status != ProductionOrderStatus.Planned)
             throw new ConflictException("Only orders in Planned status can be edited.");
 
