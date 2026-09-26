@@ -29,6 +29,8 @@ internal sealed class UploadAttachmentRequestHandler(
             throw new ValidationException(nameof(request.FileName), "File name is required");
         if (request.SizeBytes <= 0)
             throw new ValidationException(nameof(request.SizeBytes), "Attachment cannot be empty");
+        if (request.Content is null)
+            throw new ValidationException("file", "File is required.");
 
         var options = uploadOptions.Value;
 
