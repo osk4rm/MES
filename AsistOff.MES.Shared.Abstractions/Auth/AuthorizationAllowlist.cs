@@ -24,8 +24,9 @@ namespace AsistOff.MES.Shared.Abstractions.Auth;
 /// dispatch / traceability / telemetry-export queries expose no mutation and stay
 /// available to the read-only <c>user</c> role. The OPC UA connection test performs
 /// shape-only validation with no persistence or network I/O, so it is a read.</item>
-/// <item>Attachments reads (any authenticated tenant user): list and download expose
-/// no mutation and stay available to the read-only <c>user</c> role.</item>
+/// <item>Attachments reads (permission-gated, issue #315): list and download
+/// require <c>attachments.read</c> plus the owner-module scope permission, so
+/// they are NOT allowlisted.</item>
 /// </list>
 ///
 /// Gateway owns no MediatR requests (only the errors controller), so it needs no
@@ -164,11 +165,6 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Production.Application.Features.TelemetryReadings.Export.ExportTelemetryReadingsRequest",
             "AsistOff.MES.Production.Application.Features.TelemetryReadings.Get.GetTelemetryReadingRequest",
             "AsistOff.MES.Production.Application.Features.TelemetryReadings.Trend.BrowseTelemetryTrendRequest",
-
-            // Attachments reads — any authenticated tenant user (including the
-            // read-only user role). List and download perform no mutation.
-            "AsistOff.MES.Attachments.Application.Features.Download.DownloadAttachmentRequest",
-            "AsistOff.MES.Attachments.Application.Features.List.ListAttachmentsRequest",
         };
 
     public static bool IsAllowed(Type? requestType) =>

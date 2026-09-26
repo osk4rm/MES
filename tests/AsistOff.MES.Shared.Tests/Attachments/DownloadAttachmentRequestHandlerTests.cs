@@ -1,8 +1,10 @@
 using AsistOff.MES.Attachments.Application.Features.Download;
 using AsistOff.MES.Attachments.Domain.Entities;
 using AsistOff.MES.Attachments.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Storage;
+using AsistOff.MES.Users.Core.Rbac;
 using FluentAssertions;
 using Moq;
 
@@ -15,9 +17,16 @@ public class DownloadAttachmentRequestHandlerTests
 
     private readonly Mock<IAttachmentsRepository> _repository = new();
     private readonly Mock<IFileStorage> _storage = new();
+    private readonly Mock<ICurrentPermissionsAccessor> _permissions = new();
     private readonly Guid _attachmentId = Guid.NewGuid();
 
-    private DownloadAttachmentRequestHandler CreateSut() => new(_repository.Object, _storage.Object);
+    public DownloadAttachmentRequestHandlerTests()
+    {
+        _permissions.SetupGet(p => p.Permissions)
+            .Returns(new[] { RbacDefaults.AttachmentsRead, RbacDefaults.ProductionRead, RbacDefaults.ConfigurationRead, RbacDefaults.UsersRead });
+    }
+
+    private DownloadAttachmentRequestHandler CreateSut() => new(_repository.Object, _storage.Object, _permissions.Object);
 
     [Fact]
     public async Task Handle_KnownId_ReturnsStoredContentWithMetadata()

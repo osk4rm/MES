@@ -83,20 +83,42 @@ public class AuthorizationBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_ProductionOrAttachmentRead_PassesThroughViaAllowlist()
+    public async Task Handle_AttachmentListRequest_WithoutReadPermission_ThrowsForbiddenException()
     {
-        // Arrange — slice 2/2 (#233): Production and Attachments reads are on the
-        // documented allowlist, so any authenticated tenant user (even with no
-        // permissions) may list attachments; the legacy pass-through is empty.
-        var behavior = CreateBehavior<ListAttachmentsRequest, IReadOnlyCollection<object>>(Array.Empty<string>());
+        // Arrange — issue #315: attachment list requires attachments.read, so
+        // a caller with no permissions is rejected instead of passing through.
+        var behavior = CreateBehavior<ListAttachmentsRequest, IReadOnlyCollection<AttachmentResponse>>(Array.Empty<string>());
+        var nextCalled = false;
+
+        // Act
+        var act = () => behavior.Handle(
+            new ListAttachmentsRequest("Product", Guid.NewGuid()),
+            _ =>
+            {
+                nextCalled = true;
+                return Task.FromResult<IReadOnlyCollection<AttachmentResponse>>(Array.Empty<AttachmentResponse>());
+            },
+            CancellationToken.None);
+
+        // Assert — 403 without invoking the handler.
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*attachments.read*");
+        nextCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_AttachmentListRequest_WithReadPermission_CallsNext()
+    {
+        // Arrange — caller holds attachments.read.
+        var behavior = CreateBehavior<ListAttachmentsRequest, IReadOnlyCollection<AttachmentResponse>>(new[] { "attachments.read" });
 
         // Act
         var result = await behavior.Handle(
             new ListAttachmentsRequest("Product", Guid.NewGuid()),
-            _ => Task.FromResult<IReadOnlyCollection<object>>(Array.Empty<object>()),
+            _ => Task.FromResult<IReadOnlyCollection<AttachmentResponse>>(Array.Empty<AttachmentResponse>()),
             CancellationToken.None);
 
-        // Assert — allowlisted reads execute unchanged.
+        // Assert
         result.Should().BeEmpty();
     }
 
@@ -333,10 +355,33 @@ public class AuthorizationBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_DownloadAttachmentRequest_PassesThroughViaAllowlist()
+    public async Task Handle_DownloadAttachmentRequest_WithoutReadPermission_ThrowsForbiddenException()
     {
-        // Arrange — download is an allowlisted read: no permission claim needed.
+        // Arrange — issue #315: download requires attachments.read.
         var behavior = CreateBehavior<DownloadAttachmentRequest, DownloadAttachmentResponse>(Array.Empty<string>());
+        var nextCalled = false;
+
+        // Act
+        var act = () => behavior.Handle(
+            new DownloadAttachmentRequest(Guid.NewGuid()),
+            _ =>
+            {
+                nextCalled = true;
+                return Task.FromResult<DownloadAttachmentResponse>(null!);
+            },
+            CancellationToken.None);
+
+        // Assert — 403 without invoking the handler.
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*attachments.read*");
+        nextCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_DownloadAttachmentRequest_WithReadPermission_CallsNext()
+    {
+        // Arrange — caller holds attachments.read.
+        var behavior = CreateBehavior<DownloadAttachmentRequest, DownloadAttachmentResponse>(new[] { "attachments.read" });
 
         // Act
         var result = await behavior.Handle(
