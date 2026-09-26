@@ -4,11 +4,13 @@ using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.DowntimeEvents.Start;
 using AsistOff.MES.Production.Application.Features.Oee.Snapshot;
+using AsistOff.MES.Production.Application.Features.ProductionConfirmations;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Create;
 using AsistOff.MES.Production.Application.Features.ScrapEvents.Create;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Abstractions.Observability;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using FluentAssertions;
@@ -48,6 +50,10 @@ public class MesMetersHandlerTests
         };
         var orders = MockOrders(order);
         var tenant = MockTenant();
+        var unitOfWork = new Mock<IUnitOfWork>();
+        unitOfWork.Setup(u => u.ExecuteInTransactionAsync(
+                It.IsAny<Func<Task<ProductionConfirmationResponse>>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task<ProductionConfirmationResponse>> action, CancellationToken _) => action());
         var handler = new CreateProductionConfirmationRequestHandler(
             Mock.Of<IProductionConfirmationsRepository>(),
             orders.Object,
@@ -57,7 +63,8 @@ public class MesMetersHandlerTests
             Mock.Of<ILotGenealogyEdgesRepository>(),
             MockGuids(),
             MockClock(),
-            tenant.Object);
+            tenant.Object,
+            unitOfWork.Object);
 
         // Act
         await handler.Handle(
