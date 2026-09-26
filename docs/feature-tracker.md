@@ -59,6 +59,11 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Container + runtime hardening | — | Ops | done | #271 | non-root USER, pinned digests, limits, generated secrets (PR #275) |
 | Committed Playwright smoke suite | — | Web, CI | done | #272 | login→orders→confirm→lots on scripts/e2e harness (PR #276) |
 | Frontend resilience bundle | — | Web | done | #273 | axios timeout/retry/abort, error state + retry, guards, boundary (PR #278) |
+| Frontend UX review | — | Web | gap | — | holistic usability pass over every view (navigation/IA, forms, empty/loading/error states, i18n, shopfloor ergonomics); produce a prioritised findings list, then fix |
+| MES feature verification (recipes + Production Order flow) | BOM / Receptura, Production Order | Production, Web | gap | — | hands-on verification that features are usable and flexible enough; recipes (versions, routing, BOM, skills) and the Production Order lifecycle are known-weak UX and need rework — capture concrete friction, then redesign |
+| MES benchmark vs top-tier systems (recipes + Production Order) | BOM / Receptura, Production Order | Production, Web | gap | — | compare our recipe + order flow against leading MES (Siemens Opcenter, SAP ME/DMC, Rockwell FactoryTalk, Critical Manufacturing, AVEVA MES); produce a concrete gap list and prioritised improvements |
+| Operator panel (dedicated shopfloor view) | Operator | Web | gap | — | operator-facing panel to claim and handle assigned tasks: current-shift work, confirmations, scrap/downtime, Andon, next-up queue — minimal chrome, touch-friendly |
+| Demo data seed script | — | Ops | done | — | `scripts/seed/seed-demo-data.ps1` — one-off API-driven seed of a running stack (master data, recipes/routing/BOM, orders, lots, confirmations, losses, SPC, kanban, telemetry, maintenance) |
 
 ## Configuration (master data)
 
