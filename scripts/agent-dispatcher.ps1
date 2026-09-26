@@ -792,10 +792,14 @@ function Invoke-Cycle {
     $openPrs = @(GhJson @('pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,url,labels,headRefName,isDraft,body,updatedAt'))
 
     $implementable = @($openIssues | Where-Object { (Has-Label $_ 'ai:implement') -and -not (Has-Label $_ 'ai:running') -and -not (Has-Label $_ 'ai:blocked') })
-    $changes = @($openPrs | Where-Object { (Has-Label $_ 'ai:changes') -and -not (Has-Label $_ 'ai:running') -and -not (Test-BranchBusy $_) })
-    $reviews = @($openPrs | Where-Object { (Has-Label $_ 'ai:review') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft -and -not (Test-BranchBusy $_) })
-    $verifies = @($openPrs | Where-Object { (Has-Label $_ 'ai:verify') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft -and -not (Test-BranchBusy $_) })
-    $e2es = @($openPrs | Where-Object { (Has-Label $_ 'ai:e2e') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft -and -not (Test-BranchBusy $_) })
+    # ai:blocked is a human-attention state (no-progress fix round, CI waiting for
+    # approval, unparsable verdict) and its documented recovery is manual, so no
+    # stage may pick the PR up again - otherwise a blocked PR re-enters the loop
+    # through the next queued job.
+    $changes = @($openPrs | Where-Object { (Has-Label $_ 'ai:changes') -and -not (Has-Label $_ 'ai:running') -and -not (Has-Label $_ 'ai:blocked') -and -not (Test-BranchBusy $_) })
+    $reviews = @($openPrs | Where-Object { (Has-Label $_ 'ai:review') -and -not (Has-Label $_ 'ai:running') -and -not (Has-Label $_ 'ai:blocked') -and -not $_.isDraft -and -not (Test-BranchBusy $_) })
+    $verifies = @($openPrs | Where-Object { (Has-Label $_ 'ai:verify') -and -not (Has-Label $_ 'ai:running') -and -not (Has-Label $_ 'ai:blocked') -and -not $_.isDraft -and -not (Test-BranchBusy $_) })
+    $e2es = @($openPrs | Where-Object { (Has-Label $_ 'ai:e2e') -and -not (Has-Label $_ 'ai:running') -and -not (Has-Label $_ 'ai:blocked') -and -not $_.isDraft -and -not (Test-BranchBusy $_) })
 
     $acted = $false
 

@@ -46,6 +46,16 @@ swarm_add_label() { # <issue|pr> <number> <label>
 swarm_refire_label() { # <issue|pr> <number> <label>
   # A duplicate --add-label is a no-op and emits no `labeled` event, so a
   # re-route onto a label the item already has never wakes the next job.
+  #
+  # ai:blocked is a human-attention state (no-progress fix round, CI waiting for
+  # approval, unparsable verdict). Without this guard the block was not sticky:
+  # the fixer blocked #268 for changing nothing and the queued reviewer, seeing
+  # red CI, immediately re-fired ai:changes and started the next round anyway.
+  # Recovery from ai:blocked is documented as manual, so no agent may re-enter.
+  if [ "$1" = pr ] && swarm_has_label pr "$2" ai:blocked; then
+    echo "  ai:blocked is set on PR #$2; not re-firing $3 (needs a human)" >&2
+    return 0
+  fi
   swarm_remove_label "$1" "$2" "$3"
   swarm_add_label "$1" "$2" "$3"
 }

@@ -185,6 +185,12 @@ Dlatego:
   łapie, bo `review` i `verify` celowo go nie biorą (jeden globalny lock
   zablokowałby równoległą bramkę). Wybór: **albo CI, albo lokalny
   dispatcher** — nie oba naraz.
+- `ai:blocked` jest stanem „człowiek musi popatrzeć” i **nie wchodzi się w niego
+  ponownie automatycznie**: `swarm_refire_label` (i odpowiedniki w PowerShell)
+  ignorują PR z tą etykietą. Bez tego blokada nie trzymała — fixer zablokował
+  #268 za rundę bez zmian, a kolejny zaplanowany reviewer widząc czerwone CI
+  od razu odpalił `ai:changes` i następna runda ruszyła. Wyjście z `ai:blocked`
+  jest ręczne: usuń etykietę i dodaj etykietę etapu.
 
 ### 5.1 Ręczny override
 
