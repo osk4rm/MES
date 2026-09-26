@@ -477,6 +477,13 @@ function Invoke-Fix {
         return
     }
     Remove-Label pr $prNum 'ai:changes'
+    # A round that changed something also clears a stale ai:blocked - the block
+    # exists to stop a no-progress loop, and the dispatchers skip blocked PRs,
+    # so a PR that recovered on a later round would otherwise stay frozen.
+    if (Has-Label $Pr 'ai:blocked') {
+        Remove-Label pr $prNum 'ai:blocked'
+        Add-Comment pr $prNum 'Agent flow: this round changed code again, so the earlier ai:blocked is cleared and review starts over.'
+    }
     Add-Label pr $prNum 'ai:review'
     Set-Rounds $State $prNum $rounds
     Write-Host "    -> ai:review"
