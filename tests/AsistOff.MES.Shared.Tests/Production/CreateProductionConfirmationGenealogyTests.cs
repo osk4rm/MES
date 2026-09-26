@@ -7,6 +7,7 @@ using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Delet
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Pagination;
 using AsistOff.MES.Shared.Abstractions.Providers;
@@ -32,6 +33,7 @@ public class CreateProductionConfirmationGenealogyTests
     private readonly Mock<IGuidProvider> _guids = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ITenantContext> _tenant = new();
+    private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Guid _tenantId = Guid.NewGuid();
     private readonly DateTime _now = new(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc);
 
@@ -42,11 +44,13 @@ public class CreateProductionConfirmationGenealogyTests
         _tenant.SetupGet(t => t.TenantId).Returns(_tenantId);
         _children.Setup(r => r.ListBomItemsForVersionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<BomItem>());
+        _unitOfWork.Setup(u => u.ExecuteAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<CancellationToken, Task> action, CancellationToken ct) => action(ct));
     }
 
     private CreateProductionConfirmationRequestHandler CreateSut() =>
         new(_confirmations.Object, _orders.Object, _children.Object, _movements.Object,
-            _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object);
+            _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object, _unitOfWork.Object);
 
     private static ProductionOrder ReleasedOrder() => new()
     {
