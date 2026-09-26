@@ -69,6 +69,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Warehouses | RW / PW | Configuration | done | — | `Warehouse`; movements + stock rows below |
 | RW/PW warehouse movements (persisted) | RW / PW | Configuration | done | #199 | `StockMovement` persisted on confirmation (PR #203) |
 | Stock on hand | — | Configuration | done | #200 | per product + warehouse; WarehousesView card (PR #205) |
+| Material reservations for released orders | RW / PW | Configuration | gap | — | depends on Stock on hand + Production Order; soft-allocate stock on release, relieve on RW confirmation |
 | Departments | — | Configuration | done | — | `Department` |
 | Machines / resources | Work Center | Configuration | done | #204 | `Machine` + calendar (#83); capacity + efficiency factor (PR #206) |
 | Operators | Operator | Configuration | done | — | `Operator` (code / RFID) |
@@ -103,6 +104,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Genealogy / traceability | Genealogy | Production | done | #142, #143, #144, #207 | `LotGenealogyEdge` auto-derived on confirmation; upstream/downstream traceability + lot tree (PRs #148, #151, #152, #211) |
 | Atomic confirmation fan-out | Confirmation | Production | done | #265 | single transaction across confirmation + movements + edges + order (PRs #286, #287) |
 | Read-path performance (paging, no-tracking, batch fetch) | Shift | Production | done | #274 | server-side DispatchBoard filtering/Take, AsNoTracking, MaxPageSize caps (PRs #277, #279) |
+| Shift handover logbook | Shift | Production | gap | — | depends on Work-center calendar / shifts + Operator confirmations (RW / PW); pass open orders, Andon signals and notes between shifts |
 
 ## Analytics / integration
 
@@ -112,6 +114,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Andon | Andon | Production | done | #98 | signals for abnormal conditions (PR #104) |
 | SPC | SPC | Production | done | #99, #187, #188, #195, #196 | characteristic dictionary + measurements with out-of-control evaluation; log + control chart; Western Electric rules 2-4 (PRs #103, #191, #193, #197, #198) |
 | CMMS | CMMS | Configuration | done | #100, #172 | corrective work orders + board UI (PRs #102, #174) |
+| Preventive maintenance plans | CMMS | Configuration | gap | — | depends on CMMS; time/meter-based schedules that auto-raise work orders before breakdown |
 | OPC UA / SCADA telemetry | OPC UA | Production | done | #114, #115, #116, #160, #161 | tag dictionary + readings; simulator + stale dashboard; connection registry + polling (PRs #118, #127, #132, #162, #164) |
 | Kanban | Kanban | Production | done | #145, #146, #147 | `KanbanLoop` dictionary + card registry; pull transitions with WIP limits; board UI (PRs #149, #155, #158) |
 | MTBF / MTTR reliability KPIs | MTBF / MTTR | Production | done | #170, #171, #213, #214, #220 | per-Work Center snapshot query + API + dashboard; trend + fleet comparison (PRs #173, #175, #215, #216, #222) |
