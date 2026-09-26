@@ -17,7 +17,7 @@ public sealed class HardenedRuntimeEndpointTests(MesApplicationFixture fixture) 
 {
     private static readonly string[] LongLivedServices =
     [
-        "postgres", "seq", "api", "web", "api-prod", "backup", "swarm",
+        "postgres", "seq", "api", "web", "api-prod", "backup",
     ];
 
     [Fact]
@@ -54,7 +54,6 @@ public sealed class HardenedRuntimeEndpointTests(MesApplicationFixture fixture) 
     [InlineData("web")]
     [InlineData("api-prod")]
     [InlineData("backup")]
-    [InlineData("swarm")]
     public void Compose_LongLivedService_HasRestartPolicyAndResourceLimits(string service)
     {
         // Arrange
@@ -92,15 +91,33 @@ public sealed class HardenedRuntimeEndpointTests(MesApplicationFixture fixture) 
     }
 
     [Fact]
+    public void Compose_SwarmService_HasRestartPolicyAndResourceLimits()
+    {
+        // Arrange — the agent swarm is local-only (docker-compose.swarm.yml)
+        // so server deployments (Coolify) never see it; it must still carry
+        // the same restart + limits hardening as the MES services.
+        var block = ServiceBlock(ReadRepoFile("docker-compose.swarm.yml"), "swarm");
+
+        // Act + Assert
+        block.Should().Contain("restart:");
+        block.Should().Contain("memory:");
+        block.Should().Contain("cpus:");
+    }
+
+    [Fact]
     public void Compose_WebService_ResolvesApiUrlAtRuntime()
     {
-        // Arrange
+        // Arrange — the base compose holds the runtime URL wiring while host
+        // ports live in docker-compose.override.yml (local dev only; Coolify
+        // runs with an explicit `-f docker-compose.yml` and ignores it).
         var block = ServiceBlock(ReadRepoFile("docker-compose.yml"), "web");
+        var overrideBlock = ServiceBlock(ReadRepoFile("docker-compose.override.yml"), "web");
 
-        // Assert — runtime override plus the build-time fallback.
+        // Assert — runtime override plus the build-time fallback in base...
         block.Should().Contain("API_BASE_URL");
         block.Should().Contain("VITE_API_BASE_URL");
-        block.Should().Contain("3000:8080");
+        // ...and the host port mapping in the local override (web:8080).
+        overrideBlock.Should().Contain("${HTTP_PORT:-3000}:8080");
     }
 
     [Fact]
