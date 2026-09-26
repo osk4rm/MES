@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace AsistOff.MES.Integration.Tests.Infrastructure;
@@ -68,8 +69,14 @@ public sealed class MesWebApplicationFactory(
             // Slice 2 (#259): controllable outbox handler failure for the
             // retry-then-success / retry-then-poison endpoint tests. The
             // handler fires exclusively for the test-only FlakyOutboxEvent,
-            // so no other test's traffic is affected.
-            services.AddTransient<INotificationHandler<FlakyOutboxEvent>, FlakyOutboxHandler>();
+            // so no other test's traffic is affected. TryAdd (not Add):
+            // ModuleLoader scans every AsistOff.MES.*.dll in the bin folder,
+            // which includes the test assembly itself, so MediatR's
+            // RegisterServicesFromAssembly already registers this handler —
+            // a second AddTransient would invoke it twice per publish and
+            // break the exact-call assertions (fail-once then succeeds would
+            // observe 3 calls instead of 2).
+            services.TryAddTransient<INotificationHandler<FlakyOutboxEvent>, FlakyOutboxHandler>();
 
             // Abuse protection: the shared suite performs hundreds of sign-in
             // and tenant-create calls from a single TestServer IP, which would
