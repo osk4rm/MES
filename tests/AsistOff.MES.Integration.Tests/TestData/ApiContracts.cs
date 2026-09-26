@@ -177,6 +177,7 @@ public sealed record MaintenanceWorkOrderDto(
     string? Description,
     Guid MachineId,
     string? MachineCode,
+    Guid? PlanId,
     short Priority,
     short Status,
     DateTime ReportedAt,
