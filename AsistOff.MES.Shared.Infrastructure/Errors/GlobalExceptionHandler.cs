@@ -22,7 +22,15 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         httpContext.Response.StatusCode = problemDetails.Status ?? (int)HttpStatusCode.InternalServerError;
         httpContext.Response.ContentType = "application/problem+json";
 
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
+        // Serialize with the runtime type: the static type here is
+        // ProblemDetails, so serializing as ProblemDetails would drop the
+        // ValidationProblemDetails.Errors dictionary and callers would never
+        // see which field failed (e.g. sort whitelist rejections must name
+        // the field, issue #311).
+        await httpContext.Response.WriteAsJsonAsync(
+            problemDetails,
+            problemDetails.GetType(),
+            cancellationToken: cancellationToken);
 
         return true;
     }

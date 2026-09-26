@@ -3,8 +3,12 @@ using AsistOff.MES.Shared.Abstractions.Contracts.Validators;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Extensions;
 using AsistOff.MES.Shared.Infrastructure.Behaviors;
+using AsistOff.MES.Shared.Infrastructure.Errors;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 
 namespace AsistOff.MES.Shared.Tests.Sorting;
 
@@ -313,5 +317,45 @@ public sealed class SortWhitelistTests
 
         // Assert
         result.Should().Be("ok");
+    }
+
+    [Fact]
+    public async Task Handler_SortRejectionBody_NamesTheField()
+    {
+        // Arrange - envelope proof for issue #311 AC2: the HTTP 400 body
+        // produced by GlobalExceptionHandler for a sort whitelist rejection
+        // must name the offending field. Regression guard: serializing the
+        // envelope as the static ProblemDetails type dropped the
+        // ValidationProblemDetails.Errors dictionary, so the body carried
+        // only the generic "One or more validation failures have occurred."
+        // detail and the endpoint assertion on the field name failed.
+        var request = new BrowseWidgetsQuery(new WidgetSort { RawSort = ["NoSuchField,asc"] });
+        var behavior = new ValidationBehavior<BrowseWidgetsQuery, string>(validator: null);
+        Task<string> Next(CancellationToken _) => Task.FromResult("ok");
+        ValidationException? thrown = null;
+        try
+        {
+            await behavior.Handle(request, Next, CancellationToken.None);
+        }
+        catch (ValidationException ex)
+        {
+            thrown = ex;
+        }
+
+        thrown.Should().NotBeNull();
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        var handler = new GlobalExceptionHandler(NullLogger<GlobalExceptionHandler>.Instance);
+
+        // Act
+        var handled = await handler.TryHandleAsync(context, thrown!, CancellationToken.None);
+
+        // Assert
+        handled.Should().BeTrue();
+        context.Response.StatusCode.Should().Be(400);
+        context.Response.Body.Seek(0, SeekOrigin.Begin);
+        using var payload = await JsonDocument.ParseAsync(context.Response.Body);
+        payload.RootElement.TryGetProperty("errors", out var errors).Should().BeTrue();
+        errors.GetRawText().Should().Contain("NoSuchField");
     }
 }
