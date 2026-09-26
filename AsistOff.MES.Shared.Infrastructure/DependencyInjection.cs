@@ -57,7 +57,8 @@ namespace AsistOff.MES.Shared.Infrastructure
             services.AddScoped<IEntityConfigurator, SharedOutboxEntityConfigurator>();
             services.Configure<OutboxRelayOptions>(configuration.GetSection(OutboxRelayOptions.SectionName));
             services.AddScoped<OutboxDispatcher>();
-            services.AddHostedService<OutboxRelayService>();
+            services.AddSingleton<OutboxRelayService>();
+            services.AddHostedService(sp => sp.GetRequiredService<OutboxRelayService>());
 
             return services;
         }
