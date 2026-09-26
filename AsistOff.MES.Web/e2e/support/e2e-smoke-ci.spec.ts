@@ -106,6 +106,23 @@ describe('e2e-smoke CI contract', () => {
     expect(workflow).toContain('pg_isready -U admin -d mes');
   });
 
+  it('gates the job on the e2e filter, self-triggers on workflow edits, and always stops the stack', () => {
+    const patch = readRepo('scripts/e2e/e2e-smoke-ci.patch');
+    const workflow = patchedWorkflow();
+
+    // The job must run exactly when the e2e filter fires — a `!=` typo
+    // would silently invert the gate and never run the smoke suite.
+    expect(workflow).toContain("if: needs.changes.outputs.e2e == 'true'");
+    // Edits to the workflow itself must re-trigger the smoke job, otherwise
+    // a broken job definition lands without ever being exercised.
+    expect(patch).toContain('.github/workflows/ci.yml');
+    // Both the stack-stop and the artifact-upload steps must run even when
+    // the smoke run fails: one `always()` (upload only) would leak the
+    // stack, and the other way round would lose the failure bundle.
+    const alwaysCount = workflow.split('if: always()').length - 1;
+    expect(alwaysCount).toBeGreaterThanOrEqual(2);
+  });
+
   it('keeps failure artifacts enabled in the Playwright config', () => {
     const config = readRepo('AsistOff.MES.Web/playwright.config.ts');
 
