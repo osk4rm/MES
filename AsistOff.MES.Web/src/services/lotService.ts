@@ -28,6 +28,7 @@ export interface LotResponse {
 
 export interface BrowseLotsRequest extends IPagedRequest {
   code?: string;
+  search?: string;
   productId?: string;
   status?: LotStatus;
   expiryFrom?: string;
