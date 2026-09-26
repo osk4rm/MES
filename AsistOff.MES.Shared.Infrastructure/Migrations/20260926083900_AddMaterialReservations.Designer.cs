@@ -3,6 +3,7 @@ using System;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AsistOff.MES.Shared.Infrastructure.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    partial class DefaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260926083900_AddMaterialReservations")]
+    partial class AddMaterialReservations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -184,67 +187,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.ToTable("Machines", "config");
                 });
 
-            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.MaintenancePlan", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<int?>("IntervalDays")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("LastCompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("MachineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal?>("MeterIntervalValue")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime?>("NextDueAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<short>("TriggerType")
-                        .HasColumnType("smallint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("MachineId");
-
-                    b.HasIndex("NextDueAt");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex("TenantId", "Code")
-                        .IsUnique();
-
-                    b.ToTable("MaintenancePlans", "config");
-                });
-
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.MaintenanceWorkOrder", b =>
                 {
                     b.Property<Guid>("Id")
@@ -264,9 +206,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .HasColumnType("character varying(1000)");
 
                     b.Property<Guid>("MachineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("PlanId")
                         .HasColumnType("uuid");
 
                     b.Property<short>("Priority")
@@ -296,8 +235,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("MachineId");
-
-                    b.HasIndex("PlanId");
 
                     b.HasIndex("Status");
 
@@ -2651,17 +2588,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Navigation("Department");
                 });
 
-            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.MaintenancePlan", b =>
-                {
-                    b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Machine", "Machine")
-                        .WithMany()
-                        .HasForeignKey("MachineId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Machine");
-                });
-
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.MaintenanceWorkOrder", b =>
                 {
                     b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Machine", "Machine")
@@ -2670,14 +2596,7 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AsistOff.MES.Configuration.Domain.Entities.MaintenancePlan", "Plan")
-                        .WithMany()
-                        .HasForeignKey("PlanId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Machine");
-
-                    b.Navigation("Plan");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.MeasureUnit", b =>
