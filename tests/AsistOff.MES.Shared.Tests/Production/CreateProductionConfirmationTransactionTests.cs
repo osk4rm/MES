@@ -79,15 +79,13 @@ public sealed class CreateProductionConfirmationTransactionTests : IDisposable
         _clock.SetupGet(c => c.UtcNow).Returns(_now);
         _tenant.SetupGet(t => t.TenantId).Returns(_tenantId);
 
-        var mediator = new Mock<IPublisher>();
-
         var options = new DbContextOptionsBuilder<DefaultContext>()
             .UseSqlite(_connection)
             .Options;
 
         _context = new AtomicityTestContext(
             options,
-            new PublishDomainEventsInterceptor(mediator.Object, _clock.Object, _guids, tenantAccessor.Object),
+            new PublishDomainEventsInterceptor(_clock.Object, _guids, tenantAccessor.Object),
             new AuditableEntityInterceptor(_clock.Object, userAccessor.Object),
             new AuditHistoryInterceptor(_clock.Object, userAccessor.Object, tenantAccessor.Object, _guids),
             new SaasyEntityInterceptor(tenantAccessor.Object),

@@ -47,8 +47,6 @@ public sealed class EfUnitOfWorkTests : IDisposable
         var guids = new Mock<IGuidProvider>();
         guids.Setup(g => g.NewGuid()).Returns(() => Guid.NewGuid());
 
-        var mediator = new Mock<IPublisher>();
-
         var options = new DbContextOptionsBuilder<DefaultContext>()
             .UseSqlite(_connection)
             .Options;
@@ -56,7 +54,7 @@ public sealed class EfUnitOfWorkTests : IDisposable
         _context = new DefaultContext(
             options,
             Array.Empty<IEntityConfigurator>(),
-            new PublishDomainEventsInterceptor(mediator.Object, clock.Object, guids.Object, tenantAccessor.Object),
+            new PublishDomainEventsInterceptor(clock.Object, guids.Object, tenantAccessor.Object),
             new AuditableEntityInterceptor(clock.Object, userAccessor.Object),
             new AuditHistoryInterceptor(clock.Object, userAccessor.Object, tenantAccessor.Object, guids.Object),
             new SaasyEntityInterceptor(tenantAccessor.Object),
