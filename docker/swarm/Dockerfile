@@ -20,7 +20,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      git curl ca-certificates xz-utils tar \
+      git curl ca-certificates xz-utils tar jq \
  && rm -rf /var/lib/apt/lists/*
 
 # Node.js 20 (official tarball — distro-agnostic)

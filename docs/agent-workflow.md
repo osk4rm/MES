@@ -185,12 +185,31 @@ Dlatego:
   łapie, bo `review` i `verify` celowo go nie biorą (jeden globalny lock
   zablokowałby równoległą bramkę). Wybór: **albo CI, albo lokalny
   dispatcher** — nie oba naraz.
-- `ai:blocked` jest stanem „człowiek musi popatrzeć” i **nie wchodzi się w niego
-  ponownie automatycznie**: `swarm_refire_label` (i odpowiedniki w PowerShell)
-  ignorują PR z tą etykietą. Bez tego blokada nie trzymała — fixer zablokował
-  #268 za rundę bez zmian, a kolejny zaplanowany reviewer widząc czerwone CI
-  od razu odpalił `ai:changes` i następna runda ruszyła. Wyjście z `ai:blocked`
-  jest ręczne: usuń etykietę i dodaj etykietę etapu.
+- `ai:blocked` jest stanem „człowiek musi popatrzeć” i **agencja ani dyspozytor
+  nie wchodzą w niego ponownie**: `swarm_refire_label` (i odpowiedniki w
+  PowerShell) ignorują PR z tą etykietą. Bez tego blokada nie trzymała — fixer
+  zablokował #268 za rundę bez zmian, a kolejny zaplanowany reviewer widząc
+  czerwone CI od razu odpalił `ai:changes` i następna runda ruszyła.
+- **Blokada musi jednak zawsze mieć wyjście.** Każdy blok zapisuje marker
+  `<!-- swarm-block stage=<etykieta> reason=<powód> attempt=<n> at=<epoch> -->`
+  (`swarm_block_pr` w `scripts/ci/swarm-lib.sh`, `Block-PR` w
+  `scripts/agent-dispatcher.ps1`). Sweeper wywołuje `swarm_retry_blocked_prs`:
+  po `BLOCK_RETRY_MINUTES` (domyślnie 120 min) od znacznika zdejmuje
+  `ai:blocked` i odpala etap zapisany w markerze — najwyżej `BLOCK_RETRY_MAX`
+  (domyślnie 2) próby. Po wyczerpnięciu budżetu etap pozostaje zablokowany dla
+  człowieka. Powód istnienia limitu: bez niego nienaprawialny PR krążyłby w
+  nieskończoność; powód istnienia progu: 2026-09-26 nocą #276 i #268 leżały
+  zablokowane po 6 godzin, bo markerów jeszcze nie było i nikt nie umiał ich
+  odblokować. PR bez markera (stary blok, ręcznie dodany) zostaje dla człowieka.
+- Sukces naprawiający PR (zmiana kodu lub opisu) czyści `ai:blocked` i odpala
+  bramki od nowa — patrz `Invoke-Fix`. Dlatego "fix, który nic nie zmienia"
+  nie zostawia PR-u na amen.
+- `scripts/ci/tests/swarm-lib.test.sh` testuje te helpery (licznik pojemności,
+  `swarm_dispatch_ci`, budżet blokady, guard „issue ma już PR"), a job
+  `swarm-self-test` w `ai-swarm.yml` uruchamia go na każdym pushu do `master`,
+  co ticku sweepa i przy ręcznym dispatchu. Te helpery psują się **cicho** —
+  2026-09-26 zepsuty `search/issues` (404 → ciało JSON do `[ -ge ]`) wyłączył
+  bramkę pojemności bez żadnego błędu.
 
 ### 5.1 Ręczny override
 
@@ -545,13 +564,23 @@ Zasady:
   diagnostyczny lądował w `$(...)` i fałszował wynik na „nie-pass", co
   demotowało `ai:ready` do ponownego review w kółko (przypadek PR #149).
   Dlatego: stdout `swarm_wait_ci` to wyłącznie `pass|fail|timeout|approval`
-  (logi na stderr, wołający dokleja `| tail -n 1`), a nieudany approve kończy
-  się **jednorazowym** `ai:blocked` z instrukcją dla człowieka — nigdy powrotem
-  przez review/verify/e2e. `swarm_nudge_stuck_prs` PR-ów w stanie `approval`
-  nie tyka (re-fire tylko spaliłby kolejną sesję agenta); po ręcznym approve
-  najbliższy sweep widzi `pass` i etap sam rusza dalej.
-  `swarm_use_pat_remote` czyści też `http....extraheader` z checkoutu —
+  (logi na stderr, wołający dokleja `| tail -n 1`), a po nieudanym approve
+  `swarm_dispatch_ci` **sam dispatchuje świeży run `ci` przez `workflow_dispatch`
+  na gałęzi head PR-a** (`gh workflow run`, `CI_APPROVAL_TRIES` domyślnie 2).
+  Runy `workflow_dispatch` nie przechodzą przez bramkę zgody, więc etap dogania
+  prawdziwy werdykt bez człowieka; to była jedyna droga, która faktycznie
+  działa — 2026-09-26 `POST /actions/runs/{id}/approve` tokenem
+  `GITHUB_TOKEN` zwracał **404** (zatwierdzić może tylko token z uprawnieniem
+  maintainera, czyli tu PAT użytkownika), a 8 runów `ci` siedziało w
+  `action_required` przez wiele godzin. Gdy i to nie zadziała, etap kończy
+  jednorazowym `ai:blocked` (marker `reason=approval`), a nie wykonywaniem
+  kolejnych rund w kółko. `swarm_nudge_stuck_prs` **odpala** etap w stanie
+  `approval` (to najtańsza naprawa, gdy run zniknął), z wyjątkiem `ci=running`,
+  w którym żywy job jeszcze trzyma etap. `swarm_use_pat_remote` czyści też
+  `http....extraheader` z checkoutu —
   bez tego pushe leciały jako `github-actions[bot]` mimo PAT-a w URL.
+  Uwaga: nadal warto ustawić `SWARM_PAT` — wtedy push jest autorem
+  współpracownikiem i bramka zgody w ogóle się nie pojawia.
 - **Przekierowanie do `ai:changes` musi zdjąć labelkę przed dodaniem**: duplikat
   `--add-label ai:changes` to na GitHubie no-op, który **nie emituje eventu
   `labeled`** — a `fix` startuje tylko z niego, więc martwe przekierowanie
