@@ -33,6 +33,26 @@ internal sealed class OperationNodesRepository(DefaultContext context) : IOperat
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyCollection<OperationNode>> ListForVersionsAsync(
+        IReadOnlyCollection<Guid> recipeVersionIds, CancellationToken cancellationToken = default)
+    {
+        if (recipeVersionIds.Count == 0)
+            return [];
+
+        // Read-only Gantt input: dependencies drive chaining, resource
+        // requirements drive the Work Center (machine) assignment. Tenant
+        // isolation comes from the global query filter.
+        return await context.Set<OperationNode>()
+            .AsNoTracking()
+            .Where(x => recipeVersionIds.Contains(x.RecipeVersionId))
+            .Include(x => x.Dependencies)
+            .Include(x => x.ResourceRequirements)
+            .OrderBy(x => x.RecipeVersionId)
+            .ThenBy(x => x.SortIndex)
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<OperationNode> AddAsync(OperationNode entity, CancellationToken cancellationToken = default)
     {
         context.Set<OperationNode>().Add(entity);

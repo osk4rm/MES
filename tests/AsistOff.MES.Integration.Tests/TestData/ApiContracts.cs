@@ -667,6 +667,31 @@ public sealed record ShiftHandoverDto(
     int ActiveAndonCount,
     bool UncoveredShift);
 
+/// <summary>Shape of one operation bar returned by <c>/api/schedule/gantt</c>.</summary>
+public sealed record GanttBarDto(
+    Guid ProductionOrderId,
+    string ProductionOrderCode,
+    Guid OperationNodeId,
+    string OperationCode,
+    string OperationName,
+    Guid? MachineId,
+    DateTime PlannedStart,
+    DateTime PlannedEnd,
+    bool IsOverdue);
+
+/// <summary>Shape of one Work Center lane returned by <c>/api/schedule/gantt</c>.</summary>
+public sealed record GanttMachineGroupDto(
+    Guid? MachineId,
+    string? MachineCode,
+    string? MachineName,
+    IReadOnlyCollection<GanttBarDto> Bars);
+
+/// <summary>Shape of the Gantt schedule returned by <c>/api/schedule/gantt</c>. Dates are ISO 8601 <c>yyyy-MM-dd</c>.</summary>
+public sealed record GanttScheduleDto(
+    string From,
+    string To,
+    IReadOnlyCollection<GanttMachineGroupDto> Groups);
+
 /// <summary>Shape of a tenant permission as returned by <c>/api/permissions</c>.</summary>
 public sealed record PermissionDto(
     Guid Id,
