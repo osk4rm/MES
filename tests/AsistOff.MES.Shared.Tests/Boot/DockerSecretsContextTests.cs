@@ -24,8 +24,10 @@ public sealed class DockerSecretsContextTests
     [InlineData(".env.production")]
     [InlineData("AsistOff.MES.Web/.env.local")]
     [InlineData("AsistOff.MES.Web/.env.production")]
+    [InlineData("AsistOff.MES.Web/.env.development")]
     [InlineData(".env.development")]
     [InlineData("config/.env")]
+    [InlineData("deep/nested/dir/.env.local")]
     public void ApiContext_CanarySecretFiles_AreExcluded(string contextPath)
     {
         // Arrange
@@ -85,6 +87,8 @@ public sealed class DockerSecretsContextTests
     [InlineData(".env.local")]
     [InlineData(".env.production")]
     [InlineData("config/.env.local")]
+    [InlineData("config/.env.production")]
+    [InlineData("deep/nested/.env")]
     public void WebContext_CanarySecretFiles_AreExcluded(string contextPath)
     {
         // Arrange — Vite loads .env* at build time, so any stray file bakes
