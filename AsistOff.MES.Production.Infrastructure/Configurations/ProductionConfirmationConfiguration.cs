@@ -32,6 +32,11 @@ public class ProductionConfirmationConfiguration : IEntityTypeConfiguration<Prod
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(x => new { x.TenantId, x.ProductionOrderId, x.ReportedAt });
+        // OEE analytics read path: ListForMachineInWindowAsync filters one
+        // Work Center over a ReportedAt range under the tenant global query
+        // filter, ordered by ReportedAt. Leading with TenantId keeps tenant
+        // isolation intact with no IgnoreQueryFilters bypass.
+        builder.HasIndex(x => new { x.TenantId, x.MachineId, x.ReportedAt });
         builder.HasIndex(x => x.TenantId);
     }
 }
