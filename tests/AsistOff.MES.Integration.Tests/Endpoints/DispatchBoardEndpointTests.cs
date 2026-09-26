@@ -2,6 +2,13 @@ using System.Net;
 using System.Net.Http.Json;
 using AsistOff.MES.Integration.Tests.Infrastructure;
 using AsistOff.MES.Integration.Tests.TestData;
+using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Production.Domain.Entities;
+using AsistOff.MES.Production.Domain.Enums;
+using AsistOff.MES.Shared.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AsistOff.MES.Integration.Tests.Endpoints;
 
@@ -231,6 +238,76 @@ public sealed class DispatchBoardEndpointTests(MesApplicationFixture fixture) : 
     }
 
     private static string UniqueTag() => Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
+
+    /// <summary>
+    /// Read-path hardening (issue #274): with 250 Released orders the board
+    /// issues a bounded query returning at most 200 rows, overdue first.
+    /// Seeded straight through the database in an isolated tenant - 250 HTTP
+    /// creates would be slow and flaky, and isolation keeps the bound exact.
+    /// </summary>
+    [Fact]
+    public async Task GetDispatch_With250ReleasedOrders_Returns200WithOverdueFirst()
+    {
+        // Arrange
+        var (email, password) = await Fixture.CreateTenantAsync();
+        var tenantId = await GetTenantIdByEmailAsync(email);
+        var tag = UniqueTag();
+        var overdueCodes = Enumerable.Range(0, 10).Select(i => $"DSP-{tag}-OVD-{i:000}").OrderBy(c => c).ToList();
+        var inWindowCodes = Enumerable.Range(0, 230).Select(i => $"DSP-{tag}-INW-{i:000}").ToList();
+        var noDueCodes = Enumerable.Range(0, 10).Select(i => $"DSP-{tag}-NOD-{i:000}").ToList();
+        await SeedReleasedOrdersAsync(tenantId, overdueCodes, new DateTime(2027, 3, 5, 0, 0, 0, DateTimeKind.Utc));
+        await SeedReleasedOrdersAsync(tenantId, inWindowCodes, new DateTime(2027, 3, 11, 0, 0, 0, DateTimeKind.Utc));
+        await SeedReleasedOrdersAsync(tenantId, noDueCodes, null);
+        using var client = await Fixture.CreateAuthenticatedClientAsync(email, password);
+
+        // Act
+        var response = await client.GetAsync($"{BaseUrl}?from={From}&to={To}");
+
+        // Assert - bounded to 200 rows with overdue first and nulls last.
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var board = await ReadAsync<DispatchBoardDto>(response);
+        board.Orders.Should().HaveCount(200);
+        board.Orders.Should().OnlyContain(o => o.Code.StartsWith($"DSP-{tag}-"));
+        board.Orders.Take(10).Select(o => o.Code).Should().Equal(overdueCodes);
+        board.Orders.Take(10).Should().OnlyContain(o => o.IsOverdue);
+        board.Orders.Skip(10).Should().OnlyContain(o => !o.IsOverdue);
+    }
+
+    private async Task SeedReleasedOrdersAsync(Guid tenantId, IReadOnlyCollection<string> codes, DateTime? dueDate)
+    {
+        using (BackgroundTenantContext.BeginScope(tenantId))
+        {
+            using var scope = Fixture.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
+            foreach (var code in codes)
+            {
+                context.Set<ProductionOrder>().Add(new ProductionOrder
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    Code = code,
+                    ProductId = Guid.NewGuid(),
+                    RecipeId = Guid.NewGuid(),
+                    RecipeVersionId = Guid.NewGuid(),
+                    PlannedQuantity = 100m,
+                    Status = ProductionOrderStatus.Released,
+                    DueDate = dueDate,
+                    Priority = 0,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            await context.SaveChangesAsync();
+        }
+    }
+
+    private async Task<Guid> GetTenantIdByEmailAsync(string email)
+    {
+        using var scope = Fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MultitenancyDbContext>();
+        var tenant = await db.Tenants.AsNoTracking().SingleAsync(t => t.ContactEmail == email);
+        return tenant.Id;
+    }
 
     private static async Task<ShiftDto> CreateShiftAsync(
         HttpClient client, string code, string startTime = "06:00:00", string endTime = "14:00:00")

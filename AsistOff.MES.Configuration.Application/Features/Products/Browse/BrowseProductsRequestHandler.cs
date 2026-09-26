@@ -12,11 +12,16 @@ internal sealed class BrowseProductsRequestHandler(
     IProductsRepository productsRepository)
     : IRequestHandler<BrowseProductsRequest, PagedResponse<ProductResponse>>
 {
+    /// <summary>Upper bound for <c>Search</c> typeahead pages (issue #274).</summary>
+    internal const int TypeaheadMaxRows = 20;
+
     public async Task<PagedResponse<ProductResponse>> Handle(BrowseProductsRequest request, CancellationToken cancellationToken)
     {
         var filter = BuildPredicate(request);
         var totalCount = await productsRepository.CountAsync(filter, cancellationToken);
-        var paginator = new Paginator<Product>(filter, request);
+        var paginator = string.IsNullOrWhiteSpace(request.Search)
+            ? new Paginator<Product>(filter, request)
+            : new Paginator<Product>(filter, CappedTypeahead(request));
 
         var products = await productsRepository.BrowseAsync(paginator, cancellationToken);
 
@@ -38,7 +43,10 @@ internal sealed class BrowseProductsRequestHandler(
                 : null
         )).ToList();
 
-        return new PagedProductsResponse(items, totalCount, request.PageSize);
+        var pageSize = string.IsNullOrWhiteSpace(request.Search)
+            ? request.PageSize
+            : CappedTypeahead(request).PageSize;
+        return new PagedProductsResponse(items, totalCount, pageSize);
     }
 
     private ExpressionStarter<Product> BuildPredicate(BrowseProductsRequest request)
@@ -50,6 +58,9 @@ internal sealed class BrowseProductsRequestHandler(
 
         if (!string.IsNullOrEmpty(request.Code))
             predicate = predicate.And(x => x.Code.Contains(request.Code));
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+            predicate = predicate.And(x => x.Code.Contains(request.Search));
 
         if (request.IsActive.HasValue)
             predicate = predicate.And(x => x.IsActive == request.IsActive);
@@ -70,5 +81,27 @@ internal sealed class BrowseProductsRequestHandler(
             predicate = predicate.And(x => x.ProductMeasureUnits.Any(mu => mu.MeasureUnitId == request.MeasureUnitId));
 
         return predicate;
+    }
+
+    /// <summary>
+    /// Typeahead paging: first page ordered by code, capped at
+    /// <see cref="TypeaheadMaxRows"/> rows and at <c>MaxPageSize</c>, so a
+    /// shopfloor lookup can never pull an unbounded page (issue #274).
+    /// </summary>
+    internal static TypeaheadPaging CappedTypeahead(BrowseProductsRequest request)
+    {
+        var size = Math.Min(request.PageSize ?? TypeaheadMaxRows, TypeaheadMaxRows);
+        if (request.MaxPageSize.HasValue)
+            size = Math.Min(size, request.MaxPageSize.Value);
+        return new TypeaheadPaging(request.PageNumber ?? 1, Math.Max(size, 1));
+    }
+
+    internal sealed class TypeaheadPaging(int pageNumber, int pageSize) : IPagedRequest
+    {
+        public int? PageNumber { get; } = pageNumber;
+        public int? PageSize { get; } = pageSize;
+        public int? MaxPageSize => TypeaheadMaxRows;
+        public List<string> RawSort { get; set; } = ["Code"];
+        public IReadOnlyCollection<string> SupportedSortFields { get; } = ["Code"];
     }
 }

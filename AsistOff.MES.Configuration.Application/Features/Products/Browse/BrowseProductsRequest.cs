@@ -10,6 +10,12 @@ public class BrowseProductsRequest
 {
     public string? Name { get; set; }
     public string? Code { get; set; }
+    /// <summary>
+    /// Shopfloor typeahead: substring match on <c>Code</c>. When set, the
+    /// handler orders by code and caps the page to at most 20 rows
+    /// (issue #274).
+    /// </summary>
+    public string? Search { get; set; }
     public bool? IsActive { get; set; }
     public Guid? GroupId { get; set; }
     public string? Ean { get; set; }
