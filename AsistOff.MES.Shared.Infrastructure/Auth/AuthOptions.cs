@@ -36,7 +36,13 @@ public class AuthOptions
     public bool ValidateIssuer { get; set; } = true;
     public bool ValidateLifetime { get; set; } = true;
     public bool ValidateTokenReplay { get; set; }
-    public bool ValidateIssuerSigningKey { get; set; }
+    /// <summary>
+    /// Validates the HMAC signature of incoming JWTs. Secure by default
+    /// (<c>true</c>): disabling signature validation accepts forged tokens
+    /// and is never legitimate, not even in Development. Production startup
+    /// additionally rejects <c>false</c> via <c>AuthOptionsValidator</c>.
+    /// </summary>
+    public bool ValidateIssuerSigningKey { get; set; } = true;
     public bool RefreshOnIssuerKeyNotFound { get; set; } = true;
     public bool IncludeErrorDetails { get; set; } = false;
     public string? AuthenticationType { get; set; }

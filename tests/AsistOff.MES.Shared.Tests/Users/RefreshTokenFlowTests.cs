@@ -243,6 +243,34 @@ public class RefreshTokenFlowTests
     }
 
     [Fact]
+    public async Task Refresh_ExpiredToken_Throws()
+    {
+        // Arrange — the stored token ran past its expiry.
+        var user = BuildUser("pw");
+        var (opaque, hash) = RefreshTokenHasher.Generate();
+        var stored = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            TenantId = user.TenantId,
+            UserId = user.Id,
+            TokenHash = hash,
+            FamilyId = Guid.NewGuid(),
+            ExpiresAtUtc = _now.AddMinutes(-1),
+            CreatedAt = _now.AddDays(-8)
+        };
+        _refreshTokens.Setup(r => r.GetByHashIgnoringQueryFiltersAsync(hash, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
+
+        var sut = BuildRefreshHandler();
+
+        // Act
+        var act = () => sut.Handle(new RefreshTokenRequest(opaque), CancellationToken.None);
+
+        // Assert — expired sessions are rejected with 401, never rotated.
+        await act.Should().ThrowAsync<AuthenticationException>();
+        _refreshTokens.Verify(r => r.AddAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Refresh_ReuseOfRotatedToken_RevokesFamilyAndThrows()
     {
         // Arrange — presenting an already-rotated token is a reuse attack.
