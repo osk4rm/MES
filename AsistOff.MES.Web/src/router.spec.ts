@@ -89,4 +89,27 @@ describe('router auth guard', () => {
 
     expect(router.currentRoute.value.name).toBe('roles');
   });
+
+  // Guards the Harmonogram rename (issue #306): `/schedule` renders the
+  // Gantt view while the dispatch board moved to `/schedule/dispatch` under
+  // its new name. Both stay behind the default-deny guard.
+  it('maps /schedule to the Harmonogram Gantt view (default-deny)', () => {
+    const resolved = router.resolve('/schedule');
+    expect(resolved.name).toBe('schedule');
+    expect(resolved.meta.public).not.toBe(true);
+  });
+
+  it('maps /schedule/dispatch to the renamed dispatch board (default-deny)', () => {
+    const resolved = router.resolve('/schedule/dispatch');
+    expect(resolved.name).toBe('schedule-dispatch');
+    expect(resolved.meta.public).not.toBe(true);
+  });
+
+  it('redirects unauthenticated users away from /schedule/dispatch to login', async () => {
+    await router.push('/schedule/dispatch');
+
+    expect(restoreMock).toHaveBeenCalled();
+    expect(router.currentRoute.value.name).toBe('login');
+    expect(router.currentRoute.value.query['redirect']).toBe('/schedule/dispatch');
+  });
 });
