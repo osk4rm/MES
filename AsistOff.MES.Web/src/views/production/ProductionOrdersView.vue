@@ -242,8 +242,8 @@ async function loadLookups(): Promise<void> {
   try {
     const [products, recipes, units] = await Promise.all([
       productService.browse({ pageNumber: 1, pageSize: 100 }),
-      recipeService.browse({ pageSize: 500 }),
-      measureUnitService.browse({ pageSize: 500 })
+      recipeService.browse({ pageNumber: 1, pageSize: 100 }),
+      measureUnitService.browse({ pageNumber: 1, pageSize: 100 })
     ]);
     productOptions.value = products.items.map(p => ({ value: p.id, label: `${p.code} — ${p.name}` }));
     recipeOptions.value = recipes.items.map(r => ({ value: r.id, label: `${r.code} — ${r.name}` }));

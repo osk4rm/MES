@@ -360,8 +360,8 @@ async function loadLookups() {
   try {
     const [prods, skls, tpls] = await Promise.all([
       productService.browse({ pageNumber: 1, pageSize: 100 }),
-      skillService.browse({ pageSize: 500 }),
-      operationTemplateService.browse({ pageSize: 500, isActive: true })
+      skillService.browse({ pageNumber: 1, pageSize: 100 }),
+      operationTemplateService.browse({ pageNumber: 1, pageSize: 200, isActive: true })
     ]);
     products.value = prods.items;
     skills.value = skls.items;

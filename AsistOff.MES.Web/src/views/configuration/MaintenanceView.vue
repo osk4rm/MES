@@ -391,7 +391,7 @@ function onRowAction(key: string, item: MaintenanceWorkOrderResponse): void {
 
 onMounted(async () => {
   try {
-    const m = await machineService.browse({ pageSize: 500 });
+    const m = await machineService.browse({ pageNumber: 1, pageSize: 100 });
     machines.value = m.items;
   } catch {
     // lookups stay empty; machine codes from the API are still rendered

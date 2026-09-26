@@ -525,10 +525,10 @@ async function loadOrder(): Promise<void> {
 async function loadLookups(): Promise<void> {
   try {
     const [m, o, p, w, l] = await Promise.all([
-      machineService.browse({ pageNumber: 1, pageSize: 500 }),
-      operatorService.browse({ pageNumber: 1, pageSize: 500 }),
+      machineService.browse({ pageNumber: 1, pageSize: 100 }),
+      operatorService.browse({ pageNumber: 1, pageSize: 100 }),
       productService.browse({ pageNumber: 1, pageSize: 100 }),
-      warehouseService.browse({ pageNumber: 1, pageSize: 500 }),
+      warehouseService.browse({ pageNumber: 1, pageSize: 100 }),
       lotService.browse({ pageNumber: 1, pageSize: 200 })
     ]);
     machines.value = m.items;
