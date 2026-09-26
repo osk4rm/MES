@@ -4,6 +4,7 @@
     :value="modelValue === null || modelValue === undefined ? '' : String(modelValue)"
     :disabled="disabled"
     :required="required"
+    :aria-invalid="invalid"
     :class="['app-select', { 'app-select--invalid': invalid }]"
     @change="onChange"
     @blur="emit('blur', $event)"

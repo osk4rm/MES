@@ -1,5 +1,5 @@
 <template>
-  <span :class="['app-spinner', `app-spinner--${props.size}`]" role="status" aria-label="Loading"></span>
+  <span :class="['app-spinner', `app-spinner--${props.size}`]" role="status" :aria-label="$t('common.loading')"></span>
 </template>
 
 <script setup lang="ts">

@@ -54,23 +54,23 @@
     />
 
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('recipes.create')" @close="closeModal">
-      <form id="recipe-form" class="form-grid" @submit.prevent="onSave">
-        <AppFormField :label="$t('recipes.code')" required>
-          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.code" required :invalid="invalid" /></template>
+      <form id="recipe-form" ref="formRef" class="form-grid" novalidate @submit.prevent="onSave">
+        <AppFormField :label="$t('recipes.code')" required :error="formErrors.fieldError('code')">
+          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.code" required :invalid="invalid" @blur="formErrors.touch('code')" /></template>
         </AppFormField>
-        <AppFormField :label="$t('recipes.name')" required>
-          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.name" required :invalid="invalid" /></template>
+        <AppFormField :label="$t('recipes.name')" required :error="formErrors.fieldError('name')">
+          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.name" required :invalid="invalid" @blur="formErrors.touch('name')" /></template>
         </AppFormField>
         <AppFormField :label="$t('recipes.description')" class="form-grid__full">
           <template #default="{ id }"><AppInput :id="id" v-model="form.description" /></template>
         </AppFormField>
         <AppFormField :label="$t('recipes.primaryProduct')" class="form-grid__full">
           <template #default="{ id }">
-            <AppAutocomplete :id="id" v-model="form.primaryProductId" :options="productOptions" :placeholder="$t('recipes.primaryProductPlaceholder')" />
+            <AppAutocomplete :id="id" v-model="form.primaryProductId" :options="productOptions" :placeholder="$t('recipes.primaryProductPlaceholder')" @blur="formErrors.touch('primaryProductId')" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('common.active')" class="form-grid__full">
-          <template #default><input type="checkbox" v-model="form.isActive" /></template>
+          <template #default><AppCheckbox v-model="form.isActive" :label="$t('common.active')" /></template>
         </AppFormField>
       </form>
       <template #footer>
@@ -104,8 +104,10 @@ import AppFormField from '../../components/ui/AppFormField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
+import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import AppAutocomplete, { type AutocompleteOption } from '../../components/ui/AppAutocomplete.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
+import { useFormErrors } from '../../composables/useFormErrors';
 import { recipeService, type RecipeResponse } from '../../services/recipeService';
 import { productService } from '../../services/productService';
 import { useToastStore } from '../../stores/toastStore';
@@ -151,20 +153,36 @@ const modalOpen = ref(false);
 const editing = ref<RecipeResponse | null>(null);
 const saving = ref(false);
 const form = reactive({ code: '', name: '', description: '' as string | null, isActive: true, primaryProductId: null as string | null });
+const formRef = ref<HTMLFormElement | null>(null);
+const formErrors = useFormErrors();
+
+function collectErrors(): Record<string, string | null> {
+  return {
+    code: form.code.trim() ? null : t('validation.required'),
+    name: form.name.trim() ? null : t('validation.required')
+  };
+}
 
 function openCreate() {
   editing.value = null;
   Object.assign(form, { code: '', name: '', description: '', isActive: true, primaryProductId: null });
+  formErrors.reset();
   modalOpen.value = true;
 }
 function openEdit(item: RecipeResponse) {
   editing.value = item;
   Object.assign(form, { code: item.code, name: item.name, description: item.description ?? '', isActive: item.isActive, primaryProductId: item.primaryProductId ?? null });
+  formErrors.reset();
   modalOpen.value = true;
 }
 function closeModal() { if (saving.value) return; modalOpen.value = false; editing.value = null; }
 
 async function onSave() {
+  if (!formErrors.submitWith(collectErrors())) {
+    toast.error(t('validation.formHasErrors'));
+    formErrors.focusFirstInvalidIn(formRef.value);
+    return;
+  }
   saving.value = true;
   try {
     const payload = {
@@ -184,7 +202,12 @@ async function onSave() {
     await table.fetch();
     modalOpen.value = false; editing.value = null;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    if (formErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      formErrors.focusFirstInvalidIn(formRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
   } finally { saving.value = false; }
 }
 
