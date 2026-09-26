@@ -48,6 +48,11 @@ public class OperationNodeConfiguration : IEntityTypeConfiguration<OperationNode
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(x => new { x.RecipeVersionId, x.Code }).IsUnique();
+        // OEE summary read path: ListForVersionAsync filters one recipe
+        // version under the tenant global query filter when resolving the
+        // ideal cycle time from confirmed orders. Tenant-leading so isolation
+        // holds with no IgnoreQueryFilters bypass.
+        builder.HasIndex(x => new { x.TenantId, x.RecipeVersionId });
         builder.HasIndex(x => x.TenantId);
     }
 }
