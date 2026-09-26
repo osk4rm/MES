@@ -1,10 +1,16 @@
+# Hardened runtime defaults (issue #271):
+# - every image is pinned by digest (refresh with `docker build` + `docker inspect --format '{{.RepoDigests}}'`)
+# - every long-lived service declares `restart:` plus memory/cpu `deploy.resources.limits`
+# - no weak default secrets: POSTGRES_PASSWORD and AUTH_ISSUER_SIGNING_KEY have
+#   NO fallback value (`${VAR:?message}` fails fast with a generation hint);
+#   create them with `cp .env.example .env && sh scripts/generate-env.sh`
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-mes}
       POSTGRES_USER: ${POSTGRES_USER:-admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
     ports:
       - "5432:5432"
     volumes:
@@ -15,9 +21,15 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
 
   seq:
-    image: datalust/seq:2024.3
+    image: datalust/seq:2024.3@sha256:a9d266df8cbbfd3735e85d39f5fda7cd3d7cbbb2b653b6d39403597da16a17b1
     environment:
       ACCEPT_EULA: "Y"
     ports:
@@ -28,6 +40,11 @@ services:
     volumes:
       - seq_data:/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
 
   api:
     build:
@@ -36,7 +53,12 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: "8080"
-      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:-root}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
+      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
+      # Optional signing-key override for local docker runs; when empty the
+      # Development appsettings placeholder applies (production services below
+      # REQUIRE the generated key instead).
+      auth__IssuerSigningKey: "${AUTH_ISSUER_SIGNING_KEY:-}"
       # Override the Seq sink server URL so logs ship to the seq container
       # over the docker network. Configuration array elements are addressable
       # via __<index>__ — index 1 is the "Seq" sink in appsettings.json.
@@ -55,6 +77,11 @@ services:
       retries: 5
       start_period: 30s
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
 
   web:
     build:
@@ -62,11 +89,29 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: "${VITE_API_BASE_URL:-http://localhost:8080}"
+    environment:
+      # Runtime backend URL (issue #271): the entrypoint renders this to
+      # /config.js at container start; the bundle prefers it over the
+      # build-time VITE_API_BASE_URL above. Must be reachable from the
+      # operator's browser, not from inside Docker.
+      API_BASE_URL: "${API_BASE_URL:-http://localhost:8080}"
     ports:
-      - "3000:80"
+      - "3000:8080"
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
 
   # Production schema upgrades (issue #257). One-shot job that applies all
   # pending EF Core migrations (plus seeders when Boot__RunSeeders=true) and
@@ -82,7 +127,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: "8080"
-      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:-root}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
+      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
+      auth__IssuerSigningKey: "${AUTH_ISSUER_SIGNING_KEY:?AUTH_ISSUER_SIGNING_KEY is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
       Boot__ApplyMigrations: "true"
       Boot__RunSeeders: "${BOOT_RUN_SEEDERS:-false}"
     depends_on:
@@ -101,7 +148,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: "8080"
-      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:-root}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
+      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
+      auth__IssuerSigningKey: "${AUTH_ISSUER_SIGNING_KEY:?AUTH_ISSUER_SIGNING_KEY is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
       Boot__ApplyMigrations: "false"
       Boot__RunSeeders: "false"
       Serilog__WriteTo__1__Args__serverUrl: "http://seq:80"
@@ -121,6 +170,11 @@ services:
       retries: 5
       start_period: 30s
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
 
   # Nightly pg_dump backup example (issue #257). Loops forever: writes a
   # timestamped dump to the pg_backups volume, prunes beyond
@@ -129,13 +183,13 @@ services:
   # `docker compose --profile backup up backup`.
   backup:
     profiles: ["production", "backup"]
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB:-mes}
       POSTGRES_USER: ${POSTGRES_USER:-admin}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-root}
+      PGPASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
       BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-7}
     volumes:
@@ -146,6 +200,11 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
 
   # Agent swarm: dashboard + dispatcher, always on, working on an isolated
   # clone of the repo (named volume `swarm_work`). Starts with the stack
@@ -166,7 +225,7 @@ services:
       # So the e2e agent's `dotnet run` inside the container reaches the
       # compose PostgreSQL instead of localhost.
       ASPNETCORE_ENVIRONMENT: Development
-      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:-root}"
+      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
       # Testcontainers (integration tests) talk to the host Docker daemon.
       DOCKER_HOST: "unix:///var/run/docker.sock"
       TESTCONTAINERS_HOST_OVERRIDE: "host.docker.internal"
@@ -189,6 +248,11 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
 
 volumes:
   postgres_data:

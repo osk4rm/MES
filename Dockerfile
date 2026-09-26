@@ -1,5 +1,7 @@
 # Build stage
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Pinned by digest (issue #271): refresh with
+#   docker build --provenance=false . && docker inspect <image> --format '{{.RepoDigests}}'
+FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
 WORKDIR /src
 
 # Copy project files for layer caching
@@ -35,15 +37,19 @@ RUN dotnet publish AsistOff.MES.Gateway/AsistOff.MES.Gateway.csproj \
     --no-restore
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+# Pinned by digest (issue #271). Runs as the image's built-in non-root `app`
+# user (UID 1654): `docker exec <api> id -u` reports a non-zero UID.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f AS runtime
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /app/publish .
+COPY --from=build --chown=app:app /app/publish .
 
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
+
+USER app
 
 ENTRYPOINT ["dotnet", "AsistOff.MES.Gateway.dll"]
