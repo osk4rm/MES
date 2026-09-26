@@ -17,7 +17,8 @@ frontend `:5173`), ensures the Playwright chromium browser, runs
 (`-KeepStack` keeps it running). Database prerequisite is unchanged:
 `docker compose up -d postgres` (see `docs/e2e-local-setup.md`).
 
-CI runs the same suite in the `e2e-smoke` job (Postgres service +
+Once the `e2e-smoke` workflow patch lands, CI runs the same suite in the
+`e2e-smoke` job (Postgres service +
 `app.ps1 -Action start`) on every PR touching `AsistOff.MES.Web`,
 `AsistOff.MES.Production.*`, `scripts/e2e` or the workflow itself, and
 publishes traces + screenshots + the HTML report when a check fails.

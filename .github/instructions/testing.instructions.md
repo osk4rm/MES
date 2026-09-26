@@ -181,7 +181,8 @@ For any change that touches the UI (new view, form, flow, or a backend
 endpoint the UI consumes), the agent must run the smoke suite on the local
 stack (or click the changed flow through manually when the suite does not
 cover it) before opening the PR, then record the result in the PR body.
-CI runs the `e2e-smoke` job on PRs touching Web / Production areas and
+Once the `e2e-smoke` workflow patch lands, CI runs the `e2e-smoke` job on
+PRs touching Web / Production areas and
 publishes traces + screenshots on failure.
 
 ## General Rules

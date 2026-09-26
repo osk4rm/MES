@@ -36,7 +36,6 @@ $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $WebDir = Join-Path $Root 'AsistOff.MES.Web'
 $isWin = if ($PSVersionTable.PSVersion.Major -ge 6) { $IsWindows } else { $true }
-$npm = if ($isWin) { 'npm.cmd' } else { 'npm' }
 $npx = if ($isWin) { 'npx.cmd' } else { 'npx' }
 
 try {

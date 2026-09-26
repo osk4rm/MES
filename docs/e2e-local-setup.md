@@ -89,5 +89,6 @@ pwsh -File scripts/e2e/smoke.ps1
 
 Traces and screenshots for failing checks are kept under
 `AsistOff.MES.Web/test-results`; the HTML report lands in
-`AsistOff.MES.Web/playwright-report`. CI runs the same suite in the
-`e2e-smoke` job and publishes those artifacts on failure.
+`AsistOff.MES.Web/playwright-report`. Once the `e2e-smoke` workflow patch
+lands, CI runs the same suite in the `e2e-smoke` job and publishes those
+artifacts on failure.

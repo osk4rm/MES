@@ -6,8 +6,8 @@ import { defineConfig } from '@playwright/test';
  *
  * The stack is NOT started here. Locally run `pwsh -File scripts/e2e/smoke.ps1`
  * (starts backend + frontend, seeds via the API, runs this suite, cleans up).
- * In CI the `e2e-smoke` job starts Postgres + the stack before invoking
- * `npx playwright test`.
+ * In CI the (pending) `e2e-smoke` job will start Postgres + the stack
+ * before invoking `npx playwright test`.
  */
 export default defineConfig({
   testDir: './e2e',
