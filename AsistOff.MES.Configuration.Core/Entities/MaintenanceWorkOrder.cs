@@ -17,6 +17,12 @@ public class MaintenanceWorkOrder : IEntity, ISaasy
     public required string Title { get; set; }
     public string? Description { get; set; }
     public Guid MachineId { get; set; }
+    /// <summary>
+    /// The preventive <see cref="MaintenancePlan"/> this corrective order was
+    /// raised from, if any. Populated by slice 2/3 (due evaluation); null for
+    /// manually raised breakdown orders.
+    /// </summary>
+    public Guid? PlanId { get; set; }
     public MaintenanceWorkOrderPriority Priority { get; set; }
     public MaintenanceWorkOrderStatus Status { get; set; } = MaintenanceWorkOrderStatus.Open;
     public DateTime ReportedAt { get; set; }
@@ -25,4 +31,5 @@ public class MaintenanceWorkOrder : IEntity, ISaasy
     public string? ResolutionNotes { get; set; }
 
     public virtual Machine? Machine { get; set; }
+    public virtual MaintenancePlan? Plan { get; set; }
 }
