@@ -335,7 +335,7 @@ async function onSave(): Promise<void> {
       notes: form.notes || null
     };
     if (editing.value) {
-      await productionOrderService.update(editing.value.id, { id: editing.value.id, ...payload });
+      await productionOrderService.update(editing.value.id, { id: editing.value.id, ...payload, concurrencyToken: editing.value.concurrencyToken });
       toast.success(t('toasts.updated'));
     } else {
       await productionOrderService.create(payload);
@@ -378,7 +378,7 @@ async function confirmDialog(): Promise<void> {
       await productionOrderService.remove(confirmTarget.value.id);
       toast.success(t('toasts.deleted'));
     } else {
-      await productionOrderService.release(confirmTarget.value.id);
+      await productionOrderService.release(confirmTarget.value.id, confirmTarget.value.concurrencyToken);
       toast.success(t('productionOrders.releasedToast'));
     }
     await table.fetch();

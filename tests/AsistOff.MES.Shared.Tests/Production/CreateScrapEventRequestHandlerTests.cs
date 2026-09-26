@@ -1,3 +1,4 @@
+using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.ScrapEvents.Create;
 using AsistOff.MES.Production.Domain.Entities;
@@ -14,6 +15,7 @@ public class CreateScrapEventRequestHandlerTests
 {
     private readonly Mock<IScrapEventsRepository> _repository = new();
     private readonly Mock<IProductionOrdersRepository> _orders = new();
+    private readonly Mock<IReasonCodesRepository> _reasonCodes = new();
     private readonly Mock<IGuidProvider> _guids = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ITenantContext> _tenant = new();
@@ -28,7 +30,7 @@ public class CreateScrapEventRequestHandlerTests
     }
 
     private CreateScrapEventRequestHandler CreateSut() =>
-        new(_repository.Object, _orders.Object, _guids.Object, _clock.Object, _tenant.Object);
+        new(_repository.Object, _orders.Object, _reasonCodes.Object, _guids.Object, _clock.Object, _tenant.Object);
 
     private static CreateScrapEventRequest ValidRequest() => new(
         Guid.NewGuid(), Guid.NewGuid(), 5m,

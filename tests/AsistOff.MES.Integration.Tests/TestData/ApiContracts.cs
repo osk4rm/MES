@@ -63,7 +63,8 @@ public sealed record ProductionOrderDto(
     decimal RemainingQuantity,
     int ConfirmationsCount,
     DateTime? CompletedAt,
-    DateTime? ClosedAt);
+    DateTime? ClosedAt,
+    string ConcurrencyToken);
 
 /// <summary>Shape of a recipe as returned by <c>/api/recipes</c>.</summary>
 public sealed record RecipeDto(

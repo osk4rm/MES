@@ -128,7 +128,8 @@ public sealed class ProductionOrdersEndpointTests(MesApplicationFixture fixture)
             priority = 5,
             dueDate = (DateTime?)null,
             notes = "updated",
-            syncId = (string?)null
+            syncId = (string?)null,
+            concurrencyToken = created.ConcurrencyToken
         };
 
         var response = await client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", payload);
@@ -156,7 +157,8 @@ public sealed class ProductionOrdersEndpointTests(MesApplicationFixture fixture)
             priority = 0,
             dueDate = (DateTime?)null,
             notes = (string?)null,
-            syncId = (string?)null
+            syncId = (string?)null,
+            concurrencyToken = released.ConcurrencyToken
         };
 
         var response = await client.PutAsJsonAsync($"{BaseUrl}/{released.Id}", payload);

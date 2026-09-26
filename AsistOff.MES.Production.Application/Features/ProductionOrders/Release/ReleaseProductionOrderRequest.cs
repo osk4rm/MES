@@ -6,4 +6,4 @@ using AsistOff.MES.Users.Core.Rbac;
 namespace AsistOff.MES.Production.Application.Features.ProductionOrders.Release;
 
 [RequirePermission(RbacDefaults.ProductionWrite)]
-public record ReleaseProductionOrderRequest(Guid Id) : ITenantRequest<ProductionOrderResponse>;
+public record ReleaseProductionOrderRequest(Guid Id, string? ConcurrencyToken = null) : ITenantRequest<ProductionOrderResponse>;

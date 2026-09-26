@@ -55,6 +55,7 @@ internal static class ProductionOrderMappers
             remaining,
             confirmationsCount,
             completedAt,
-            closedAt);
+            closedAt,
+            ProductionOrderConcurrency.TokenOf(o));
     }
 }

@@ -6,4 +6,4 @@ using AsistOff.MES.Users.Core.Rbac;
 namespace AsistOff.MES.Production.Application.Features.ProductionOrders.Close;
 
 [RequirePermission(RbacDefaults.ProductionWrite)]
-public record CloseProductionOrderRequest(Guid Id) : ITenantRequest<ProductionOrderResponse>;
+public record CloseProductionOrderRequest(Guid Id, string? ConcurrencyToken = null) : ITenantRequest<ProductionOrderResponse>;

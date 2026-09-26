@@ -1,7 +1,10 @@
+using System.Diagnostics;
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
+using AsistOff.MES.Shared.Abstractions.Observability;
 using MediatR;
 
 namespace AsistOff.MES.Production.Application.Features.Oee.Snapshot;
@@ -10,13 +13,15 @@ internal sealed class GetOeeSnapshotRequestHandler(
     IMachinesRepository machinesRepository,
     IWorkCenterCalendarsRepository calendarsRepository,
     IDowntimeEventsRepository downtimeEventsRepository,
-    IProductionConfirmationsRepository confirmationsRepository)
+    IProductionConfirmationsRepository confirmationsRepository,
+    ITenantContext tenantContext)
     : IRequestHandler<GetOeeSnapshotRequest, OeeSnapshotResponse>
 {
     private const double MaxWindowDays = 93;
 
     public async Task<OeeSnapshotResponse> Handle(GetOeeSnapshotRequest request, CancellationToken cancellationToken)
     {
+        var stopwatch = Stopwatch.StartNew();
         if (request.MachineId == Guid.Empty)
             throw new ValidationException(nameof(request.MachineId), "Machine is required.");
 
@@ -82,6 +87,12 @@ internal sealed class GetOeeSnapshotRequestHandler(
         double? oee = availability.HasValue && performance.HasValue && quality.HasValue
             ? OeeMath.Round4(availability.Value * performance.Value * quality.Value)
             : null;
+
+        // Analytics latency, success path only: failed reads (400/404) are
+        // not snapshot performance. The tenant tag comes from the ambient
+        // tenant context (guaranteed present for ITenantRequest) as a metric
+        // tag only — the query itself stays tenant-filtered as before.
+        MesMeters.RecordOeeSnapshot(request.MachineId, tenantContext.TenantId, stopwatch.Elapsed);
 
         return new OeeSnapshotResponse(
             request.MachineId,

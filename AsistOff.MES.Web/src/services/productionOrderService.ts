@@ -35,6 +35,7 @@ export interface ProductionOrderResponse {
   confirmationsCount: number;
   completedAt?: string | null;
   closedAt?: string | null;
+  concurrencyToken: string;
 }
 
 export interface BrowseProductionOrdersRequest extends IPagedRequest {
@@ -61,9 +62,14 @@ export interface CreateProductionOrderRequest {
 
 export interface UpdateProductionOrderRequest extends CreateProductionOrderRequest {
   id: string;
+  concurrencyToken: string;
 }
 
 const BASE = '/api/production-orders';
+
+function tokenParam(concurrencyToken?: string): { params?: Record<string, string> } | undefined {
+  return concurrencyToken ? { params: { concurrencyToken } } : undefined;
+}
 
 export const productionOrderService = {
   async browse(req: BrowseProductionOrdersRequest): Promise<IPagedResponse<ProductionOrderResponse>> {
@@ -85,16 +91,16 @@ export const productionOrderService = {
   async remove(id: string): Promise<void> {
     await http.delete(`${BASE}/${id}`);
   },
-  async release(id: string): Promise<ProductionOrderResponse> {
-    const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/release`);
+  async release(id: string, concurrencyToken?: string): Promise<ProductionOrderResponse> {
+    const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/release`, null, tokenParam(concurrencyToken));
     return data;
   },
-  async complete(id: string): Promise<ProductionOrderResponse> {
-    const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/complete`);
+  async complete(id: string, concurrencyToken?: string): Promise<ProductionOrderResponse> {
+    const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/complete`, null, tokenParam(concurrencyToken));
     return data;
   },
-  async close(id: string): Promise<ProductionOrderResponse> {
-    const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/close`);
+  async close(id: string, concurrencyToken?: string): Promise<ProductionOrderResponse> {
+    const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/close`, null, tokenParam(concurrencyToken));
     return data;
   },
   async getMovements(id: string): Promise<MovementPreviewLine[]> {
