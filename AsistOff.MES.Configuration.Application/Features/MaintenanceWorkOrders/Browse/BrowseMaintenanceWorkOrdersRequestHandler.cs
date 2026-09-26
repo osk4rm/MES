@@ -30,6 +30,6 @@ internal sealed class BrowseMaintenanceWorkOrdersRequestHandler(IMaintenanceWork
     }
 
     internal static MaintenanceWorkOrderResponse Map(MaintenanceWorkOrder w) => new(
-        w.Id, w.Code, w.Title, w.Description, w.MachineId, w.Machine?.Code,
+        w.Id, w.Code, w.Title, w.Description, w.MachineId, w.Machine?.Code, w.PlanId,
         w.Priority, w.Status, w.ReportedAt, w.StartedAt, w.CompletedAt, w.ResolutionNotes);
 }

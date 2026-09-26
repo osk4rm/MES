@@ -16,6 +16,14 @@ public interface IMaintenanceWorkOrdersRepository
 
     Task<MaintenanceWorkOrder?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     /// <summary>
+    /// Open or InProgress work orders raised from the given preventive plans.
+    /// Used as the idempotency guard for due evaluation: a plan with a live
+    /// order must not raise a duplicate. Runs under the tenant global query
+    /// filter.
+    /// </summary>
+    Task<IReadOnlyCollection<MaintenanceWorkOrder>> ListOpenByPlanIdsAsync(
+        IReadOnlyCollection<Guid> planIds, CancellationToken cancellationToken = default);
+    /// <summary>
     /// Done work orders of one Work Center whose <c>CompletedAt</c> falls
     /// inside the window (inclusive). Runs under the tenant global query
     /// filter. Non-Done rows and rows with null <c>CompletedAt</c> never
