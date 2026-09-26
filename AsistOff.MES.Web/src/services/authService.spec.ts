@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import http from './http';
-import { refreshSession, signIn, signOut } from './authService';
+import { extractSessionPermissions, refreshSession, restoreSession, signIn, signOut } from './authService';
 
 vi.mock('./http', () => ({
   default: {
@@ -50,5 +50,61 @@ describe('authService cookie transport', () => {
     await signOut();
 
     expect(postMock).toHaveBeenCalledWith('/api/auth/sign-out', {});
+  });
+});
+
+// Permission grants from the response-body claims (issue #273): the route
+// guard reads them without ever touching a token.
+describe('authService session permissions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('extracts the permissions claim list', () => {
+    const result = extractSessionPermissions({
+      accessToken: '',
+      refreshToken: '',
+      expires: 0,
+      claims: { permissions: ['tenant.admin', 'production.write'] }
+    });
+
+    expect(result).toEqual(['tenant.admin', 'production.write']);
+  });
+
+  it('fails closed on missing or malformed claims', () => {
+    expect(extractSessionPermissions(undefined)).toEqual([]);
+    expect(extractSessionPermissions(null)).toEqual([]);
+    expect(extractSessionPermissions({ accessToken: '', refreshToken: '', expires: 0 })).toEqual([]);
+    expect(
+      extractSessionPermissions({
+        accessToken: '',
+        refreshToken: '',
+        expires: 0,
+        claims: { permissions: ['', 42 as unknown as string] }
+      })
+    ).toEqual([]);
+  });
+
+  it('restores grants and email from the refresh response', async () => {
+    postMock.mockResolvedValue({
+      data: {
+        accessToken: '',
+        refreshToken: '',
+        expires: 0,
+        email: 'admin@dev.local',
+        claims: { permissions: ['tenant.admin'] }
+      }
+    });
+
+    const restored = await restoreSession();
+
+    expect(postMock).toHaveBeenCalledWith('/api/auth/refresh', {});
+    expect(restored).toEqual({ ok: true, permissions: ['tenant.admin'], email: 'admin@dev.local' });
+  });
+
+  it('reports a failed restore without grants instead of throwing', async () => {
+    postMock.mockRejectedValue({ response: { status: 401 } });
+
+    await expect(restoreSession()).resolves.toEqual({ ok: false, permissions: [] });
   });
 });

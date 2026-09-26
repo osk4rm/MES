@@ -61,6 +61,14 @@
       />
     </AppCard>
 
+    <div v-if="table.error.value" class="list-error" role="alert">
+      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+      <span class="list-error__message">{{ table.error.value }}</span>
+      <AppButton variant="secondary" icon="pi pi-refresh" :loading="table.loading.value" @click="table.retry">
+        {{ $t('common.retry') }}
+      </AppButton>
+    </div>
+
     <AppTable
       :items="table.items.value"
       :columns="columns"
@@ -171,8 +179,9 @@ const toast = useToastStore();
 interface Filters { code?: string; name?: string; isActive?: boolean; groupId?: string; scanBy?: ScanBy }
 
 const table = useCrudPage<ProductResponse, Filters>({
-  fetch: (req) => productService.browse(req),
-  initialFilters: {}
+  fetch: (req, init) => productService.browse(req, init),
+  initialFilters: {},
+  errorFallback: t('errors.loadFailed')
 });
 
 const columns = computed(() => [
@@ -348,4 +357,16 @@ onMounted(async () => {
 .scan-result__main { display: flex; gap: var(--space-2); align-items: baseline; }
 .scan-result__meta { display: flex; gap: var(--space-3); align-items: center; color: var(--color-text-muted); }
 .scan-card :deep(.app-empty-state) { min-height: 0; padding: var(--space-4) var(--space-2) var(--space-1); }
+.list-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  color: var(--color-danger);
+  background: var(--color-bg);
+}
+.list-error__message { flex: 1; }
 </style>

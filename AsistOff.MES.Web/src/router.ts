@@ -1,7 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import type { RouteRecordRaw } from 'vue-router';
+import type { RouteLocationNormalized } from 'vue-router';
 import { useAuthStore } from './stores/authStore';
-import { refreshSession } from './services/authService';
+import { useToastStore } from './stores/toastStore';
+import { restoreSession } from './services/authService';
+import { abortPendingRequests } from './services/http';
+import { Permissions } from './models/authModels';
+import i18n from './i18n';
+import type { RouteRecordRaw } from 'vue-router';
 
 const AppShell = () => import('./components/layout/AppShell.vue');
 
@@ -33,7 +38,13 @@ const routes: RouteRecordRaw[] = [
       { path: 'reports/oee', name: 'reports-oee', component: () => import('./views/production/OeeDashboardView.vue'), meta: { titleKey: 'nav.oeeDashboard', icon: 'pi pi-chart-bar' } },
       { path: 'reports/reliability', name: 'reports-reliability', component: () => import('./views/production/ReliabilityDashboardView.vue'), meta: { titleKey: 'nav.reliabilityDashboard', icon: 'pi pi-wrench' } },
       { path: 'settings', name: 'settings', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.settings', icon: 'pi pi-cog' } },
-      { path: 'settings/roles', name: 'roles', component: () => import('./views/settings/RolesView.vue'), meta: { titleKey: 'nav.roles', icon: 'pi pi-lock' } },
+      // RBAC management (issue #273): every roles/permissions endpoint
+      // requires tenant.admin on the backend, so the route carries the same
+      // requirement. Production/configuration list views stay readable on
+      // purpose — the backend keeps all browse/get reads open to any
+      // authenticated user, and write-gating them would lock read-only
+      // shopfloor tablets out of the dispatch board.
+      { path: 'settings/roles', name: 'roles', component: () => import('./views/settings/RolesView.vue'), meta: { titleKey: 'nav.roles', icon: 'pi pi-lock', permission: Permissions.TenantAdmin } },
       {
         path: 'configuration',
         redirect: '/configuration/products',
@@ -62,21 +73,55 @@ const router = createRouter({
   routes
 });
 
+/**
+ * Permission check for the route guard (issue #273), extracted pure for
+ * unit tests: the deepest matched route carrying `meta.permission` wins,
+ * and grants are exact-match (parity with the backend AuthorizationBehavior).
+ */
+export function requiredPermissionFor(route: Pick<RouteLocationNormalized, 'matched'>): string | undefined {
+  for (let i = route.matched.length - 1; i >= 0; i -= 1) {
+    const required = route.matched[i]?.meta?.['permission'];
+    if (typeof required === 'string' && required.length > 0) return required;
+  }
+  return undefined;
+}
+
+export function hasRoutePermission(route: Pick<RouteLocationNormalized, 'matched'>, permissions: string[]): boolean {
+  const required = requiredPermissionFor(route);
+  if (!required) return true;
+  return permissions.includes(required);
+}
+
 router.beforeEach(async (to) => {
+  // Leaving the page: cancel the previous view's tracked list fetches so a
+  // stalled terminal never commits state after navigation.
+  abortPendingRequests();
   const auth = useAuthStore();
   const isPublic = to.meta?.public === true;
   if (!isPublic && !auth.isAuthenticated) {
     // In-memory session is gone after a reload, but the httpOnly cookies
     // may still be valid — re-prove the session once before bouncing to
     // login (issue #242). User display info stays unknown until sign-in.
-    const restored = await refreshSession();
-    if (restored) {
-      auth.setAuth(auth.user);
-      return true;
+    // The refresh claims also restore permission grants (issue #273).
+    const restored = await restoreSession();
+    if (!restored.ok) {
+      return { name: 'login', query: to.fullPath && to.fullPath !== '/' ? { redirect: to.fullPath } : undefined };
     }
-    return { name: 'login', query: to.fullPath && to.fullPath !== '/' ? { redirect: to.fullPath } : undefined };
+    const user = auth.user ?? (restored.email ? { email: restored.email } : null);
+    auth.setAuth(user, restored.permissions);
+    // Fall through to the permission gate below: a restored session must
+    // satisfy meta.permission exactly like a fresh sign-in.
   }
   if (isPublic && auth.isAuthenticated && (to.name === 'login' || to.name === 'register')) {
+    return { name: 'dashboard' };
+  }
+  // Permission gate (issue #273): direct URL entry is blocked the same way
+  // as sidebar navigation — redirect to the dashboard with a toast. Backend
+  // 403s remain the enforcer; this keeps users out of views they cannot use.
+  if (!hasRoutePermission(to, auth.permissions)) {
+    try {
+      useToastStore().error(i18n.global.t('errors.accessDenied'));
+    } catch { /* ignore - pinia may be unavailable in tests */ }
     return { name: 'dashboard' };
   }
   return true;

@@ -1,4 +1,4 @@
-import http from './http';
+import http, { type HttpRequestInit } from './http';
 import type { IPagedRequest, IPagedResponse } from '../models/pagedModels';
 import { buildPagedParams } from './tenantService';
 
@@ -54,8 +54,8 @@ export interface UpdateProductRequest extends CreateProductRequest {
 const BASE = '/api/products';
 
 export const productService = {
-  async browse(req: BrowseProductsRequest): Promise<IPagedResponse<ProductResponse>> {
-    const { data } = await http.get<IPagedResponse<ProductResponse>>(BASE, { params: buildPagedParams(req) });
+  async browse(req: BrowseProductsRequest, init?: HttpRequestInit): Promise<IPagedResponse<ProductResponse>> {
+    const { data } = await http.get<IPagedResponse<ProductResponse>>(BASE, { params: buildPagedParams(req), signal: init?.signal });
     return data;
   },
   async get(id: string): Promise<ProductResponse> {
