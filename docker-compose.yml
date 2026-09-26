@@ -4,6 +4,21 @@
 # - no weak default secrets: POSTGRES_PASSWORD and AUTH_ISSUER_SIGNING_KEY have
 #   NO fallback value (`${VAR:?message}` fails fast with a generation hint);
 #   create them with `cp .env.example .env && sh scripts/generate-env.sh`
+# Server deployment (Coolify, same model as the asiki project):
+# - this base file publishes NO host ports and is safe to deploy as-is:
+#   only the `web` service gets a public domain (port 8080) in Coolify;
+#   browsers stay same-origin because nginx proxies /api/*, /health and
+#   /swagger to the `api` container (see AsistOff.MES.Web/nginx.conf).
+# - `docker-compose.override.yml` (local dev only) re-adds host ports and
+#   the Development environment. Coolify runs compose with an explicit `-f`
+#   and IGNORES the override file, so the server never publishes host ports.
+# - the default `api` service is the simple single-server path: it runs
+#   with ASPNETCORE_ENVIRONMENT=Production and applies EF Core migrations on
+#   boot (BOOT_APPLY_MIGRATIONS, asiki-style). For strict plant rollouts use
+#   the `production` profile instead (migrate job + api-prod, never migrates
+#   on boot) — see docs/production-runbook.md.
+name: asistoff-mes
+
 services:
   postgres:
     image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
@@ -11,8 +26,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-mes}
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -32,11 +45,6 @@ services:
     image: datalust/seq:2024.3@sha256:a9d266df8cbbfd3735e85d39f5fda7cd3d7cbbb2b653b6d39403597da16a17b1
     environment:
       ACCEPT_EULA: "Y"
-    ports:
-      # Seq serves both the web UI and the ingestion API on a single HTTP
-      # port (80 inside the container). Open http://localhost:5341 in the
-      # browser to view logs; the API ships logs to the same endpoint.
-      - "${SEQ_PORT:-5341}:80"
     volumes:
       - seq_data:/data
     restart: unless-stopped
@@ -51,7 +59,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_HTTP_PORTS: "8080"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
       postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
@@ -59,12 +67,18 @@ services:
       # Development appsettings placeholder applies (production services below
       # REQUIRE the generated key instead).
       auth__IssuerSigningKey: "${AUTH_ISSUER_SIGNING_KEY:-}"
+      # Single-server path: apply pending EF Core migrations on boot
+      # (asiki-style). The strict `production` profile (migrate job +
+      # api-prod) keeps Boot off and is documented in production-runbook.md.
+      Boot__ApplyMigrations: "${BOOT_APPLY_MIGRATIONS:-true}"
+      Boot__RunSeeders: "${BOOT_RUN_SEEDERS:-false}"
+      # Must be the public frontend origin (e.g. https://1-2-3-4.sslip.io).
+      # Production refuses to boot with an empty list (fail-fast in Program).
+      cors__allowedOrigins__0: "${CORS_ALLOWED_ORIGIN:-}"
       # Override the Seq sink server URL so logs ship to the seq container
       # over the docker network. Configuration array elements are addressable
       # via __<index>__ — index 1 is the "Seq" sink in appsettings.json.
       Serilog__WriteTo__1__Args__serverUrl: "http://seq:80"
-    ports:
-      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,15 +102,18 @@ services:
       context: ./AsistOff.MES.Web
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: "${VITE_API_BASE_URL:-http://localhost:8080}"
+        # Falls back to API_BASE_URL so Coolify builds bake the public URL
+        # too (the runtime API_BASE_URL still wins via /config.js).
+        VITE_API_BASE_URL: "${VITE_API_BASE_URL:-${API_BASE_URL:-http://localhost:8080}}"
     environment:
       # Runtime backend URL (issue #271): the entrypoint renders this to
       # /config.js at container start; the bundle prefers it over the
-      # build-time VITE_API_BASE_URL above. Must be reachable from the
-      # operator's browser, not from inside Docker.
+      # build-time VITE_API_BASE_URL above.
+      # On the server this MUST be the public frontend origin itself
+      # (e.g. https://1-2-3-4.sslip.io): browsers then stay same-origin
+      # and nginx proxies /api/* to the api container — no CORS, Secure
+      # cookies just work. A direct api URL also works but needs CORS.
       API_BASE_URL: "${API_BASE_URL:-http://localhost:8080}"
-    ports:
-      - "3000:8080"
     depends_on:
       api:
         condition: service_healthy
@@ -154,8 +171,6 @@ services:
       Boot__ApplyMigrations: "false"
       Boot__RunSeeders: "false"
       Serilog__WriteTo__1__Args__serverUrl: "http://seq:80"
-    ports:
-      - "8081:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -206,56 +221,7 @@ services:
           cpus: "0.50"
           memory: 512M
 
-  # Agent swarm: dashboard + dispatcher, always on, working on an isolated
-  # clone of the repo (named volume `swarm_work`). Starts with the stack
-  # (`docker compose up -d`) and survives reboots (`restart: unless-stopped`).
-  # Needs GH_TOKEN in `.env`. Start alone with: docker compose up -d swarm
-  swarm:
-    build:
-      context: ./docker/swarm
-      dockerfile: Dockerfile
-    environment:
-      TEMP: /tmp
-      TMPDIR: /tmp
-      DASHBOARD_PORT: "5178"
-      REPO_URL: "${SWARM_REPO_URL:-https://github.com/osk4rm/MES.git}"
-      REPO_BRANCH: "${SWARM_REPO_BRANCH:-master}"
-      GH_TOKEN: "${GH_TOKEN:-}"
-      SWARM_AUTOSTART_DISPATCHER: "${SWARM_AUTOSTART_DISPATCHER:-1}"
-      # So the e2e agent's `dotnet run` inside the container reaches the
-      # compose PostgreSQL instead of localhost.
-      ASPNETCORE_ENVIRONMENT: Development
-      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
-      # Testcontainers (integration tests) talk to the host Docker daemon.
-      DOCKER_HOST: "unix:///var/run/docker.sock"
-      TESTCONTAINERS_HOST_OVERRIDE: "host.docker.internal"
-    ports:
-      - "${DASHBOARD_PORT:-5178}:5178"
-    volumes:
-      - swarm_work:/work
-      # opencode config + auth from the host (no spaces in these paths).
-      - type: bind
-        source: "${USERPROFILE}/.config/opencode"
-        target: /root/.config/opencode
-      - type: bind
-        source: "${USERPROFILE}/.local/share/opencode"
-        target: /root/.local/share/opencode
-      # Docker socket for Testcontainers.
-      - type: bind
-        source: /var/run/docker.sock
-        target: /var/run/docker.sock
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: "2.0"
-          memory: 4G
-
 volumes:
   postgres_data:
   pg_backups:
   seq_data:
-  swarm_work:

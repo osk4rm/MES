@@ -99,6 +99,20 @@ Set `Seed:Enabled=false` (or run the Gateway outside `Development`). `DevTenantS
 short-circuits when either condition is false, so production images never auto-provision
 tenants.
 
+## Deployment (Linux server + Coolify)
+
+Same model as the asiki project: Coolify builds `docker-compose.yml` straight
+from the repo and exposes only the `web` frontend (port `8080`) — browsers stay
+same-origin because nginx proxies `/api/*`, `/health` and `/swagger` to the
+`api` container. The base compose file publishes **no** host ports and contains
+only MES services (the agent `swarm` lives in the local-only
+`docker-compose.swarm.yml`); `docker-compose.override.yml` re-adds host ports
+and `Development` defaults for local work.
+
+Full guide (DNS, Coolify env vars, migrations, backup, CI webhook, smoke test):
+[`docs/deployment.md`](docs/deployment.md). Strict plant rollouts (migrate job +
+`api-prod`): [`docs/production-runbook.md`](docs/production-runbook.md).
+
 ## Running the project
 
 ### Prerequisites

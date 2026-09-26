@@ -6,3 +6,5 @@
 AsistOff.MES.Web
 **/*.md
 **/*.user
+# Never bake local secrets into images — compose injects env at runtime.
+.env

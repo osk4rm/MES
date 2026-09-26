@@ -144,3 +144,22 @@ jobs:
         run: npm ci
       - name: Type check + build
         run: npm run build
+
+  deploy:
+    name: Trigger Coolify deploy
+    needs: [backend, frontend]
+    # The backend/frontend jobs are skipped for docs-only changes; `needs`
+    # on a skipped job skips this one too. Runs only on pushes to the main
+    # branches (never on PRs). Without the secrets the step is a no-op, so
+    # forks and local setups need no configuration. See docs/deployment.md.
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    env:
+      COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+    steps:
+      - name: Trigger Coolify deploy
+        if: ${{ env.COOLIFY_WEBHOOK != '' }}
+        run: |
+          curl -fsS -X GET "$COOLIFY_WEBHOOK" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN"

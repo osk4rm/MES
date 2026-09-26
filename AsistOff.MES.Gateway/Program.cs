@@ -11,6 +11,7 @@ using AsistOff.MES.Shared.Infrastructure.Health;
 using AsistOff.MES.Shared.Infrastructure.Observability;
 using AsistOff.MES.Shared.Infrastructure.Protection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 
 // Two-stage Serilog initialization. The bootstrap logger captures any failure
@@ -77,6 +78,20 @@ try
 
     builder.Services.AddExceptionHandling();
 
+    // Reverse-proxy headers (single-server / Coolify deployment, same as
+    // asiki): TLS terminates at the Coolify proxy (Traefik) and the web
+    // nginx forwards X-Forwarded-* headers, so the API sees the original
+    // https scheme and client IP (auth cookies, Origin checks, Swagger).
+    // Known proxies/networks are cleared because the only ingress is the
+    // trusted compose network behind the proxy — never expose the api
+    // container directly to the internet.
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+
     // OpenTelemetry traces/metrics (issue #252): OTLP export when an endpoint
     // is configured, Prometheus exposition when enabled, no-op otherwise.
     builder.Services.AddMesObservability(builder.Configuration);
@@ -135,6 +150,10 @@ try
     }
 
     var app = builder.Build();
+
+    // Must run first so the rest of the pipeline (auth, Origin checks,
+    // Swagger, request logs) observes the browser-facing scheme/host.
+    app.UseForwardedHeaders();
 
     // Correlation ID first: every request carries one opaque GUID from
     // browser to logs to error payload (issue #251). Reads inbound

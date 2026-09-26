@@ -1,0 +1,60 @@
+# Agent swarm: dashboard + dispatcher for LOCAL agent development only.
+# Deliberately a separate file so server deployments (Coolify) never see it:
+# the server compose (docker-compose.yml) contains only MES services
+# (postgres, seq, api, web + the migrate/api-prod/backup profiles).
+#
+# Usage (needs GH_TOKEN in `.env`):
+#   docker compose -f docker-compose.yml -f docker-compose.swarm.yml up -d --build swarm
+#   docker compose -f docker-compose.yml -f docker-compose.swarm.yml logs -f swarm
+#
+# The swarm works on an isolated clone of the repo (named volume `swarm_work`)
+# and survives reboots (`restart: unless-stopped`).
+name: asistoff-mes
+
+services:
+  swarm:
+    build:
+      context: ./docker/swarm
+      dockerfile: Dockerfile
+    environment:
+      TEMP: /tmp
+      TMPDIR: /tmp
+      DASHBOARD_PORT: "5178"
+      REPO_URL: "${SWARM_REPO_URL:-https://github.com/osk4rm/MES.git}"
+      REPO_BRANCH: "${SWARM_REPO_BRANCH:-master}"
+      GH_TOKEN: "${GH_TOKEN:-}"
+      SWARM_AUTOSTART_DISPATCHER: "${SWARM_AUTOSTART_DISPATCHER:-1}"
+      # So the e2e agent's `dotnet run` inside the container reaches the
+      # compose PostgreSQL instead of localhost.
+      ASPNETCORE_ENVIRONMENT: Development
+      postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
+      # Testcontainers (integration tests) talk to the host Docker daemon.
+      DOCKER_HOST: "unix:///var/run/docker.sock"
+      TESTCONTAINERS_HOST_OVERRIDE: "host.docker.internal"
+    ports:
+      - "${DASHBOARD_PORT:-5178}:5178"
+    volumes:
+      - swarm_work:/work
+      # opencode config + auth from the host (no spaces in these paths).
+      - type: bind
+        source: "${USERPROFILE}/.config/opencode"
+        target: /root/.config/opencode
+      - type: bind
+        source: "${USERPROFILE}/.local/share/opencode"
+        target: /root/.local/share/opencode
+      # Docker socket for Testcontainers.
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+
+volumes:
+  swarm_work:

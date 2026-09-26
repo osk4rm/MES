@@ -1,0 +1,205 @@
+# Deployment — Linux server + Coolify (same model as asiki)
+
+Target environment:
+
+```
+GitHub -> GitHub Actions (CI) -> Coolify (build from repo) -> Linux server -> HTTPS (Let's Encrypt)
+```
+
+Coolify builds images directly from `docker-compose.yml` in the repository, so no
+external registry or complex pipeline is needed. The server compose file contains
+**only MES services** (`postgres`, `seq`, `api`, `web` + the `migrate`/`production`/
+`backup` profiles) — the agent `swarm` lives in the separate local-only
+`docker-compose.swarm.yml` and is never deployed.
+
+Only the `web` (frontend) container gets a public domain. Browsers stay
+same-origin: the web nginx proxies `/api/*`, `/health` and `/swagger` to the
+`api` container over the compose network — no CORS issues, and the `Secure`
+`SameSite=Lax` auth cookies just work.
+
+---
+
+## 1. Server and Coolify
+
+This guide assumes the same server that already runs asiki: Coolify is installed
+and validated (`Servers → localhost → Validate`). If you are starting from
+scratch, follow asiki's `docs/deployment.md` sections 1–2 (OVH VPS, Ubuntu 24.04,
+Coolify install script, admin account).
+
+Minimum for MES alone: 2 vCPU / 4 GB RAM (api 2G + postgres 1G + seq 1G limits).
+Seq (structured-log UI) is optional — see section 8.
+
+---
+
+## 2. Domain and DNS
+
+Two options, same as asiki.
+
+### A. Without your own domain (quick test, recommended first)
+
+Coolify can generate a working domain from the server IP via `sslip.io` and issue
+a Let's Encrypt certificate for it:
+
+```
+TWOJ_IP.sslip.io
+```
+
+Use it as the `web` service domain (without `http://`), with the container port
+`8080`. limitations: none for testing; switch to B for production use.
+
+### B. Own domain (recommended long-term)
+
+1. In the DNS zone add an **A** record: `mes.twojadomena.pl` → `TWOJ_IP`.
+2. In Coolify set the `web` service domain to `mes.twojadomena.pl` (port `8080`).
+3. Coolify issues the Let's Encrypt certificate once DNS points at the server.
+
+---
+
+## 3. Project in Coolify
+
+1. **Projects → + Add** → name e.g. `mes` → environment `production`.
+2. **+ New Resource → Docker Compose** (Git repository option).
+3. Connect GitHub (GitHub App or deploy key / token).
+4. Pick the repository, branch **`master`**, compose path: `/docker-compose.yml`.
+   Coolify runs compose with an explicit `-f` and **ignores**
+   `docker-compose.override.yml` (local-dev ports) — nothing extra is published
+   on the server.
+5. In **Environment Variables** add (generate secrets with
+   `sh scripts/generate-env.sh` on any machine with sh/openssl):
+
+   ```env
+   ASPNETCORE_ENVIRONMENT=Production
+   POSTGRES_DB=mes
+   POSTGRES_USER=admin
+   POSTGRES_PASSWORD=<openssl rand -base64 32>
+   AUTH_ISSUER_SIGNING_KEY=<openssl rand -base64 48>
+   API_BASE_URL=https://TWOJA_DOMENA
+   VITE_API_BASE_URL=https://TWOJA_DOMENA
+   CORS_ALLOWED_ORIGIN=https://TWOJA_DOMENA
+   ```
+
+   Replace `https://TWOJA_DOMENA` with e.g. `https://1-2-3-4.sslip.io`
+   (no trailing slash). `API_BASE_URL` **must be the public frontend origin
+   itself** — the web container renders it into `/config.js`, and because the
+   origin matches, all `/api/*` calls stay same-origin through the nginx proxy.
+
+   | Variable | Meaning |
+   | --- | --- |
+   | `ASPNETCORE_ENVIRONMENT` | `Production` on the server (strict CORS, no Swagger, secrets enforced) |
+   | `POSTGRES_PASSWORD` | min. 32 bytes; enforced at boot, no defaults |
+   | `AUTH_ISSUER_SIGNING_KEY` | min. 32 bytes (256 bits); signs the session JWTs |
+   | `API_BASE_URL` / `VITE_API_BASE_URL` | public frontend origin (runtime value wins, no rebuild needed) |
+   | `CORS_ALLOWED_ORIGIN` | same public origin; Production refuses to boot without it |
+   | `BOOT_APPLY_MIGRATIONS` | default `true`: api applies EF Core migrations on boot (single-server path) |
+   | `BOOT_RUN_SEEDERS` | default `false`; seeders never run in Production via this path |
+
+6. In **Domains** (or the FQDN field of the `web` service) set the domain with
+   the internal port `8080`:
+   - `https://mes.twojadomena.pl:8080`, or
+   - `TWOJ_IP.sslip.io:8080`.
+7. Click **Deploy**.
+
+Coolify builds and starts four containers:
+- `postgres` (data in volume `postgres_data`),
+- `seq` (logs in `seq_data`; no public domain needed),
+- `api` (EF Core migrations apply automatically on boot),
+- `web` (nginx: SPA + proxy `/api`, `/health`, `/swagger` → `api:8080`).
+
+### Updates
+
+- Manually: **Deploy** in Coolify.
+- Automatically: webhook from GitHub Actions (section 6) or **Auto Deploy** for
+  the `master` branch in Coolify.
+
+---
+
+## 4. After deploy — smoke test
+
+1. Open `https://TWOJA_DOMENA` — the login page loads (served by `web`).
+2. Register a tenant: **Register** → tenant name + admin account
+   (`POST /api/tenants`, anonymous, per-IP rate-limited).
+3. Log in as the tenant admin.
+4. Create one product (`Configuration → Products`) and one Production Order.
+5. Restart the stack in Coolify (**Restart**) and verify the data is still there.
+
+If the UI loads but login fails with a network error, check in the running `web`
+container what backend URL was rendered:
+
+```bash
+docker exec <project>-web-1 cat /usr/share/nginx/html/config.js
+# window.__MES_CONFIG__ = { apiBaseUrl: "https://TWOJA_DOMENA" };
+```
+
+It must equal the public origin. If not, fix `API_BASE_URL` in Coolify and
+**Redeploy** (or restart `web` — no rebuild needed).
+
+---
+
+## 5. Backup and restore PostgreSQL
+
+Scripts in the repository (same convention as asiki):
+
+```bash
+cd /opt/mes              # directory Coolify cloned the repo into (or your copy)
+sh scripts/backup-db.sh  # writes /opt/mes-backups/mes_YYYY-MM-DD_HHMMSS.sql.gz
+sh scripts/restore-db.sh /opt/mes-backups/mes_2026-01-01_030000.sql.gz
+```
+
+Automatic backup (cron, daily 3:00):
+
+```bash
+crontab -e
+# add:
+0 3 * * * cd /opt/mes && BACKUP_DIR=/opt/mes-backups sh scripts/backup-db.sh >> /var/log/mes-backup.log 2>&1
+```
+
+The script deletes copies older than 14 days (`RETENTION_DAYS`).
+For restores, first stop everything writing to the database
+(`docker compose stop api web`), restore, then start again and confirm
+`GET /health/ready` returns `200`.
+
+The compose `backup` service (`production`/`backup` profiles, nightly `pg_dump`
+into the `pg_backups` volume) is an alternative for strict plant setups — see
+`docs/production-runbook.md`.
+
+---
+
+## 6. GitHub Actions → deployment
+
+Workflow `.github/workflows/ci.yml`:
+
+- on every PR: backend build + unit/integration tests, frontend type-check + build,
+- on `master`: the same, then a Coolify deploy-webhook call (if configured).
+
+In GitHub → repository **Settings → Secrets and variables → Actions** add:
+
+| Secret | Where from |
+| --- | --- |
+| `COOLIFY_WEBHOOK` | Coolify → project → **Webhooks → Deploy Webhook** (URL) |
+| `COOLIFY_TOKEN` | Coolify → **Keys & Tokens → API tokens** (Bearer) |
+
+If you don't want CI-triggered deploys, skip the secrets — the workflow skips
+the deploy step.
+
+---
+
+## 7. Strict plant rollouts (optional)
+
+The default path above auto-applies migrations on `api` boot
+(`BOOT_APPLY_MIGRATIONS=true`). For zero-downtime plant databases use the
+strict path instead: the one-shot `migrate` job upgrades the schema and must
+complete before `api-prod` serves traffic (production boot itself never
+migrates or seeds). Full procedure: `docs/production-runbook.md`.
+
+```bash
+docker compose --profile production up --build -d
+```
+
+---
+
+## 8. Seq (optional)
+
+`seq` ships MES logs to a searchable UI. It runs by default in the compose
+stack but needs no public domain. To expose it temporarily, add a second domain
+in Coolify pointing at the `seq` service (internal port `80`), or drop the
+service from your deployment if you only need `docker logs`.

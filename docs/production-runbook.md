@@ -5,6 +5,13 @@ Development boot is unchanged (`docker compose up` migrates + seeds the dev
 tenant); everything below applies to the `production` / `migrate` / `backup`
 compose profiles.
 
+> Two production paths: this runbook describes the **strict** path (migrate job
+> + `api-prod`, boot never migrates — for zero-downtime plant databases). The
+> default `api` service is the **single-server** path (Coolify, same model as
+> asiki): it runs `ASPNETCORE_ENVIRONMENT=Production` but applies pending
+> migrations on boot (`BOOT_APPLY_MIGRATIONS=true` default), still never
+> seeding. Server setup: `docs/deployment.md`.
+
 ## Rule #1: production boot never migrates or seeds
 
 The Gateway only applies EF Core migrations when `Boot:ApplyMigrations` is

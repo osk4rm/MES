@@ -274,7 +274,8 @@ bez restartu serwera.
 
 ### 8.1 Docker — dashboard i dyspozytor „zawsze dostępne"
 
-Usługa `swarm` w `docker-compose.yml` uruchamia dashboard **i** dyspozytora
+Usługa `swarm` w `docker-compose.swarm.yml` (osobny plik — serwer/produkcja
+go nie widzi) uruchamia dashboard **i** dyspozytora
 w kontenerze, który pracuje na **izolowanym klonie repo** w wolumenie
 `swarm_work` (nie dotyka Twojego Windowsowego working tree).
 
@@ -284,10 +285,10 @@ gh auth token                     # wartość do .env
 
 # 2. zamknij hostowy dashboard (jeśli chodzi) — inaczej zajmie port 5178
 # 3. zbuduj i włącz (restart: unless-stopped => wstaje z Dockerem)
-docker compose up -d --build swarm
+docker compose -f docker-compose.yml -f docker-compose.swarm.yml up -d --build swarm
 
 # podgląd logów / restart
-docker compose logs -f swarm
+docker compose -f docker-compose.yml -f docker-compose.swarm.yml logs -f swarm
 ```
 
 - Obraz: .NET 10 SDK, Node 20, PowerShell 7, git, gh, opencode, Playwright
