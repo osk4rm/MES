@@ -240,12 +240,20 @@ swarm_error() { # GitHub annotation - the 404 above stayed invisible for hours
 swarm_in_flight_count() { # -> number of open issues/PRs holding ai:running
   # Throughput guard: implement/sweep refuse new work at MAX_PARALLEL.
   # `gh api search/issues -f q=` implies POST, and POST /search/issues is 404.
-  local n
-  n=$(gh api -X GET search/issues -f q="repo:${GITHUB_REPOSITORY} label:ai:running state:open" \
+  # Since 2026-09 the search API also REJECTS a query without is:issue /
+  # is:pull-request (422), which left this gate blind on stdout as `0`. Count
+  # the two kinds separately and sum them instead.
+  local issues prs
+  issues=$(gh api -X GET search/issues \
+    -f q="repo:${GITHUB_REPOSITORY} is:issue label:ai:running state:open" \
     --jq '.total_count' 2>/dev/null || echo '')
-  [ "$(swarm_uint "$n" x)" = x ] &&
-    swarm_error "swarm_in_flight_count: search API returned '$n' - capacity gate is blind, assuming 0"
-  swarm_uint "$n" 0
+  prs=$(gh api -X GET search/issues \
+    -f q="repo:${GITHUB_REPOSITORY} is:pull-request label:ai:running state:open" \
+    --jq '.total_count' 2>/dev/null || echo '')
+  if [ "$(swarm_uint "$issues" x)" = x ] || [ "$(swarm_uint "$prs" x)" = x ]; then
+    swarm_error "swarm_in_flight_count: search API returned issues='$issues' prs='$prs' - capacity gate is blind, assuming 0"
+  fi
+  echo $(( $(swarm_uint "$issues" 0) + $(swarm_uint "$prs" 0) ))
 }
 
 swarm_oldest_queued_issue() { # -> oldest open ai:implement issue without ai:running
