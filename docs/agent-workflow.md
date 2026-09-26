@@ -144,6 +144,7 @@ Parametry:
 | `-TrackerIntervalMinutes` | 30 | wymuś sync trackera co tyle, nawet bez zmian |
 | `-TrackerCooldownMinutes` | 10 | minimalny odstęp między syncami trackera |
 | `-RunningTtlMinutes` | 30 | locki `ai:running` starsze niż tyle są uznawane za osierocone i czyszczone przy starcie; świeże są zostawiane (mogą należeć do żywego agenta) |
+| `-NoSelfUpdate` | — | nie fast-forwarduj własnego klona na `origin` (domyślnie dispatcher aktualizuje się między cyklami i wychodzi, żeby nowy kod zadziałał) |
 
 Zachowanie przy błędach:
 
@@ -161,6 +162,29 @@ gubi rund. Przy starcie dyspozytor czyści **tylko wygasłe** locki `ai:running`
 (starsze niż `-RunningTtlMinutes` wg timestampu lokalnego i `updatedAt` z GitHuba);
 świeże locki zostawia — mogą należeć do żywego agenta na innym hoście.
 Nie odpalaj dwóch dyspozytorów na tym samym repo.
+
+### 5.0 Dispatcher nie może działać na nieaktualnym kodzie
+
+PowerShell parsuje `agent-dispatcher.ps1` **raz** przy starcie. Dlatego proces,
+który kręci pętlę od godziny, wciąż egzekwuje reguły z chwili uruchomienia —
+i to nie jest teoria: dispatcher z klona sprzed trzech commitów zablokował PR
+#264 przez `ai:blocked`, mimo że review i verify były zielone dla tego headu.
+
+Dlatego:
+
+- między cyklami dispatcher robi `git fetch` + `git merge --ff-only` na `origin`,
+  a po udanym fast-forward **wychodzi** — nowy kod wchodzi dopiero przy
+  starcie procesu. `docker/swarm/entrypoint.sh` nadzoruje proces w pętli, więc
+  restart (i recovery po crashu) dzieje się automatycznie;
+- brudne working copy → aktualizacja pomijana z logiem (nigdy nie robimy
+  `merge` na brudnym drzewie); `-NoSelfUpdate` wyłącza mechanizm;
+- PR z aktywnym runem `ai-swarm` na jego gałęzi jest pomijany
+  (`Test-BranchBusy` w PowerShell, `swarm_branch_busy` w bashu). To ochrona
+  przed **dwoma kierowcami naraz** (GitHub Actions + lokalny dispatcher):
+  obaj zapisują ten sam werdykt, obaj dodają `ai:ready`. `ai:running` tego nie
+  łapie, bo `review` i `verify` celowo go nie biorą (jeden globalny lock
+  zablokowałby równoległą bramkę). Wybór: **albo CI, albo lokalny
+  dispatcher** — nie oba naraz.
 
 ### 5.1 Ręczny override
 
