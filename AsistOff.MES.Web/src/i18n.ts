@@ -54,6 +54,7 @@ const pl = {
     productionOpcUaConnections: 'Połączenia OPC UA',
     productionKanban: 'Kanban',
     schedule: 'Harmonogram',
+    dispatchBoard: 'Tablica wysyłkowa',
     reports: 'Raporty',
     oeeDashboard: 'Panel OEE',
     reliabilityDashboard: 'Panel niezawodności',
@@ -868,7 +869,7 @@ const pl = {
     invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko i okno (maks. 93 dni)'
   },
   scheduleDispatch: {
-    title: 'Harmonogram',
+    title: 'Tablica wysyłkowa',
     subtitle: 'Tablica dyspozytorska — zaległe zlecenia i obsada zmian',
     from: 'Okno od',
     to: 'Okno do',
@@ -885,6 +886,24 @@ const pl = {
     overdue: 'Zaległe',
     onTime: 'W terminie',
     noDueDate: 'Brak terminu',
+    invalidWindow: 'Nieprawidłowe okno dat — data początkowa nie może być późniejsza niż końcowa (maks. 31 dni)'
+  },
+  scheduleGantt: {
+    title: 'Harmonogram',
+    subtitle: 'Plan czasowy operacji na stanowiskach — przeciągnij pasek, aby przeplanować',
+    from: 'Okno od',
+    to: 'Okno do',
+    apply: 'Zastosuj',
+    bars: '{count} op.',
+    unassignedLane: 'Bez przypisanego stanowiska',
+    overdue: 'Zaległe',
+    noCoverage: 'Bez obsady zmian',
+    empty: 'Brak pasków w wybranym oknie — wydaj zlecenia z operacjami na stanowiska',
+    hint: 'Przeciągnij pasek, aby zmienić termin; pociągnij prawą krawędź, aby zmienić czas trwania.',
+    moved: 'Przeplanowano operację',
+    movedNoCoverage: 'Zapisano, ale nowe okno nie ma obsady zmian.',
+    conflict: 'Konflikt zasobów albo nieaktualne dane — pasek wrócił na poprzedni slot. Odśwież i spróbuj ponownie.',
+    moveTargetMissing: 'Nie znaleziono zlecenia ani stanowiska — odśwież i spróbuj ponownie.',
     invalidWindow: 'Nieprawidłowe okno dat — data początkowa nie może być późniejsza niż końcowa (maks. 31 dni)'
   },
   scrap: {
@@ -988,6 +1007,7 @@ const en: typeof pl = {
     productionOpcUaConnections: 'OPC UA connections',
     productionKanban: 'Kanban',
     schedule: 'Schedule',
+    dispatchBoard: 'Dispatch board',
     reports: 'Reports',
     oeeDashboard: 'OEE dashboard',
     reliabilityDashboard: 'Reliability dashboard',
@@ -1803,7 +1823,7 @@ const en: typeof pl = {
     invalidInput: 'Invalid input — check the work center and window (93 days max)'
   },
   scheduleDispatch: {
-    title: 'Schedule',
+    title: 'Dispatch board',
     subtitle: 'Dispatch board — overdue orders and shift staffing',
     from: 'Window from',
     to: 'Window to',
@@ -1820,6 +1840,24 @@ const en: typeof pl = {
     overdue: 'Overdue',
     onTime: 'On time',
     noDueDate: 'No due date',
+    invalidWindow: 'Invalid date window — the start date must not be after the end date (31 days max)'
+  },
+  scheduleGantt: {
+    title: 'Schedule',
+    subtitle: 'Time-phased operation plan per work center — drag a bar to reschedule',
+    from: 'Window from',
+    to: 'Window to',
+    apply: 'Apply',
+    bars: '{count} ops',
+    unassignedLane: 'No assigned work center',
+    overdue: 'Overdue',
+    noCoverage: 'No shift coverage',
+    empty: 'No bars in the selected window — release orders with work-center operations',
+    hint: 'Drag a bar to move it; pull the right edge to change its duration.',
+    moved: 'Operation rescheduled',
+    movedNoCoverage: 'Saved, but the new window has no shift coverage.',
+    conflict: 'Resource conflict or stale data — the bar snapped back. Refresh and try again.',
+    moveTargetMissing: 'Order or work center not found — refresh and try again.',
     invalidWindow: 'Invalid date window — the start date must not be after the end date (31 days max)'
   },
   scrap: {

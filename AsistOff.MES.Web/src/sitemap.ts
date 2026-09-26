@@ -22,7 +22,8 @@ export const sitemap: NavItem[] = [
       { label: 'nav.productionTelemetry', icon: 'pi pi-wave-pulse', route: '/production/telemetry' },
       { label: 'nav.productionOpcUaConnections', icon: 'pi pi-link', route: '/production/opcua-connections' },
       { label: 'nav.productionTelemetryDashboard', icon: 'pi pi-chart-line', route: '/production/telemetry-dashboard' },
-      { label: 'nav.productionKanban', icon: 'pi pi-th-large', route: '/production/kanban' }
+      { label: 'nav.productionKanban', icon: 'pi pi-th-large', route: '/production/kanban' },
+      { label: 'nav.dispatchBoard', icon: 'pi pi-truck', route: '/schedule/dispatch' }
     ]
   },
   { label: 'nav.schedule', icon: 'pi pi-calendar', route: '/schedule' },

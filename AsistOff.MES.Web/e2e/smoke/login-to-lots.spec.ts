@@ -230,7 +230,9 @@ test.describe.serial('login to lots smoke', () => {
   });
 
   test('dispatch board lists the seeded Released order', async ({ page }) => {
-    await signInAndGoto(page, '/schedule');
+    // Slice (3/3, issue #306): `/schedule` is the Harmonogram Gantt now; the
+    // dispatch board lives at `/schedule/dispatch` with unchanged data.
+    await signInAndGoto(page, '/schedule/dispatch');
 
     await expect(page.getByTestId('dispatch-board')).toBeVisible();
     const table = page.getByTestId('dispatch-orders-table');
