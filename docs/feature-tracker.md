@@ -69,7 +69,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Warehouses | RW / PW | Configuration | done | — | `Warehouse`; movements + stock rows below |
 | RW/PW warehouse movements (persisted) | RW / PW | Configuration | done | #199 | `StockMovement` persisted on confirmation (PR #203) |
 | Stock on hand | — | Configuration | done | #200 | per product + warehouse; WarehousesView card (PR #205) |
-| Material reservations for released orders | RW / PW | Configuration | gap | — | depends on Stock on hand + Production Order; soft-allocate stock on release, relieve on RW confirmation |
+| Material reservations for released orders | RW / PW | Configuration | in-progress | #291 | depends on Stock on hand + Production Order; soft-allocate on release, relieve on RW confirmation (PR #295 open) |
 | Departments | — | Configuration | done | — | `Department` |
 | Machines / resources | Work Center | Configuration | done | #204 | `Machine` + calendar (#83); capacity + efficiency factor (PR #206) |
 | Operators | Operator | Configuration | done | — | `Operator` (code / RFID) |
@@ -104,7 +104,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Genealogy / traceability | Genealogy | Production | done | #142, #143, #144, #207 | `LotGenealogyEdge` auto-derived on confirmation; upstream/downstream traceability + lot tree (PRs #148, #151, #152, #211) |
 | Atomic confirmation fan-out | Confirmation | Production | done | #265 | single transaction across confirmation + movements + edges + order (PRs #286, #287) |
 | Read-path performance (paging, no-tracking, batch fetch) | Shift | Production | done | #274 | server-side DispatchBoard filtering/Take, AsNoTracking, MaxPageSize caps (PRs #277, #279) |
-| Shift handover logbook | Shift | Production | gap | — | depends on Work-center calendar / shifts + Operator confirmations (RW / PW); pass open orders, Andon signals and notes between shifts |
+| Shift handover logbook | Shift | Production | in-progress | #292, #293 | depends on Work-center calendar / shifts + Operator confirmations (RW / PW); context API slice 1/2 (PR #294 open), persisted entries slice 2/2 |
 
 ## Analytics / integration
 
@@ -120,4 +120,4 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | MTBF / MTTR reliability KPIs | MTBF / MTTR | Production | done | #170, #171, #213, #214, #220 | per-Work Center snapshot query + API + dashboard; trend + fleet comparison (PRs #173, #175, #215, #216, #222) |
 | OEE/analytics index review | OEE | Production | done | #266 | (TenantId,MachineId,ReportedAt) confirmations index, tenant FK indexes (PR #270) |
 
-_Last reconciled: 2026-09-26 — cross-cutting hardening done: JWT (#227/#232/#280), attachments (#228/#234/#281), default-deny authz (#231/#233), abuse protection (#235), cookie auth (#241/#242), audit (#245/#246), health split (#249), correlation ID (#251), OTel (#252/#253), prod boot gate (#257), outbox 3/3 (#258–#260), concurrency (#263), containers (#271), frontend resilience (#273); production atomic fan-out (#265), read paths (#274), OEE indexes (#266); #272/#276 open (smoke suite in-progress); #88/#89 are fixes with no capability rows._
+_Last reconciled: 2026-09-26 — #291 in-progress (material reservations, PR #295 open), #292/#293 in-progress (handover logbook: context PR #294 open, entries proposed); #272/#276 still open (smoke suite in-progress); #88/#89 are fixes with no capability rows._
