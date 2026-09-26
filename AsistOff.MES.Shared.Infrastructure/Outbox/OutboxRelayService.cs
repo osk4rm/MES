@@ -30,13 +30,24 @@ namespace AsistOff.MES.Shared.Infrastructure.Outbox;
 /// and <see cref="RelayTenantAsync"/> are explicit entry points so tests can
 /// drive the relay deterministically without waiting for the timer; the
 /// <c>Outbox:Enabled</c> switch gates only the timer loop.
+/// <see cref="RelayTenantAsync"/> is virtual so unit tests can isolate a
+/// single tenant's failure without a database.
 /// </summary>
-public sealed class OutboxRelayService(
+public class OutboxRelayService(
     IServiceScopeFactory scopeFactory,
     IOptionsMonitor<OutboxRelayOptions> relayOptions,
     ILogger<OutboxRelayService> logger)
     : BackgroundService
 {
+    /// <summary>
+    /// Poll cadence for the live timer loop: the configured
+    /// <c>Outbox:PollIntervalSeconds</c> clamped to 1..3600 seconds.
+    /// Static so unit tests prove the loop honors the configured interval
+    /// without waiting on a real timer.
+    /// </summary>
+    internal static TimeSpan ResolvePollDelay(OutboxRelayOptions options)
+        => TimeSpan.FromSeconds(Math.Clamp(options.PollIntervalSeconds, 1, 3600));
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!relayOptions.CurrentValue.Enabled)
@@ -47,11 +58,11 @@ public sealed class OutboxRelayService(
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var intervalSeconds = Math.Clamp(relayOptions.CurrentValue.PollIntervalSeconds, 1, 3600);
+            var delay = ResolvePollDelay(relayOptions.CurrentValue);
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), stoppingToken);
+                await Task.Delay(delay, stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -103,9 +114,10 @@ public sealed class OutboxRelayService(
     /// <summary>
     /// Relays a single tenant's undispatched outbox rows under that tenant's
     /// scope. Public so tests can target one tenant without touching other
-    /// tenants' rows. Returns the number of rows marked dispatched.
+    /// tenants' rows. Returns the number of rows marked dispatched. Virtual
+    /// so unit tests can simulate a tenant failure without a database.
     /// </summary>
-    public async Task<int> RelayTenantAsync(Guid tenantId, CancellationToken cancellationToken = default)
+    public virtual async Task<int> RelayTenantAsync(Guid tenantId, CancellationToken cancellationToken = default)
     {
         var options = relayOptions.CurrentValue;
 

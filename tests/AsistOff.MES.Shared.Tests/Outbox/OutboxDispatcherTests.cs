@@ -251,6 +251,31 @@ public class OutboxDispatcherTests
         _publisher.Verify(p => p.Publish(It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task DispatchRow_ZeroMaxAttempts_ClampsToSingleAttemptThenParksPoison()
+    {
+        // Arrange — a misconfigured budget below the 1..100 range.
+        var dispatcher = BuildDispatcher();
+        var @event = new WidgetCreatedEvent(Guid.NewGuid(), "gadget");
+        var row = Row(@event, typeof(WidgetCreatedEvent));
+        _publisher.Setup(p => p.Publish(It.IsAny<object>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("broker down"));
+        var saves = 0;
+
+        // Act
+        var dispatched = await dispatcher.DispatchRowAsync(
+            row, _publisher.Object, 0, _ => { saves++; return Task.CompletedTask; });
+
+        // Assert — clamped to a single attempt, then parked.
+        dispatched.Should().BeFalse();
+        row.Dispatched.Should().BeFalse();
+        row.RetryCount.Should().Be(1);
+        saves.Should().Be(1);
+        _publisher.Verify(p => p.Publish(It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        _logs.Should().ContainSingle(
+            x => x.Level == LogLevel.Error && x.Message.Contains("poison") && x.Message.Contains(row.Id.ToString()));
+    }
+
     [Theory]
     [InlineData(0, 2)]
     [InlineData(1, 2)]

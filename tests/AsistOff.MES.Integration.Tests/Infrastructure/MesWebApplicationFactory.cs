@@ -1,9 +1,11 @@
+using AsistOff.MES.Integration.Tests.Outbox;
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Production.Application.Telemetry;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Outbox;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using AsistOff.MES.Shared.Infrastructure.Protection;
+using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -62,6 +64,12 @@ public sealed class MesWebApplicationFactory(
             // The relay logic itself is still exercised — only the timer loop
             // is off.
             services.Configure<OutboxRelayOptions>(options => options.Enabled = false);
+
+            // Slice 2 (#259): controllable outbox handler failure for the
+            // retry-then-success / retry-then-poison endpoint tests. The
+            // handler fires exclusively for the test-only FlakyOutboxEvent,
+            // so no other test's traffic is affected.
+            services.AddTransient<INotificationHandler<FlakyOutboxEvent>, FlakyOutboxHandler>();
 
             // Abuse protection: the shared suite performs hundreds of sign-in
             // and tenant-create calls from a single TestServer IP, which would

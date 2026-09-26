@@ -70,6 +70,38 @@ public class OutboxRelayPolicyTests
         OutboxRelayOptions.SectionName.Should().Be("Outbox");
     }
 
+    [Fact]
+    public void ApplyUndispatched_ZeroBatchSize_ClampsToSingleRow()
+    {
+        // Arrange — five eligible rows, batch size below the 1..500 range.
+        var tenantId = Guid.NewGuid();
+        var rows = Enumerable.Range(0, 5)
+            .Select(i => Row(tenantId, Occurred.AddMinutes(i)))
+            .AsQueryable();
+
+        // Act
+        var page = OutboxStager.ApplyUndispatched(rows, 0, 5).ToList();
+
+        // Assert — the relay still makes progress one row at a time.
+        page.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void ApplyUndispatched_OversizedBatchSize_CapsAtMaxBatchSize()
+    {
+        // Arrange — more eligible rows than a single cycle may take.
+        var tenantId = Guid.NewGuid();
+        var rows = Enumerable.Range(0, OutboxStager.MaxBatchSize + 100)
+            .Select(i => Row(tenantId, Occurred.AddMinutes(i)))
+            .AsQueryable();
+
+        // Act
+        var page = OutboxStager.ApplyUndispatched(rows, 10_000, 5).ToList();
+
+        // Assert — bounded batches keep every cycle finite.
+        page.Should().HaveCount(OutboxStager.MaxBatchSize);
+    }
+
     private static OutboxMessage Row(Guid tenantId, DateTime occurred, int retryCount = 0, bool dispatched = false) => new()
     {
         Id = Guid.NewGuid(),

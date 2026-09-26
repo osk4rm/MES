@@ -1,6 +1,8 @@
+using System.Text.Json;
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Enums;
 using AsistOff.MES.Integration.Tests.Infrastructure;
+using AsistOff.MES.Integration.Tests.Outbox;
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Models.DomainEvents;
@@ -19,7 +21,9 @@ namespace AsistOff.MES.Integration.Tests.Endpoints;
 /// <see cref="MesWebApplicationFactory"/>) so background cycles can never make
 /// assertions flaky; tests drive the relay explicitly per tenant via
 /// <c>RelayTenantAsync</c>, which also proves tenant isolation: relaying one
-/// tenant never touches another tenant's rows.
+/// tenant never touches another tenant's rows. Handler retry goes through the
+/// real host MediatR pipeline via the test-only <c>FlakyOutboxHandler</c>
+/// (registered in the factory, firing exclusively for its test-only event).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : IntegrationTestBase(fixture)
@@ -164,6 +168,86 @@ public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : In
     }
 
     [Fact]
+    public async Task RelayTenant_FlakyHandlerFailsOnceThenSucceeds_RetriesAndDispatches()
+    {
+        // Arrange — a committed row whose host handler fails once, then recovers.
+        var (email, _) = await Fixture.CreateTenantAsync();
+        var tenantId = await GetTenantIdByEmailAsync(email);
+        FlakyOutboxHandler.Reset(failuresRemaining: 1);
+
+        try
+        {
+            await InsertEventRowAsync(tenantId, new FlakyOutboxEvent(Guid.NewGuid(), "FLAKY"));
+
+            // Act — relay that tenant explicitly through the real host pipeline.
+            var relay = Fixture.Services.GetRequiredService<OutboxRelayService>();
+            var dispatched = await relay.RelayTenantAsync(tenantId);
+
+            // Assert — retried with backoff through MediatR, then delivered.
+            dispatched.Should().Be(1);
+            FlakyOutboxHandler.Calls.Should().Be(2);
+
+            using (BackgroundTenantContext.BeginScope(tenantId))
+            {
+                using var scope = Fixture.Services.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
+
+                var row = await context.OutboxMessages.AsNoTracking().SingleAsync();
+                row.Dispatched.Should().BeTrue();
+                row.RetryCount.Should().Be(1);
+            }
+        }
+        finally
+        {
+            FlakyOutboxHandler.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task RelayTenant_HandlerFailsOnLastAttempt_ParksPoison()
+    {
+        // Arrange — a row one attempt short of the budget whose host handler is down.
+        var (email, _) = await Fixture.CreateTenantAsync();
+        var tenantId = await GetTenantIdByEmailAsync(email);
+        var maxAttempts = GetMaxAttempts();
+        FlakyOutboxHandler.Reset(alwaysFail: true);
+
+        try
+        {
+            var outboxId = await InsertEventRowAsync(
+                tenantId, new FlakyOutboxEvent(Guid.NewGuid(), "POISON"), retryCount: maxAttempts - 1);
+
+            // Act
+            var relay = Fixture.Services.GetRequiredService<OutboxRelayService>();
+            var dispatched = await relay.RelayTenantAsync(tenantId);
+
+            // Assert — the final budgeted attempt failed, so the row parks as
+            // poison (no backoff wait on the terminal attempt) and is never refetched.
+            dispatched.Should().Be(0);
+            FlakyOutboxHandler.Calls.Should().Be(1);
+
+            using (BackgroundTenantContext.BeginScope(tenantId))
+            {
+                using var scope = Fixture.Services.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
+
+                var row = await context.OutboxMessages.AsNoTracking().SingleAsync(x => x.Id == outboxId);
+                row.Dispatched.Should().BeFalse();
+                row.RetryCount.Should().Be(maxAttempts);
+
+                var relayPage = await OutboxStager
+                    .ApplyUndispatched(context.OutboxMessages, 100, maxAttempts)
+                    .ToListAsync();
+                relayPage.Should().BeEmpty();
+            }
+        }
+        finally
+        {
+            FlakyOutboxHandler.Reset();
+        }
+    }
+
+    [Fact]
     public async Task RelayTenant_CrossTenant_DispatchesOnlyTargetTenant()
     {
         // Arrange — two tenants, each with one staged row.
@@ -235,6 +319,33 @@ public sealed class OutboxRelayEndpointTests(MesApplicationFixture fixture) : In
             context.Set<ReasonCode>().Add(reasonCode);
             await context.SaveChangesAsync();
         }
+    }
+
+    private async Task<Guid> InsertEventRowAsync(Guid tenantId, IDomainEvent @event, int retryCount = 0)
+    {
+        var eventType = @event.GetType();
+        var outboxId = Guid.NewGuid();
+
+        using (BackgroundTenantContext.BeginScope(tenantId))
+        {
+            using var scope = Fixture.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
+
+            context.OutboxMessages.Add(new OutboxMessage
+            {
+                Id = outboxId,
+                TenantId = tenantId,
+                IdempotencyKey = Guid.NewGuid().ToString("N"),
+                Type = eventType.AssemblyQualifiedName!,
+                Payload = JsonSerializer.Serialize(@event, eventType),
+                OccurredOnUtc = DateTime.UtcNow,
+                Dispatched = false,
+                RetryCount = retryCount,
+            });
+            await context.SaveChangesAsync();
+        }
+
+        return outboxId;
     }
 
     private async Task InsertRawRowAsync(Guid tenantId, Guid outboxId, string type, string payload)
