@@ -9,6 +9,7 @@ using AsistOff.MES.Production.Application.Features.ScrapEvents.Create;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Abstractions.Observability;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using FluentAssertions;
@@ -48,6 +49,7 @@ public class MesMetersHandlerTests
         };
         var orders = MockOrders(order);
         var tenant = MockTenant();
+        var uow = MockUnitOfWork();
         var handler = new CreateProductionConfirmationRequestHandler(
             Mock.Of<IProductionConfirmationsRepository>(),
             orders.Object,
@@ -57,7 +59,8 @@ public class MesMetersHandlerTests
             Mock.Of<ILotGenealogyEdgesRepository>(),
             MockGuids(),
             MockClock(),
-            tenant.Object);
+            tenant.Object,
+            uow);
 
         // Act
         await handler.Handle(
@@ -258,6 +261,14 @@ public class MesMetersHandlerTests
         var tenant = new Mock<ITenantContext>();
         tenant.SetupGet(t => t.TenantId).Returns(_tenantId);
         return tenant;
+    }
+
+    private static IUnitOfWork MockUnitOfWork()
+    {
+        var uow = new Mock<IUnitOfWork>();
+        uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task> op, CancellationToken _) => op());
+        return uow.Object;
     }
 
     private sealed class MeterCapture : IDisposable
