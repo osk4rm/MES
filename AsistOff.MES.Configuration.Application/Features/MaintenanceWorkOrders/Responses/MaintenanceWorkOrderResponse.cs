@@ -10,6 +10,7 @@ public record MaintenanceWorkOrderResponse(
     string? Description,
     Guid MachineId,
     string? MachineCode,
+    Guid? PlanId,
     MaintenanceWorkOrderPriority Priority,
     MaintenanceWorkOrderStatus Status,
     DateTime ReportedAt,

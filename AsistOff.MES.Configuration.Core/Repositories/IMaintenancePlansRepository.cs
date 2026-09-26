@@ -15,6 +15,12 @@ public interface IMaintenancePlansRepository
         CancellationToken cancellationToken = default);
 
     Task<MaintenancePlan?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// All active preventive plans for the current tenant (global query filter
+    /// applies). Due selection (Time vs Meter) happens in the application
+    /// handler so unit tests can cover the rules without EF Core.
+    /// </summary>
+    Task<IReadOnlyCollection<MaintenancePlan>> ListActiveAsync(CancellationToken cancellationToken = default);
     Task<bool> CodeExistsAsync(string code, Guid? excludeId, CancellationToken cancellationToken = default);
     Task<MaintenancePlan> AddAsync(MaintenancePlan plan, CancellationToken cancellationToken = default);
     Task UpdateAsync(MaintenancePlan plan, CancellationToken cancellationToken = default);

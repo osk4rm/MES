@@ -33,6 +33,21 @@ internal sealed class MaintenanceWorkOrdersRepository(DefaultContext context) : 
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<MaintenanceWorkOrder>> ListOpenByPlanIdsAsync(
+        IReadOnlyCollection<Guid> planIds, CancellationToken cancellationToken = default)
+    {
+        if (planIds.Count == 0)
+            return Array.Empty<MaintenanceWorkOrder>();
+
+        return await context.Set<MaintenanceWorkOrder>()
+            .AsNoTracking()
+            .Where(x => x.PlanId != null
+                && planIds.Contains(x.PlanId.Value)
+                && (x.Status == MaintenanceWorkOrderStatus.Open
+                    || x.Status == MaintenanceWorkOrderStatus.InProgress))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<bool> CodeExistsAsync(
         string code, Guid? excludeId, CancellationToken cancellationToken = default)
     {

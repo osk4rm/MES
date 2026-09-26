@@ -32,6 +32,16 @@ internal sealed class MaintenancePlansRepository(DefaultContext context) : IMain
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<MaintenancePlan>> ListActiveAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await context.Set<MaintenancePlan>()
+            .Include(x => x.Machine)
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.Code)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<bool> CodeExistsAsync(
         string code, Guid? excludeId, CancellationToken cancellationToken = default)
     {
