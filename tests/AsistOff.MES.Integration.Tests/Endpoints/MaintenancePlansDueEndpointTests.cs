@@ -59,13 +59,22 @@ public sealed class MaintenancePlansDueEndpointTests(MesApplicationFixture fixtu
     {
         using var client = await Fixture.CreateAuthenticatedClientAsync();
         var machineId = await CreateMachineAsync(client);
-        await CreateTimePlanAsync(client, machineId, DateTime.UtcNow.AddDays(5));
+        var future = await CreateTimePlanAsync(client, machineId, DateTime.UtcNow.AddDays(5));
 
         var response = await client.GetAsync($"{PlansUrl}/due?overdueOnly=true");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var due = await ReadAsync<List<MaintenancePlanDto>>(response);
-        due.Should().OnlyContain(p => p.IsOverdue);
+        // The future plan must be excluded; every row that is returned (the
+        // database is shared with other tests, so overdue plans from other
+        // tests may appear) must actually be overdue. A manual loop is used
+        // instead of OnlyContain because FluentAssertions fails OnlyContain
+        // on an empty collection, while empty is the expected result here.
+        due.Should().NotContain(p => p.Id == future.Id);
+        foreach (var row in due)
+        {
+            row.IsOverdue.Should().BeTrue();
+        }
     }
 
     [Fact]
