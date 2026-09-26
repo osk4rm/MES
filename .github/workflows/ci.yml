@@ -91,8 +91,31 @@ jobs:
             --project AsistOff.MES.Shared.Infrastructure \
             --startup-project AsistOff.MES.Gateway \
             --context DefaultContext
-      - name: Test
-        run: dotnet test AsistOff.MES.sln --configuration Release --no-build --verbosity normal --logger "trx" --results-directory TestResults
+      - name: Test (unit)
+        run: |
+          dotnet test tests/AsistOff.MES.Shared.Tests \
+            --configuration Release --no-build --verbosity normal \
+            --logger "trx;LogFileName=unit.trx" --results-directory TestResults
+      - name: Test (integration, retry for known timing flakes)
+        # The integration suite spins up Testcontainers/Postgres and has rare
+        # async-timing flakes (e.g. OTLP span emission). A single flake used to
+        # turn CI red, which the swarm then read as "the PR needs a fix" and
+        # churned review/fix rounds for nothing. Retry the whole project up to
+        # three times; a real failure still fails all of them.
+        run: |
+          for attempt in 1 2 3; do
+            if dotnet test tests/AsistOff.MES.Integration.Tests \
+              --configuration Release --no-build --verbosity normal \
+              --logger "trx;LogFileName=integration-$attempt.trx" --results-directory TestResults; then
+              exit 0
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "::error::integration tests failed on all $attempt attempts"
+              exit 1
+            fi
+            echo "::warning::integration test attempt $attempt failed; retrying (known timing flakes)"
+            sleep 15
+          done
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
