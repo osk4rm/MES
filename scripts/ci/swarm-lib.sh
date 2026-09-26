@@ -379,7 +379,13 @@ swarm_nudge_stuck_prs() { # re-fire stage labels on PRs that lost their trigger
 swarm_cleanup_stale_locks() { # release ai:running locks older than ${STALE_LOCK_MINUTES:-45}
   # Called from the sweep job. A crashed/lost job leaves ai:running forever,
   # blocking a MAX_PARALLEL slot. Lock age comes from the label timeline event.
-  local ttl="${STALE_LOCK_MINUTES:-45}" now kind list num added age
+  #
+  # When the lock is stale we release it AND re-fire the stage the item is still
+  # parked on. The old behaviour escalated a lost job to ai:blocked, which is a
+  # manual-action dead end: a runner that vanished mid-stage froze the work for
+  # a human even though nothing was actually wrong. A missing job must recycle
+  # the stage automatically (0 manual actions is the whole point).
+  local ttl="${STALE_LOCK_MINUTES:-45}" now kind list num added age lbl
   now=$(date +%s)
   for kind in pr issue; do
     if [ "$kind" = pr ]; then
@@ -397,10 +403,17 @@ swarm_cleanup_stale_locks() { # release ai:running locks older than ${STALE_LOCK
       fi
       age=$(( (now - $(date -d "$added" +%s 2>/dev/null || echo "$now")) / 60 ))
       if [ "$age" -ge "$ttl" ]; then
-        echo "stale lock: $kind #$num (ai:running for ${age}m >= ${ttl}m) — releasing"
+        echo "stale lock: $kind #$num (ai:running for ${age}m >= ${ttl}m) — releasing and re-arming"
         swarm_remove_label "$kind" "$num" ai:running
-        swarm_add_label "$kind" "$num" ai:blocked
-        swarm_say "$kind" "$num" "Agent flow (CI): stale lock auto-cleared after ${age}m — the job that held it is gone. Re-add the work label to retry."
+        if [ "$kind" = pr ]; then
+          for lbl in ai:review ai:verify ai:e2e ai:ready ai:changes; do
+            if swarm_has_label pr "$num" "$lbl"; then
+              swarm_refire_label pr "$num" "$lbl"
+              break
+            fi
+          done
+        fi
+        swarm_say "$kind" "$num" "Agent flow (CI): the job holding this item disappeared (ai:running for ${age}m). The lock was released and the parked stage re-queued automatically — no action needed."
       fi
     done
   done
@@ -706,6 +719,36 @@ swarm_unsatisfied_gates() { # <pr> — gates that do not cover the current head,
   fi
 }
 
+swarm_pre_e2e_gates_satisfied() { # <pr> — review APPROVED and verify SOUND cover the current head
+  # Used to tell a genuinely pending change request (a gate that still has to
+  # be satisfied) from a stale ai:changes label left behind when a fix job lost
+  # the race for ai:running and silently exited. A stale label must never stop
+  # a PR whose gates already cover the head (#295 froze that way).
+  local pr="$1"
+  swarm_verdict_covers_head "$pr" review APPROVED || return 1
+  if swarm_is_docs_only "$pr"; then
+    return 0
+  fi
+  swarm_verdict_covers_head "$pr" verify TESTS_SOUND
+}
+
+swarm_gates_satisfied() { # <pr> — 0 when no required gate is missing for the current head
+  [ -z "$(swarm_unsatisfied_gates "$1" 2>/dev/null)" ]
+}
+
+swarm_clear_stale_changes() { # <pr> — drop ai:changes when all pre-e2e gates already cover the head
+  # Returns 0 when the label is safe to drop (or was absent), 1 when a real
+  # change request is still open and the caller must not advance.
+  local pr="$1"
+  swarm_has_label pr "$pr" ai:changes || return 0
+  if swarm_pre_e2e_gates_satisfied "$pr"; then
+    echo 'ai:changes is stale (review+verify already cover this head); clearing it'
+    swarm_remove_label pr "$pr" ai:changes
+    return 0
+  fi
+  return 1
+}
+
 swarm_pr_body_hash() { # <pr> -> stable hash of the PR description (empty-safe)
   gh pr view "$1" --json body --jq '.body // ""' 2>/dev/null | git hash-object --stdin
 }
@@ -733,6 +776,20 @@ swarm_fix_made_no_progress() { # <pr> <head-before> <body-before> -> 0 when the 
   [ "$body_after" = "$body_before" ]
 }
 
+swarm_record_no_progress() { # <pr> <sha> -> running no-progress streak for this sha
+  # A round that changed neither the code nor the PR description is not
+  # automatically a human problem: it is often a lost/denied push or a session
+  # that edited files but never committed them. So the swarm retries with a
+  # stronger prompt and only escalates after NO_PROGRESS_MAX consecutive
+  # identical rounds — the point at which "the agent cannot move this" is real.
+  local pr="$1" sha="$2" n
+  n=$(swarm_comments_body pr "$pr" | grep -c "swarm-no-progress sha=$sha " || true)
+  n=$((n + 1))
+  swarm_say_once pr "$pr" "swarm-no-progress sha=$sha n=$n" \
+    "Agent flow (CI): fix round $n of ${NO_PROGRESS_MAX:-3} changed neither the branch nor the PR description; retrying with a stronger prompt before any escalation."
+  echo "$n"
+}
+
 swarm_open_gates() { # <pr> — wake review, and verify in parallel unless docs-only
   local pr="$1"
   swarm_refire_label pr "$pr" ai:review
@@ -754,8 +811,12 @@ swarm_after_review_approved() { # <pr> — drop the review gate; advance only if
     echo '-> ai:ready (docs-only fast-path)'
     return 0
   fi
-  if swarm_has_label pr "$pr" ai:changes || swarm_has_label pr "$pr" ai:blocked; then
-    echo 'changes or blocked already set; not advancing'
+  if swarm_has_label pr "$pr" ai:blocked; then
+    echo 'blocked already set; not advancing'
+    return 0
+  fi
+  if ! swarm_clear_stale_changes "$pr"; then
+    echo 'a change request is still open; not advancing'
     return 0
   fi
   if swarm_has_label pr "$pr" ai:verify; then
@@ -779,8 +840,12 @@ swarm_after_review_approved() { # <pr> — drop the review gate; advance only if
 swarm_after_verify_sound() { # <pr> — drop the verify gate; advance when review is also done
   local pr="$1"
   swarm_remove_label pr "$pr" ai:verify
-  if swarm_has_label pr "$pr" ai:changes || swarm_has_label pr "$pr" ai:blocked; then
-    echo 'changes or blocked already set; not advancing'
+  if swarm_has_label pr "$pr" ai:blocked; then
+    echo 'blocked already set; not advancing'
+    return 0
+  fi
+  if ! swarm_clear_stale_changes "$pr"; then
+    echo 'a change request is still open; not advancing'
     return 0
   fi
   if swarm_has_label pr "$pr" ai:review; then
@@ -888,6 +953,53 @@ swarm_label_docs_pr() { # <head-branch> — put a docs PR onto the review fast-p
   fi
   swarm_add_label pr "$pr" ai:review
   echo "docs PR #$pr -> ai:review"
+}
+
+swarm_commit_pending() { # commit any working-tree changes the agent left behind
+  # The implementer/fixer is told to commit and push itself, but a session that
+  # edits files and then ends (limit reached) leaves them uncommitted, and the
+  # job's later `git push` would have nothing to send — which then reads as
+  # "the round changed nothing" and escalates. The job owns the branch, so it
+  # commits what is on disk before pushing. Logs are gitignored (*.log).
+  if [ -n "$(git status --porcelain)" ]; then
+    git add -A
+    if git commit -m 'chore: apply agent changes' >/dev/null 2>&1; then
+      echo 'committed working-tree changes the agent left uncommitted'
+    fi
+  fi
+}
+
+swarm_push_branch() { # <branch> [pat] -> 0 pushed | 1 generic failure | 2 workflow-permission failure
+  # One place for every push the swarm makes. Falls back to the job's own
+  # GITHUB_TOKEN when the PAT is rejected for touching `.github/workflows/*`
+  # (a PAT needs the Workflows permission for that; the swarm must not dead-end
+  # on it), then to `--force-with-lease` for a rewritten branch.
+  local branch="$1" pat="${2:-}" out
+  if out=$(git push origin "$branch" 2>&1); then
+    return 0
+  fi
+  if printf '%s' "$out" | grep -qiE 'workflows? permission|refusing to allow|without .*workflows|workflow.*scope'; then
+    swarm_error "push of $branch rejected for a workflow-file permission"
+    if [ -n "${ACTIONS_TOKEN:-}" ]; then
+      swarm_log 'retrying the push with the workflow GITHUB_TOKEN'
+      git remote set-url origin "https://x-access-token:${ACTIONS_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+      git config --local --unset-all "http.https://github.com/.extraheader" 2>/dev/null || true
+      if git push origin "$branch"; then
+        if [ -n "$pat" ]; then swarm_use_pat_remote "$pat" >/dev/null 2>&1 || true; fi
+        return 0
+      fi
+      if [ -n "$pat" ]; then swarm_use_pat_remote "$pat" >/dev/null 2>&1 || true; fi
+    fi
+    return 2
+  fi
+  if printf '%s' "$out" | grep -qiE 'rejected|non-fast-forward|fetch first|stale info'; then
+    swarm_log 'push rejected (branch moved); retrying with --force-with-lease'
+    if git push --force-with-lease origin "$branch"; then
+      return 0
+    fi
+  fi
+  swarm_log "push of $branch failed: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-200)"
+  return 1
 }
 
 swarm_use_pat_remote() { # [$pat] — push as a collaborator, not as github-actions[bot]

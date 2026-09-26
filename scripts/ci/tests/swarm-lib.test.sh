@@ -225,6 +225,26 @@ swarm_block_pr 276 ai:verify no-verdict 'Agent flow: other reason.' >/dev/null 2
 checkh 'the budget is per PR, shared across reasons (stricter on purpose)' \
   'attempt=2' "$(last_marker)"
 
+echo 'swarm_clear_stale_changes drops only a genuinely stale ai:changes'
+LABELS='ai:changes'
+: >"$COMMENTS_FILE"
+printf '<!-- swarm-verdict gate=review sha=%s verdict=APPROVED -->\n' "$HEAD" >>"$COMMENTS_FILE"
+printf '<!-- swarm-verdict gate=verify sha=%s verdict=TESTS_SOUND -->\n' "$HEAD" >>"$COMMENTS_FILE"
+reset_logs
+if swarm_clear_stale_changes 276 >/dev/null; then ok 'stale changes cleared'; else no 'stale changes not cleared'; fi
+checkh 'the stale label is removed' 'remove-label ai:changes' "$(cat "$EDITS_LOG")"
+: >"$COMMENTS_FILE"
+printf '<!-- swarm-verdict gate=review sha=%s verdict=APPROVED -->\n' "$HEAD" >>"$COMMENTS_FILE"
+reset_logs
+if swarm_clear_stale_changes 276 >/dev/null; then no 'a real change request must not be cleared'; else ok 'a real change request is kept'; fi
+checkc 'nothing is removed when changes are real' 'remove-label ai:changes' "$(cat "$EDITS_LOG")"
+
+echo 'swarm_record_no_progress counts the streak for one sha'
+: >"$COMMENTS_FILE"
+check 'first no-progress is 1' 1 "$(swarm_record_no_progress 276 "$HEAD" 2>/dev/null)"
+check 'second no-progress is 2' 2 "$(swarm_record_no_progress 276 "$HEAD" 2>/dev/null)"
+check 'a different sha starts over' 1 "$(swarm_record_no_progress 276 deadbeef 2>/dev/null)"
+
 echo 'the nudge heals a PR parked on ci=approval'
 PR_LIST='[{"number":285,"headRefName":"ai/issue-265-fanout","labels":[{"name":"ai:e2e"}]}]'
 PR_BRANCH='ai/issue-265-fanout'
