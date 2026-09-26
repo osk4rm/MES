@@ -1,3 +1,4 @@
+using AsistOff.MES.Attachments.Application.Features.Common;
 using AsistOff.MES.Attachments.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
@@ -13,13 +14,18 @@ public record DeleteAttachmentRequest(Guid Id) : ITenantRequest;
 
 internal sealed class DeleteAttachmentRequestHandler(
     IAttachmentsRepository repository,
-    IFileStorage storage)
+    IFileStorage storage,
+    ICurrentPermissionsAccessor permissionsAccessor)
     : IRequestHandler<DeleteAttachmentRequest>
 {
     public async Task Handle(DeleteAttachmentRequest request, CancellationToken cancellationToken)
     {
         var entity = await repository.GetAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException("Attachment", request.Id);
+
+        // Object-level rule (issue #315): same scope enforcement as the read
+        // paths — unauthorized deletes leave the record untouched.
+        AttachmentScopePolicy.EnsureScopeAccess(entity.OwnerType, permissionsAccessor.Permissions);
 
         await repository.DeleteAsync(entity.Id, cancellationToken);
         try
