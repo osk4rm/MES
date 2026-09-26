@@ -1,6 +1,7 @@
 using AsistOff.MES.Configuration.Application.Features.MaintenancePlans.Browse;
 using AsistOff.MES.Configuration.Application.Features.MaintenancePlans.Create;
 using AsistOff.MES.Configuration.Application.Features.MaintenancePlans.Delete;
+using AsistOff.MES.Configuration.Application.Features.MaintenancePlans.Due;
 using AsistOff.MES.Configuration.Application.Features.MaintenancePlans.EvaluateDue;
 using AsistOff.MES.Configuration.Application.Features.MaintenancePlans.Get;
 using AsistOff.MES.Configuration.Application.Features.MaintenancePlans.RaiseNow;
@@ -21,6 +22,11 @@ public class MaintenancePlansController(ISender sender) : ApiController
     public async Task<ActionResult<PagedResponse<MaintenancePlanResponse>>> BrowseAsync(
         [FromQuery] BrowseMaintenancePlansRequest request, CancellationToken cancellationToken)
         => await sender.Send(request, cancellationToken);
+
+    [HttpGet("due")]
+    public async Task<ActionResult<IReadOnlyCollection<MaintenancePlanResponse>>> DueAsync(
+        [FromQuery] GetDueMaintenancePlansRequest request, CancellationToken cancellationToken)
+        => Ok(await sender.Send(request, cancellationToken));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<MaintenancePlanResponse>> GetAsync(

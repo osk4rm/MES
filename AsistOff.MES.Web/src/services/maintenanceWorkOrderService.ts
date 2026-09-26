@@ -25,6 +25,7 @@ export interface MaintenanceWorkOrderResponse {
   description?: string | null;
   machineId: string;
   machineCode?: string | null;
+  planId?: string | null;
   priority: MaintenanceWorkOrderPriority;
   status: MaintenanceWorkOrderStatus;
   reportedAt: string;

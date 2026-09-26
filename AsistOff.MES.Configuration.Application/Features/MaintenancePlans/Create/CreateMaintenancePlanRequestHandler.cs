@@ -56,6 +56,6 @@ internal sealed class CreateMaintenancePlanRequestHandler(
 
         await repository.AddAsync(plan, cancellationToken);
         plan.Machine = machine;
-        return BrowseMaintenancePlansRequestHandler.Map(plan);
+        return BrowseMaintenancePlansRequestHandler.Map(plan, dateTimeProvider.UtcNow);
     }
 }
