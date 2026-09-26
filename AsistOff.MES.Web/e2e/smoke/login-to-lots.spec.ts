@@ -153,15 +153,22 @@ async function seedSmokeRun(): Promise<void> {
 }
 
 async function cleanupSmokeRun(): Promise<void> {
+  // Best-effort: a failed DELETE must not fail the suite, but it must not be
+  // silent either — warn so a leaking run shows up in the reporter output.
+  const warn = (what: string) => (error: unknown): null => {
+    // eslint-disable-next-line no-console
+    console.warn(`smoke cleanup: DELETE ${what} failed: ${String(error)}`);
+    return null;
+  };
   const attempts: Array<Promise<unknown>> = [];
   if (confirmationId) {
-    attempts.push(api.delete(`${API}/api/production-confirmations/${confirmationId}`).catch(() => null));
+    attempts.push(api.delete(`${API}/api/production-confirmations/${confirmationId}`).catch(warn(`confirmation ${confirmationId}`)));
   }
   if (producedLotId) {
-    attempts.push(api.delete(`${API}/api/lots/${producedLotId}`).catch(() => null));
+    attempts.push(api.delete(`${API}/api/lots/${producedLotId}`).catch(warn(`produced lot ${producedLotId}`)));
   }
   if (consumedLotId) {
-    attempts.push(api.delete(`${API}/api/lots/${consumedLotId}`).catch(() => null));
+    attempts.push(api.delete(`${API}/api/lots/${consumedLotId}`).catch(warn(`consumed lot ${consumedLotId}`)));
   }
   // The Released order, machine and recipe stay behind as an audit trail;
   // unique per-run codes keep repeat runs green without manual reset.
@@ -194,8 +201,14 @@ test.describe.serial('login to lots smoke', () => {
 
   test.afterAll(async () => {
     if (api) {
-      await cleanupSmokeRun().catch(() => null);
-      await api.dispose().catch(() => null);
+      await cleanupSmokeRun().catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn(`smoke cleanup: unexpected failure: ${String(error)}`);
+      });
+      await api.dispose().catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn(`smoke cleanup: api.dispose failed: ${String(error)}`);
+      });
     }
   });
 
