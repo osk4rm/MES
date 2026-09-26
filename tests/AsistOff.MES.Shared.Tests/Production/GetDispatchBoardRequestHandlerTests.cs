@@ -67,11 +67,10 @@ public class GetDispatchBoardRequestHandlerTests
         IReadOnlyCollection<Shift>? shifts = null,
         IReadOnlyCollection<OperatorShiftAssignment>? roster = null)
     {
-        _orders.Setup(r => r.BrowseDispatchAsync(
+        // The bounded dispatch read owns status, window, ordering and Take
+        // server-side; the mock simply returns the rows the database would.
+        _orders.Setup(r => r.BrowseDispatchBoardAsync(
                 It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(orders?.ToList() ?? []);
-        _orders.Setup(r => r.BrowseAsync(
-                It.IsAny<Paginator<ProductionOrder>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(orders?.ToList() ?? []);
         _confirmations.Setup(r => r.GetTotalsForOrdersAsync(
                 It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
@@ -153,41 +152,76 @@ public class GetDispatchBoardRequestHandlerTests
     }
 
     [Fact]
-    public async Task Handle_OrdersOverdueFirst_ThenDueDate_NullsLast_ThenPriority_ThenCode()
+    public async Task Handle_IssuesBoundedQuery_WithWindowAndTake200()
     {
-        // Arrange - from = 2026-09-21
-        var overdueLow = MakeOrder("PO-OVERDUE-B", dueDate: new DateTime(2026, 9, 18, 0, 0, 0, DateTimeKind.Utc), priority: 5);
-        var overdueHigh = MakeOrder("PO-OVERDUE-A", dueDate: new DateTime(2026, 9, 20, 0, 0, 0, DateTimeKind.Utc), priority: 1);
-        var dueLater = MakeOrder("PO-DUE-LATER", dueDate: new DateTime(2026, 9, 25, 0, 0, 0, DateTimeKind.Utc), priority: 0);
-        var dueSoon = MakeOrder("PO-DUE-SOON", dueDate: new DateTime(2026, 9, 22, 0, 0, 0, DateTimeKind.Utc), priority: 9);
-        var noDueLow = MakeOrder("PO-NODUE-B", dueDate: null, priority: 0);
-        var noDueHigh = MakeOrder("PO-NODUE-A", dueDate: null, priority: 0);
-        var tieLow = MakeOrder("PO-TIE-B", dueDate: new DateTime(2026, 9, 23, 0, 0, 0, DateTimeKind.Utc), priority: 2);
-        var tieHigh = MakeOrder("PO-TIE-A", dueDate: new DateTime(2026, 9, 23, 0, 0, 0, DateTimeKind.Utc), priority: 1);
-        // Excluded: wrong status or due after the window.
-        var planned = MakeOrder("PO-PLANNED", ProductionOrderStatus.Planned, new DateTime(2026, 9, 22, 0, 0, 0, DateTimeKind.Utc));
-        var completed = MakeOrder("PO-COMPLETED", ProductionOrderStatus.Completed, new DateTime(2026, 9, 22, 0, 0, 0, DateTimeKind.Utc));
-        var closed = MakeOrder("PO-CLOSED", ProductionOrderStatus.Closed, new DateTime(2026, 9, 22, 0, 0, 0, DateTimeKind.Utc));
-        var afterWindow = MakeOrder("PO-AFTER", ProductionOrderStatus.Released, new DateTime(2026, 10, 5, 0, 0, 0, DateTimeKind.Utc));
-        var inProgress = MakeOrder("PO-INPROG", ProductionOrderStatus.InProgress, new DateTime(2026, 9, 24, 0, 0, 0, DateTimeKind.Utc));
-        ArrangeEmpty(orders:
-        [
-            dueLater, planned, noDueLow, overdueLow, tieLow, completed,
-            dueSoon, closed, noDueHigh, afterWindow, overdueHigh, tieHigh, inProgress
-        ]);
+        // Arrange - the database owns status, window, ordering and Take; the
+        // handler must pass the window through with the 200-row bound.
+        ArrangeEmpty();
+
+        // Act
+        await CreateSut().Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
+
+        // Assert
+        _orders.Verify(r => r.BrowseDispatchBoardAsync(From, To, 200, It.IsAny<CancellationToken>()), Times.Once);
+        _orders.Verify(
+            r => r.BrowseAsync(It.IsAny<Paginator<ProductionOrder>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_PreservesRepositoryOrder_AndMapsOverdueFlag()
+    {
+        // Arrange - filtering and ordering happen server-side, so the handler
+        // preserves the repository order and only derives the overdue flag.
+        var overdue = MakeOrder("PO-OVERDUE", dueDate: new DateTime(2026, 9, 18, 0, 0, 0, DateTimeKind.Utc));
+        var dueSoon = MakeOrder("PO-DUE-SOON", status: ProductionOrderStatus.InProgress, dueDate: new DateTime(2026, 9, 22, 0, 0, 0, DateTimeKind.Utc));
+        var noDue = MakeOrder("PO-NODUE", dueDate: null);
+        ArrangeEmpty(orders: [overdue, dueSoon, noDue]);
 
         // Act
         var result = await CreateSut().Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
 
-        // Assert - overdue first (earlier due date first), then due-date
-        // ascending, priority tiebreak, code tiebreak, null due dates last.
-        var codes = result.Orders.Select(o => o.Code).ToList();
-        codes.Should().Equal(
-            "PO-OVERDUE-B", "PO-OVERDUE-A",
-            "PO-DUE-SOON", "PO-TIE-A", "PO-TIE-B", "PO-INPROG", "PO-DUE-LATER",
-            "PO-NODUE-A", "PO-NODUE-B");
-        result.Orders.Take(2).Should().OnlyContain(o => o.IsOverdue);
-        result.Orders.Skip(2).Should().OnlyContain(o => !o.IsOverdue);
+        // Assert - repository order preserved, overdue derived from the window start.
+        result.Orders.Select(o => o.Code).Should().Equal("PO-OVERDUE", "PO-DUE-SOON", "PO-NODUE");
+        result.Orders.Single(o => o.Code == "PO-OVERDUE").IsOverdue.Should().BeTrue();
+        result.Orders.Single(o => o.Code == "PO-DUE-SOON").IsOverdue.Should().BeFalse();
+        result.Orders.Single(o => o.Code == "PO-NODUE").IsOverdue.Should().BeFalse();
+        result.Orders.Single(o => o.Code == "PO-DUE-SOON").Status.Should().Be(ProductionOrderStatus.InProgress);
+    }
+
+    [Fact]
+    public async Task Handle_EmptyWindow_ReturnsEmptyBoard_WithShiftsIntact()
+    {
+        // Arrange
+        var morning = MakeShift("A-MORNING");
+        ArrangeEmpty(orders: [], shifts: [morning], roster: []);
+
+        // Act
+        var result = await CreateSut().Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
+
+        // Assert
+        result.Orders.Should().BeEmpty();
+        result.Days.Should().HaveCount(7);
+        result.Days.Should().OnlyContain(d => d.Shifts.Select(s => s.Code).Contains("A-MORNING"));
+    }
+
+    [Fact]
+    public async Task Handle_LoadsConfirmationTotals_InSingleBatchedCall()
+    {
+        // Arrange
+        var first = MakeOrder("PO-001", dueDate: new DateTime(2026, 9, 22, 0, 0, 0, DateTimeKind.Utc));
+        var second = MakeOrder("PO-002", dueDate: new DateTime(2026, 9, 23, 0, 0, 0, DateTimeKind.Utc));
+        ArrangeEmpty(orders: [first, second]);
+
+        // Act
+        await CreateSut().Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
+
+        // Assert - one grouped query for all shown orders, no per-order query.
+        _confirmations.Verify(
+            r => r.GetTotalsForOrdersAsync(
+                It.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 2 && ids.Contains(first.Id) && ids.Contains(second.Id)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -219,7 +253,8 @@ public class GetDispatchBoardRequestHandlerTests
     [Fact]
     public async Task Handle_CapsOrderRows_At200()
     {
-        // Arrange
+        // Arrange - defensive in-memory Take guards repositories that ignore
+        // the Take; the database applies it first.
         var orders = Enumerable.Range(0, 205)
             .Select(i => MakeOrder($"PO-{i:000}", dueDate: null))
             .ToList();
@@ -233,7 +268,7 @@ public class GetDispatchBoardRequestHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ReversedWindow_ThrowsValidationException()
+    public async Task Handle_ReversedWindow_ThrowsValidationException_WithoutOrderRead()
     {
         // Arrange
         ArrangeEmpty();
@@ -243,10 +278,13 @@ public class GetDispatchBoardRequestHandlerTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
+        _orders.Verify(
+            r => r.BrowseDispatchBoardAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
-    public async Task Handle_MissingDates_ThrowsValidationException()
+    public async Task Handle_MissingDates_ThrowsValidationException_WithoutOrderRead()
     {
         // Arrange
         ArrangeEmpty();
@@ -256,10 +294,13 @@ public class GetDispatchBoardRequestHandlerTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
+        _orders.Verify(
+            r => r.BrowseDispatchBoardAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
-    public async Task Handle_Window32Days_ThrowsValidationException()
+    public async Task Handle_Window32Days_ThrowsValidationException_WithoutOrderRead()
     {
         // Arrange
         ArrangeEmpty();
@@ -271,6 +312,9 @@ public class GetDispatchBoardRequestHandlerTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
+        _orders.Verify(
+            r => r.BrowseDispatchBoardAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

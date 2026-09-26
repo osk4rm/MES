@@ -10,6 +10,9 @@ namespace AsistOff.MES.Production.Application.Features.Lots.Browse;
 internal sealed class BrowseLotsRequestHandler(ILotsRepository repository)
     : IRequestHandler<BrowseLotsRequest, PagedResponse<LotResponse>>
 {
+    /// <summary>Upper bound for <c>Search</c> typeahead pages (issue #274).</summary>
+    internal const int TypeaheadMaxRows = 20;
+
     public async Task<PagedResponse<LotResponse>> Handle(BrowseLotsRequest request, CancellationToken cancellationToken)
     {
         var predicate = PredicateBuilder.New<Lot>(true);
@@ -27,35 +30,38 @@ internal sealed class BrowseLotsRequestHandler(ILotsRepository repository)
         if (request.ExpiryTo.HasValue)
             predicate = predicate.And(x => x.ExpiryDate != null && x.ExpiryDate <= request.ExpiryTo.Value);
 
-        IPagedRequest paging = request;
-        int? effectivePageSize = request.PageSize;
-        if (!string.IsNullOrWhiteSpace(request.Search))
-        {
-            // Capped typeahead: first page ordered by code, at most 20 rows.
-            // MaxPageSize (200) still caps the regular browse path via validation.
-            effectivePageSize = Math.Min(request.PageSize ?? BrowseLotsRequest.MaxLookupRows, BrowseLotsRequest.MaxLookupRows);
-            paging = new LookupPaging(request, effectivePageSize);
-        }
-
         var totalCount = await repository.CountAsync(predicate, cancellationToken);
-        var paginator = new Paginator<Lot>(predicate, paging);
+        var paginator = string.IsNullOrWhiteSpace(request.Search)
+            ? new Paginator<Lot>(predicate, request)
+            : new Paginator<Lot>(predicate, CappedTypeahead(request));
         var items = await repository.BrowseAsync(paginator, cancellationToken);
 
+        var pageSize = string.IsNullOrWhiteSpace(request.Search)
+            ? request.PageSize
+            : CappedTypeahead(request).PageSize;
         return new PagedLotsResponse(
-            items.Select(LotMappings.Map).ToList(), totalCount, effectivePageSize);
+            items.Select(LotMappings.Map).ToList(), totalCount, pageSize);
     }
 
     /// <summary>
-    /// Wraps the incoming request for <c>Search</c> typeahead: caps the page to
-    /// <c>MaxLookupRows</c> and defaults the sort to code ascending so shopfloor
-    /// lookups stay bounded and deterministic.
+    /// Typeahead paging: first page ordered by code, capped at
+    /// <see cref="TypeaheadMaxRows"/> rows and at <c>MaxPageSize</c>, so a
+    /// shopfloor lookup can never pull an unbounded page (issue #274).
     /// </summary>
-    private sealed class LookupPaging(BrowseLotsRequest inner, int? pageSize) : IPagedRequest
+    internal static TypeaheadPaging CappedTypeahead(BrowseLotsRequest request)
     {
-        public List<string> RawSort { get; set; } = inner.RawSort.Count == 0 ? ["Code"] : inner.RawSort;
-        public IReadOnlyCollection<string> SupportedSortFields => inner.SupportedSortFields;
-        public int? PageNumber => 1;
-        public int? PageSize => pageSize;
-        public int? MaxPageSize => inner.MaxPageSize;
+        var size = Math.Min(request.PageSize ?? TypeaheadMaxRows, TypeaheadMaxRows);
+        if (request.MaxPageSize.HasValue)
+            size = Math.Min(size, request.MaxPageSize.Value);
+        return new TypeaheadPaging(request.PageNumber ?? 1, Math.Max(size, 1));
+    }
+
+    internal sealed class TypeaheadPaging(int pageNumber, int pageSize) : IPagedRequest
+    {
+        public int? PageNumber { get; } = pageNumber;
+        public int? PageSize { get; } = pageSize;
+        public int? MaxPageSize => TypeaheadMaxRows;
+        public List<string> RawSort { get; set; } = ["Code"];
+        public IReadOnlyCollection<string> SupportedSortFields { get; } = ["Code"];
     }
 }

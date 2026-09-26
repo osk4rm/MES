@@ -20,17 +20,25 @@ internal sealed class ProductionOrdersRepository(DefaultContext context) : IProd
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyCollection<ProductionOrder>> BrowseDispatchAsync(DateOnly from, DateOnly to, int take, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<ProductionOrder>> BrowseDispatchBoardAsync(DateOnly from, DateOnly to, int take, CancellationToken cancellationToken = default)
     {
-        var fromUtc = new DateTime(from.Year, from.Month, from.Day, 0, 0, 0, DateTimeKind.Utc);
-        var toExclusiveUtc = new DateTime(to.Year, to.Month, to.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(1);
+        // DueDate is a timestamp; the board window is date-granular, so the
+        // window maps to [from 00:00 UTC, day-after-to 00:00 UTC). Overdue
+        // means strictly before the window start; null due dates are always
+        // included. Ordering is overdue-first, then null due dates last, then
+        // due date, priority, code — all translated to SQL with Take applied
+        // before materialization (issue #274).
+        var fromStartUtc = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var toExclusiveUtc = to.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
         return await context.Set<ProductionOrder>()
             .AsNoTracking()
             .Where(x => x.Status == ProductionOrderStatus.Released || x.Status == ProductionOrderStatus.InProgress)
-            .Where(x => x.DueDate == null || x.DueDate < toExclusiveUtc)
-            .OrderByDescending(x => x.DueDate != null && x.DueDate < fromUtc)
-            .ThenBy(x => x.DueDate == null ? 1 : 0)
+            .Where(x => x.DueDate == null
+                || x.DueDate < fromStartUtc
+                || (x.DueDate >= fromStartUtc && x.DueDate < toExclusiveUtc))
+            .OrderByDescending(x => x.DueDate != null && x.DueDate < fromStartUtc)
+            .ThenBy(x => x.DueDate == null)
             .ThenBy(x => x.DueDate)
             .ThenBy(x => x.Priority)
             .ThenBy(x => x.Code)
