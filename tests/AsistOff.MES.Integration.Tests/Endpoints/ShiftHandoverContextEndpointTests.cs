@@ -91,12 +91,17 @@ public sealed class ShiftHandoverContextEndpointTests(MesApplicationFixture fixt
         await PutCalendarCoveringAsync(client, machine.Id, from, shift.Id);
 
         // One open order; the confirmation below flips it Released -> InProgress
-        // and contributes the read-time totals.
+        // and contributes the read-time totals. ReportedAt must be at/after
+        // the order ReleasedAt (server time at release), so confirm at
+        // DateTime.UtcNow (after the release above) and query a fresh `to`
+        // that still contains the window start the calendar covers.
         var order = await CreateReleasedOrderAsync(client, tag, "ORD");
-        var firstResponse = await ConfirmAsync(client, order.Id, machine.Id, to.AddMinutes(-40), 20m, 2m, operatorId);
+        var firstAt = DateTime.UtcNow;
+        var firstResponse = await ConfirmAsync(client, order.Id, machine.Id, firstAt, 20m, 2m, operatorId);
         firstResponse.EnsureSuccessStatusCode();
         var first = await ReadAsync<ProductionConfirmationDto>(firstResponse);
-        var secondResponse = await ConfirmAsync(client, order.Id, machine.Id, to.AddMinutes(-10), 5m, 0m, null);
+        var secondAt = firstAt.AddSeconds(1);
+        var secondResponse = await ConfirmAsync(client, order.Id, machine.Id, secondAt, 5m, 0m, null);
         secondResponse.EnsureSuccessStatusCode();
         var second = await ReadAsync<ProductionConfirmationDto>(secondResponse);
 
@@ -110,7 +115,11 @@ public sealed class ShiftHandoverContextEndpointTests(MesApplicationFixture fixt
         res.EnsureSuccessStatusCode();
         var active = await RaiseAndonAsync(client, machine.Id, reason.Id, to.AddMinutes(-5));
 
-        var response = await client.GetAsync($"{BaseUrl}?machineId={machine.Id}&from={Q(from)}&to={Q(to)}");
+        // Confirmations were reported at DateTime.UtcNow (after the release),
+        // which is slightly after the `to` captured before seeding, so query
+        // a fresh upper bound that still keeps the window under 24h.
+        var queryTo = DateTime.UtcNow.AddSeconds(30);
+        var response = await client.GetAsync($"{BaseUrl}?machineId={machine.Id}&from={Q(from)}&to={Q(queryTo)}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var context = await ReadAsync<ShiftHandoverContextDto>(response);
@@ -196,29 +205,33 @@ public sealed class ShiftHandoverContextEndpointTests(MesApplicationFixture fixt
         var from = to.AddHours(-2);
         var order = await CreateReleasedOrderAsync(client, tag, "PAG");
 
+        // ReportedAt cannot precede the order ReleasedAt, so confirm at
+        // DateTime.UtcNow (after the release) and query a fresh upper bound.
+        var baseAt = DateTime.UtcNow;
         for (var i = 0; i < 3; i++)
         {
             var confirm = await ConfirmAsync(
-                client, order.Id, machine.Id, to.AddMinutes(-30 + i), 1m, 0m, null);
+                client, order.Id, machine.Id, baseAt.AddSeconds(i), 1m, 0m, null);
             confirm.EnsureSuccessStatusCode();
         }
 
+        var queryTo = DateTime.UtcNow.AddSeconds(30);
         var defaultPage = await ReadAsync<ShiftHandoverContextDto>(
-            await client.GetAsync($"{BaseUrl}?machineId={machine.Id}&from={Q(from)}&to={Q(to)}"));
+            await client.GetAsync($"{BaseUrl}?machineId={machine.Id}&from={Q(from)}&to={Q(queryTo)}"));
 
         defaultPage.Confirmations.Should().HaveCount(3);
         defaultPage.Confirmations.Should().BeInDescendingOrder(c => c.ReportedAt);
         defaultPage.ConfirmationPageSize.Should().Be(20);
 
         var firstPage = await ReadAsync<ShiftHandoverContextDto>(
-            await client.GetAsync($"{BaseUrl}?machineId={machine.Id}&from={Q(from)}&to={Q(to)}&confirmationPage=1&confirmationPageSize=2"));
+            await client.GetAsync($"{BaseUrl}?machineId={machine.Id}&from={Q(from)}&to={Q(queryTo)}&confirmationPage=1&confirmationPageSize=2"));
 
         firstPage.Confirmations.Should().HaveCount(2);
         firstPage.ConfirmationsTotalCount.Should().Be(3);
         firstPage.ConfirmationPage.Should().Be(1);
 
         var secondPage = await ReadAsync<ShiftHandoverContextDto>(
-            await client.GetAsync($"{BaseUrl}?machineId={machine.Id}&from={Q(from)}&to={Q(to)}&confirmationPage=2&confirmationPageSize=2"));
+            await client.GetAsync($"{BaseUrl}?machineId={machine.Id}&from={Q(from)}&to={Q(queryTo)}&confirmationPage=2&confirmationPageSize=2"));
 
         var oldest = secondPage.Confirmations.Should().ContainSingle().Subject;
         firstPage.Confirmations.Select(c => c.Id).Should().NotContain(oldest.Id);
@@ -226,7 +239,7 @@ public sealed class ShiftHandoverContextEndpointTests(MesApplicationFixture fixt
             firstPage.Confirmations.Concat(secondPage.Confirmations).Min(c => c.ReportedAt));
 
         var tooBig = await client.GetAsync(
-            $"{BaseUrl}?machineId={machine.Id}&from={Q(from)}&to={Q(to)}&confirmationPageSize=101");
+            $"{BaseUrl}?machineId={machine.Id}&from={Q(from)}&to={Q(queryTo)}&confirmationPageSize=101");
 
         tooBig.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
