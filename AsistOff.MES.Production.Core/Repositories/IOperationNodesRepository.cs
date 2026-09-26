@@ -15,6 +15,15 @@ public interface IOperationNodesRepository
     /// edges that belong to siblings of the operation being mutated).
     /// </summary>
     Task<IReadOnlyCollection<OperationNode>> ListForVersionWithDependenciesAsync(Guid recipeVersionId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Returns every operation in the given recipe versions with
+    /// <see cref="OperationNode.Dependencies"/> and
+    /// <see cref="OperationNode.ResourceRequirements"/> eagerly loaded.
+    /// Required by the Gantt schedule read-model (issue #304), which explodes
+    /// many orders across many versions in one bounded read.
+    /// </summary>
+    Task<IReadOnlyCollection<OperationNode>> ListForVersionsAsync(
+        IReadOnlyCollection<Guid> recipeVersionIds, CancellationToken cancellationToken = default);
     Task<OperationNode> AddAsync(OperationNode entity, CancellationToken cancellationToken = default);
     Task UpdateAsync(OperationNode entity, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);

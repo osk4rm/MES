@@ -30,6 +30,7 @@ public class ProductionEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<KanbanLoop>();
         modelBuilder.Entity<KanbanCard>();
         modelBuilder.Entity<ShiftHandover>();
+        modelBuilder.Entity<ScheduledOperation>();
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProductionEntityConfigurator).Assembly);
     }
