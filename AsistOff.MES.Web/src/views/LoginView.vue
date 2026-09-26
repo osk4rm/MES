@@ -71,7 +71,7 @@ import { useI18n } from 'vue-i18n';
 import AppInput from '../components/ui/AppInput.vue';
 import AppFormField from '../components/ui/AppFormField.vue';
 import AppButton from '../components/ui/AppButton.vue';
-import { signIn } from '../services/authService';
+import { signIn, extractSessionPermissions } from '../services/authService';
 import { resolveSafeRedirect } from '../composables/useSafeRedirect';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
@@ -92,9 +92,11 @@ async function onSubmit() {
     // Cookie transport (issue #242): the session arrives via httpOnly
     // Set-Cookie and the body tokens are intentionally empty. A 200
     // means the cookies were issued — only the display email is kept,
-    // in memory, and no token is written to any storage.
-    await signIn({ email: email.value, password: password.value });
-    authStore.setAuth({ email: email.value });
+    // in memory, and no token is written to any storage. Permission
+    // grants come from the response-body claims (issue #273) so the
+    // route guard can enforce meta.permission after sign-in.
+    const result = await signIn({ email: email.value, password: password.value });
+    authStore.setAuth({ email: email.value }, extractSessionPermissions(result));
     toast.success(t('auth.signInSuccess'));
     const redirect = route.query['redirect'];
     await router.push(resolveSafeRedirect(redirect));
