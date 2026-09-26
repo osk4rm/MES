@@ -48,14 +48,21 @@ try {
     }
 
     Write-Host '== smoke: ensuring Playwright chromium =='
-    & $npx --prefix $WebDir playwright install chromium
-    if ($LASTEXITCODE -ne 0) { exit 1 }
+    # Run from the web directory instead of `npx --prefix`, whose flag
+    # handling varies across npx versions.
+    Push-Location $WebDir
+    try {
+        & $npx playwright install chromium
+        if ($LASTEXITCODE -ne 0) { exit 1 }
 
-    Write-Host '== smoke: running login-to-lots suite =='
-    $env:E2E_FRONTEND_URL = 'http://localhost:5173'
-    $env:E2E_API_URL = 'http://localhost:5243'
-    & $npx --prefix $WebDir playwright test
-    $code = $LASTEXITCODE
+        Write-Host '== smoke: running login-to-lots suite =='
+        $env:E2E_FRONTEND_URL = 'http://localhost:5173'
+        $env:E2E_API_URL = 'http://localhost:5243'
+        & $npx playwright test
+        $code = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
 } finally {
     if (-not $KeepStack) {
         Write-Host '== smoke: stopping stack =='

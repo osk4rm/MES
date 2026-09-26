@@ -1,7 +1,14 @@
 <template>
   <Teleport to="body">
     <Transition name="app-modal">
-      <div v-if="open" class="app-modal" role="dialog" aria-modal="true" @mousedown.self="onBackdrop">
+      <div
+        v-if="open"
+        v-bind="$attrs"
+        class="app-modal"
+        role="dialog"
+        aria-modal="true"
+        @mousedown.self="onBackdrop"
+      >
         <div :class="['app-modal__panel', `app-modal__panel--${size}`]" @mousedown.stop>
           <header v-if="title || $slots.header" class="app-modal__header">
             <slot name="header">
@@ -25,6 +32,12 @@
 
 <script setup lang="ts">
 import { watchEffect } from 'vue';
+
+// The root node is <Teleport>, which renders no DOM element of its own, so
+// fallthrough attributes (e.g. data-testid set by callers) would land on the
+// Teleport placeholder instead of the visible dialog. Disable the automatic
+// fallthrough and bind $attrs explicitly on the dialog overlay above.
+defineOptions({ inheritAttrs: false });
 
 const props = withDefaults(defineProps<{
   open: boolean;

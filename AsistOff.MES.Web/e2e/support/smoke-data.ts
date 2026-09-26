@@ -103,7 +103,12 @@ export function createLotPayload(
   };
 }
 
-/** Payload for `POST /api/production-confirmations` with a lot trace. */
+/**
+ * Payload for `POST /api/production-confirmations` with a lot trace.
+ * The smoke drives the confirmation through the UI, then cross-checks the
+ * posted request body against this builder, so the helper pins the exact
+ * API contract the UI must send (same keys the detail view posts).
+ */
 export function confirmationPayload(
   productionOrderId: string,
   machineId: string,

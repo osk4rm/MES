@@ -19,9 +19,12 @@
 import { expect, request as newRequest, test, type APIRequestContext, type Page } from '@playwright/test';
 import {
   buildSmokeTag,
+  confirmationPayload,
   createLotPayload,
+  extractOrderIdFromUrl,
   findSmokeOrder,
   isDispatchBoardShape,
+  machineOptionLabel,
   smokeCodes,
   SMOKE_EMAIL,
   SMOKE_PASSWORD,
@@ -240,6 +243,8 @@ test.describe.serial('login to lots smoke', () => {
     await table.getByText(codes.orderCode).click();
     await expect(page).toHaveURL(new RegExp(`/production/orders/${orderId}`));
     await expect(page.getByTestId('order-detail')).toBeVisible();
+    // The detail URL carries the seeded order id (guards a wrong-row redirect).
+    expect(extractOrderIdFromUrl(page.url())).toBe(orderId);
   });
 
   test('confirmation posts produced plus consumed lots', async ({ page }) => {
@@ -250,7 +255,11 @@ test.describe.serial('login to lots smoke', () => {
     const modal = page.getByTestId('confirmation-modal');
     await expect(modal).toBeVisible();
 
-    await page.getByTestId('confirmation-machine-select').selectOption(machineId);
+    // The seeded machine is offered in the Work Center dropdown under the
+    // same `${code} — ${name}` label the detail view builds its options with.
+    const machineSelect = page.getByTestId('confirmation-machine-select');
+    await expect(machineSelect).toContainText(machineOptionLabel(codes));
+    await machineSelect.selectOption(machineId);
     await page.getByTestId('confirmation-good-qty').locator('input').fill('10');
     await page.getByTestId('confirmation-produced-lot').selectOption(producedLotId);
 
@@ -268,6 +277,16 @@ test.describe.serial('login to lots smoke', () => {
     const response = await created;
     confirmationId = ((await response.json()) as { id: string }).id;
     expect(confirmationId).toBeTruthy();
+
+    // The UI posts the same contract the API documents: order, machine,
+    // quantities and the produced/consumed lot linkage.
+    const sent = response.request().postDataJSON() as Record<string, unknown>;
+    const expected = confirmationPayload(orderId, machineId, producedLotId, consumedLotId, 5);
+    expect(sent['productionOrderId']).toBe(expected['productionOrderId']);
+    expect(sent['machineId']).toBe(expected['machineId']);
+    expect(sent['goodQuantity']).toBe(expected['goodQuantity']);
+    expect(sent['producedLotId']).toBe(expected['producedLotId']);
+    expect(sent['consumedLots']).toEqual(expected['consumedLots']);
 
     // The modal closes and the confirmation is persisted with its trace.
     await expect(modal).toBeHidden();
