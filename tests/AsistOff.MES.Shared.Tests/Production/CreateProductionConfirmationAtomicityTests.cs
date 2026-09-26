@@ -20,7 +20,9 @@ namespace AsistOff.MES.Shared.Tests.Production;
 /// the confirmation row, all RW/PW movements, all genealogy edges and the
 /// order status flip share one <see cref="IUnitOfWork"/> transaction, so a
 /// mid-fan-out failure rolls everything back and failed validations open no
-/// transaction at all.
+/// transaction at all. Real commit/rollback semantics are additionally proven
+/// by <c>EfUnitOfWorkTests</c> (SQLite, relational BEGIN/COMMIT/ROLLBACK) and
+/// the endpoint integration tests against PostgreSQL.
 /// </summary>
 public class CreateProductionConfirmationAtomicityTests
 {
@@ -71,7 +73,7 @@ public class CreateProductionConfirmationAtomicityTests
         ReleasedAt = new DateTime(2026, 9, 24, 8, 0, 0, DateTimeKind.Utc)
     };
 
-    private CreateProductionConfirmationRequest ValidRequest(Guid orderId) => new(
+    private static CreateProductionConfirmationRequest ValidRequest(Guid orderId) => new(
         orderId,
         Guid.NewGuid(),
         null,
@@ -93,7 +95,8 @@ public class CreateProductionConfirmationAtomicityTests
         List<LotGenealogyEdge> edges,
         ProductionOrder order) : IUnitOfWork
     {
-        public int Calls { get; private set; }
+        public int ExecuteCalls { get; private set; }
+        public int ExecuteInTransactionCalls { get; private set; }
 
         public async Task ExecuteAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken = default)
         {
@@ -106,7 +109,7 @@ public class CreateProductionConfirmationAtomicityTests
 
         public async Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken = default)
         {
-            Calls++;
+            ExecuteCalls++;
 
             var confirmationsCount = confirmations.Count;
             var movementsCount = movements.Count;
@@ -129,16 +132,12 @@ public class CreateProductionConfirmationAtomicityTests
                 throw;
             }
         }
-    }
 
-    private static Mock<IUnitOfWork> InlineUnitOfWork()
-    {
-        var unitOfWork = new Mock<IUnitOfWork>();
-        unitOfWork.Setup(u => u.ExecuteAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
-            .Returns((Func<CancellationToken, Task> action, CancellationToken ct) => action(ct));
-        unitOfWork.Setup(u => u.ExecuteAsync(It.IsAny<Func<CancellationToken, Task<ProductionConfirmationResponse>>>(), It.IsAny<CancellationToken>()))
-            .Returns((Func<CancellationToken, Task<ProductionConfirmationResponse>> action, CancellationToken ct) => action(ct));
-        return unitOfWork;
+        public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken = default)
+        {
+            ExecuteInTransactionCalls++;
+            return await ExecuteAsync(_ => action(), cancellationToken);
+        }
     }
 
     private CreateProductionConfirmationRequestHandler CreateSut(IUnitOfWork unitOfWork) =>
@@ -146,7 +145,7 @@ public class CreateProductionConfirmationAtomicityTests
             _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object, unitOfWork);
 
     [Fact]
-    public async Task Handle_HappyPath_PersistsAllWritesInsideSingleTransaction()
+    public async Task Handle_HappyPath_WrapsAllWritesInSingleTransaction()
     {
         // Arrange
         var order = ReleasedOrder();
@@ -156,18 +155,20 @@ public class CreateProductionConfirmationAtomicityTests
         // Act
         var result = await CreateSut(unitOfWork).Handle(ValidRequest(order.Id), CancellationToken.None);
 
-        // Assert
-        unitOfWork.Calls.Should().Be(1);
+        // Assert — all four writes ran inside exactly one transaction boundary.
+        unitOfWork.ExecuteCalls.Should().Be(1);
+        _confirmations.Verify(r => r.AddAsync(It.IsAny<ProductionConfirmation>(), It.IsAny<CancellationToken>()), Times.Once);
+        _movements.Verify(r => r.AddRangeAsync(It.IsAny<IReadOnlyCollection<StockMovement>>(), It.IsAny<CancellationToken>()), Times.Once);
+        _orders.Verify(r => r.UpdateAsync(order, It.IsAny<CancellationToken>()), Times.Once);
         _savedConfirmations.Should().ContainSingle(c => c.Id == result.Id && c.ProductionOrderId == order.Id);
         _savedMovements.Should().NotBeEmpty();
         _savedMovements.Should().OnlyContain(m =>
             m.ProductionConfirmationId == result.Id && m.ProductionOrderId == order.Id);
         order.Status.Should().Be(ProductionOrderStatus.InProgress);
-        _orders.Verify(r => r.UpdateAsync(order, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task Handle_MovementFailure_RollsBackConfirmation()
+    public async Task Handle_MovementFailure_RollsBackConfirmationAndSkipsOrderStatusFlip()
     {
         // Arrange
         var order = ReleasedOrder();
@@ -180,13 +181,18 @@ public class CreateProductionConfirmationAtomicityTests
         // Act
         var act = () => CreateSut(unitOfWork).Handle(ValidRequest(order.Id), CancellationToken.None);
 
-        // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // Assert — the failure propagates, the confirmation row rolls back
+        // with the movements, and no follow-up writes run.
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("simulated movement persistence failure");
+        unitOfWork.ExecuteCalls.Should().Be(1);
+        _confirmations.Verify(r => r.AddAsync(It.IsAny<ProductionConfirmation>(), It.IsAny<CancellationToken>()), Times.Once);
         _savedConfirmations.Should().BeEmpty("the confirmation row must roll back with the failed movements");
         _savedMovements.Should().BeEmpty();
         _savedEdges.Should().BeEmpty();
-        order.Status.Should().Be(ProductionOrderStatus.Released);
         _orders.Verify(r => r.UpdateAsync(It.IsAny<ProductionOrder>(), It.IsAny<CancellationToken>()), Times.Never);
+        _edges.Verify(r => r.AddAsync(It.IsAny<LotGenealogyEdge>(), It.IsAny<CancellationToken>()), Times.Never);
+        order.Status.Should().Be(ProductionOrderStatus.Released);
     }
 
     [Fact]
@@ -224,36 +230,41 @@ public class CreateProductionConfirmationAtomicityTests
         _edges.Setup(r => r.AddAsync(It.IsAny<LotGenealogyEdge>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("simulated edge persistence failure"));
         var unitOfWork = new SnapshotUnitOfWork(_savedConfirmations, _savedMovements, _savedEdges, order);
-        var request = new CreateProductionConfirmationRequest(
-            order.Id, Guid.NewGuid(), Guid.NewGuid(),
-            new DateTime(2026, 9, 24, 10, 0, 0, DateTimeKind.Utc), 10m, 0m, null,
-            producedId, new[] { new ConsumedLotEntry(consumedId, 5m) });
+        var request = ValidRequest(order.Id) with
+        {
+            ProducedLotId = producedId,
+            ConsumedLots = new[] { new ConsumedLotEntry(consumedId, 5m) }
+        };
 
         // Act
         var act = () => CreateSut(unitOfWork).Handle(request, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("simulated edge persistence failure");
         _savedConfirmations.Should().BeEmpty("the confirmation row must roll back with the failed edge");
         _savedMovements.Should().BeEmpty("persisted RW/PW lines must roll back with the failed edge");
         _savedEdges.Should().BeEmpty();
+        _orders.Verify(r => r.UpdateAsync(It.IsAny<ProductionOrder>(), It.IsAny<CancellationToken>()), Times.Never);
         order.Status.Should().Be(ProductionOrderStatus.Released);
     }
 
     [Fact]
-    public async Task Handle_ClosedOrder_WritesNothingAndOpensNoTransaction()
+    public async Task Handle_ClosedOrder_WritesNothingAndNeverOpensTransaction()
     {
         // Arrange
         var order = ReleasedOrder();
         order.Status = ProductionOrderStatus.Closed;
         _orders.Setup(r => r.GetAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
-        var unitOfWorkMock = InlineUnitOfWork();
+        var unitOfWork = new SnapshotUnitOfWork(_savedConfirmations, _savedMovements, _savedEdges, order);
 
         // Act
-        var act = () => CreateSut(unitOfWorkMock.Object).Handle(ValidRequest(order.Id), CancellationToken.None);
+        var act = () => CreateSut(unitOfWork).Handle(ValidRequest(order.Id), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ConflictException>();
+        unitOfWork.ExecuteCalls.Should().Be(0);
+        unitOfWork.ExecuteInTransactionCalls.Should().Be(0);
         _savedConfirmations.Should().BeEmpty();
         _savedMovements.Should().BeEmpty();
         _savedEdges.Should().BeEmpty();
@@ -261,9 +272,6 @@ public class CreateProductionConfirmationAtomicityTests
         _movements.Verify(r => r.AddRangeAsync(It.IsAny<IReadOnlyCollection<StockMovement>>(), It.IsAny<CancellationToken>()), Times.Never);
         _edges.Verify(r => r.AddAsync(It.IsAny<LotGenealogyEdge>(), It.IsAny<CancellationToken>()), Times.Never);
         _orders.Verify(r => r.UpdateAsync(It.IsAny<ProductionOrder>(), It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(
-            u => u.ExecuteAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
@@ -298,7 +306,7 @@ public class CreateProductionConfirmationAtomicityTests
         // Act
         await CreateSut(unitOfWork).Handle(ValidRequest(order.Id), CancellationToken.None);
 
-        // Assert
+        // Assert — persisted RW/PW lines exactly match the movement preview.
         var expected = MovementCalculator.BuildPreview(order, 10m, 1, bomItems);
         _savedMovements.Should().HaveCount(expected.Count);
         for (var i = 0; i < expected.Count; i++)

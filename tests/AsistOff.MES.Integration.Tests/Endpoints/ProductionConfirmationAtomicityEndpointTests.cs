@@ -12,33 +12,43 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AsistOff.MES.Integration.Tests.Endpoints;
 
 /// <summary>
-/// Atomicity coverage for the operator confirmation fan-out (issue #265).
-/// The confirmation row, all RW/PW movements, all genealogy edges and the
-/// order status flip commit together: the happy path reads all four back in
-/// one reload, while validation failures (404/409/400) leave no partial rows
-/// behind. True mid-fan-out persistence failures are covered at unit level
-/// (<c>CreateProductionConfirmationAtomicityTests</c>) with a failing
-/// repository behind the same <c>IUnitOfWork</c> boundary.
+/// Endpoint-scoped integration tests for the atomic confirmation fan-out
+/// (issue #265): one POST persists the confirmation row, all RW/PW movements,
+/// all genealogy edges and the order status flip together, while any failure
+/// leaves zero partial rows behind.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ProductionConfirmationAtomicityEndpointTests(MesApplicationFixture fixture)
-    : IntegrationTestBase(fixture)
+public sealed class ProductionConfirmationAtomicityEndpointTests(MesApplicationFixture fixture) : IntegrationTestBase(fixture)
 {
     private const string BaseUrl = "/api/production-confirmations";
     private const string OrdersUrl = "/api/production-orders";
-    private const string MovementsUrl = "/api/stock-movements";
+    private const string StockMovementsUrl = "/api/stock-movements";
     private const string GenealogyUrl = "/api/lot-genealogy";
     private const string LotsUrl = "/api/lots";
 
     [Fact]
-    public async Task Create_ValidConfirmation_PersistsConfirmationMovementsAndOrderFlipTogether()
+    public async Task Create_WithoutToken_Returns401()
+    {
+        using var client = Fixture.CreateClient();
+
+        var response = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(Guid.NewGuid()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Create_HappyPath_PersistsConfirmationMovementsEdgesAndOrderFlipTogether()
     {
         // Arrange
         using var client = await Fixture.CreateAuthenticatedClientAsync();
-        var order = await CreateReleasedOrderAsync(client);
+        var setup = await CreateReleasedOrderWithBomAsync(client);
+        var produced = await CreateLotAsync(client);
+        var consumed = await CreateLotAsync(client);
 
         // Act
-        var createResponse = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(order.Id));
+        var createResponse = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(
+            setup.OrderId, producedLotId: produced.Id,
+            consumedLots: new (Guid LotId, decimal Quantity)[] { (consumed.Id, 5m) }));
 
         // Assert
         createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -47,80 +57,78 @@ public sealed class ProductionConfirmationAtomicityEndpointTests(MesApplicationF
         var getResponse = await client.GetAsync($"{BaseUrl}/{created.Id}");
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var movementsResponse = await client.GetAsync($"{MovementsUrl}?confirmationId={created.Id}");
-        movementsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var lines = await ReadAsync<List<StockMovementDto>>(movementsResponse);
-        lines.Should().NotBeEmpty();
-        lines.Should().OnlyContain(l =>
-            l.ProductionConfirmationId == created.Id && l.ProductionOrderId == order.Id);
-        lines.Should().ContainSingle(l => l.MovementType == "PW" && l.Quantity == 10m);
+        var previewResponse = await client.GetAsync($"{BaseUrl}/{created.Id}/movements");
+        previewResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var preview = await ReadAsync<List<MovementPreviewLineDto>>(previewResponse);
 
-        var orderResponse = await client.GetAsync($"{OrdersUrl}/{order.Id}");
+        var linesResponse = await client.GetAsync($"{StockMovementsUrl}?confirmationId={created.Id}");
+        linesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var lines = await ReadAsync<List<StockMovementDto>>(linesResponse);
+        lines.Should().HaveCount(preview.Count);
+        foreach (var expected in preview)
+        {
+            lines.Should().ContainSingle(l =>
+                l.MovementType == expected.MovementType
+                && l.ProductId == expected.ProductId
+                && l.Quantity == expected.Quantity
+                && l.MeasureUnitId == expected.MeasureUnitId
+                && l.WarehouseId == expected.PreferredWarehouseId);
+        }
+
+        var edgesResponse = await client.GetAsync($"{GenealogyUrl}?productionConfirmationId={created.Id}");
+        edgesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var edges = await ReadAsync<PagedResponseDto<LotGenealogyEdgeDto>>(edgesResponse);
+        edges.Items.Should().ContainSingle(i =>
+            i.ConsumedLotId == consumed.Id
+            && i.ProducedLotId == produced.Id
+            && i.ProductionOrderId == setup.OrderId
+            && i.ProductionConfirmationId == created.Id);
+
+        var orderResponse = await client.GetAsync($"{OrdersUrl}/{setup.OrderId}");
         var fetchedOrder = await ReadAsync<ProductionOrderDto>(orderResponse);
         fetchedOrder.Status.Should().Be((short)ProductionOrderStatus.InProgress);
     }
 
     [Fact]
-    public async Task Create_WithLots_PersistsGenealogyEdgesWithConfirmation()
+    public async Task Create_UnknownConsumedLot_Returns404_AndWritesNothing()
     {
         // Arrange
         using var client = await Fixture.CreateAuthenticatedClientAsync();
-        var order = await CreateReleasedOrderAsync(client);
+        var setup = await CreateReleasedOrderWithBomAsync(client);
         var produced = await CreateLotAsync(client);
-        var consumed = await CreateLotAsync(client);
 
         // Act
-        var createResponse = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(
-            order.Id, producedLotId: produced.Id,
-            consumedLots: new (Guid LotId, decimal Quantity)[] { (consumed.Id, 5m) }));
-
-        // Assert
-        createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
-        var created = await ReadAsync<ProductionConfirmationDto>(createResponse);
-
-        var edgesResponse = await client.GetAsync($"{GenealogyUrl}?productionConfirmationId={created.Id}");
-        edgesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var page = await ReadAsync<PagedResponseDto<LotGenealogyEdgeDto>>(edgesResponse);
-        page.Items.Should().ContainSingle(i =>
-            i.ProducedLotId == produced.Id
-            && i.ConsumedLotId == consumed.Id
-            && i.ProductionConfirmationId == created.Id
-            && i.ProductionOrderId == order.Id);
-    }
-
-    [Fact]
-    public async Task Create_UnknownLot_Returns404_AndLeavesNoPartialRows()
-    {
-        // Arrange
-        using var client = await Fixture.CreateAuthenticatedClientAsync();
-        var order = await CreateReleasedOrderAsync(client);
-        var consumed = await CreateLotAsync(client);
-
-        // Act — produced lot does not exist, so lot resolution fails fast
-        // with 404 before any write.
         var response = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(
-            order.Id, producedLotId: Guid.NewGuid(),
-            consumedLots: new (Guid LotId, decimal Quantity)[] { (consumed.Id, 5m) }));
+            setup.OrderId, producedLotId: produced.Id,
+            consumedLots: new (Guid LotId, decimal Quantity)[] { (Guid.NewGuid(), 5m) }));
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        (await CountRowsForOrderAsync(order.Id)).Should().Be((0, 0, 0));
+        (await CountConfirmationsAsync(setup.OrderId)).Should().Be(0);
+        (await CountMovementsForOrderAsync(setup.OrderId)).Should().Be(0);
+        (await CountEdgesForOrderAsync(setup.OrderId)).Should().Be(0);
+
+        var orderResponse = await client.GetAsync($"{OrdersUrl}/{setup.OrderId}");
+        var fetchedOrder = await ReadAsync<ProductionOrderDto>(orderResponse);
+        fetchedOrder.Status.Should().Be((short)ProductionOrderStatus.Released);
     }
 
     [Fact]
-    public async Task Create_ClosedOrder_Returns409_AndLeavesNoPartialRows()
+    public async Task Create_BadQuantity_Returns400_AndWritesNothing()
     {
         // Arrange
         using var client = await Fixture.CreateAuthenticatedClientAsync();
-        var order = await CreateReleasedOrderAsync(client);
-        await SetOrderStatusAsync(order.Id, ProductionOrderStatus.Closed);
+        var setup = await CreateReleasedOrderWithBomAsync(client);
 
         // Act
-        var response = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(order.Id));
+        var response = await client.PostAsJsonAsync(
+            BaseUrl, ConfirmPayload(setup.OrderId, goodQuantity: 0m, scrapQuantity: 0m));
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        (await CountRowsForOrderAsync(order.Id)).Should().Be((0, 0, 0));
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await CountConfirmationsAsync(setup.OrderId)).Should().Be(0);
+        (await CountMovementsForOrderAsync(setup.OrderId)).Should().Be(0);
+        (await CountEdgesForOrderAsync(setup.OrderId)).Should().Be(0);
     }
 
     [Fact]
@@ -128,39 +136,99 @@ public sealed class ProductionConfirmationAtomicityEndpointTests(MesApplicationF
     {
         // Arrange
         using var devClient = await Fixture.CreateAuthenticatedClientAsync();
-        var order = await CreateReleasedOrderAsync(devClient);
+        var setup = await CreateReleasedOrderWithBomAsync(devClient);
 
         var (email, password) = await Fixture.CreateTenantAsync();
         using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
 
-        // Act — the order is hidden behind the tenant query filter.
-        var response = await otherTenantClient.PostAsJsonAsync(BaseUrl, ConfirmPayload(order.Id));
+        // Act
+        var response = await otherTenantClient.PostAsJsonAsync(BaseUrl, ConfirmPayload(setup.OrderId));
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
-        var browse = await devClient.GetAsync($"{BaseUrl}?productionOrderId={order.Id}");
+        var browse = await otherTenantClient.GetAsync($"{BaseUrl}?productionOrderId={setup.OrderId}");
         browse.StatusCode.Should().Be(HttpStatusCode.OK);
         var page = await ReadAsync<PagedResponseDto<ProductionConfirmationDto>>(browse);
         page.Items.Should().BeEmpty();
+
+        (await CountConfirmationsAsync(setup.OrderId)).Should().Be(0);
+        (await CountMovementsForOrderAsync(setup.OrderId)).Should().Be(0);
+        (await CountEdgesForOrderAsync(setup.OrderId)).Should().Be(0);
     }
 
-    private async Task<(int Confirmations, int Movements, int Edges)> CountRowsForOrderAsync(Guid orderId)
+    [Fact]
+    public async Task Create_UnknownOrderId_Returns404_AndWritesNothing()
+    {
+        // Arrange
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var unknownOrderId = Guid.NewGuid();
+
+        // Act
+        var response = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(unknownOrderId));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await CountConfirmationsAsync(unknownOrderId)).Should().Be(0);
+        (await CountMovementsForOrderAsync(unknownOrderId)).Should().Be(0);
+        (await CountEdgesForOrderAsync(unknownOrderId)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Create_ClosedOrder_Returns409_AndWritesNothing()
+    {
+        // Arrange
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var setup = await CreateReleasedOrderWithBomAsync(client);
+        await SetOrderStatusAsync(setup.OrderId, ProductionOrderStatus.Closed);
+
+        // Act
+        var response = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(setup.OrderId));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await CountConfirmationsAsync(setup.OrderId)).Should().Be(0);
+        (await CountMovementsForOrderAsync(setup.OrderId)).Should().Be(0);
+        (await CountEdgesForOrderAsync(setup.OrderId)).Should().Be(0);
+    }
+
+    private async Task<int> CountConfirmationsAsync(Guid orderId)
     {
         using var scope = Fixture.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
+        return await context.Set<ProductionConfirmation>()
+            .IgnoreQueryFilters()
+            .CountAsync(x => x.ProductionOrderId == orderId);
+    }
 
-        var confirmations = await context.Set<ProductionConfirmation>()
+    private async Task<int> CountMovementsForOrderAsync(Guid orderId)
+    {
+        using var scope = Fixture.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
+        return await context.Set<StockMovement>()
             .IgnoreQueryFilters()
             .CountAsync(x => x.ProductionOrderId == orderId);
-        var movements = await context.Set<StockMovement>()
-            .IgnoreQueryFilters()
-            .CountAsync(x => x.ProductionOrderId == orderId);
-        var edges = await context.Set<LotGenealogyEdge>()
-            .IgnoreQueryFilters()
-            .CountAsync(x => x.ProductionOrderId == orderId);
+    }
 
-        return (confirmations, movements, edges);
+    private async Task<int> CountEdgesForOrderAsync(Guid orderId)
+    {
+        using var scope = Fixture.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
+        return await context.Set<LotGenealogyEdge>()
+            .IgnoreQueryFilters()
+            .CountAsync(x => x.ProductionOrderId == orderId);
+    }
+
+    private async Task SetOrderStatusAsync(Guid orderId, ProductionOrderStatus status)
+    {
+        using var scope = Fixture.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
+        var order = await context.Set<ProductionOrder>()
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == orderId);
+        order.Should().NotBeNull();
+        order!.Status = status;
+        await context.SaveChangesAsync();
     }
 
     private static object ConfirmPayload(
@@ -203,46 +271,20 @@ public sealed class ProductionConfirmationAtomicityEndpointTests(MesApplicationF
         return await ReadAsync<LotDto>(response);
     }
 
-    private async Task SetOrderStatusAsync(Guid orderId, ProductionOrderStatus status)
-    {
-        using var scope = Fixture.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
-        var order = await context.Set<ProductionOrder>()
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(x => x.Id == orderId);
-        order.Should().NotBeNull();
-        order!.Status = status;
-        await context.SaveChangesAsync();
-    }
+    private sealed record OrderSetup(
+        Guid OrderId,
+        Guid PerUnitProductId,
+        Guid PerBatchProductId,
+        Guid PreferredWarehouseId);
 
-    private async Task<ProductionOrderDto> CreateOrderAsync(
-        HttpClient client, Guid? recipeId = null, Guid? recipeVersionId = null)
-    {
-        var payload = new
-        {
-            code = UniqueCode("PO"),
-            productId = Guid.NewGuid(),
-            recipeId = recipeId ?? Guid.NewGuid(),
-            recipeVersionId = recipeVersionId ?? Guid.NewGuid(),
-            plannedQuantity = 100m,
-            measureUnitId = (Guid?)null,
-            priority = 0,
-            dueDate = (DateTime?)null,
-            notes = (string?)null,
-            syncId = (string?)null
-        };
+    private sealed record OperationNodeDto(Guid Id);
 
-        var response = await client.PostAsJsonAsync(OrdersUrl, payload);
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
-        return await ReadAsync<ProductionOrderDto>(response);
-    }
-
-    private async Task<ProductionOrderDto> CreateReleasedOrderAsync(HttpClient client)
+    private async Task<OrderSetup> CreateReleasedOrderWithBomAsync(HttpClient client)
     {
         var recipeResponse = await client.PostAsJsonAsync("/api/recipes", new
         {
             code = UniqueCode("R"),
-            name = "Integration recipe",
+            name = "Atomic fan-out recipe",
             description = (string?)null,
             isActive = true,
             primaryProductId = (Guid?)null,
@@ -271,14 +313,67 @@ public sealed class ProductionConfirmationAtomicityEndpointTests(MesApplicationF
             expectedQuantity = (decimal?)null
         });
         operationResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var operation = await ReadAsync<OperationNodeDto>(operationResponse);
 
-        var releaseVersionResponse = await client.PostAsync($"/api/recipe-versions/{versionId}/release", null);
-        releaseVersionResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        var perUnitProductId = Guid.NewGuid();
+        var perBatchProductId = Guid.NewGuid();
+        var preferredWarehouseId = Guid.NewGuid();
 
-        var order = await CreateOrderAsync(client, recipe.Id, versionId);
+        var bomPerUnit = await client.PostAsJsonAsync($"/api/operations/{operation.Id}/bom-items", new
+        {
+            operationId = operation.Id,
+            productId = perUnitProductId,
+            measureUnitId = (Guid?)null,
+            quantity = 2m,
+            quantityType = 1,
+            scrapPercentage = (decimal?)null,
+            isOptional = false,
+            preferredWarehouseId = (Guid?)preferredWarehouseId,
+            consumptionTiming = 1,
+            notes = (string?)null,
+            sortIndex = (int?)0
+        });
+        bomPerUnit.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var releaseOrderResponse = await client.PostAsync($"{OrdersUrl}/{order.Id}/release", null);
-        releaseOrderResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        return await ReadAsync<ProductionOrderDto>(releaseOrderResponse);
+        var bomPerBatch = await client.PostAsJsonAsync($"/api/operations/{operation.Id}/bom-items", new
+        {
+            operationId = operation.Id,
+            productId = perBatchProductId,
+            measureUnitId = (Guid?)null,
+            quantity = 5m,
+            quantityType = 2,
+            scrapPercentage = (decimal?)10m,
+            isOptional = false,
+            preferredWarehouseId = (Guid?)null,
+            consumptionTiming = 1,
+            notes = (string?)null,
+            sortIndex = (int?)1
+        });
+        bomPerBatch.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var releaseVersion = await client.PostAsync($"/api/recipe-versions/{versionId}/release", null);
+        releaseVersion.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var orderResponse = await client.PostAsJsonAsync(OrdersUrl, new
+        {
+            code = UniqueCode("PO"),
+            productId = Guid.NewGuid(),
+            recipeId = recipe.Id,
+            recipeVersionId = versionId,
+            plannedQuantity = 100m,
+            measureUnitId = (Guid?)null,
+            priority = 0,
+            dueDate = (DateTime?)null,
+            notes = (string?)null,
+            syncId = (string?)null
+        });
+        orderResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var order = await ReadAsync<ProductionOrderDto>(orderResponse);
+
+        var releaseOrder = await client.PostAsync($"{OrdersUrl}/{order.Id}/release", null);
+        releaseOrder.StatusCode.Should().Be(HttpStatusCode.OK);
+        var released = await ReadAsync<ProductionOrderDto>(releaseOrder);
+
+        return new OrderSetup(released.Id, perUnitProductId, perBatchProductId, preferredWarehouseId);
     }
 }

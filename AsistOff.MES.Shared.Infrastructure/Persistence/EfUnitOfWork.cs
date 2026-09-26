@@ -4,10 +4,10 @@ using Microsoft.EntityFrameworkCore;
 namespace AsistOff.MES.Shared.Infrastructure.Persistence;
 
 /// <summary>
-/// <see cref="IUnitOfWork"/> backed by the shared <see cref="DefaultContext"/>.
+/// EF Core <see cref="IUnitOfWork"/> over the shared <see cref="DefaultContext"/>.
 /// All module repositories resolve the same scoped context, so opening one
 /// explicit transaction here enlists every <c>SaveChangesAsync</c> issued
-/// inside <c>action</c>: either all fan-out writes commit together or all
+/// inside the callback: either all fan-out writes commit together or all
 /// roll back together. Retries use the provider execution strategy, with the
 /// whole action (including <c>BeginTransactionAsync</c>) inside the strategy
 /// as EF Core requires for explicit transactions.
@@ -43,5 +43,10 @@ internal sealed class EfUnitOfWork(DefaultContext context) : IUnitOfWork
                 throw;
             }
         });
+    }
+
+    public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken = default)
+    {
+        return await ExecuteAsync(_ => action(), cancellationToken);
     }
 }

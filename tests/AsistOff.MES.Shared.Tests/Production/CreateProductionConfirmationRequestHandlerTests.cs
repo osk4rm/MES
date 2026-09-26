@@ -41,6 +41,9 @@ public class CreateProductionConfirmationRequestHandlerTests
             .Returns((Func<CancellationToken, Task> action, CancellationToken ct) => action(ct));
         _unitOfWork.Setup(u => u.ExecuteAsync(It.IsAny<Func<CancellationToken, Task<ProductionConfirmationResponse>>>(), It.IsAny<CancellationToken>()))
             .Returns((Func<CancellationToken, Task<ProductionConfirmationResponse>> action, CancellationToken ct) => action(ct));
+        _unitOfWork.Setup(u => u.ExecuteInTransactionAsync(
+                It.IsAny<Func<Task<ProductionConfirmationResponse>>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task<ProductionConfirmationResponse>> action, CancellationToken _) => action());
     }
 
     private CreateProductionConfirmationRequestHandler CreateSut() =>

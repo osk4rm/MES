@@ -4,6 +4,7 @@ using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.DowntimeEvents.Start;
 using AsistOff.MES.Production.Application.Features.Oee.Snapshot;
+using AsistOff.MES.Production.Application.Features.ProductionConfirmations;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Create;
 using AsistOff.MES.Production.Application.Features.ScrapEvents.Create;
 using AsistOff.MES.Production.Domain.Entities;
@@ -268,6 +269,11 @@ public class MesMetersHandlerTests
         var unitOfWork = new Mock<IUnitOfWork>();
         unitOfWork.Setup(u => u.ExecuteAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
             .Returns((Func<CancellationToken, Task> action, CancellationToken ct) => action(ct));
+        unitOfWork.Setup(u => u.ExecuteAsync(It.IsAny<Func<CancellationToken, Task<ProductionConfirmationResponse>>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<CancellationToken, Task<ProductionConfirmationResponse>> action, CancellationToken ct) => action(ct));
+        unitOfWork.Setup(u => u.ExecuteInTransactionAsync(
+                It.IsAny<Func<Task<ProductionConfirmationResponse>>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task<ProductionConfirmationResponse>> action, CancellationToken _) => action());
         return unitOfWork;
     }
 

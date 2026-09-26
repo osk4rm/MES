@@ -2,6 +2,7 @@ using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.LotGenealogy.Browse;
+using AsistOff.MES.Production.Application.Features.ProductionConfirmations;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Create;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Delete;
 using AsistOff.MES.Production.Domain.Entities;
@@ -46,6 +47,9 @@ public class CreateProductionConfirmationGenealogyTests
             .ReturnsAsync(new List<BomItem>());
         _unitOfWork.Setup(u => u.ExecuteAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
             .Returns((Func<CancellationToken, Task> action, CancellationToken ct) => action(ct));
+        _unitOfWork.Setup(u => u.ExecuteInTransactionAsync(
+                It.IsAny<Func<Task<ProductionConfirmationResponse>>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task<ProductionConfirmationResponse>> action, CancellationToken _) => action());
     }
 
     private CreateProductionConfirmationRequestHandler CreateSut() =>
