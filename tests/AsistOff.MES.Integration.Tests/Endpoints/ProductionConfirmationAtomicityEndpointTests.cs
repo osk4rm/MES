@@ -151,6 +151,27 @@ public sealed class ProductionConfirmationAtomicityEndpointTests(MesApplicationF
         browse.StatusCode.Should().Be(HttpStatusCode.OK);
         var page = await ReadAsync<PagedResponseDto<ProductionConfirmationDto>>(browse);
         page.Items.Should().BeEmpty();
+
+        (await CountConfirmationsAsync(setup.OrderId)).Should().Be(0);
+        (await CountMovementsForOrderAsync(setup.OrderId)).Should().Be(0);
+        (await CountEdgesForOrderAsync(setup.OrderId)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Create_UnknownOrderId_Returns404_AndWritesNothing()
+    {
+        // Arrange
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+        var unknownOrderId = Guid.NewGuid();
+
+        // Act
+        var response = await client.PostAsJsonAsync(BaseUrl, ConfirmPayload(unknownOrderId));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await CountConfirmationsAsync(unknownOrderId)).Should().Be(0);
+        (await CountMovementsForOrderAsync(unknownOrderId)).Should().Be(0);
+        (await CountEdgesForOrderAsync(unknownOrderId)).Should().Be(0);
     }
 
     [Fact]
