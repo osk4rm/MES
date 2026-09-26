@@ -28,6 +28,7 @@ export interface ProductResponse {
 export interface BrowseProductsRequest extends IPagedRequest {
   name?: string;
   code?: string;
+  search?: string;
   isActive?: boolean;
   groupId?: string;
   ean?: string;

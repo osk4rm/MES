@@ -13,6 +13,7 @@ internal sealed class ProductsRepository(DefaultContext context) : IProductsRepo
     public async Task<IReadOnlyCollection<Product>> BrowseAsync(Paginator<Product> paginator, CancellationToken cancellationToken = default)
     {
         var products = await context.Products
+            .AsNoTracking()
             .Include(x => x.ProductGroup)
             .Include(x => x.ProductMeasureUnits)
                 .ThenInclude(pmu => pmu.MeasureUnit)

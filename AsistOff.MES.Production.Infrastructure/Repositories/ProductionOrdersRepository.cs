@@ -1,4 +1,5 @@
 using AsistOff.MES.Production.Domain.Entities;
+using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Extensions;
@@ -16,6 +17,32 @@ internal sealed class ProductionOrdersRepository(DefaultContext context) : IProd
         return await context.Set<ProductionOrder>()
             .AsNoTracking()
             .PageFilter(paginator)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<ProductionOrder>> BrowseDispatchBoardAsync(DateOnly from, DateOnly to, int take, CancellationToken cancellationToken = default)
+    {
+        // DueDate is a timestamp; the board window is date-granular, so the
+        // window maps to [from 00:00 UTC, day-after-to 00:00 UTC). Overdue
+        // means strictly before the window start; null due dates are always
+        // included. Ordering is overdue-first, then null due dates last, then
+        // due date, priority, code — all translated to SQL with Take applied
+        // before materialization (issue #274).
+        var fromStartUtc = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var toExclusiveUtc = to.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
+        return await context.Set<ProductionOrder>()
+            .AsNoTracking()
+            .Where(x => x.Status == ProductionOrderStatus.Released || x.Status == ProductionOrderStatus.InProgress)
+            .Where(x => x.DueDate == null
+                || x.DueDate < fromStartUtc
+                || (x.DueDate >= fromStartUtc && x.DueDate < toExclusiveUtc))
+            .OrderByDescending(x => x.DueDate != null && x.DueDate < fromStartUtc)
+            .ThenBy(x => x.DueDate == null)
+            .ThenBy(x => x.DueDate)
+            .ThenBy(x => x.Priority)
+            .ThenBy(x => x.Code)
+            .Take(take)
             .ToListAsync(cancellationToken);
     }
 

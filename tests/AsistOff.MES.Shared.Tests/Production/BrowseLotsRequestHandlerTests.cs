@@ -99,4 +99,76 @@ public class BrowseLotsRequestHandlerTests
         matches(MakeLot("OUT", expiry: new DateTime(2027, 06, 01, 0, 0, 0, DateTimeKind.Utc))).Should().BeFalse();
         matches(MakeLot("NONE")).Should().BeFalse();
     }
+
+    [Fact]
+    public async Task Handle_SearchFilter_MatchesCodeSubstring()
+    {
+        var matches = CaptureFilter();
+        var request = new BrowseLotsRequest { Search = "ABC" };
+
+        await CreateSut().Handle(request, CancellationToken.None);
+
+        matches(MakeLot("X-ABC-1")).Should().BeTrue();
+        matches(MakeLot("XYZ-1")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_Search_CapsPageAt20_OrderedByCode()
+    {
+        Paginator<Lot>? captured = null;
+        _repository
+            .Setup(r => r.CountAsync(It.IsAny<ExpressionStarter<Lot>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+        _repository
+            .Setup(r => r.BrowseAsync(It.IsAny<Paginator<Lot>>(), It.IsAny<CancellationToken>()))
+            .Callback<Paginator<Lot>, CancellationToken>((paginator, _) => captured = paginator)
+            .ReturnsAsync(Array.Empty<Lot>());
+        var request = new BrowseLotsRequest { Search = "LOT", PageNumber = 1, PageSize = 500 };
+
+        await CreateSut().Handle(request, CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        captured!.Paging.PageSize.Should().Be(20);
+        captured!.Paging.PageNumber.Should().Be(1);
+        captured!.Paging.RawSort.Should().ContainSingle().Which.Should().Be("Code");
+    }
+
+    [Fact]
+    public async Task Handle_Search_RespectsSmallerRequestedPageSize()
+    {
+        Paginator<Lot>? captured = null;
+        _repository
+            .Setup(r => r.CountAsync(It.IsAny<ExpressionStarter<Lot>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+        _repository
+            .Setup(r => r.BrowseAsync(It.IsAny<Paginator<Lot>>(), It.IsAny<CancellationToken>()))
+            .Callback<Paginator<Lot>, CancellationToken>((paginator, _) => captured = paginator)
+            .ReturnsAsync(Array.Empty<Lot>());
+        var request = new BrowseLotsRequest { Search = "LOT", PageNumber = 1, PageSize = 5 };
+
+        await CreateSut().Handle(request, CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        captured!.Paging.PageSize.Should().Be(5);
+        captured!.Paging.RawSort.Should().ContainSingle().Which.Should().Be("Code");
+    }
+
+    [Fact]
+    public async Task Handle_WithoutSearch_UsesRequestedPagingUnchanged()
+    {
+        Paginator<Lot>? captured = null;
+        _repository
+            .Setup(r => r.CountAsync(It.IsAny<ExpressionStarter<Lot>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+        _repository
+            .Setup(r => r.BrowseAsync(It.IsAny<Paginator<Lot>>(), It.IsAny<CancellationToken>()))
+            .Callback<Paginator<Lot>, CancellationToken>((paginator, _) => captured = paginator)
+            .ReturnsAsync(Array.Empty<Lot>());
+        var request = new BrowseLotsRequest { PageNumber = 2, PageSize = 50 };
+
+        await CreateSut().Handle(request, CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        captured!.Paging.Should().BeSameAs(request);
+    }
 }
