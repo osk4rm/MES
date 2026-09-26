@@ -67,7 +67,9 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Multitenancy.Requests.Commands.Create.CreateTenantCommand",
 
             // Multitenancy — anonymous read: single-tenant lookup on the public
-            // provisioning surface. Returns only the requested tenant's public record.
+            // provisioning/health surface. Returns only the minimal public
+            // projection (AnonymousTenantResponse: id, name, isActive) — no
+            // contact e-mail, display name, settings or secrets are exposed.
             "AsistOff.MES.Multitenancy.Requests.Queries.GetTenantQuery",
 
             // Configuration reads — any authenticated tenant user (including the
