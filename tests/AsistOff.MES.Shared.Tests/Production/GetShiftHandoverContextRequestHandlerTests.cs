@@ -326,9 +326,22 @@ public class GetShiftHandoverContextRequestHandlerTests
         _confirmations.Setup(r => r.CountAsync(
                 It.IsAny<ExpressionStarter<ProductionConfirmation>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(25);
+        // The repository applies paging in production, so the mock simulates
+        // it: slice the pre-sorted rows by the requested page/size instead of
+        // returning everything (the handler must NOT Skip/Take a second time).
         _confirmations.Setup(r => r.BrowseAsync(
                 It.IsAny<Paginator<ProductionConfirmation>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(rows);
+            .ReturnsAsync((Paginator<ProductionConfirmation> paginator, CancellationToken _) =>
+            {
+                var pageNumber = paginator.Paging.PageNumber ?? 1;
+                var size = paginator.Paging.PageSize ?? rows.Count;
+                return rows
+                    .OrderByDescending(x => x.ReportedAt)
+                    .ThenBy(x => x.Id)
+                    .Skip((pageNumber - 1) * size)
+                    .Take(size)
+                    .ToList();
+            });
 
         // Act - default page size 20
         var @default = await CreateSut().Handle(

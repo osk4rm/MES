@@ -248,15 +248,16 @@ internal sealed class GetShiftHandoverContextRequestHandler(
             cancellationToken);
 
         // Newest first; the in-memory re-filter/order guards mocked
-        // repositories while the database applies it first in production.
+        // repositories while the database applies filtering, ordering and
+        // paging first in production. No in-memory Skip/Take here: the
+        // repository already returns the requested page, and a second
+        // Skip/Take would double-page (page 2 would come back empty).
         var items = rows
             .Where(x => x.ReportedAt >= fromUtc
                 && x.ReportedAt <= toUtc
                 && (!request.MachineId.HasValue || x.MachineId == request.MachineId.Value))
             .OrderByDescending(x => x.ReportedAt)
             .ThenBy(x => x.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
             .ToList();
 
         var operatorCodes = await LoadOperatorCodesAsync(
