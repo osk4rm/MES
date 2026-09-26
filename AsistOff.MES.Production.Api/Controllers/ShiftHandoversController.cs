@@ -38,7 +38,7 @@ public class ShiftHandoversController(ISender sender) : ApiController
         [FromBody] CreateShiftHandoverRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(request, cancellationToken);
-        return CreatedAtAction(nameof(GetAsync), new { id = result.Id }, result);
+        return CreatedAtAction("Get", new { id = result.Id }, result);
     }
 
     /// <summary>
