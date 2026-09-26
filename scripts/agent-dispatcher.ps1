@@ -49,6 +49,11 @@
     ai:running locks older than this are considered orphaned and cleared on
     startup. Default 30. Fresh locks are kept (may belong to a live agent).
 
+.PARAMETER NoSelfUpdate
+    Do not fast-forward the working copy onto origin. By default the dispatcher
+    updates itself between cycles and exits so the new code takes effect (the
+    container entrypoint restarts it). Skipped for a dirty working copy.
+
 .NOTES
     Requires: git, gh (authenticated), opencode, and (for e2e) Playwright MCP.
     Run from the repository root. State is kept in %TEMP%\opencode\dispatcher-state.json.
@@ -63,7 +68,8 @@ param(
     [switch]$NoTracker,
     [int]$TrackerIntervalMinutes = 30,
     [int]$TrackerCooldownMinutes = 10,
-    [int]$RunningTtlMinutes = 30
+    [int]$RunningTtlMinutes = 30,
+    [switch]$NoSelfUpdate
 )
 
 $ErrorActionPreference = 'Continue'
@@ -73,6 +79,11 @@ $LogDir = Join-Path $Tmp 'opencode'
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $StateFile = Join-Path $LogDir 'dispatcher-state.json'
 $LockFile = Join-Path $LogDir 'dispatcher.lock'
+
+# The isolated clone in the swarm container is a plain git checkout of the repo,
+# so the top level is also where the dispatcher must update itself from.
+$RepoRoot = (& git rev-parse --show-toplevel 2>$null | Out-String).Trim()
+if (-not $RepoRoot) { $RepoRoot = (Get-Location).Path }
 
 function Acquire-Lock {
     if (Test-Path $LockFile) {
@@ -661,6 +672,56 @@ function Get-RepoDirty {
     return (-not [string]::IsNullOrWhiteSpace($out))
 }
 
+function Update-WorkingCopy {
+    # PowerShell parses this whole file once at start-up, so a dispatcher that
+    # keeps looping never picks up the fixes that CI is pushing to master: it
+    # keeps enforcing rules from whenever it was started. That is how a stale
+    # clone ended up blocking a PR whose gates had passed (#264, ai:blocked from
+    # a dispatcher three commits behind). Fast-forward and let the caller exit
+    # so the supervisor restarts us on the new code.
+    # Returns $true when the working copy moved and the process should stop.
+    if ($DryRun -or $NoSelfUpdate) { return $false }
+    if (-not (Test-Path (Join-Path $RepoRoot '.git'))) { return $false }
+    if (Get-RepoDirty) {
+        Write-Host 'working copy has local changes; not self-updating (restart the dispatcher after committing)'
+        return $false
+    }
+    & git fetch --quiet origin 2>&1 | Out-Null
+    $remote = (& git rev-parse --verify --quiet 'origin/HEAD' 2>&1 | Out-String).Trim()
+    if (-not $remote) { $remote = (& git rev-parse --verify --quiet 'origin/master' 2>&1 | Out-String).Trim() }
+    if (-not $remote) { return $false }
+    $head = (& git rev-parse --verify --quiet HEAD 2>&1 | Out-String).Trim()
+    if (-not $head) { return $false }
+    if ($head -eq $remote) { return $false }
+    & git merge --ff-only --quiet $remote 2>&1 | Out-Null
+    $after = (& git rev-parse --verify --quiet HEAD 2>&1 | Out-String).Trim()
+    if ($after -eq $remote) {
+        Write-Host "working copy updated $($head.Substring(0,7)) -> $($remote.Substring(0,7)); exiting so the new code runs"
+        return $true
+    }
+    Write-Host "cannot fast-forward onto $remote (local branch diverged); continuing on $head"
+    return $false
+}
+
+$script:BranchBusyCache = @{}
+
+function Test-BranchBusy {
+    # A PR can be driven by GitHub Actions and by this dispatcher at the same
+    # time. Two drivers on one PR means two agents racing to write the same
+    # verdict, which is how a review got re-fired under a running reviewer and
+    # how a stale dispatcher stamped ai:blocked over green gates. ai:running
+    # only covers the stages that take that lock, so ask the runs themselves.
+    param($Pr)
+    if (-not $Pr.headRefName) { return $false }
+    $branch = [string]$Pr.headRefName
+    if ($script:BranchBusyCache.ContainsKey($branch)) { return $script:BranchBusyCache[$branch] }
+    $runs = @(GhJson @('run', 'list', '--branch', $branch, '--workflow', 'ai-swarm', '--limit', '5', '--json', 'status,conclusion'))
+    $busy = @($runs | Where-Object { $_.status -ne 'completed' }).Count -gt 0
+    $script:BranchBusyCache[$branch] = $busy
+    if ($busy) { Write-Host "    #$($Pr.number): ai-swarm run in flight on $branch; leaving it to that runner" }
+    return $busy
+}
+
 function Get-LockOwner {
     return "$env:COMPUTERNAME/$env:USERNAME pid=$PID"
 }
@@ -726,14 +787,15 @@ function Invoke-TrackerIfDue {
 function Invoke-Cycle {
     param($State)
 
+    $script:BranchBusyCache = @{}
     $openIssues = @(GhJson @('issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,url,labels,updatedAt'))
     $openPrs = @(GhJson @('pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,url,labels,headRefName,isDraft,body,updatedAt'))
 
     $implementable = @($openIssues | Where-Object { (Has-Label $_ 'ai:implement') -and -not (Has-Label $_ 'ai:running') -and -not (Has-Label $_ 'ai:blocked') })
-    $changes = @($openPrs | Where-Object { (Has-Label $_ 'ai:changes') -and -not (Has-Label $_ 'ai:running') })
-    $reviews = @($openPrs | Where-Object { (Has-Label $_ 'ai:review') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft })
-    $verifies = @($openPrs | Where-Object { (Has-Label $_ 'ai:verify') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft })
-    $e2es = @($openPrs | Where-Object { (Has-Label $_ 'ai:e2e') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft })
+    $changes = @($openPrs | Where-Object { (Has-Label $_ 'ai:changes') -and -not (Has-Label $_ 'ai:running') -and -not (Test-BranchBusy $_) })
+    $reviews = @($openPrs | Where-Object { (Has-Label $_ 'ai:review') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft -and -not (Test-BranchBusy $_) })
+    $verifies = @($openPrs | Where-Object { (Has-Label $_ 'ai:verify') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft -and -not (Test-BranchBusy $_) })
+    $e2es = @($openPrs | Where-Object { (Has-Label $_ 'ai:e2e') -and -not (Has-Label $_ 'ai:running') -and -not $_.isDraft -and -not (Test-BranchBusy $_) })
 
     $acted = $false
 
@@ -813,6 +875,10 @@ try {
     }
 
     while ($true) {
+        # Never keep enforcing rules that master has already replaced. The
+        # entrypoint supervises this process, so exiting here is how new code
+        # gets loaded - and how a crash gets recovered from.
+        if (Update-WorkingCopy) { return }
         try {
             $acted = Invoke-Cycle $state
             Save-State $state

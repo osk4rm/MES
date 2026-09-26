@@ -51,8 +51,22 @@ if [ ! -d "$WORK/AsistOff.MES.Web/node_modules" ]; then
 fi
 
 if [ "${SWARM_AUTOSTART_DISPATCHER:-1}" = "1" ]; then
-  echo "[swarm] starting dispatcher in background"
-  pwsh -NoProfile -File "$WORK/scripts/agent-dispatcher.ps1" > /tmp/swarm-dispatcher.log 2>&1 &
+  echo "[swarm] starting dispatcher supervisor in background"
+  # Supervise the dispatcher. It parses its own script once at start-up, so a
+  # merge to master cannot reach a process that is already running; it updates
+  # its clone between cycles and exits to be restarted with the new code. A
+  # plain `&` start (what this used to do) meant a crash or an update silently
+  # ended the swarm for the life of the container.
+  (
+    while true; do
+      cd "$WORK"
+      git fetch --quiet origin "$REPO_BRANCH" >/dev/null 2>&1 || true
+      git merge --ff-only --quiet "origin/$REPO_BRANCH" >/dev/null 2>&1 || true
+      pwsh -NoProfile -File "$WORK/scripts/agent-dispatcher.ps1"
+      echo "[swarm] dispatcher exited ($?); restarting in 15s"
+      sleep 15
+    done
+  ) >> /tmp/swarm-dispatcher.log 2>&1 &
 fi
 
 echo "[swarm] dashboard -> http://0.0.0.0:${DASHBOARD_PORT:-5178}"
