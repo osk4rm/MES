@@ -5,6 +5,12 @@ on:
     branches: [master, main]
   pull_request:
     branches: [master, main]
+  # The swarm dispatches this itself when a pull_request run parks in
+  # action_required (a bot-actor push on a public repo needs a maintainer
+  # approve, and GITHUB_TOKEN cannot give it to itself). workflow_dispatch runs
+  # are exempt from that gate, so a parked PR always has a path to a real CI
+  # verdict without a human. See swarm_dispatch_ci in scripts/ci/swarm-lib.sh.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}

@@ -233,6 +233,35 @@ function Get-Verdict {
     return $distinct[0]
 }
 
+function Get-LastBlockAttempt {
+    # Highest attempt= already recorded in a <!-- swarm-block ... --> marker.
+    param([int]$PrNumber)
+    $comments = GhJson @('pr', 'view', "$PrNumber", '--json', 'comments')
+    $max = 0
+    foreach ($c in @($comments.comments)) {
+        foreach ($m in [regex]::Matches([string]$c.body, '<!-- swarm-block [^>]*attempt=(\d+)')) {
+            $v = 0
+            if ([int]::TryParse($m.Groups[1].Value, [ref]$v) -and $v -gt $max) { $max = $v }
+        }
+    }
+    return $max
+}
+
+function Block-PR {
+    # Mirror of swarm_block_pr in scripts/ci/swarm-lib.sh. ai:blocked stops every
+    # agent AND the dispatchers from re-entering, so a block without the marker
+    # is a dead end: the always-on CI sweeper has no way to re-arm it. That is
+    # not theoretical - #276 and #268 sat blocked for six hours with nothing able
+    # to move them, because this dispatcher was offline when CI blocked them.
+    param([int]$PrNumber, [string]$Stage, [string]$Reason, [string]$Message)
+    if ($Stage -and $Stage -ne '-') { Remove-Label pr $PrNumber $Stage }
+    Add-Label pr $PrNumber 'ai:blocked'
+    $attempt = (Get-LastBlockAttempt $PrNumber) + 1
+    $at = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    Add-Comment pr $PrNumber "<!-- swarm-block stage=$Stage reason=$Reason attempt=$attempt at=$at -->"
+    Add-Comment pr $PrNumber $Message
+}
+
 function Get-LastVerdictInComments {
     # Fallback path ONLY: the newest verdict wins, mirroring swarm_last_verdict
     # in scripts/ci/swarm-lib.sh. Get-Verdict would report AMBIGUOUS here, since
@@ -446,10 +475,10 @@ function Invoke-Fix {
     Write-Host "==> fix PR #$prNum (round $rounds$(if ($MaxRounds -gt 0) { "/$MaxRounds" } else { " (unlimited)" })) : $Reason"
     if ($MaxRounds -gt 0 -and $rounds -gt $MaxRounds) {
         Write-Host "    round limit reached -> ai:blocked"
-        Remove-Label pr $prNum 'ai:changes'
+        # ai:review must go too: a blocked PR carrying two stage labels fires both
+        # stage jobs the moment the block heals, so review would race the fixer.
         Remove-Label pr $prNum 'ai:review'
-        Add-Label pr $prNum 'ai:blocked'
-        Add-Comment pr $prNum "Agent flow: exceeded $MaxRounds review/fix rounds. Needs human attention."
+        Block-PR $prNum 'ai:changes' 'max-rounds' "Agent flow: exceeded $MaxRounds review/fix rounds. Needs human attention."
         if ($issueNum) { Add-Label issue $issueNum 'ai:blocked' }
         return
     }
@@ -471,9 +500,7 @@ function Invoke-Fix {
     Clear-LockTimestamp $State 'pr' $prNum
     if ($headBefore -and (Get-HeadSha $prNum) -eq $headBefore -and (Get-PrBodyHash $prNum) -eq $bodyBefore) {
         Write-Host "    round changed neither code nor PR body -> ai:blocked"
-        Remove-Label pr $prNum 'ai:changes'
-        Add-Label pr $prNum 'ai:blocked'
-        Add-Comment pr $prNum 'Agent flow: the fix round changed neither the code nor the PR description, so another review/verify round would judge the identical diff. Needs human attention.'
+        Block-PR $prNum 'ai:changes' 'no-progress' 'Agent flow: the fix round changed neither the code nor the PR description, so another review/verify round would judge the identical diff. Needs human attention.'
         return
     }
     Remove-Label pr $prNum 'ai:changes'
@@ -536,8 +563,7 @@ function Invoke-Review {
         'APPROVED' { Add-Label pr $prNum 'ai:verify'; Write-Host "    -> ai:verify" }
         'CHANGES_REQUESTED' { Add-Label pr $prNum 'ai:changes'; Write-Host "    -> ai:changes" }
         default {
-            Add-Label pr $prNum 'ai:blocked'
-            Add-Comment pr $prNum 'Agent flow: reviewer produced no unambiguous verdict (none or multiple). Needs human attention.'
+            Block-PR $prNum 'ai:review' 'no-verdict' 'Agent flow: reviewer produced no unambiguous verdict (none or multiple). Needs human attention.'
             Write-Host "    -> ai:blocked (review verdict $verdict)"
         }
     }
@@ -596,8 +622,7 @@ function Invoke-Verify {
             Write-Host "    -> ai:changes (tests insufficient)"
         }
         default {
-            Add-Label pr $prNum 'ai:blocked'
-            Add-Comment pr $prNum 'Agent flow: verifier produced no unambiguous verdict. Needs human attention.'
+            Block-PR $prNum 'ai:verify' 'no-verdict' 'Agent flow: verifier produced no unambiguous verdict. Needs human attention.'
             Write-Host "    -> ai:blocked (verify verdict $verdict)"
         }
     }
@@ -647,8 +672,7 @@ function Invoke-E2e {
         }
         'E2E_FAIL' { Add-Label pr $prNum 'ai:changes'; Write-Host "    -> ai:changes" }
         default {
-            Add-Label pr $prNum 'ai:blocked'
-            Add-Comment pr $prNum 'Agent flow: e2e could not produce a verdict (stack down?). Needs human attention.'
+            Block-PR $prNum 'ai:e2e' 'no-verdict' 'Agent flow: e2e could not produce a verdict (stack down?). Needs human attention.'
             Write-Host "    -> ai:blocked (e2e inconclusive)"
         }
     }

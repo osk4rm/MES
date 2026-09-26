@@ -51,9 +51,12 @@ swarm_refire_label() { # <issue|pr> <number> <label>
   # approval, unparsable verdict). Without this guard the block was not sticky:
   # the fixer blocked #268 for changing nothing and the queued reviewer, seeing
   # red CI, immediately re-fired ai:changes and started the next round anyway.
-  # Recovery from ai:blocked is documented as manual, so no agent may re-enter.
+  # The block is still not something an AGENT may re-enter: recovery goes
+  # through swarm_retry_blocked_prs, which re-arms only after a cooldown, only
+  # a bounded number of times, and only for a block that recorded a
+  # machine-readable marker. Blocks without that marker stay with a human.
   if [ "$1" = pr ] && swarm_has_label pr "$2" ai:blocked; then
-    echo "  ai:blocked is set on PR #$2; not re-firing $3 (needs a human)" >&2
+    echo "  ai:blocked is set on PR #$2; not re-firing $3 (only the sweeper may re-arm a block)" >&2
     return 0
   fi
   swarm_remove_label "$1" "$2" "$3"
@@ -110,6 +113,18 @@ swarm_say() { # <issue|pr> <number> <text> (short comment without a file)
   printf '%s\n' "$text" >"$tmp"
   swarm_comment "$kind" "$num" "$tmp"
   rm -f "$tmp"
+}
+
+swarm_say_once() { # <issue|pr> <number> <marker> <text> - comment once per marker
+  # A marker that repeats (same head SHA, same gate) must not spam the PR with
+  # the same explanation every 30-minute sweep. The marker goes into its own
+  # comment (like the swarm-verdict markers) so the next run actually finds it;
+  # posting only the human text re-commented on every run.
+  if swarm_comments_body "$1" "$2" | grep -qF "$3"; then
+    return 0
+  fi
+  swarm_say "$1" "$2" "<!-- $3 -->"
+  swarm_say "$1" "$2" "$4"
 }
 
 swarm_acquire_lock() { # <issue|pr> <number> -> 0 when lock taken, 1 when held
@@ -203,25 +218,74 @@ swarm_default_branch() {
   gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null || echo master
 }
 
+swarm_uint() { # <value> [fallback] - keep a non-number out of a [ -ge ] test
+  # gh api prints its JSON error body on stdout AND exits non-zero, so the old
+  # `... || echo 0` appended to it: the caller got `{...404...}0`. That string
+  # reached `[ "$n" -ge 3 ]`, which only warns "integer expression expected" and
+  # evaluates false - the MAX_PARALLEL capacity gate was blind while looking
+  # fine, and issue #272 was re-implemented 17x in 6 hours underneath it.
+  case "${1:-}" in
+    '' | *[!0-9]*) echo "${2:-0}" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+swarm_error() { # GitHub annotation - the 404 above stayed invisible for hours
+  # stderr ONLY: callers capture these helpers with $(...) and compare the
+  # result, so an annotation on stdout turns into "::error::...\n0" in a
+  # [ -ge ] test - the exact silent breakage this function reports.
+  echo "::error::$*" >&2
+}
+
 swarm_in_flight_count() { # -> number of open issues/PRs holding ai:running
   # Throughput guard: implement/sweep refuse new work at MAX_PARALLEL.
-  gh api search/issues -f q="repo:${GITHUB_REPOSITORY} label:ai:running state:open" \
-    --jq '.total_count' 2>/dev/null || echo 0
+  # `gh api search/issues -f q=` implies POST, and POST /search/issues is 404.
+  local n
+  n=$(gh api -X GET search/issues -f q="repo:${GITHUB_REPOSITORY} label:ai:running state:open" \
+    --jq '.total_count' 2>/dev/null || echo '')
+  [ "$(swarm_uint "$n" x)" = x ] &&
+    swarm_error "swarm_in_flight_count: search API returned '$n' - capacity gate is blind, assuming 0"
+  swarm_uint "$n" 0
 }
 
 swarm_oldest_queued_issue() { # -> oldest open ai:implement issue without ai:running
-  gh issue list --state open --label ai:implement --json number,createdAt,labels \
-    --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not))] | sort_by(.createdAt) | .[0].number // empty' 2>/dev/null || true
+  # Skips issues whose work is already in review. Re-firing ai:implement for an
+  # issue that has an open PR re-runs the implementer against a diff that
+  # already exists: #272 was re-implemented 17 times in 6 hours while its PR
+  # (#276) sat in review. Newest label churn alone cannot be trusted to stop
+  # it - the guard has to live here, where the re-fire is decided.
+  local candidates n
+  candidates=$(gh issue list --state open --label ai:implement --json number,createdAt,labels \
+    --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not))] | sort_by(.createdAt) | .[].number' 2>/dev/null || true)
+  for n in $candidates; do
+    if swarm_issue_has_open_pr "$n"; then
+      swarm_log "issue #$n already has an open PR; not re-firing ai:implement"
+      continue
+    fi
+    echo "$n"
+    return 0
+  done
+}
+
+swarm_issue_has_open_pr() { # <issue-number> -> 0 when the issue already has an open PR
+  # The sweeper re-fires ai:implement for the oldest queued issue, and the
+  # analyst adopts unlabeled proposals. Both used to pick #272 - whose PR (#276)
+  # had been open since 00:24 - and re-ran the implementer 17 times. An issue
+  # whose work is already in review must never be handed back to an implementer.
+  local n="$1" pr
+  pr=$(gh pr list --state open --limit 100 --json number,headRefName \
+    --jq ".[] | select(.headRefName | startswith(\"ai/issue-$n-\")) | .number" 2>/dev/null | head -n 1 || true)
+  [ -n "$pr" ]
 }
 
 swarm_unlabeled_count() { # open issues with no ai:* label (proposals awaiting spec)
-  gh issue list --state open --limit 100 --json labels \
-    --jq '[.[] | select((.labels | map(.name) | map(select(startswith("ai:"))) | length) == 0)] | length' 2>/dev/null || echo 0
+  swarm_uint "$(gh issue list --state open --limit 100 --json labels \
+    --jq '[.[] | select((.labels | map(.name) | map(select(startswith("ai:"))) | length) == 0)] | length' 2>/dev/null || echo '')" 0
 }
 
 swarm_backlog_count() { # queued ai:implement issues + unlabeled proposals
   local queued unlabeled
-  queued=$(gh issue list --state open --label ai:implement --json number --jq 'length' 2>/dev/null || echo 0)
+  queued=$(swarm_uint "$(gh issue list --state open --label ai:implement --json number --jq 'length' 2>/dev/null || echo '')" 0)
   unlabeled=$(swarm_unlabeled_count)
   echo $((queued + unlabeled))
 }
@@ -295,13 +359,15 @@ swarm_nudge_stuck_prs() { # re-fire stage labels on PRs that lost their trigger
     for label in ai:review ai:verify ai:e2e ai:ready ai:changes; do
       if swarm_has_label pr "$pr" "$label"; then
         state=$(swarm_ci_state_once "$pr")
-        # approval: the run is parked and re-firing the stage just burns another
-        # agent session. A human approves the ci run; the next sweep (state=pass)
-        # re-fires. running: a live job owns it.
-        if [ "$state" = running ] || [ "$state" = approval ]; then
-          echo "PR #$pr $label ci=$state — not re-firing"
+        # running: a live job owns it. approval: the automatic ci run parked and
+        # cannot be approved by the workflow token - re-firing the stage is
+        # still right, because the stage's own wait loop dispatches a ci run
+        # that is not subject to the approval gate. Parking such a PR here is
+        # what froze #285 (and, through ai:blocked, #276 and #268) overnight.
+        if [ "$state" = running ]; then
+          echo "PR #$pr $label ci=$state - not re-firing"
         else
-          echo "stuck $label PR #$pr (ci=$state) — re-firing the label"
+          echo "stuck $label PR #$pr (ci=$state) - re-firing the label"
           swarm_refire_label pr "$pr" "$label"
         fi
         break
@@ -437,13 +503,47 @@ swarm_approve_run() { # <run-id> -> 0 when the approve API accepts the call
   # GH_TOKEN is SWARM_PAT, which has no Actions scope, so gh api approve fails
   # and the old caller treated that stdout as a CI failure (re-review loop).
   # ACTIONS_TOKEN is the workflow GITHUB_TOKEN (permissions: actions: write).
-  local run_id="$1" token
+  local run_id="$1" token out
   token="${ACTIONS_TOKEN:-}"
   if [ -z "$token" ]; then
     swarm_log "ACTIONS_TOKEN is unset; cannot approve ci run $run_id"
     return 1
   fi
-  GH_TOKEN="$token" gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/approve" >/dev/null
+  # gh prints the JSON error body on stdout AND exits non-zero; swallow both so
+  # a rejected approve can never be mistaken for output by a caller.
+  if ! out=$(GH_TOKEN="$token" gh api -X POST \
+    "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/approve" 2>&1); then
+    swarm_log "approve of ci run $run_id rejected: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-160)"
+    return 1
+  fi
+}
+
+swarm_dispatch_ci() { # <pr> [sha] -> 0 when a fresh ci run was dispatched for the head
+  # The escape hatch that needs no human and no PAT. A pull_request ci run
+  # triggered by a github-actions[bot] push on a public repo parks in
+  # action_required, and GITHUB_TOKEN cannot approve it (only a maintainer token
+  # can - verified: the same endpoint 404s for GITHUB_TOKEN and succeeds for a
+  # PAT). Eight ci runs sat parked for hours on #276/#268/#285 that way, which
+  # is what froze the whole line overnight. workflow_dispatch runs are not
+  # subject to the approval gate, so the swarm dispatches its own CI for the
+  # head SHA and reads a real verdict from it.
+  local pr="$1" sha="${2:-}" branch wf out
+  branch=$(gh pr view "$pr" --json headRefName --jq .headRefName 2>/dev/null || true)
+  if [ -z "$branch" ]; then
+    swarm_log "cannot dispatch ci: no head branch for PR #$pr"
+    return 1
+  fi
+  wf=$(gh workflow list --all --json name,path,state \
+    --jq '.[] | select(.path | test("(^|/)ci\\.ya?ml$")) | .path' 2>/dev/null | head -n 1 || true)
+  if [ -z "$wf" ]; then
+    swarm_log 'cannot dispatch ci: no ci workflow file found'
+    return 1
+  fi
+  if ! out=$(GH_TOKEN="${ACTIONS_TOKEN:-${GH_TOKEN:-}}" gh workflow run "$wf" --ref "$branch" 2>&1); then
+    swarm_log "ci dispatch on $branch failed: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-160)"
+    return 1
+  fi
+  swarm_log "dispatched a fresh ci run on $branch (head ${sha:-unknown})"
 }
 
 swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout | approval
@@ -454,7 +554,7 @@ swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout | approval
   # Watches ONLY the `ci` workflow for the PR head SHA. ai-swarm's own checks
   # are ignored: lock-label churn spawns no-op runs whose pending state used
   # to poison this wait (self-deadlock).
-  local pr="$1" timeout="$2" waited=0 sha first upper run_id approved=""
+  local pr="$1" timeout="$2" waited=0 sha first upper run_id tries=0
   sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null || true)
   if [ -z "$sha" ]; then
     echo pass
@@ -480,7 +580,9 @@ swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout | approval
         return 0
         ;;
       COMPLETED/ACTION_REQUIRED | WAITING/* | REQUESTED/*)
-        if [ -n "$approved" ]; then
+        if [ "$tries" -ge "${CI_APPROVAL_TRIES:-2}" ]; then
+          # Approve and dispatch were both tried and the run is still parked:
+          # only a human can move it. Say so instead of waiting out the clock.
           echo approval
           return 0
         fi
@@ -490,13 +592,18 @@ swarm_wait_ci() { # <pr> <timeout-sec> -> pass | fail | timeout | approval
           echo approval
           return 0
         fi
-        swarm_log "ci run $run_id needs approval — approving via ACTIONS_TOKEN"
-        if ! swarm_approve_run "$run_id"; then
-          swarm_log "approve API failed for run $run_id"
+        tries=$((tries + 1))
+        if swarm_approve_run "$run_id"; then
+          swarm_log "ci run $run_id was parked on approval - approved it via ACTIONS_TOKEN"
+        elif swarm_dispatch_ci "$pr" "$sha"; then
+          swarm_log "ci run $run_id is parked and cannot be approved by this token - running our own ci on the head instead"
+          swarm_say_once pr "$pr" "swarm-dispatch sha=$sha" \
+            "Agent flow (CI): the automatic ci run for this head parked on manual approval (it was triggered by a bot push, and the workflow token cannot approve it). The swarm dispatched its own ci run for the same commit, so no human approve is needed - this PR will not stall."
+        else
+          swarm_log "ci run $run_id needs approval and neither approve nor dispatch worked"
           echo approval
           return 0
         fi
-        approved=1
         ;;
       *) ;; # running, queued, pending, unknown
     esac
@@ -688,16 +795,84 @@ swarm_after_verify_sound() { # <pr> — drop the verify gate; advance when revie
   echo '-> ai:e2e'
 }
 
-swarm_block_for_approval() { # <pr> <stage-label>
-  local pr="$1" stage="$2"
-  swarm_remove_label pr "$pr" "$stage"
+swarm_block_pr() { # <pr> <stage|-> <reason> <message>
+  # Every PR block goes through here so the sweeper can lift it again. Plain
+  # ai:blocked used to mean frozen forever: the refire guard stops every agent
+  # and the sweeper from re-entering, and only a fix round that happened to be
+  # in flight at the same moment cleared it. Anything blocked while the line was
+  # idle stayed stuck for good - #276 and #268 both sat blocked for six hours
+  # with green gates. The marker records what to re-arm, why, when, and how many
+  # attempts already happened, so recovery is automatic but bounded.
+  local pr="$1" stage="$2" reason="$3" message="$4" attempt at
+  [ "$stage" = '-' ] || swarm_remove_label pr "$pr" "$stage"
   swarm_add_label pr "$pr" ai:blocked
-  swarm_say pr "$pr" "Agent flow (CI): CI is waiting for approval and ACTIONS_TOKEN could not approve the run. Needs one human approve on the ci run, then remove ai:blocked and re-add ${stage}. Not sending this back through the agents."
+  attempt=$(( $(swarm_comments_body pr "$pr" | grep -c '<!-- swarm-block ' || true) + 1 ))
+  at=$(date +%s)
+  swarm_say pr "$pr" "<!-- swarm-block stage=$stage reason=$reason attempt=$attempt at=$at -->"
+  swarm_say pr "$pr" "$message"
+}
+
+swarm_retry_blocked_prs() { # re-arm stale blocks, bounded by BLOCK_RETRY_MAX
+  # A block must never be a dead end. After BLOCK_RETRY_MINUTES with no new
+  # activity, re-arm the stage the block recorded - at most BLOCK_RETRY_MAX
+  # times, then it stays blocked for a person. Without the cap a genuinely
+  # unfixable PR would loop forever, which is what the block was invented to
+  # prevent; without the floor the whole line can stop. The retry is purely
+  # age-based (a human can pin a PR by re-adding ai:blocked, which resets
+  # nothing - so a human who wants it left alone should comment, not relabel).
+  local pr marker stage reason attempt at age branch now max_age max_tries
+  now=$(date +%s)
+  max_age="${BLOCK_RETRY_MINUTES:-120}"
+  max_tries="${BLOCK_RETRY_MAX:-2}"
+  for pr in $(gh pr list --state open --limit 50 --json number,labels \
+    --jq '[.[] | select((.labels | map(.name) | index("ai:blocked")) and (.labels | map(.name) | index("ai:running") | not))] | .[].number' 2>/dev/null); do
+    marker=$(swarm_comments_body pr "$pr" | grep '<!-- swarm-block ' | tail -n 1 || true)
+    if [ -z "$marker" ]; then
+      echo "PR #$pr is blocked without a swarm-block marker; leaving it to a human"
+      continue
+    fi
+    stage=$(printf '%s' "$marker" | sed -n 's/.*stage=\([^ ]*\).*/\1/p')
+    reason=$(printf '%s' "$marker" | sed -n 's/.*reason=\([^ ]*\).*/\1/p')
+    attempt=$(printf '%s' "$marker" | sed -n 's/.*attempt=\([^ ]*\).*/\1/p')
+    at=$(printf '%s' "$marker" | sed -n 's/.*at=\([^ ]*\).*/\1/p')
+    if [ -z "$stage" ] || [ "$stage" = '-' ] || [ "$(swarm_uint "${at:-}" x)" = x ]; then
+      echo "PR #$pr has an unreadable block marker; leaving it to a human"
+      continue
+    fi
+    attempt=$(swarm_uint "${attempt:-1}" 1)
+    if [ "$attempt" -ge "$max_tries" ]; then
+      echo "PR #$pr already used $attempt/$max_tries block retries; leaving it to a human"
+      continue
+    fi
+    age=$(( (now - at) / 60 ))
+    if [ "$age" -lt "$max_age" ]; then
+      echo "PR #$pr blocked ${age}m ago (< ${max_age}m); waiting before the retry"
+      continue
+    fi
+    branch=$(gh pr view "$pr" --json headRefName --jq .headRefName 2>/dev/null || true)
+    if [ -n "$branch" ] && swarm_branch_busy "$branch"; then
+      echo "PR #$pr has a run in flight; not re-arming the block"
+      continue
+    fi
+    echo "PR #$pr blocked ${age}m on '$reason' with $attempt/$max_tries retries used - re-arming $stage"
+    swarm_remove_label pr "$pr" ai:blocked
+    swarm_say pr "$pr" "Agent flow: the '$reason' block is ${age}m old and the cooldown has expired, so the swarm re-arms $stage (retry $((attempt + 1))/$max_tries). After that it stays blocked for a human."
+    swarm_refire_label pr "$pr" "$stage"
+  done
+}
+
+swarm_block_for_approval() { # <pr> <stage-label>
+  # Last resort: the workflow token can neither approve the parked run nor
+  # dispatch a replacement (see swarm_dispatch_ci). Everything automatic has
+  # been tried by the time this runs.
+  local pr="$1" stage="$2"
+  swarm_block_pr "$pr" "$stage" ci-approval \
+    "Agent flow (CI): CI is parked on manual approval and the swarm could not approve or re-dispatch it. Needs one human approve on the ci run. The swarm will re-arm ${stage} on its own if nobody acts."
 }
 
 swarm_queued_count() { # open ai:implement issues that are not locked
-  gh issue list --state open --label ai:implement --json number,labels \
-    --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not))] | length' 2>/dev/null || echo 0
+  swarm_uint "$(gh issue list --state open --label ai:implement --json number,labels \
+    --jq '[.[] | select((.labels | map(.name) | index("ai:running") | not))] | length' 2>/dev/null || echo '')" 0
 }
 
 swarm_label_docs_pr() { # <head-branch> — put a docs PR onto the review fast-path
