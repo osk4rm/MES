@@ -78,6 +78,7 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Configuration.Application.Features.MaintenanceWorkOrders.Browse.BrowseMaintenanceWorkOrdersRequest",
             "AsistOff.MES.Configuration.Application.Features.MaintenanceWorkOrders.Get.GetMaintenanceWorkOrderRequest",
             "AsistOff.MES.Configuration.Application.Features.MaintenancePlans.Browse.BrowseMaintenancePlansRequest",
+            "AsistOff.MES.Configuration.Application.Features.MaintenancePlans.Due.GetDueMaintenancePlansRequest",
             "AsistOff.MES.Configuration.Application.Features.MaintenancePlans.Get.GetMaintenancePlanRequest",
             "AsistOff.MES.Configuration.Application.Features.MaterialReservations.BrowseMaterialReservationsRequest",
             "AsistOff.MES.Configuration.Application.Features.MaterialReservations.GetMaterialReservationRequest",

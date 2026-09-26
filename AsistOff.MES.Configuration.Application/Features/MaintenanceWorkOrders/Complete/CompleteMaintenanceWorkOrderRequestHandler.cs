@@ -1,3 +1,4 @@
+using AsistOff.MES.Configuration.Application.Features.MaintenancePlans;
 using AsistOff.MES.Configuration.Application.Features.MaintenanceWorkOrders.Browse;
 using AsistOff.MES.Configuration.Application.Features.MaintenanceWorkOrders.Responses;
 using AsistOff.MES.Configuration.Domain.Enums;
@@ -10,6 +11,7 @@ namespace AsistOff.MES.Configuration.Application.Features.MaintenanceWorkOrders.
 
 internal sealed class CompleteMaintenanceWorkOrderRequestHandler(
     IMaintenanceWorkOrdersRepository repository,
+    IMaintenancePlansRepository plansRepository,
     IDateTimeProvider dateTimeProvider)
     : IRequestHandler<CompleteMaintenanceWorkOrderRequest, MaintenanceWorkOrderResponse>
 {
@@ -31,6 +33,20 @@ internal sealed class CompleteMaintenanceWorkOrderRequestHandler(
         workOrder.CompletedAt = dateTimeProvider.UtcNow;
 
         await repository.UpdateAsync(workOrder, cancellationToken);
+
+        // Preventive loop closure (slice 3/3): a plan-linked completion rolls
+        // the plan forward. Standalone corrective orders leave plans untouched.
+        // The lookup runs under the tenant global query filter, so a
+        // cross-tenant PlanId surfaces as 404.
+        if (workOrder.PlanId.HasValue)
+        {
+            var plan = await plansRepository.GetByIdAsync(workOrder.PlanId.Value, cancellationToken)
+                ?? throw new NotFoundException("MaintenancePlan", workOrder.PlanId.Value);
+
+            MaintenancePlanRollover.Apply(plan, workOrder.CompletedAt.Value);
+            await plansRepository.UpdateAsync(plan, cancellationToken);
+        }
+
         return BrowseMaintenanceWorkOrdersRequestHandler.Map(workOrder);
     }
 }

@@ -54,7 +54,7 @@ public class UpdateDeleteGetMaintenancePlanRequestHandlerTests
             .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((MaintenancePlan?)null);
 
-        var act = () => new GetMaintenancePlanRequestHandler(_repository.Object)
+        var act = () => new GetMaintenancePlanRequestHandler(_repository.Object, _clock.Object)
             .Handle(new GetMaintenancePlanRequest(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
@@ -68,7 +68,7 @@ public class UpdateDeleteGetMaintenancePlanRequestHandlerTests
             .Setup(r => r.GetByIdAsync(plan.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(plan);
 
-        var result = await new GetMaintenancePlanRequestHandler(_repository.Object)
+        var result = await new GetMaintenancePlanRequestHandler(_repository.Object, _clock.Object)
             .Handle(new GetMaintenancePlanRequest(plan.Id), CancellationToken.None);
 
         result.Id.Should().Be(plan.Id);

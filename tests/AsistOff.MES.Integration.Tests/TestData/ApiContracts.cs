@@ -198,7 +198,9 @@ public sealed record MaintenancePlanDto(
     decimal? MeterIntervalValue,
     DateTime? NextDueAt,
     DateTime? LastCompletedAt,
-    bool IsActive);
+    bool IsActive,
+    bool IsOverdue,
+    int? DueInDays);
 
 /// <summary>Shape of a scrap event as returned by <c>/api/scrap-events</c>.</summary>
 public sealed record ScrapEventDto(

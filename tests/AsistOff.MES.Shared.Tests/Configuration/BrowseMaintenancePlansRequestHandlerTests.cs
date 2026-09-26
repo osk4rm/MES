@@ -3,6 +3,7 @@ using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Enums;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Pagination;
+using AsistOff.MES.Shared.Abstractions.Providers;
 using FluentAssertions;
 using LinqKit;
 using Moq;
@@ -12,8 +13,15 @@ namespace AsistOff.MES.Shared.Tests.Configuration;
 public class BrowseMaintenancePlansRequestHandlerTests
 {
     private readonly Mock<IMaintenancePlansRepository> _repository = new();
+    private readonly Mock<IDateTimeProvider> _clock = new();
+    private readonly DateTime _now = new(2026, 9, 26, 12, 0, 0, DateTimeKind.Utc);
 
-    private BrowseMaintenancePlansRequestHandler CreateSut() => new(_repository.Object);
+    public BrowseMaintenancePlansRequestHandlerTests()
+    {
+        _clock.SetupGet(c => c.UtcNow).Returns(_now);
+    }
+
+    private BrowseMaintenancePlansRequestHandler CreateSut() => new(_repository.Object, _clock.Object);
 
     private Func<MaintenancePlan, bool> CaptureFilter()
     {

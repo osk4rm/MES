@@ -15,7 +15,9 @@ public record MaintenancePlanResponse(
     decimal? MeterIntervalValue,
     DateTime? NextDueAt,
     DateTime? LastCompletedAt,
-    bool IsActive);
+    bool IsActive,
+    bool IsOverdue,
+    int? DueInDays);
 
 public class PagedMaintenancePlansResponse(
     IReadOnlyCollection<MaintenancePlanResponse> items,

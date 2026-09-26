@@ -70,6 +70,7 @@ const pl = {
     reasonCodes: 'Kody przyczyn',
     operationTemplates: 'Wzorcowe operacje',
     maintenance: 'Utrzymanie ruchu',
+    maintenancePlans: 'Plany prewencyjne',
     settings: 'Ustawienia',
     roles: 'Role'
   },
@@ -446,7 +447,25 @@ const pl = {
     cancelOrder: 'Anuluj zlecenie',
     statuses: { open: 'Otwarte', inProgress: 'W realizacji', done: 'Zakończone', cancelled: 'Anulowane' },
     priorities: { low: 'Niski', medium: 'Średni', high: 'Wysoki', critical: 'Krytyczny' },
-    filters: { machine: 'Stanowisko', status: 'Status' }
+    filters: { machine: 'Stanowisko', status: 'Status' },
+    source: 'Źródło',
+    preventive: 'Prewencyjne'
+  },
+  maintenancePlans: {
+    title: 'Plany prewencyjne',
+    subtitle: 'Harmonogramy przeglądów — zaległe i nadchodzące terminy',
+    code: 'Kod',
+    name: 'Nazwa',
+    machine: 'Stanowisko',
+    trigger: 'Wyzwalacz',
+    triggers: { time: 'Czasowy', meter: 'Licznikowy' },
+    nextDueAt: 'Następny termin',
+    dueState: 'Termin',
+    states: { overdue: 'Zaległy', dueSoon: 'Wkrótce termin', scheduled: 'Zaplanowany', noSchedule: 'Bez terminu' },
+    filters: { machine: 'Stanowisko', overdueOnly: 'Tylko zaległe' },
+    evaluateDue: 'Oceń zaległości',
+    raiseNow: 'Utwórz zlecenie',
+    raisedCount: 'Utworzono zleceń: {n}'
   },
   andon: {
     title: 'Andon',
@@ -985,6 +1004,7 @@ const en: typeof pl = {
     reasonCodes: 'Reason codes',
     operationTemplates: 'Operation templates',
     maintenance: 'Maintenance',
+    maintenancePlans: 'Preventive plans',
     settings: 'Settings',
     roles: 'Roles'
   },
@@ -1361,7 +1381,25 @@ const en: typeof pl = {
     cancelOrder: 'Cancel work order',
     statuses: { open: 'Open', inProgress: 'In progress', done: 'Done', cancelled: 'Cancelled' },
     priorities: { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' },
-    filters: { machine: 'Work center', status: 'Status' }
+    filters: { machine: 'Work center', status: 'Status' },
+    source: 'Source',
+    preventive: 'Preventive'
+  },
+  maintenancePlans: {
+    title: 'Preventive plans',
+    subtitle: 'Maintenance schedules — overdue and upcoming due dates',
+    code: 'Code',
+    name: 'Name',
+    machine: 'Work center',
+    trigger: 'Trigger',
+    triggers: { time: 'Time', meter: 'Meter' },
+    nextDueAt: 'Next due',
+    dueState: 'Due state',
+    states: { overdue: 'Overdue', dueSoon: 'Due soon', scheduled: 'Scheduled', noSchedule: 'No schedule' },
+    filters: { machine: 'Work center', overdueOnly: 'Overdue only' },
+    evaluateDue: 'Evaluate due',
+    raiseNow: 'Raise order',
+    raisedCount: 'Orders raised: {n}'
   },
   andon: {
     title: 'Andon',

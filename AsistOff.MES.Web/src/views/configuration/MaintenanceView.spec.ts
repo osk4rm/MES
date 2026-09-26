@@ -309,4 +309,31 @@ describe('MaintenanceView', () => {
     expect(wrapper.text()).toContain('WO-1');
     expect(wrapper.text()).not.toContain('FOREIGN');
   });
+
+  it('marks plan-linked orders with the preventive badge (issue #299, criterion 4)', async () => {
+    browseMock.mockResolvedValue(page([
+      order({ id: 'order-pm', code: 'WO-PM', planId: 'plan-1' }),
+      order({ id: 'order-br', code: 'WO-BR', planId: null })
+    ]));
+
+    const wrapper = mountBoard();
+    await flushPromises();
+
+    // Exactly one preventive badge: the plan-linked row carries it, the
+    // standalone corrective row renders the dash placeholder instead.
+    const badges = wrapper.text().split('maintenance.preventive');
+    expect(badges).toHaveLength(2);
+    expect(wrapper.text()).toContain('WO-PM');
+    expect(wrapper.text()).toContain('WO-BR');
+  });
+
+  it('renders no preventive badge when every order is standalone corrective', async () => {
+    browseMock.mockResolvedValue(page([order({ planId: null })]));
+
+    const wrapper = mountBoard();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('WO-1');
+    expect(wrapper.text()).not.toContain('maintenance.preventive');
+  });
 });

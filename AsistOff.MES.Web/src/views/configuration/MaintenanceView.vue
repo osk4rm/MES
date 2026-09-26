@@ -41,6 +41,12 @@
           {{ statusLabel(Number(value)) }}
         </AppBadge>
       </template>
+      <template #cell-source="{ item }">
+        <AppBadge v-if="item.planId" variant="info" dot>
+          {{ $t('maintenance.preventive') }}
+        </AppBadge>
+        <span v-else>—</span>
+      </template>
       <template #cell-reportedAt="{ value }">
         {{ formatDate(String(value)) }}
       </template>
@@ -175,6 +181,7 @@ const columns = computed(() => [
   { key: 'machineId', label: t('maintenance.machine'), sortable: false },
   { key: 'priority', label: t('maintenance.priority'), sortable: true },
   { key: 'status', label: t('common.status'), sortable: true, width: '130px' },
+  { key: 'source', label: t('maintenance.source'), sortable: false, width: '130px' },
   { key: 'reportedAt', label: t('maintenance.reportedAt'), sortable: true },
   { key: 'startedAt', label: t('maintenance.startedAt'), sortable: false },
   { key: 'completedAt', label: t('maintenance.completedAt'), sortable: false },

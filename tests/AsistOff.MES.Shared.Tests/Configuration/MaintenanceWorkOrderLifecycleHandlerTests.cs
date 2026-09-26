@@ -14,6 +14,7 @@ namespace AsistOff.MES.Shared.Tests.Configuration;
 public class MaintenanceWorkOrderLifecycleHandlerTests
 {
     private readonly Mock<IMaintenanceWorkOrdersRepository> _repository = new();
+    private readonly Mock<IMaintenancePlansRepository> _plansRepository = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly DateTime _now = new(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc);
     private readonly Guid _orderId = Guid.NewGuid();
@@ -33,6 +34,9 @@ public class MaintenanceWorkOrderLifecycleHandlerTests
         Status = status,
         ReportedAt = new DateTime(2026, 9, 24, 8, 0, 0, DateTimeKind.Utc)
     };
+
+    private CompleteMaintenanceWorkOrderRequestHandler CompleteHandler()
+        => new(_repository.Object, _plansRepository.Object, _clock.Object);
 
     private void SetupGet(MaintenanceWorkOrder? order)
     {
@@ -89,7 +93,7 @@ public class MaintenanceWorkOrderLifecycleHandlerTests
         var order = Order(status);
         SetupGet(order);
 
-        var result = await new CompleteMaintenanceWorkOrderRequestHandler(_repository.Object, _clock.Object)
+        var result = await CompleteHandler()
             .Handle(new CompleteMaintenanceWorkOrderRequest(_orderId, "Replaced bearing"), CancellationToken.None);
 
         order.Status.Should().Be(MaintenanceWorkOrderStatus.Done);
@@ -104,7 +108,7 @@ public class MaintenanceWorkOrderLifecycleHandlerTests
     {
         SetupGet(Order(MaintenanceWorkOrderStatus.Open));
 
-        var act = () => new CompleteMaintenanceWorkOrderRequestHandler(_repository.Object, _clock.Object)
+        var act = () => CompleteHandler()
             .Handle(new CompleteMaintenanceWorkOrderRequest(_orderId, "  "), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
@@ -117,7 +121,7 @@ public class MaintenanceWorkOrderLifecycleHandlerTests
     {
         SetupGet(Order(status));
 
-        var act = () => new CompleteMaintenanceWorkOrderRequestHandler(_repository.Object, _clock.Object)
+        var act = () => CompleteHandler()
             .Handle(new CompleteMaintenanceWorkOrderRequest(_orderId, "Notes"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
