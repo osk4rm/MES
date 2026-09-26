@@ -1,0 +1,92 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 904a35c..5cb216d 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -48,6 +48,7 @@ jobs:
+     runs-on: ubuntu-latest
+     outputs:
+       code: ${{ steps.filter.outputs.code }}
++      e2e: ${{ steps.filter.outputs.e2e }}
+     steps:
+       - uses: actions/checkout@v7
+       - uses: dorny/paths-filter@v3
+@@ -58,6 +59,11 @@ jobs:
+               - '**'
+               - '!**/*.md'
+               - '!docs/**'
++            e2e:
++              - 'AsistOff.MES.Web/**'
++              - 'AsistOff.MES.Production.*/**'
++              - 'scripts/e2e/**'
++              - '.github/workflows/ci.yml'
+ 
+   backend:
+     name: Backend (.NET)
+@@ -121,3 +127,67 @@ jobs:
+         run: npm ci
+       - name: Type check + build
+         run: npm run build
++
++  e2e-smoke:
++    name: E2E smoke (login to lots)
++    needs: changes
++    if: needs.changes.outputs.e2e == 'true'
++    runs-on: ubuntu-latest
++    services:
++      postgres:
++        image: postgres:16-alpine
++        env:
++          POSTGRES_DB: mes
++          POSTGRES_USER: admin
++          POSTGRES_PASSWORD: root
++        ports:
++          - 5432:5432
++        options: >-
++          --health-cmd pg_isready
++          --health-interval 10s
++          --health-timeout 5s
++          --health-retries 5
++    env:
++      postgres__connectionString: Host=localhost;Port=5432;Database=mes;Username=admin;Password=root
++    steps:
++      - uses: actions/checkout@v7
++      - name: Setup .NET
++        uses: actions/setup-dotnet@v6
++        with:
++          dotnet-version: |
++            10.0.x
++      - name: Setup Node
++        uses: actions/setup-node@v7
++        with:
++          node-version: 20
++          cache: npm
++          cache-dependency-path: AsistOff.MES.Web/package-lock.json
++      - name: Install web dependencies
++        run: npm ci
++        working-directory: AsistOff.MES.Web
++      - name: Install Playwright chromium
++        run: npx playwright install --with-deps chromium
++        working-directory: AsistOff.MES.Web
++      - name: Start stack (backend :5243 + frontend :5173)
++        shell: pwsh
++        run: pwsh -File scripts/e2e/app.ps1 -Action start -WaitSeconds 240
++      - name: Run login-to-lots smoke
++        run: npx playwright test
++        working-directory: AsistOff.MES.Web
++        env:
++          E2E_FRONTEND_URL: http://localhost:5173
++          E2E_API_URL: http://localhost:5243
++      - name: Stop stack
++        if: always()
++        shell: pwsh
++        run: pwsh -File scripts/e2e/app.ps1 -Action stop
++      - name: Upload smoke report (traces + screenshots on failure)
++        if: always()
++        uses: actions/upload-artifact@v7
++        with:
++          name: e2e-smoke-report
++          path: |
++            AsistOff.MES.Web/playwright-report/
++            AsistOff.MES.Web/test-results/
++            /tmp/opencode/e2e-*.log
++          retention-days: 7

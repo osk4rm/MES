@@ -22,6 +22,13 @@ Once the `e2e-smoke` workflow patch lands, CI runs the same suite in the
 `app.ps1 -Action start`) on every PR touching `AsistOff.MES.Web`,
 `AsistOff.MES.Production.*`, `scripts/e2e` or the workflow itself, and
 publishes traces + screenshots + the HTML report when a check fails.
+The verified workflow change ships in this branch as
+`scripts/e2e/e2e-smoke-ci.patch` (regenerated against the current
+`ci.yml`): a maintainer with `workflows` permission lands it with
+`git apply scripts/e2e/e2e-smoke-ci.patch` — the runner token used by
+automation is refused that path
+(`refusing to allow a GitHub App to create or update workflow ...
+without 'workflows' permission`).
 
 ## Layout
 
