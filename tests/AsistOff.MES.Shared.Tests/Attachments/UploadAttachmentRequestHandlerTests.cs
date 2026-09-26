@@ -167,9 +167,9 @@ public class UploadAttachmentRequestHandlerTests
     [Fact]
     public async Task Handle_NullContent_ThrowsValidationExceptionAndPersistsNothing()
     {
-        // Arrange - a null stream must fail closed with 400, never NRE into 500
+        // Arrange - a null stream must fail closed with 400, never NRE into a 500
         var request = new UploadAttachmentRequest(
-            "operation", _ownerId, "photo.png", "image/png", 12, null!, null);
+            "operation", _ownerId, "photo.png", "image/png", PngBytes.Length, null!, null);
 
         // Act
         var act = () => CreateSut().Handle(request, CancellationToken.None);

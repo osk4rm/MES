@@ -220,9 +220,31 @@ public sealed class AttachmentsEndpointTests(MesApplicationFixture fixture) : In
     }
 
     [Fact]
+    public async Task Upload_OwnerFromOtherTenant_Returns404AndPersistsNothing()
+    {
+        // Arrange - owner lives under the seeded dev tenant (branch variant)
+        using var devClient = await Fixture.CreateAuthenticatedClientAsync();
+        var ownerId = await CreateOperationOwnerAsync(devClient);
+
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+
+        // Act - cross-tenant owner id must not leak existence and must store nothing
+        var upload = await otherClient.PostAsync(BaseUrl,
+            UploadContent("operation", ownerId, "photo.png", "image/png", PngBytes));
+
+        // Assert
+        upload.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var list = await devClient.GetAsync($"{BaseUrl}?ownerType=operation&ownerId={ownerId}");
+        list.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadAsync<List<AttachmentDto>>(list)).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Upload_OtherTenantOwnerId_Returns404AndStoresNothing()
     {
-        // Arrange - operation owner created under the seeded dev tenant
+        // Arrange - operation owner created under the seeded dev tenant (master variant)
         using var devClient = await Fixture.CreateAuthenticatedClientAsync();
         var ownerId = await CreateOperationOwnerAsync(devClient);
 
