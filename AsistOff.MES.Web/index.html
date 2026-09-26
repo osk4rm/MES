@@ -5,6 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/cog.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AsistOff MES</title>
+    <!-- Runtime backend URL (issue #271): rendered by docker-entrypoint.sh
+         from $API_BASE_URL at container start; the bundle prefers it over
+         the build-time VITE_API_BASE_URL. -->
+    <script src="/config.js"></script>
   </head>
   <body>
     <div id="app"></div>
