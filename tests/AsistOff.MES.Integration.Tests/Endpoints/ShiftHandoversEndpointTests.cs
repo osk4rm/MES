@@ -151,7 +151,19 @@ public sealed class ShiftHandoversEndpointTests(MesApplicationFixture fixture) :
 
         get.StatusCode.Should().Be(HttpStatusCode.OK);
         var fetched = await ReadAsync<ShiftHandoverDto>(get);
-        fetched.Should().BeEquivalentTo(created);
+        // PostgreSQL timestamp truncates sub-microsecond ticks, so compare
+        // instants with tolerance instead of strict record equivalence.
+        fetched.Id.Should().Be(created.Id);
+        fetched.MachineId.Should().Be(created.MachineId);
+        fetched.ShiftId.Should().Be(created.ShiftId);
+        fetched.Notes.Should().Be(created.Notes);
+        fetched.From.Should().BeCloseTo(created.From, TimeSpan.FromMilliseconds(10));
+        fetched.To.Should().BeCloseTo(created.To, TimeSpan.FromMilliseconds(10));
+        fetched.CreatedByUserId.Should().Be(created.CreatedByUserId);
+        fetched.CreatedAt.Should().BeCloseTo(created.CreatedAt, TimeSpan.FromMilliseconds(10));
+        fetched.OpenOrdersCount.Should().Be(created.OpenOrdersCount);
+        fetched.ActiveAndonCount.Should().Be(created.ActiveAndonCount);
+        fetched.UncoveredShift.Should().Be(created.UncoveredShift);
     }
 
     [Fact]
