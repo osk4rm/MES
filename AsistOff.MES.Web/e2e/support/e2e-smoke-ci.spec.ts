@@ -5,36 +5,43 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Pins the AC3/AC4 contract (issue #272) without needing Docker/DB.
-// The e2e-smoke workflow ships as a versioned patch because the automation
-// token cannot push `.github/workflows/*` itself (GitHub refuses with
-// "refusing to allow a GitHub App to create or update workflow ... without
-// 'workflows' permission"); a maintainer lands it with:
+// The assertions run against the *effective* workflow: the live
+// `.github/workflows/ci.yml` once it defines the `e2e-smoke` job, otherwise
+// the versioned patch (`scripts/e2e/e2e-smoke-ci.patch`) applied onto the
+// current ci.yml in a scratch dir. The patch exists because the automation
+// token historically could not push `.github/workflows/*` itself (GitHub
+// refuses with "refusing to allow a GitHub App to create or update workflow
+// ... without 'workflows' permission"); a maintainer lands it with:
 //   git apply scripts/e2e/e2e-smoke-ci.patch
-// These tests prove the patch is landing-ready: it applies cleanly onto the
-// current ci.yml, and the patched workflow actually defines the e2e-smoke
-// job with failure-artifact upload.
+// Once landed, the patch file must be deleted so the two definitions of the
+// same job cannot drift apart (pinned by the shipping-mode test below).
 const webDir = join(__dirname, '..', '..');
 const repoRoot = join(webDir, '..');
+const liveWorkflowPath = '.github/workflows/ci.yml';
+const workflowPatchPath = 'scripts/e2e/e2e-smoke-ci.patch';
 
 function readRepo(relativePath: string): string {
   return readFileSync(join(repoRoot, relativePath), 'utf8');
 }
 
-function patchedWorkflow(): string {
+function isLanded(): boolean {
+  return readRepo(liveWorkflowPath).includes('e2e-smoke:');
+}
+
+function effectiveWorkflow(): string {
+  const live = readRepo(liveWorkflowPath);
+  if (live.includes('e2e-smoke:')) return live;
   const scratch = join(tmpdir(), `e2e-smoke-ci-${process.pid}`);
   const targetDir = join(scratch, '.github', 'workflows');
   try {
     mkdirSync(targetDir, { recursive: true });
-    copyFileSync(
-      join(repoRoot, '.github/workflows/ci.yml'),
-      join(targetDir, 'ci.yml'),
-    );
+    copyFileSync(join(repoRoot, liveWorkflowPath), join(targetDir, 'ci.yml'));
     // `git apply` works outside a repo; run it with the scratch tree as cwd
     // so the patch lands on the copied ci.yml.
-    execSync(
-      `git apply "${join(repoRoot, 'scripts/e2e/e2e-smoke-ci.patch')}"`,
-      { cwd: scratch, stdio: 'pipe' },
-    );
+    execSync(`git apply "${join(repoRoot, workflowPatchPath)}"`, {
+      cwd: scratch,
+      stdio: 'pipe',
+    });
     return readFileSync(join(targetDir, 'ci.yml'), 'utf8');
   } finally {
     rmSync(scratch, { recursive: true, force: true });
@@ -42,8 +49,14 @@ function patchedWorkflow(): string {
 }
 
 describe('e2e-smoke CI contract', () => {
-  it('ships the workflow change as an apply-ready patch', () => {
-    const patch = readRepo('scripts/e2e/e2e-smoke-ci.patch');
+  it('ships the workflow change live, or as an apply-ready patch fallback', () => {
+    if (isLanded()) {
+      // Landed: the versioned patch is superseded and must be gone, so the
+      // live job is the single source of truth.
+      expect(() => readRepo(workflowPatchPath)).toThrow();
+      return;
+    }
+    const patch = readRepo(workflowPatchPath);
 
     expect(patch).toContain('diff --git a/.github/workflows/ci.yml');
     // Paths-filter: the job must trigger on Web / Production / runner / workflow changes.
@@ -53,17 +66,18 @@ describe('e2e-smoke CI contract', () => {
     expect(patch).toContain('scripts/e2e/**');
   });
 
-  it('applies cleanly onto the current ci.yml base', () => {
+  it('applies cleanly onto the current ci.yml base while the patch fallback ships', () => {
+    if (isLanded()) return;
     expect(() =>
       execSync(
-        `git apply --check --unsafe-paths "${join(repoRoot, 'scripts/e2e/e2e-smoke-ci.patch')}"`,
+        `git apply --check --unsafe-paths "${join(repoRoot, workflowPatchPath)}"`,
         { cwd: repoRoot, stdio: 'pipe' },
       ),
     ).not.toThrow();
   });
 
-  it('defines the e2e-smoke job with Postgres, stack start, smoke run and artifact upload once applied', () => {
-    const workflow = patchedWorkflow();
+  it('defines the e2e-smoke job with Postgres, stack start, smoke run and artifact upload in the effective workflow', () => {
+    const workflow = effectiveWorkflow();
 
     expect(workflow).toContain('e2e-smoke:');
     expect(workflow).toContain('needs.changes.outputs.e2e');
@@ -81,8 +95,8 @@ describe('e2e-smoke CI contract', () => {
     expect(workflow).toContain('if: always()');
   });
 
-  it('wires the stack endpoints the smoke suite actually dials once applied', () => {
-    const workflow = patchedWorkflow();
+  it('wires the stack endpoints the smoke suite actually dials in the effective workflow', () => {
+    const workflow = effectiveWorkflow();
 
     // The Playwright suite talks to the stack via E2E_FRONTEND_URL (:5173)
     // and E2E_API_URL (:5243), and the backend needs the service Postgres
@@ -96,8 +110,8 @@ describe('e2e-smoke CI contract', () => {
     expect(workflow).toContain('E2E_API_URL: http://localhost:5243');
   });
 
-  it('probes Postgres health with the job credentials once applied', () => {
-    const workflow = patchedWorkflow();
+  it('probes Postgres health with the job credentials in the effective workflow', () => {
+    const workflow = effectiveWorkflow();
 
     // The service creates role `admin` / db `mes`, so a bare `pg_isready`
     // (which probes role/db `postgres`) can report unhealthy forever and
@@ -107,15 +121,14 @@ describe('e2e-smoke CI contract', () => {
   });
 
   it('gates the job on the e2e filter, self-triggers on workflow edits, and always stops the stack', () => {
-    const patch = readRepo('scripts/e2e/e2e-smoke-ci.patch');
-    const workflow = patchedWorkflow();
+    const workflow = effectiveWorkflow();
 
     // The job must run exactly when the e2e filter fires — a `!=` typo
     // would silently invert the gate and never run the smoke suite.
     expect(workflow).toContain("if: needs.changes.outputs.e2e == 'true'");
     // Edits to the workflow itself must re-trigger the smoke job, otherwise
     // a broken job definition lands without ever being exercised.
-    expect(patch).toContain('.github/workflows/ci.yml');
+    expect(workflow).toContain('.github/workflows/ci.yml');
     // Both the stack-stop and the artifact-upload steps must run even when
     // the smoke run fails: one `always()` (upload only) would leak the
     // stack, and the other way round would lose the failure bundle.
