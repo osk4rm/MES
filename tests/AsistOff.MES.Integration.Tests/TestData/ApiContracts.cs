@@ -184,6 +184,21 @@ public sealed record MaintenanceWorkOrderDto(
     DateTime? CompletedAt,
     string? ResolutionNotes);
 
+/// <summary>Shape of a preventive maintenance plan as returned by <c>/api/maintenance-plans</c>.</summary>
+public sealed record MaintenancePlanDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string? Description,
+    Guid MachineId,
+    string? MachineCode,
+    short TriggerType,
+    int? IntervalDays,
+    decimal? MeterIntervalValue,
+    DateTime? NextDueAt,
+    DateTime? LastCompletedAt,
+    bool IsActive);
+
 /// <summary>Shape of a scrap event as returned by <c>/api/scrap-events</c>.</summary>
 public sealed record ScrapEventDto(
     Guid Id,
