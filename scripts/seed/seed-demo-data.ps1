@@ -764,7 +764,7 @@ foreach ($spc in $spcDefs) {
             Try-Step "spc reading $i" {
                 Invoke-Mes -Method Post -Path '/api/spc-measurements' -Body @{
                     characteristicId = $characteristic.id; value = $value
-                    measuredAt = [DateTime]::UtcNow.AddHours(-$i * 2).ToString('o'); notes = "seed $i"
+                    measuredAt = [DateTime]::UtcNow.AddMinutes(-5).AddHours(-$i * 2).ToString('o'); notes = "seed $i"
                 } | Out-Null
             }
         }
@@ -789,7 +789,7 @@ foreach ($machineCode in @("$Prefix-M-CNC1", "$Prefix-M-CNC2", "$Prefix-M-WELD1"
             for ($i = 0; $i -lt 12; $i++) {
                 Try-Step "reading $i" {
                     Invoke-Mes -Method Post -Path '/api/telemetry-readings' -Body @{
-                        tagId = $tag.id; readAt = [DateTime]::UtcNow.AddMinutes(-$i).ToString('o')
+                        tagId = $tag.id; readAt = [DateTime]::UtcNow.AddMinutes(-1 - $i).ToString('o')
                         doubleValue = [math]::Round(1000 + (Get-Random -Minimum -250 -Maximum 250), 2); quality = 1
                     } | Out-Null
                 }
