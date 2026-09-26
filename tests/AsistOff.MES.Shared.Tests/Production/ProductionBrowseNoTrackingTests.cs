@@ -13,7 +13,6 @@ using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using FluentAssertions;
 using LinqKit;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 
@@ -71,7 +70,6 @@ public sealed class ProductionBrowseNoTrackingTests
         var userAccessor = Mock.Of<ICurrentUserAccessor>(a => a.UserId == null);
         var guidProvider = new Mock<IGuidProvider>();
         guidProvider.Setup(g => g.NewGuid()).Returns(() => Guid.NewGuid());
-        var mediator = Mock.Of<IPublisher>();
 
         var options = new DbContextOptionsBuilder<DefaultContext>()
             .UseInMemoryDatabase(dbName)
@@ -86,7 +84,7 @@ public sealed class ProductionBrowseNoTrackingTests
         return new NoTrackingContext(
             options,
             configurators,
-            new PublishDomainEventsInterceptor(mediator, clock, guidProvider.Object, tenantAccessor.Object),
+            new PublishDomainEventsInterceptor(clock, guidProvider.Object, tenantAccessor.Object),
             new AuditableEntityInterceptor(clock, userAccessor),
             new AuditHistoryInterceptor(clock, userAccessor, tenantAccessor.Object, guidProvider.Object),
             new SaasyEntityInterceptor(tenantAccessor.Object),
