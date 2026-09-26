@@ -294,6 +294,8 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.HasIndex("TenantId", "ProductionOrderId", "ProductId", "WarehouseId")
                         .IsUnique();
 
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "ProductionOrderId", "ProductId", "WarehouseId"), false);
+
                     b.ToTable("MaterialReservations", "config");
                 });
 

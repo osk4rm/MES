@@ -36,6 +36,16 @@ internal sealed class CloseProductionOrderRequestHandler(
         var reservations = await reservationsRepository.ListForOrderAsync(order.Id, cancellationToken);
         var now = dateTimeProvider.UtcNow;
         var open = reservations.Where(r => r.Status != ReservationStatus.Closed).ToList();
+
+        // Snapshot the tracked mutations so a transaction failure below can
+        // restore them: without this the scoped DefaultContext keeps the
+        // rolled-back Closed mutations and a later SaveChanges could
+        // persist them.
+        var previousOrderStatus = order.Status;
+        var previousOrderUpdatedAt = order.UpdatedAt;
+        var reservationBefore = open.ToDictionary(
+            r => r.Id, r => (Status: r.Status, UpdatedAt: r.UpdatedAt));
+
         foreach (var reservation in open)
         {
             reservation.Status = ReservationStatus.Closed;
@@ -45,12 +55,28 @@ internal sealed class CloseProductionOrderRequestHandler(
         order.Status = ProductionOrderStatus.Closed;
         order.UpdatedAt = now;
 
-        await unitOfWork.ExecuteInTransactionAsync(async () =>
+        try
         {
-            await ordersRepository.UpdateAsync(order, cancellationToken);
+            await unitOfWork.ExecuteInTransactionAsync(async () =>
+            {
+                await ordersRepository.UpdateAsync(order, cancellationToken);
+                foreach (var reservation in open)
+                    await reservationsRepository.UpdateAsync(reservation, cancellationToken);
+            }, cancellationToken);
+        }
+        catch
+        {
             foreach (var reservation in open)
-                await reservationsRepository.UpdateAsync(reservation, cancellationToken);
-        }, cancellationToken);
+            {
+                var before = reservationBefore[reservation.Id];
+                reservation.Status = before.Status;
+                reservation.UpdatedAt = before.UpdatedAt;
+            }
+
+            order.Status = previousOrderStatus;
+            order.UpdatedAt = previousOrderUpdatedAt;
+            throw;
+        }
 
         return ProductionOrderMappers.Map(order, produced, scrapped, count);
     }

@@ -53,7 +53,8 @@ public static class ReservationCalculator
     /// Drops requirements that already have a reservation row for the order
     /// (matching product and warehouse, null warehouse equals null). This is
     /// the primary re-release idempotency guard; the unique database
-    /// constraint is the backstop for warehouse-bound races.
+    /// constraint (NULLS NOT DISTINCT) is the backstop for concurrent
+    /// double-release races, including the null-warehouse bucket.
     /// </summary>
     public static IReadOnlyList<ReservationRequirement> ExcludeAlreadyReserved(
         IReadOnlyList<ReservationRequirement> requirements,

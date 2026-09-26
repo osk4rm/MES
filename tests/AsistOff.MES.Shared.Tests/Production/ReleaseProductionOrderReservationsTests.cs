@@ -217,4 +217,27 @@ public sealed class ReleaseProductionOrderReservationsTests
             r => r.AddRangeAsync(It.IsAny<IReadOnlyCollection<MaterialReservation>>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    [Fact]
+    public async Task Handle_TransactionFails_RestoresOrderStatus()
+    {
+        // Arrange — the fan-out transaction throws so the rolled-back
+        // in-memory Released mutations must be restored on the tracked order.
+        var order = PlannedOrder();
+        _orders.Setup(r => r.GetAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        SetupReleasedVersion(order);
+        _children.Setup(r => r.ListBomItemsForVersionAsync(order.RecipeVersionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<BomItem> { Item(Guid.NewGuid(), 2m) });
+        _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        // Act
+        var act = () => CreateSut().Handle(new ReleaseProductionOrderRequest(order.Id), CancellationToken.None);
+
+        // Assert — the exception propagates and tracked state is restored.
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        order.Status.Should().Be(ProductionOrderStatus.Planned);
+        order.ReleasedAt.Should().BeNull();
+        order.ReleasedByUserId.Should().BeNull();
+    }
 }

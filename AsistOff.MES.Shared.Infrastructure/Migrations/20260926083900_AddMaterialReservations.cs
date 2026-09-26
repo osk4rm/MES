@@ -51,7 +51,8 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                 schema: "config",
                 table: "MaterialReservations",
                 columns: new[] { "TenantId", "ProductionOrderId", "ProductId", "WarehouseId" },
-                unique: true);
+                unique: true)
+                .Annotation("Npgsql:NullsDistinct", false);
         }
 
         /// <inheritdoc />

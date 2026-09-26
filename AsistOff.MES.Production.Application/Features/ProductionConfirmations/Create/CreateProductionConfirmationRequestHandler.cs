@@ -160,11 +160,18 @@ internal sealed class CreateProductionConfirmationRequestHandler(
         // Soft reservation relief (issue #291): relieve the order reservations
         // from the same RW lines this confirmation persists, computed up
         // front and flushed inside the fan-out transaction below so relief
-        // and ledger lines commit atomically.
+        // and ledger lines commit atomically. Relieved rows also bump
+        // UpdatedAt, consistent with the close path.
         var reservations = await reservationsRepository.ListForOrderAsync(order.Id, cancellationToken);
-        var relievedBefore = reservations.ToDictionary(r => r.Id, r => r.QuantityRelieved);
+        var relievedBefore = reservations.ToDictionary(
+            r => r.Id, r => (QuantityRelieved: r.QuantityRelieved, Status: r.Status, UpdatedAt: r.UpdatedAt));
         ReservationCalculator.ApplyRelief(reservations, preview);
-        var relieved = reservations.Where(r => r.QuantityRelieved != relievedBefore[r.Id]).ToList();
+        var reliefNow = dateTimeProvider.UtcNow;
+        var relieved = reservations
+            .Where(r => r.QuantityRelieved != relievedBefore[r.Id].QuantityRelieved)
+            .ToList();
+        foreach (var reservation in relieved)
+            reservation.UpdatedAt = reliefNow;
 
         try
         {
@@ -196,9 +203,19 @@ internal sealed class CreateProductionConfirmationRequestHandler(
         }
         catch
         {
-            // The database rolled back, so restore the in-memory status: the
-            // tracked order instance is mutated above, and without this the
-            // caller would observe InProgress for a still-Released row.
+            // The database rolled back, so restore the in-memory mutations:
+            // the tracked order instance is flipped above, and the tracked
+            // reservation rows are relieved above. Without this the scoped
+            // DefaultContext keeps rolled-back mutations and a later
+            // SaveChanges could persist them.
+            foreach (var reservation in relieved)
+            {
+                var before = relievedBefore[reservation.Id];
+                reservation.QuantityRelieved = before.QuantityRelieved;
+                reservation.Status = before.Status;
+                reservation.UpdatedAt = before.UpdatedAt;
+            }
+
             if (flipToInProgress && order.Status == ProductionOrderStatus.InProgress)
                 order.Status = ProductionOrderStatus.Released;
             throw;

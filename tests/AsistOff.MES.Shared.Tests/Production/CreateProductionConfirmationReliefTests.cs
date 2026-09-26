@@ -110,6 +110,7 @@ public sealed class CreateProductionConfirmationReliefTests
         // Assert
         reservation.QuantityRelieved.Should().Be(20m);
         reservation.Status.Should().Be(ReservationStatus.PartiallyRelieved);
+        reservation.UpdatedAt.Should().Be(_now);
         _reservations.Verify(r => r.UpdateAsync(reservation, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -157,6 +158,7 @@ public sealed class CreateProductionConfirmationReliefTests
         // Assert
         reservation.QuantityRelieved.Should().Be(20m);
         reservation.Status.Should().Be(ReservationStatus.Closed);
+        reservation.UpdatedAt.Should().Be(_now);
         _reservations.Verify(r => r.UpdateAsync(reservation, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -177,5 +179,61 @@ public sealed class CreateProductionConfirmationReliefTests
         _reservations.Verify(
             r => r.UpdateAsync(It.IsAny<MaterialReservation>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_TransactionFails_RestoresOrderAndReservations()
+    {
+        // Arrange — same relief setup as the partial case, but the fan-out
+        // transaction throws so the rolled-back in-memory mutations must be
+        // restored on the tracked instances.
+        var order = ReleasedOrder();
+        var productId = Guid.NewGuid();
+        var warehouseId = Guid.NewGuid();
+        _orders.Setup(r => r.GetAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        _children.Setup(r => r.ListBomItemsForVersionAsync(order.RecipeVersionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<BomItem>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = _tenantId,
+                    OperationNodeId = Guid.NewGuid(),
+                    ProductId = productId,
+                    Quantity = 2m,
+                    QuantityType = BomQuantityType.PerUnit,
+                    PreferredWarehouseId = warehouseId
+                }
+            });
+        var reservation = new MaterialReservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = _tenantId,
+            ProductionOrderId = order.Id,
+            ProductId = productId,
+            WarehouseId = warehouseId,
+            QuantityReserved = 200m,
+            QuantityRelieved = 0m,
+            Status = ReservationStatus.Active,
+            CreatedAt = _now.AddHours(-1),
+            UpdatedAt = null
+        };
+        _reservations.Setup(r => r.ListForOrderAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MaterialReservation> { reservation });
+        _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        // Act
+        var act = () => CreateSut().Handle(
+            new CreateProductionConfirmationRequest(
+                order.Id, Guid.NewGuid(), null, _now.AddMinutes(-5), 10m, 0m, null),
+            CancellationToken.None);
+
+        // Assert — the exception propagates and tracked state is restored.
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        order.Status.Should().Be(ProductionOrderStatus.Released);
+        reservation.QuantityRelieved.Should().Be(0m);
+        reservation.Status.Should().Be(ReservationStatus.Active);
+        reservation.UpdatedAt.Should().BeNull();
     }
 }

@@ -22,12 +22,13 @@ public class MaterialReservationConfiguration : IEntityTypeConfiguration<Materia
 
         // Release idempotency backstop (issue #291): re-releasing an order
         // skips already-reserved pairs in code; the constraint rejects any
-        // residual double-insert race for warehouse-bound rows. Null
-        // warehouse rows (the unassigned bucket) are not deduplicated by the
-        // index — PostgreSQL treats NULLs as distinct — so the code-level
-        // skip remains the primary guard for those.
+        // residual double-insert race. NULLS NOT DISTINCT (PostgreSQL 15+)
+        // keeps the unassigned bucket (null warehouse) covered as well —
+        // without it PostgreSQL would treat NULLs as distinct and allow
+        // duplicate null-bucket rows on concurrent double-release.
         builder.HasIndex(x => new { x.TenantId, x.ProductionOrderId, x.ProductId, x.WarehouseId })
-            .IsUnique();
+            .IsUnique()
+            .AreNullsDistinct(false);
         builder.HasIndex(x => new { x.TenantId, x.ProductionOrderId });
         builder.HasIndex(x => x.TenantId);
     }

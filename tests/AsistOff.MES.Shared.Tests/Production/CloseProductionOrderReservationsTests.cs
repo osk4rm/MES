@@ -126,4 +126,39 @@ public sealed class CloseProductionOrderReservationsTests
             r => r.UpdateAsync(It.IsAny<MaterialReservation>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    [Fact]
+    public async Task Handle_TransactionFails_RestoresOrderAndReservations()
+    {
+        // Arrange — the fan-out transaction throws so the rolled-back
+        // in-memory Closed mutations must be restored on tracked instances.
+        var order = CompletedOrder();
+        SetupOrder(order);
+        var active = new MaterialReservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = Guid.NewGuid(),
+            ProductionOrderId = order.Id,
+            ProductId = Guid.NewGuid(),
+            QuantityReserved = 200m,
+            QuantityRelieved = 20m,
+            Status = ReservationStatus.Active,
+            CreatedAt = _now.AddHours(-4),
+            UpdatedAt = null
+        };
+        _reservations.Setup(r => r.ListForOrderAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MaterialReservation> { active });
+        _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        // Act
+        var act = () => CreateSut().Handle(new CloseProductionOrderRequest(order.Id), CancellationToken.None);
+
+        // Assert — the exception propagates and tracked state is restored.
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        order.Status.Should().Be(ProductionOrderStatus.Completed);
+        order.UpdatedAt.Should().BeNull();
+        active.Status.Should().Be(ReservationStatus.Active);
+        active.UpdatedAt.Should().BeNull();
+    }
 }

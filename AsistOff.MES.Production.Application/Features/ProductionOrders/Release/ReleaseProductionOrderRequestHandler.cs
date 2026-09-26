@@ -8,7 +8,6 @@ using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
-using AsistOff.MES.Users.Core.Rbac;
 using MediatR;
 
 namespace AsistOff.MES.Production.Application.Features.ProductionOrders.Release;
@@ -44,7 +43,8 @@ internal sealed class ReleaseProductionOrderRequestHandler(
         // by the order quantity. Orders without BOM items reserve nothing.
         // Re-release skips already-reserved pairs (the status guard above
         // already rejects it with 409; the skip plus the unique constraint
-        // backstop concurrent double-release races).
+        // with NULLS NOT DISTINCT backstop concurrent double-release races,
+        // including the null-warehouse bucket).
         var bomItems = await childEntitiesRepository.ListBomItemsForVersionAsync(
             order.RecipeVersionId, cancellationToken);
         var requirements = ReservationCalculator.BuildRequirements(order, bomItems);
@@ -65,15 +65,34 @@ internal sealed class ReleaseProductionOrderRequestHandler(
             CreatedAt = now
         }).ToList();
 
+        // Snapshot the tracked order so a transaction failure below can
+        // restore it: without this the scoped DefaultContext keeps the
+        // rolled-back Released mutations and a later SaveChanges could
+        // persist them. The new reservation rows are transient (created
+        // above, only tracked inside the transaction) and discarded on throw.
+        var previousStatus = order.Status;
+        var previousReleasedAt = order.ReleasedAt;
+        var previousReleasedBy = order.ReleasedByUserId;
+
         order.Status = ProductionOrderStatus.Released;
         order.ReleasedAt = now;
         order.ReleasedByUserId = currentUserAccessor.UserId;
 
-        await unitOfWork.ExecuteInTransactionAsync(async () =>
+        try
         {
-            await ordersRepository.UpdateAsync(order, cancellationToken);
-            await reservationsRepository.AddRangeAsync(reservations, cancellationToken);
-        }, cancellationToken);
+            await unitOfWork.ExecuteInTransactionAsync(async () =>
+            {
+                await ordersRepository.UpdateAsync(order, cancellationToken);
+                await reservationsRepository.AddRangeAsync(reservations, cancellationToken);
+            }, cancellationToken);
+        }
+        catch
+        {
+            order.Status = previousStatus;
+            order.ReleasedAt = previousReleasedAt;
+            order.ReleasedByUserId = previousReleasedBy;
+            throw;
+        }
 
         return ProductionOrderMappers.Map(order);
     }
