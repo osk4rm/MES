@@ -257,7 +257,7 @@ async function downloadCsv(): Promise<void> {
 
 onMounted(async () => {
   try {
-    const m = await machineService.browse({ pageSize: 500 });
+    const m = await machineService.browse({ pageNumber: 1, pageSize: 100 });
     machines.value = m.items;
   } catch {
     // lookups stay empty; ids are still rendered raw

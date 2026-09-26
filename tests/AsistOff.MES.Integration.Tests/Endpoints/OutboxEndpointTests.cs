@@ -88,12 +88,14 @@ public sealed class OutboxEndpointTests(MesApplicationFixture fixture) : Integra
         }
 
         // Assert — the committed row survives, the rolled-back write left none.
+        // Slice 3 (#260): tenant bootstrap leaves its dispatched
+        // tenant-created row, so only undispatched rows are asserted here.
         using (BackgroundTenantContext.BeginScope(tenantId))
         {
             using var scope = Fixture.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
 
-            var rows = await context.OutboxMessages.ToListAsync();
+            var rows = await OutboxStager.ApplyUndispatched(context.OutboxMessages, 10).ToListAsync();
             rows.Should().ContainSingle();
             rows.Should().NotContain(x => x.Payload.Contains(failedMarker));
         }
@@ -127,7 +129,10 @@ public sealed class OutboxEndpointTests(MesApplicationFixture fixture) : Integra
         {
             using var scope = Fixture.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
-            (await context.OutboxMessages.ToListAsync()).Should().ContainSingle();
+            // Slice 3 (#260): tenant bootstrap leaves its dispatched
+            // tenant-created row; the probe row is the only undispatched one.
+            (await OutboxStager.ApplyUndispatched(context.OutboxMessages, 10).ToListAsync())
+                .Should().ContainSingle();
         }
     }
 
@@ -152,11 +157,14 @@ public sealed class OutboxEndpointTests(MesApplicationFixture fixture) : Integra
         failed.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         // Assert — no ghost outbox row exists for the rejected write.
+        // Slice 3 (#260): tenant bootstrap leaves its dispatched
+        // tenant-created row, so only undispatched rows are asserted here.
         using (BackgroundTenantContext.BeginScope(tenantId))
         {
             using var scope = Fixture.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DefaultContext>();
-            (await context.OutboxMessages.ToListAsync()).Should().BeEmpty();
+            (await OutboxStager.ApplyUndispatched(context.OutboxMessages, 10).ToListAsync())
+                .Should().BeEmpty();
         }
     }
 

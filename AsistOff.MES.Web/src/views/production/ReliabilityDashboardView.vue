@@ -555,7 +555,7 @@ onMounted(async () => {
   try {
     // Machine picker is limited to active machines of the current tenant;
     // tenant isolation itself follows the snapshot API (404 for foreign ids).
-    const page = await machineService.browse({ pageSize: 500, isActive: true });
+    const page = await machineService.browse({ pageNumber: 1, pageSize: 100, isActive: true });
     machines.value = page.items.filter((m) => m.isActive);
   } catch {
     // Work Center lookup stays empty; ids still render raw.

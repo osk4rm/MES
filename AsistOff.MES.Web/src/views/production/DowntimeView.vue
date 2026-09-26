@@ -443,9 +443,9 @@ function cancelDelete(): void {
 onMounted(async () => {
   try {
     const [m, r, o] = await Promise.all([
-      machineService.browse({ pageSize: 500 }),
-      reasonCodeService.browse({ pageSize: 500 }),
-      productionOrderService.browse({ pageNumber: 1, pageSize: 200 })
+      machineService.browse({ pageNumber: 1, pageSize: 100 }),
+      reasonCodeService.browse({ pageNumber: 1, pageSize: 100 }),
+      productionOrderService.browse({ pageNumber: 1, pageSize: 100 })
     ]);
     machines.value = m.items;
     reasons.value = r.items;

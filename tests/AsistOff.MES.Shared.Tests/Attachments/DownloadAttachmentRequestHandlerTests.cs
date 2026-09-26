@@ -22,7 +22,7 @@ public class DownloadAttachmentRequestHandlerTests
     [Fact]
     public async Task Handle_KnownId_ReturnsStoredContentWithMetadata()
     {
-        // Arrange
+        // Arrange - PNG variant (branch)
         var entity = new Attachment
         {
             Id = _attachmentId,
@@ -52,6 +52,44 @@ public class DownloadAttachmentRequestHandlerTests
         await content.CopyToAsync(buffered);
         buffered.ToArray().Should().Equal(PngBytes);
         _storage.Verify(s => s.OpenReadAsync("ab/cd/key-file.png", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_KnownId_ReturnsContentWithMetadata()
+    {
+        // Arrange - text variant (master)
+        var bytes = "hello, production notes"u8.ToArray();
+        var entity = new Attachment
+        {
+            Id = _attachmentId,
+            TenantId = Guid.NewGuid(),
+            OwnerType = "operation",
+            OwnerId = Guid.NewGuid(),
+            FileName = "notes.txt",
+            ContentType = "text/plain",
+            SizeBytes = bytes.Length,
+            StorageKey = "ab/cd/key-notes.txt",
+            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+        };
+        _repository.Setup(r => r.GetAsync(_attachmentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(entity);
+        _storage.Setup(s => s.OpenReadAsync("ab/cd/key-notes.txt", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(bytes));
+
+        // Act
+        var result = await CreateSut().Handle(new DownloadAttachmentRequest(_attachmentId), CancellationToken.None);
+
+        // Assert
+        result.FileName.Should().Be("notes.txt");
+        result.ContentType.Should().Be("text/plain");
+        result.SizeBytes.Should().Be(bytes.Length);
+        using (result.Content)
+        {
+            using var reader = new MemoryStream();
+            await result.Content.CopyToAsync(reader);
+            reader.ToArray().Should().Equal(bytes);
+        }
+        _storage.Verify(s => s.OpenReadAsync("ab/cd/key-notes.txt", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
