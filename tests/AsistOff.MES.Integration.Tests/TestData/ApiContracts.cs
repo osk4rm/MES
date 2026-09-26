@@ -573,6 +573,53 @@ public sealed record DispatchBoardDto(
     IReadOnlyCollection<DispatchDayDto> Days,
     IReadOnlyCollection<DispatchOrderRowDto> Orders);
 
+/// <summary>Shape of one open order row returned by <c>/api/shift-handovers/context</c>.</summary>
+public sealed record ShiftHandoverOrderDto(
+    Guid Id,
+    string Code,
+    Guid ProductId,
+    string? ProductCode,
+    decimal PlannedQuantity,
+    decimal ProducedQuantity,
+    decimal ScrappedQuantity,
+    int Priority,
+    DateTime? DueDate,
+    short Status);
+
+/// <summary>Shape of one active Andon signal returned by <c>/api/shift-handovers/context</c>.</summary>
+public sealed record ShiftHandoverSignalDto(
+    Guid Id,
+    Guid MachineId,
+    short Category,
+    string Severity,
+    string Code,
+    DateTime RaisedAt);
+
+/// <summary>Shape of one recent confirmation returned by <c>/api/shift-handovers/context</c>.</summary>
+public sealed record ShiftHandoverConfirmationDto(
+    Guid Id,
+    Guid ProductionOrderId,
+    Guid MachineId,
+    DateTime ReportedAt,
+    decimal GoodQuantity,
+    decimal ScrapQuantity,
+    string? OperatorCode,
+    string? Notes);
+
+/// <summary>Shape of the shift handover context returned by <c>/api/shift-handovers/context</c>.</summary>
+public sealed record ShiftHandoverContextDto(
+    Guid? MachineId,
+    Guid? ShiftId,
+    DateTime From,
+    DateTime To,
+    bool UncoveredShift,
+    IReadOnlyCollection<ShiftHandoverOrderDto> OpenOrders,
+    IReadOnlyCollection<ShiftHandoverSignalDto> ActiveSignals,
+    IReadOnlyCollection<ShiftHandoverConfirmationDto> Confirmations,
+    int ConfirmationsTotalCount,
+    int ConfirmationPage,
+    int ConfirmationPageSize);
+
 /// <summary>Shape of a tenant permission as returned by <c>/api/permissions</c>.</summary>
 public sealed record PermissionDto(
     Guid Id,
