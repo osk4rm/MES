@@ -186,6 +186,51 @@ public class BrowseShiftHandoversRequestHandlerTests
     }
 
     [Fact]
+    public async Task BrowseValidator_EmptyMachineId_IsInvalid()
+    {
+        // Arrange — the validator rejects an explicit empty GUID so a
+        // ?machineId=00000000-... typo fails fast with 400 instead of
+        // silently matching nothing.
+        var validator = new BrowseShiftHandoversValidator();
+
+        // Act
+        var result = await validator.ValidateAsync(
+            new BrowseShiftHandoversRequest { MachineId = Guid.Empty });
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task BrowseValidator_PageNumberZero_IsInvalid()
+    {
+        // Arrange
+        var validator = new BrowseShiftHandoversValidator();
+
+        // Act
+        var result = await validator.ValidateAsync(
+            new BrowseShiftHandoversRequest { PageNumber = 0 });
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task BrowseValidator_PageSizeZero_IsInvalid()
+    {
+        // Arrange — lower bound of the InclusiveBetween(1, 100) rule; the
+        // upper bound is covered by BrowseValidator_PageSizeOver100_IsInvalid.
+        var validator = new BrowseShiftHandoversValidator();
+
+        // Act
+        var result = await validator.ValidateAsync(
+            new BrowseShiftHandoversRequest { PageSize = 0 });
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task BrowseValidator_DefaultPaging_IsValid()
     {
         // Arrange
