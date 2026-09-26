@@ -106,6 +106,11 @@ describe('e2e-smoke CI contract', () => {
     expect(workflow).toContain('5432:5432');
     expect(workflow).toContain('pg_isready');
     expect(workflow).toContain('postgres__connectionString');
+    // Pin the full value, not just the key: a wrong password/database here
+    // would still start Postgres green and fail every API call in the suite.
+    expect(workflow).toContain(
+      'postgres__connectionString: Host=localhost;Port=5432;Database=mes;Username=admin;Password=root',
+    );
     expect(workflow).toContain('E2E_FRONTEND_URL: http://localhost:5173');
     expect(workflow).toContain('E2E_API_URL: http://localhost:5243');
   });
