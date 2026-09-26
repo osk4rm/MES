@@ -1,3 +1,4 @@
+using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.DowntimeEvents.Start;
 using AsistOff.MES.Production.Domain.Entities;
@@ -14,6 +15,7 @@ public class StartDowntimeEventRequestHandlerTests
 {
     private readonly Mock<IDowntimeEventsRepository> _repository = new();
     private readonly Mock<IProductionOrdersRepository> _orders = new();
+    private readonly Mock<IReasonCodesRepository> _reasonCodes = new();
     private readonly Mock<IGuidProvider> _guids = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ITenantContext> _tenant = new();
@@ -31,7 +33,7 @@ public class StartDowntimeEventRequestHandlerTests
     }
 
     private StartDowntimeEventRequestHandler CreateSut() =>
-        new(_repository.Object, _orders.Object, _guids.Object, _clock.Object, _tenant.Object);
+        new(_repository.Object, _orders.Object, _reasonCodes.Object, _guids.Object, _clock.Object, _tenant.Object);
 
     private static StartDowntimeEventRequest ValidRequest(DateTime? startedAt = null) =>
         new(Guid.NewGuid(), Guid.NewGuid(), startedAt ?? new DateTime(2026, 9, 1, 11, 0, 0, DateTimeKind.Utc), "notes", null);

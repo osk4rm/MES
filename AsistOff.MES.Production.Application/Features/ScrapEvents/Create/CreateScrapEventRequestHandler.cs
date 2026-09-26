@@ -1,9 +1,11 @@
+using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.ScrapEvents.Browse;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
+using AsistOff.MES.Shared.Abstractions.Observability;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using MediatR;
 
@@ -12,6 +14,7 @@ namespace AsistOff.MES.Production.Application.Features.ScrapEvents.Create;
 internal sealed class CreateScrapEventRequestHandler(
     IScrapEventsRepository repository,
     IProductionOrdersRepository ordersRepository,
+    IReasonCodesRepository reasonCodesRepository,
     IGuidProvider guidProvider,
     IDateTimeProvider dateTimeProvider,
     ITenantContext tenantContext)
@@ -63,6 +66,14 @@ internal sealed class CreateScrapEventRequestHandler(
         };
 
         await repository.AddAsync(scrapEvent, cancellationToken);
+
+        // Quality loss, success path only. The reason label resolves through
+        // the tenant-filtered lookup (same rule as the OEE losses Pareto):
+        // unresolvable ids collapse to the bounded "unknown" placeholder, so
+        // the meter never leaks cross-tenant codes and never changes the
+        // handler's error contract.
+        var reasonCode = await reasonCodesRepository.GetByIdAsync(request.ReasonCodeId, cancellationToken);
+        MesMeters.RecordScrap(request.MachineId, reasonCode?.Code, tenantContext.TenantId);
         return BrowseScrapEventsRequestHandler.Map(scrapEvent);
     }
 }
