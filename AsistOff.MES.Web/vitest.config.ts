@@ -7,7 +7,9 @@ export default defineConfig({
   plugins: [vue()],
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.spec.ts'],
+    // Smoke-helper specs live next to the Playwright suite but run here:
+    // they cover the pure parsing/validation logic the smoke relies on.
+    include: ['src/**/*.spec.ts', 'e2e/support/*.spec.ts'],
     globals: false
   }
 })

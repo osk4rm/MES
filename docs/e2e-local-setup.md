@@ -72,3 +72,22 @@ so a busy `:5173` fails fast with a clear error instead of silently moving
 to `:5174`. CORS in `appsettings.Development.json` allows the vite fallback
 origin `http://localhost:5174` as well, for manual `npm run dev` runs outside
 the script.
+
+## Committed smoke suite (issue #272)
+
+The versioned login-to-lots journey lives in
+`AsistOff.MES.Web/e2e/smoke/login-to-lots.spec.ts` (helpers in
+`e2e/support/`, config in `AsistOff.MES.Web/playwright.config.ts`).
+Single command — starts the stack, seeds isolated `SMK-*` data, runs the
+four checks (login redirect, dispatch board, confirmation with lots, lot
+tree), cleans up, stops the stack:
+
+```powershell
+pwsh -File scripts/e2e/smoke.ps1
+# -KeepStack leaves backend + frontend running for follow-up debugging
+```
+
+Traces and screenshots for failing checks are kept under
+`AsistOff.MES.Web/test-results`; the HTML report lands in
+`AsistOff.MES.Web/playwright-report`. CI runs the same suite in the
+`e2e-smoke` job and publishes those artifacts on failure.

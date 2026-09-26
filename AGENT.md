@@ -34,10 +34,11 @@ to AsistOff MES. The longer architectural context lives in:
     a Testcontainers PostgreSQL via the existing
     `MesApplicationFixture` / `IntegrationTestBase`. Cover the happy path plus
     the failure paths (`401`/`400`/`404`/`409`). Docker must be running.
-  * **E2E click-through (Playwright):** for any UI-facing change, run the local
-    stack and click the changed flow through with Playwright before opening the
-    PR, then describe the steps/result in the PR body. A committed Playwright
-    suite does not exist yet — this is a manual verification step.
+  * **E2E click-through (Playwright):** for any UI-facing change, run the
+    committed login-to-lots smoke suite (`pwsh -File scripts/e2e/smoke.ps1`)
+    on the local stack — or click the changed flow through manually when the
+    suite does not cover it — before opening the PR, then describe the
+    steps/result in the PR body.
 * **Prefer the smallest change** that fully solves the task. Unrelated
   cleanups belong in separate PRs.
 * **Use the domain glossary.** Say `Production Order`, not "work order" or

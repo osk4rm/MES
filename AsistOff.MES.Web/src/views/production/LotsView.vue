@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="lots-page">
     <AppPageHeader :title="$t('lots.title')" :subtitle="$t('lots.subtitle')" icon="pi pi-box">
       <template #actions>
         <AppButton variant="secondary" icon="pi pi-refresh" @click="table.fetch">{{ $t('common.refresh') }}</AppButton>
@@ -7,13 +7,14 @@
       </template>
     </AppPageHeader>
 
-    <AppCard class="scan-card">
-      <form class="scan-row" @submit.prevent="onScan">
+    <AppCard class="scan-card" data-testid="lot-scan-card">
+      <form class="scan-row" data-testid="lot-scan-form" @submit.prevent="onScan">
         <AppInput
           v-model="scanCode"
           :placeholder="$t('lots.scanPlaceholder')"
           prefix-icon="pi pi-barcode"
           clearable
+          data-testid="lot-scan-input"
         />
         <AppButton variant="secondary" icon="pi pi-search" :loading="scanning" @click="onScan">
           {{ $t('lots.scan') }}
@@ -44,6 +45,7 @@
       :loading="table.loading.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
+      data-testid="lots-table"
       @sort-change="table.setSort"
     >
       <template #cell-code="{ item }">
@@ -120,7 +122,7 @@
       </template>
     </AppModal>
 
-    <AppModal :open="detailOpen" size="xl" :title="detailLot ? detailLot.code : $t('common.notFound')" @close="closeDetail">
+    <AppModal :open="detailOpen" size="xl" :title="detailLot ? detailLot.code : $t('common.notFound')" data-testid="lot-detail-modal" @close="closeDetail">
       <div v-if="detailLoading" class="loading"><i class="pi pi-spin pi-spinner" /> {{ $t('common.loading') }}</div>
       <div v-else-if="detailNotFound || !detailLot">
         <AppEmptyState icon="pi pi-exclamation-circle" :title="$t('lots.genealogy.notFound')" />
@@ -182,7 +184,7 @@
           </div>
         </div>
 
-        <div v-else class="tab-body">
+        <div v-else class="tab-body" data-testid="lot-genealogy">
           <div class="genealogy-toolbar">
             <AppFormField :label="$t('lots.genealogy.depth')">
               <template #default="{ id }">
@@ -200,7 +202,7 @@
           </div>
 
           <div class="genealogy-grid">
-            <section class="genealogy-pane">
+            <section class="genealogy-pane" data-testid="lot-genealogy-upstream">
               <h4>{{ $t('lots.genealogy.upstream') }}</h4>
               <p v-if="upstream?.truncated" class="truncation-notice">
                 <AppBadge variant="warning" dot>{{ $t('lots.genealogy.truncated') }}</AppBadge>
@@ -227,7 +229,7 @@
               </AppTable>
             </section>
 
-            <section class="genealogy-pane">
+            <section class="genealogy-pane" data-testid="lot-genealogy-downstream">
               <h4>{{ $t('lots.genealogy.downstream') }}</h4>
               <p v-if="downstream?.truncated" class="truncation-notice">
                 <AppBadge variant="warning" dot>{{ $t('lots.genealogy.truncated') }}</AppBadge>

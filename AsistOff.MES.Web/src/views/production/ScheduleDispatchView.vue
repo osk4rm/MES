@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="dispatch-board">
     <AppPageHeader :title="$t('scheduleDispatch.title')" :subtitle="$t('scheduleDispatch.subtitle')" icon="pi pi-calendar">
       <template #actions>
         <AppButton variant="secondary" icon="pi pi-refresh" :loading="loading" @click="refresh">
@@ -60,7 +60,7 @@
         </AppCard>
       </div>
 
-      <AppCard class="dispatch-orders">
+      <AppCard class="dispatch-orders" data-testid="dispatch-orders">
         <template #header>
           <h3 class="dispatch-orders__title">{{ $t('scheduleDispatch.ordersTitle') }}</h3>
         </template>
@@ -70,6 +70,7 @@
           :loading="loading"
           row-key="id"
           :empty-label="$t('scheduleDispatch.ordersEmpty')"
+          data-testid="dispatch-orders-table"
           @row-click="openOrder"
         >
           <template #cell-code="{ item }">

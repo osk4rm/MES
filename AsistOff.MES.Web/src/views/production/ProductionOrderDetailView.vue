@@ -1,5 +1,5 @@
 <template>
-  <div v-if="order" class="order-detail">
+  <div v-if="order" class="order-detail" data-testid="order-detail">
     <AppPageHeader :title="order.code" :subtitle="$t('productionOrders.detail.subtitle')" icon="pi pi-list">
       <template #actions>
         <AppButton variant="secondary" icon="pi pi-arrow-left" @click="$router.push({ name: 'production-orders' })">
@@ -18,6 +18,7 @@
           v-if="canReport"
           variant="primary"
           icon="pi pi-plus"
+          data-testid="report-confirmation"
           @click="openReport"
         >
           {{ $t('productionConfirmations.report') }}
@@ -141,7 +142,7 @@
       />
     </section>
 
-    <section class="confirmations-section">
+    <section class="confirmations-section" data-testid="confirmations-section">
       <h3>{{ $t('productionConfirmations.title') }}</h3>
 
       <AppTable
@@ -150,6 +151,7 @@
         :loading="table.loading.value"
         :sort-key="table.sortKey.value"
         :sort-direction="table.sortDirection.value"
+        data-testid="confirmations-table"
         @sort-change="table.setSort"
       >
         <template #cell-reportedAt="{ value }">
@@ -191,8 +193,8 @@
       />
     </section>
 
-    <AppModal :open="modalOpen" :title="$t('productionConfirmations.report')" @close="closeModal">
-      <form id="confirmation-form" class="form-grid" @submit.prevent="onSave">
+    <AppModal :open="modalOpen" :title="$t('productionConfirmations.report')" data-testid="confirmation-modal" @close="closeModal">
+      <form id="confirmation-form" class="form-grid" data-testid="confirmation-form" @submit.prevent="onSave">
         <AppFormField :label="$t('productionConfirmations.machine')" required>
           <template #default="{ id }">
             <AppSelect
@@ -200,6 +202,7 @@
               v-model="form.machineId"
               :options="machineOptions"
               :placeholder="$t('productionConfirmations.selectMachine')"
+              data-testid="confirmation-machine-select"
             />
           </template>
         </AppFormField>
@@ -221,12 +224,12 @@
         <div />
         <AppFormField :label="$t('productionConfirmations.goodQuantity')" required>
           <template #default="{ id, invalid }">
-            <AppNumberInput :id="id" v-model="form.goodQuantity" :min="0" :step="1" :invalid="invalid" />
+            <AppNumberInput :id="id" v-model="form.goodQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-good-qty" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('productionConfirmations.scrapQuantity')" required>
           <template #default="{ id, invalid }">
-            <AppNumberInput :id="id" v-model="form.scrapQuantity" :min="0" :step="1" :invalid="invalid" />
+            <AppNumberInput :id="id" v-model="form.scrapQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-scrap-qty" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('productionConfirmations.notes')" class="form-grid__full">
@@ -247,13 +250,14 @@
               :placeholder="$t('productionConfirmations.selectProducedLot')"
               allow-empty
               :empty-label="$t('productionConfirmations.noLot')"
+              data-testid="confirmation-produced-lot"
             />
           </template>
         </AppFormField>
         <div class="form-grid__full consumed-block">
           <div class="consumed-header">
             <span class="consumed-title">{{ $t('productionConfirmations.consumedLots') }} ({{ $t('common.optional') }})</span>
-            <AppButton variant="ghost" icon="pi pi-plus" @click="addConsumedRow">
+            <AppButton variant="ghost" icon="pi pi-plus" data-testid="add-consumed-lot" @click="addConsumedRow">
               {{ $t('productionConfirmations.addConsumedLot') }}
             </AppButton>
           </div>
@@ -270,12 +274,13 @@
                   v-model="row.lotId"
                   :options="lotOptions"
                   :placeholder="$t('productionConfirmations.selectConsumedLot')"
+                  :data-testid="`consumed-lot-select-${idx}`"
                 />
               </template>
             </AppFormField>
             <AppFormField :label="$t('productionConfirmations.consumedQuantity')" class="consumed-row__qty">
               <template #default="{ id }">
-                <AppNumberInput :id="id" v-model="row.quantity" :min="0" :step="0.001" />
+                <AppNumberInput :id="id" v-model="row.quantity" :min="0" :step="0.001" :data-testid="`consumed-lot-qty-${idx}`" />
               </template>
             </AppFormField>
             <AppButton
@@ -292,7 +297,7 @@
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="saving" @click="closeModal">{{ $t('common.cancel') }}</AppButton>
-        <AppButton type="submit" form="confirmation-form" variant="primary" :loading="saving">{{ $t('common.save') }}</AppButton>
+        <AppButton type="submit" form="confirmation-form" variant="primary" :loading="saving" data-testid="confirmation-save">{{ $t('common.save') }}</AppButton>
       </template>
     </AppModal>
 

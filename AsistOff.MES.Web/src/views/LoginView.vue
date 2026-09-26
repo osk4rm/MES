@@ -12,7 +12,7 @@
         <h1 class="auth-page__title">{{ $t('auth.signInTitle') }}</h1>
         <p class="auth-page__subtitle">{{ $t('auth.signInSubtitle') }}</p>
 
-        <form class="auth-page__form" @submit.prevent="onSubmit">
+        <form class="auth-page__form" data-testid="login-form" @submit.prevent="onSubmit">
           <AppFormField :label="$t('auth.email')" required>
             <template #default="{ id, invalid }">
               <AppInput
@@ -23,6 +23,7 @@
                 :invalid="invalid"
                 required
                 prefix-icon="pi pi-envelope"
+                data-testid="login-email"
               />
             </template>
           </AppFormField>
@@ -37,11 +38,12 @@
                 :invalid="invalid"
                 required
                 prefix-icon="pi pi-lock"
+                data-testid="login-password"
               />
             </template>
           </AppFormField>
 
-          <AppButton type="submit" variant="primary" size="lg" block :loading="loading">
+          <AppButton type="submit" variant="primary" size="lg" block :loading="loading" data-testid="login-submit">
             {{ $t('auth.signIn') }}
           </AppButton>
 
