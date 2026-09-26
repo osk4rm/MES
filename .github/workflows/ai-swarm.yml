@@ -613,6 +613,16 @@ jobs:
             exit 1
           fi
           swarm_remove_label pr "$PR" ai:changes
+          # A round that really changed something also clears a stale
+          # ai:blocked. The block exists to stop a no-progress loop, and the
+          # refire guard deliberately refuses to re-enter a blocked PR - so
+          # without this, a PR that recovered on a later round stayed frozen
+          # forever (#267, #268: approved reviews, no path forward). Approval
+          # blocks are set by other stages and stay manual.
+          if swarm_has_label pr "$PR" ai:blocked; then
+            swarm_remove_label pr "$PR" ai:blocked
+            swarm_say pr "$PR" 'Agent flow (CI): this round changed code again, so the earlier ai:blocked is cleared and the gates re-open.'
+          fi
           swarm_open_gates "$PR"
           echo 'gates reopened'
 

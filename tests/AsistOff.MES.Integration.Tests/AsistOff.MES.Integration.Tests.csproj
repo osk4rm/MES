@@ -6,6 +6,12 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Query strings and JSON bind with the invariant culture, so tests must
+         produce them that way too. Without this, a decimal interpolated into a
+         URL becomes "10,0000" on a pl-PL machine and the API reads it as 100000:
+         OeeAnalyticsIndexEndpointTests failed 3/3 locally with Performance 395.9
+         instead of 0.0396, while CI (en-US) stayed green. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
