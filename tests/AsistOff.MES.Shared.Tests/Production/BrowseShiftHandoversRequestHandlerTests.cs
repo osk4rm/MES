@@ -32,10 +32,15 @@ public class BrowseShiftHandoversRequestHandlerTests
 
     private void Seed(params ShiftHandover[] entries)
     {
+        // Paginator-aware double: applies the same PageFilter pipeline the EF
+        // repository uses, so filtering/ordering/paging are exercised rather
+        // than compensated for in production code.
         _handovers.Setup(h => h.BrowseAsync(It.IsAny<Paginator<ShiftHandover>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(entries.ToList());
+            .ReturnsAsync((Paginator<ShiftHandover> paginator, CancellationToken _) =>
+                entries.AsQueryable().PageFilter(paginator).ToList());
         _handovers.Setup(h => h.CountAsync(It.IsAny<LinqKit.ExpressionStarter<ShiftHandover>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(entries.Length);
+            .ReturnsAsync((LinqKit.ExpressionStarter<ShiftHandover> predicate, CancellationToken _) =>
+                entries.AsQueryable().Where(predicate).Count());
     }
 
     [Fact]
@@ -196,7 +201,7 @@ public class BrowseShiftHandoversRequestHandlerTests
     [Fact]
     public void DefaultSortString_ParsesAgainstQueryable_NewestFirst()
     {
-        // Arrange — the handler defaults RawSort to ["From,desc"]; prove the
+        // Arrange — the request defaults RawSort to ["From,desc"]; prove the
         // dynamic-LINQ sort string resolves against the entity (guards the
         // real EF query path exercised by the endpoint tests in CI).
         var machineId = Guid.NewGuid();
@@ -206,7 +211,8 @@ public class BrowseShiftHandoversRequestHandlerTests
             MakeEntry(machineId, new DateTime(2026, 9, 21, 6, 0, 0, DateTimeKind.Utc)),
             MakeEntry(machineId, new DateTime(2026, 9, 20, 6, 0, 0, DateTimeKind.Utc))
         }.AsQueryable();
-        var request = new BrowseShiftHandoversRequest { RawSort = ["From,desc"] };
+        var request = new BrowseShiftHandoversRequest();
+        request.RawSort.Should().ContainSingle().Which.Should().Be("From,desc");
         var paginator = new Paginator<ShiftHandover>(
             LinqKit.PredicateBuilder.New<ShiftHandover>(true), request);
 

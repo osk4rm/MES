@@ -22,23 +22,14 @@ internal sealed class BrowseShiftHandoversRequestHandler(IShiftHandoversReposito
 
         var totalCount = await repository.CountAsync(predicate, cancellationToken);
 
-        // Newest boundary first; callers can override via RawSort.
-        if (request.RawSort.Count == 0)
-            request.RawSort = ["From,desc"];
+        // Newest boundary first by default (RawSort initializer); callers can
+        // override via RawSort. Filtering, ordering and paging are applied by
+        // the repository through the paginator — no in-memory rework here, so
+        // paged results stay consistent with totalCount.
         var paginator = new Paginator<ShiftHandover>(predicate, request);
         var items = await repository.BrowseAsync(paginator, cancellationToken);
 
-        // The DB applies filtering, ordering and paging first in production;
-        // the in-memory re-filter/order keeps mocked repositories (which
-        // ignore the paginator) honest in unit tests.
-        var fromUtc = request.From?.ToUniversalTime();
-        var toUtc = request.To?.ToUniversalTime();
         var mapped = items
-            .Where(x => (!request.MachineId.HasValue || x.MachineId == request.MachineId.Value)
-                && (!fromUtc.HasValue || x.From >= fromUtc.Value)
-                && (!toUtc.HasValue || x.From <= toUtc.Value))
-            .OrderByDescending(x => x.From)
-            .ThenBy(x => x.Id)
             .Select(x => Map(x, x.ShiftId is null))
             .ToList();
 

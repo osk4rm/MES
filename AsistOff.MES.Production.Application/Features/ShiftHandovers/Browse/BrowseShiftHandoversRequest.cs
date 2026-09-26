@@ -14,7 +14,7 @@ public class BrowseShiftHandoversRequest
     public Guid? MachineId { get; set; }
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
-    public List<string> RawSort { get; set; } = new();
+    public List<string> RawSort { get; set; } = ["From,desc"];
     public IReadOnlyCollection<string> SupportedSortFields { get; } = ["From", "MachineId", "CreatedAt"];
     public int? PageNumber { get; set; } = 1;
     public int? PageSize { get; set; } = 20;
