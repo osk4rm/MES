@@ -10,6 +10,7 @@ applyTo: "**/*.Tests/**,**/*Tests.cs,**/*Spec.cs,**/*.test.ts,**/*.spec.ts,**/__
 |---------|------|----------------|
 | `tests/AsistOff.MES.Shared.Tests` | Unit (xUnit + Moq) | Handlers, validators, interceptors, behaviors - no database. |
 | `tests/AsistOff.MES.Integration.Tests` | Endpoint integration (xUnit + `WebApplicationFactory` + Testcontainers PostgreSQL) | The real HTTP pipeline for a single endpoint, against a real PostgreSQL. |
+| `AsistOff.MES.Web/e2e` | E2E smoke (Playwright, chromium) | The login-to-lots journey on the local stack; pure helpers covered by Vitest. |
 
 ## Definition of done (every feature / endpoint)
 
@@ -22,10 +23,11 @@ A new feature is **not done** until it ships with **both**:
    (status code + response body + persistence). One test class per endpoint
    (`<Feature>EndpointTests`).
 
-Plus, for UI-facing changes, the agent must **click through the change with
-Playwright on the local stack** (see *End-to-end (Playwright)* below) before
-opening the PR. There is no committed Playwright suite yet - the click-through
-is a manual verification step that must be described in the PR body.
+ Plus, for UI-facing changes, the agent must run the committed Playwright
+ smoke suite (`pwsh -File scripts/e2e/smoke.ps1`, see *End-to-end
+ (Playwright)* below) — or click the change through manually when the suite
+ does not cover it — before opening the PR and describe the result in the
+ PR body.
 
 ## Backend – xUnit (.NET)
 
@@ -159,40 +161,29 @@ it('shows the title', () => {
 })
 ```
 
-## End-to-end (Playwright) – required click-through
+## End-to-end (Playwright) – committed smoke suite
 
-There is **no committed Playwright suite yet**. For any change that touches the
-UI (new view, form, flow, or a backend endpoint the UI consumes), the agent
-must **run the local stack and click the change through with Playwright**
-before opening the PR, then record the result in the PR body.
+The login-to-lots smoke journey is committed under
+`AsistOff.MES.Web/e2e/smoke/login-to-lots.spec.ts` (issue #272): login with
+post-login redirect, Released orders on the dispatch board, an operator
+Confirmation with produced + consumed lots, and the resulting Lot tree.
+Pure smoke helpers (`e2e/support/smoke-data.ts`) are covered by Vitest
+(`e2e/support/smoke-data.spec.ts`, included in `npm run test`).
 
-Local stack:
+Single command (starts the stack, seeds isolated `SMK-*` data, runs the
+suite, cleans up):
 
 ```powershell
-# terminal 1 - backend (requires a local PostgreSQL, see user secrets / docker)
-dotnet run --project AsistOff.MES.Gateway
-
-# terminal 2 - frontend
-cd AsistOff.MES.Web; npm run dev
+pwsh -File scripts/e2e/smoke.ps1
 ```
 
-Then, using the Playwright browser tooling:
-
-1. Navigate to the frontend dev server (default `http://localhost:5173`).
-2. Sign in with a seeded dev tenant admin (`admin@dev.local` / `Passw0rd!`).
-3. Perform the changed user journey (create / edit / filter / navigate).
-4. Assert the visible result (table row, toast, validation message) and check
-   the browser console for errors.
-5. Paste a short summary of the steps and the outcome into the PR's
-   *Manual test steps* section.
-
-Rules:
-
-- Do not weaken or skip the click-through to make the PR look green.
-- If the flow cannot be exercised locally, say so explicitly in the PR and
-  explain why.
-- When a committed Playwright suite is introduced later, these steps become
-  automated specs and this section will be updated.
+For any change that touches the UI (new view, form, flow, or a backend
+endpoint the UI consumes), the agent must run the smoke suite on the local
+stack (or click the changed flow through manually when the suite does not
+cover it) before opening the PR, then record the result in the PR body.
+Once the `e2e-smoke` workflow patch lands, CI runs the `e2e-smoke` job on
+PRs touching Web / Production areas and
+publishes traces + screenshots on failure.
 
 ## General Rules
 
