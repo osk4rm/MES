@@ -38,14 +38,21 @@ Two options, same as asiki.
 ### A. Without your own domain (quick test, recommended first)
 
 Coolify can generate a working domain from the server IP via `sslip.io` and issue
-a Let's Encrypt certificate for it:
+a Let's Encrypt certificate for it. In the resource's **Domains** tab click
+**Add domain → Generate domain** (service `web`), which yields:
 
 ```
-TWOJ_IP.sslip.io
+https://<random>.TWOJ_IP.sslip.io   (e.g. https://2aznub....145.239.86.216.sslip.io)
 ```
 
-Use it as the `web` service domain (without `http://`), with the container port
-`8080`. limitations: none for testing; switch to B for production use.
+Use the generated subdomain, **not** the bare `TWOJ_IP.sslip.io` — Coolify
+creates no Traefik route for the bare form (requests 404).
+
+> Set the domain **Port explicitly to `8080`** (confirm “Use this port anyway”
+> when Coolify warns the port is unrecognized). The `web` image inherits
+> `EXPOSE 80` from `nginx:alpine` alongside our `EXPOSE 8080`; with “Port
+> missing” Traefik picks port 80 and every request ends in `502 Bad Gateway`.
+> This bit us on the first deploy — explicit `8080` is required.
 
 ### B. Own domain (recommended long-term)
 
@@ -94,9 +101,9 @@ Use it as the `web` service domain (without `http://`), with the container port
    | `BOOT_RUN_SEEDERS` | default `false`; seeders never run in Production via this path |
 
 6. In **Domains** (or the FQDN field of the `web` service) set the domain with
-   the internal port `8080`:
+   the internal port **`8080`** (explicit — see 2A why “Port missing” breaks):
    - `https://mes.twojadomena.pl:8080`, or
-   - `TWOJ_IP.sslip.io:8080`.
+   - the generated `https://<random>.TWOJ_IP.sslip.io:8080`.
 7. Click **Deploy**.
 
 Coolify builds and starts four containers:
@@ -180,6 +187,13 @@ In GitHub → repository **Settings → Secrets and variables → Actions** add:
 
 If you don't want CI-triggered deploys, skip the secrets — the workflow skips
 the deploy step.
+
+> Think twice before enabling this on MES: unlike asiki, `master` here receives
+> several automated swarm merges per day, and every triggered deploy restarts
+> the API (~1–2 min downtime). Alternatives: deploy manually with the Coolify
+> **Deploy** button, or turn on the resource's **Auto Deploy** polling in
+> Coolify (no secrets needed). The API must be enabled in Coolify instance
+> settings before API tokens can be issued.
 
 ---
 
