@@ -120,6 +120,29 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     }
 
     [Fact]
+    public async Task Refresh_ReuseRevokesFamily_SuccessorAlsoReturns401()
+    {
+        // Arrange — rotate once so the family holds a successor, keeping both
+        // opaque values: the rotated ancestor and its live successor.
+        var (_, tokens) = await SignInAsync();
+        using var anonymous = Fixture.CreateClient();
+        var first = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokens.RefreshToken });
+        first.EnsureSuccessStatusCode();
+        var successor = AuthCookieHelper.GetRefreshToken(first);
+        successor.Should().NotBeNullOrWhiteSpace();
+
+        // Act — replay the already-rotated ancestor (reuse attack).
+        var reuse = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokens.RefreshToken });
+
+        // Assert — reuse rejected and the whole family revoked, so even the
+        // previously-live successor no longer mints a session.
+        reuse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var afterRevoke = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = successor });
+        afterRevoke.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task SignOut_ThenRefresh_Returns401()
     {
         // Arrange — revocation itself stays authenticated; the refresh is anonymous.

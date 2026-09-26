@@ -114,6 +114,67 @@ public class AuthOptionsValidatorTests
     }
 
     [Fact]
+    public void Validate_SecureDefaults_AreTrue()
+    {
+        // Arrange — secure by default: a freshly-bound options object must
+        // validate signatures and audience without explicit opt-in.
+
+        // Act
+        var options = new AuthOptions { IssuerSigningKey = new string('k', 40) };
+
+        // Assert
+        options.ValidateAudience.Should().BeTrue();
+        options.RequireAudience.Should().BeTrue();
+        options.ValidateIssuerSigningKey.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Validate_DisabledSigningKeyValidationInProduction_Throws()
+    {
+        // Arrange
+        var options = ValidOptions();
+        options.ValidateIssuerSigningKey = false;
+
+        // Act
+        var act = () => AuthOptionsValidator.Validate(options, isProduction: true);
+
+        // Assert — accepting unsigned tokens is never legitimate.
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ValidateIssuerSigningKey*");
+    }
+
+    [Fact]
+    public void Validate_DisabledRequireAudienceInProduction_Throws()
+    {
+        // Arrange — audience validation on but audience not required still
+        // admits tokens without an aud claim.
+        var options = ValidOptions();
+        options.RequireAudience = false;
+
+        // Act
+        var act = () => AuthOptionsValidator.Validate(options, isProduction: true);
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ValidateAudience*");
+    }
+
+    [Fact]
+    public void Validate_DisabledLifetimeValidationInProduction_Throws()
+    {
+        // Arrange
+        var options = ValidOptions();
+        options.ValidateLifetime = false;
+
+        // Act
+        var act = () => AuthOptionsValidator.Validate(options, isProduction: true);
+
+        // Assert — expired tokens must never be accepted in production.
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ValidateLifetime*");
+    }
+
+    [Fact]
     public void Validate_MissingAudienceOutsideProduction_PassesDevBypass()
     {
         // Arrange — dev-only bypass: audience may be unset outside Production.

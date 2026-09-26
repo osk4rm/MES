@@ -57,6 +57,39 @@ A future ADR will introduce:
 * A claims builder that materialises `permissions` from the user's roles at sign‑in time.
 * Declarative `[RequirePermission("configuration.products.write")]` attributes powered by an `AuthorizationBehavior` MediatR pipeline step.
 
+## JWT hardening (issues #230 / #280)
+
+The MVP Bearer shape above is hardened as follows; these rules are enforced
+by `AuthOptionsValidator` at startup and by the JWT bearer pipeline at runtime:
+
+* **Signing-key floor (256 bits).** `auth:IssuerSigningKey` must decode to at
+  least 32 bytes (UTF-8) in every environment — `AuthManager` and
+  `AuthOptionsValidator` fail fast with a message naming the setting otherwise.
+  The key is supplied via User Secrets or an environment variable, never
+  committed to config. `AuthOptions.ValidateIssuerSigningKey` defaults to
+  `true` (secure by default); Production startup additionally rejects `false`.
+* **Audience enforcement.** `auth:ValidateAudience` and
+  `auth:RequireAudience` default to `true` and Production startup rejects any
+  other value; an audience (`auth:Audience` / `ValidAudience` / `ValidAudiences`)
+  must be configured in Production. Tokens with a wrong or missing `aud` claim
+  are rejected with 401. Outside Production the audience requirement may be
+  relaxed as a documented dev-only bypass.
+* **Opaque refresh rotation with reuse detection.** Sign-in mints a 256-bit
+  opaque refresh token; only its SHA-256 hash is persisted (`RefreshToken`
+  entity: `TokenHash`, `ExpiresAtUtc`, `FamilyId`, all tenant-scoped via
+  `ISaasy`). Each refresh call revokes the presented token (`rotated`) and
+  issues a successor in the same family. Presenting an already-rotated token
+  revokes the whole family (`reuse-detected`) and returns 401, so a leaked
+  token cannot be replayed. Refresh is anonymous by design (`RefreshTokenRequest`
+  is `IAllowAnonymousRequest`); tenant binding comes from the stored row's
+  `TenantId`, never from caller input, and the hash lookup bypass
+  (`GetByHashIgnoringQueryFiltersAsync`) is justified in code like the
+  pre-auth user lookup.
+* **Transport.** Sessions travel over httpOnly `Secure` `SameSite=Lax` cookies
+  (`mes_access` / `mes_refresh`); the sign-in/refresh response bodies carry no
+  usable token strings. The `Authorization: Bearer` header keeps working during
+  transition.
+
 ## Consequences
 
 **Positive**
