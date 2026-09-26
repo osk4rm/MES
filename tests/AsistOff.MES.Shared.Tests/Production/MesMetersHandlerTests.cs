@@ -49,7 +49,7 @@ public class MesMetersHandlerTests
         };
         var orders = MockOrders(order);
         var tenant = MockTenant();
-        var unitOfWork = MockUnitOfWork();
+        var uow = MockUnitOfWork();
         var handler = new CreateProductionConfirmationRequestHandler(
             Mock.Of<IProductionConfirmationsRepository>(),
             orders.Object,
@@ -60,7 +60,7 @@ public class MesMetersHandlerTests
             MockGuids(),
             MockClock(),
             tenant.Object,
-            unitOfWork);
+            uow);
 
         // Act
         await handler.Handle(
@@ -265,11 +265,10 @@ public class MesMetersHandlerTests
 
     private static IUnitOfWork MockUnitOfWork()
     {
-        var transaction = new Mock<IDatabaseTransaction>();
-        var unitOfWork = new Mock<IUnitOfWork>();
-        unitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(transaction.Object);
-        return unitOfWork.Object;
+        var uow = new Mock<IUnitOfWork>();
+        uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task> op, CancellationToken _) => op());
+        return uow.Object;
     }
 
     private sealed class MeterCapture : IDisposable

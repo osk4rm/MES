@@ -113,9 +113,14 @@ internal sealed class CreateProductionConfirmationRequestHandler(
             CreatedAt = dateTimeProvider.UtcNow
         };
 
-        // Resolve the RW/PW ledger lines before opening the transaction so
-        // the persisted lines equal MovementCalculator.BuildPreview lines for
-        // this confirmation (PW for the good quantity plus RW per BOM item).
+        // Atomic fan-out (issue #265): the confirmation row, all RW/PW
+        // movement lines, all genealogy edges and the Released -> InProgress
+        // status flip commit in ONE database transaction. All repositories
+        // share the scoped DefaultContext, so every SaveChangesAsync inside
+        // the delegate enlists in the unit-of-work transaction; any failure
+        // rolls everything back and leaves no orphan confirmation behind.
+        // Validation and lot resolution above run BEFORE the transaction, so
+        // 404/400/409 rejections never open a transaction and write nothing.
         var bomItems = await childEntitiesRepository.ListBomItemsForVersionAsync(
             order.RecipeVersionId, cancellationToken);
         var preview = MovementCalculator.BuildPreview(order, confirmation.GoodQuantity, 1, bomItems);
@@ -134,9 +139,6 @@ internal sealed class CreateProductionConfirmationRequestHandler(
             CreatedAt = dateTimeProvider.UtcNow
         }).ToList();
 
-        // Build the genealogy edges up front so the transaction body only
-        // performs writes. All validation above runs before any write, so
-        // failed validations still leave no partial rows behind.
         var edges = consumedResolved.Select(pair => new LotGenealogyEdge
         {
             Id = guidProvider.NewGuid(),
@@ -154,37 +156,38 @@ internal sealed class CreateProductionConfirmationRequestHandler(
 
         var flipToInProgress = order.Status == ProductionOrderStatus.Released;
 
-        // The confirmation plus movements plus genealogy edges plus order
-        // status flip must commit together: every repository shares the same
-        // scoped DefaultContext, so one transaction covers all SaveChanges
-        // calls below and rolls everything back on any failure (issue #265).
-        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            await confirmationsRepository.AddAsync(confirmation, cancellationToken);
-
-            await stockMovementsRepository.AddRangeAsync(movements, cancellationToken);
-
-            // Post one genealogy edge per consumed lot entry so every confirmed
-            // production run leaves an auditable trace without a second manual
-            // call. Edges carry the same order, confirmation, Work Center,
-            // Operator and ReportedAt timestamp as the confirmation.
-            foreach (var edge in edges)
+            await unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                await genealogyEdgesRepository.AddAsync(edge, cancellationToken);
-            }
+                await confirmationsRepository.AddAsync(confirmation, cancellationToken);
 
-            if (flipToInProgress)
-            {
-                order.Status = ProductionOrderStatus.InProgress;
-                await ordersRepository.UpdateAsync(order, cancellationToken);
-            }
+                // Post the RW/PW ledger lines using the same BOM inputs as the
+                // movement preview, so persisted lines match the preview lines for
+                // this confirmation (PW for the good quantity plus RW per BOM item).
+                await stockMovementsRepository.AddRangeAsync(movements, cancellationToken);
 
-            await transaction.CommitAsync(cancellationToken);
+                // Post one genealogy edge per consumed lot entry so every confirmed
+                // production run leaves an auditable trace without a second manual
+                // call. Edges carry the same order, confirmation, Work Center,
+                // Operator and ReportedAt timestamp as the confirmation.
+                foreach (var edge in edges)
+                    await genealogyEdgesRepository.AddAsync(edge, cancellationToken);
+
+                if (flipToInProgress)
+                {
+                    order.Status = ProductionOrderStatus.InProgress;
+                    await ordersRepository.UpdateAsync(order, cancellationToken);
+                }
+            }, cancellationToken);
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            // The database rolled back, so restore the in-memory status: the
+            // tracked order instance is mutated above, and without this the
+            // caller would observe InProgress for a still-Released row.
+            if (flipToInProgress && order.Status == ProductionOrderStatus.InProgress)
+                order.Status = ProductionOrderStatus.Released;
             throw;
         }
 

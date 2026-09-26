@@ -1,54 +1,41 @@
 using AsistOff.MES.Shared.Abstractions.DAL;
-using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore;
 
 namespace AsistOff.MES.Shared.Infrastructure.Persistence;
 
 /// <summary>
-/// EF Core <see cref="IUnitOfWork"/> over the shared <see cref="DefaultContext"/>.
-/// All module repositories share the same scoped context instance, so a
-/// transaction started here covers every <c>SaveChangesAsync</c> issued by
-/// those repositories until commit or rollback.
+/// <see cref="IUnitOfWork"/> backed by the shared <see cref="DefaultContext"/>.
+/// Opens one <c>BeginTransactionAsync</c> scope; every repository shares the
+/// same scoped context instance, so each <c>SaveChangesAsync</c> inside the
+/// delegate enlists in that transaction. Commit happens only after the whole
+/// delegate succeeds; any exception disposes the transaction uncommitted
+/// (rollback) and propagates.
 /// </summary>
 internal sealed class DefaultContextUnitOfWork(DefaultContext context) : IUnitOfWork
 {
-    public async Task<IDatabaseTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+    public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken = default)
     {
-        var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        return new DefaultContextTransaction(transaction);
+        // If the caller already runs inside a transaction (nested fan-out),
+        // reuse it instead of starting a savepoint-less nested transaction.
+        if (context.Database.CurrentTransaction is not null)
+            return await operation();
+
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var result = await operation();
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
-    private sealed class DefaultContextTransaction(IDbContextTransaction transaction) : IDatabaseTransaction
+    public async Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken = default)
     {
-        private bool _completed;
-
-        public async Task CommitAsync(CancellationToken cancellationToken = default)
+        if (context.Database.CurrentTransaction is not null)
         {
-            await transaction.CommitAsync(cancellationToken);
-            _completed = true;
+            await operation();
+            return;
         }
 
-        public async Task RollbackAsync(CancellationToken cancellationToken = default)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            _completed = true;
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            if (!_completed)
-            {
-                try
-                {
-                    await transaction.RollbackAsync();
-                }
-                catch
-                {
-                    // Best effort: the underlying connection may already be
-                    // disposed when the scope tears down after a failure.
-                }
-            }
-
-            await transaction.DisposeAsync();
-        }
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await operation();
+        await transaction.CommitAsync(cancellationToken);
     }
 }

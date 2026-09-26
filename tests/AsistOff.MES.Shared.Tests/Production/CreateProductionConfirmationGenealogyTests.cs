@@ -2,6 +2,7 @@ using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.LotGenealogy.Browse;
+using AsistOff.MES.Production.Application.Features.ProductionConfirmations;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Create;
 using AsistOff.MES.Production.Application.Features.ProductionConfirmations.Delete;
 using AsistOff.MES.Production.Domain.Entities;
@@ -33,8 +34,7 @@ public class CreateProductionConfirmationGenealogyTests
     private readonly Mock<IGuidProvider> _guids = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ITenantContext> _tenant = new();
-    private readonly Mock<IUnitOfWork> _unitOfWork = new();
-    private readonly Mock<IDatabaseTransaction> _transaction = new();
+    private readonly Mock<IUnitOfWork> _uow = new();
     private readonly Guid _tenantId = Guid.NewGuid();
     private readonly DateTime _now = new(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc);
 
@@ -43,15 +43,17 @@ public class CreateProductionConfirmationGenealogyTests
         _guids.Setup(g => g.NewGuid()).Returns(() => Guid.NewGuid());
         _clock.SetupGet(c => c.UtcNow).Returns(_now);
         _tenant.SetupGet(t => t.TenantId).Returns(_tenantId);
-        _unitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(_transaction.Object);
         _children.Setup(r => r.ListBomItemsForVersionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<BomItem>());
+        _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task> op, CancellationToken _) => op());
+        _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task<ProductionConfirmationResponse>>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task<ProductionConfirmationResponse>> op, CancellationToken _) => op());
     }
 
     private CreateProductionConfirmationRequestHandler CreateSut() =>
         new(_confirmations.Object, _orders.Object, _children.Object, _movements.Object,
-            _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object, _unitOfWork.Object);
+            _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object, _uow.Object);
 
     private static ProductionOrder ReleasedOrder() => new()
     {
