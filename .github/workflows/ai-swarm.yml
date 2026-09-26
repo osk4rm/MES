@@ -574,8 +574,14 @@ jobs:
           swarm_require_auth
           # If every gate already covers this head then ai:changes is stale (a
           # fix job once lost the ai:running race and exited without clearing
-          # it). Promote instead of burning a fix session.
-          if swarm_gates_satisfied "$PR"; then
+          # it). Promote instead of burning a fix session — UNLESS the PR
+          # conflicts with master, in which case it must be resolved first
+          # (otherwise promote -> merge-fails-conflict -> ai:changes -> promote
+          # would loop forever).
+          MERGE_STATE=$(swarm_pr_mergeable "$PR")
+          if [ "$MERGE_STATE" = CONFLICTING ]; then
+            echo 'PR conflicts with master; running the conflict resolver'
+          elif swarm_gates_satisfied "$PR"; then
             swarm_remove_label pr "$PR" ai:changes
             swarm_add_label pr "$PR" ai:ready
             swarm_say pr "$PR" 'Agent flow (CI): every gate already covers this head — ai:changes was stale, promoting to ai:ready.'
