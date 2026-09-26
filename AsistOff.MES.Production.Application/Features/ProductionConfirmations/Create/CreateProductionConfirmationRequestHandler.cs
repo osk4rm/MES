@@ -21,6 +21,7 @@ internal sealed class CreateProductionConfirmationRequestHandler(
     IStockMovementsRepository stockMovementsRepository,
     ILotsRepository lotsRepository,
     ILotGenealogyEdgesRepository genealogyEdgesRepository,
+    IProductionUnitOfWork unitOfWork,
     IGuidProvider guidProvider,
     IDateTimeProvider dateTimeProvider,
     ITenantContext tenantContext)
@@ -111,8 +112,6 @@ internal sealed class CreateProductionConfirmationRequestHandler(
             CreatedAt = dateTimeProvider.UtcNow
         };
 
-        await confirmationsRepository.AddAsync(confirmation, cancellationToken);
-
         // Post the RW/PW ledger lines using the same BOM inputs as the
         // movement preview, so persisted lines match the preview lines for
         // this confirmation (PW for the good quantity plus RW per BOM item).
@@ -133,36 +132,45 @@ internal sealed class CreateProductionConfirmationRequestHandler(
             ReportedAt = confirmation.ReportedAt,
             CreatedAt = dateTimeProvider.UtcNow
         }).ToList();
-        await stockMovementsRepository.AddRangeAsync(movements, cancellationToken);
 
         // Post one genealogy edge per consumed lot entry so every confirmed
         // production run leaves an auditable trace without a second manual
         // call. Edges carry the same order, confirmation, Work Center,
         // Operator and ReportedAt timestamp as the confirmation.
-        foreach (var (entry, _) in consumedResolved)
+        var edges = consumedResolved.Select(entry => new LotGenealogyEdge
         {
-            var edge = new LotGenealogyEdge
-            {
-                Id = guidProvider.NewGuid(),
-                TenantId = tenantContext.TenantId,
-                ConsumedLotId = entry.LotId,
-                ProducedLotId = producedLot!.Id,
-                ProductionOrderId = order.Id,
-                ProductionConfirmationId = confirmation.Id,
-                MachineId = confirmation.MachineId,
-                ReportedByOperatorId = confirmation.ReportedByOperatorId,
-                ConsumedQuantity = entry.Quantity,
-                OccurredAt = confirmation.ReportedAt,
-                CreatedAt = dateTimeProvider.UtcNow
-            };
-            await genealogyEdgesRepository.AddAsync(edge, cancellationToken);
-        }
+            Id = guidProvider.NewGuid(),
+            TenantId = tenantContext.TenantId,
+            ConsumedLotId = entry.Entry.LotId,
+            ProducedLotId = producedLot!.Id,
+            ProductionOrderId = order.Id,
+            ProductionConfirmationId = confirmation.Id,
+            MachineId = confirmation.MachineId,
+            ReportedByOperatorId = confirmation.ReportedByOperatorId,
+            ConsumedQuantity = entry.Entry.Quantity,
+            OccurredAt = confirmation.ReportedAt,
+            CreatedAt = dateTimeProvider.UtcNow
+        }).ToList();
 
-        if (order.Status == ProductionOrderStatus.Released)
+        var flipToInProgress = order.Status == ProductionOrderStatus.Released;
+
+        // All four writes share one database transaction so a failure during
+        // movement, edge, or status persistence rolls back the confirmation
+        // row too (no orphan confirmation, ledger, or genealogy rows).
+        await unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            order.Status = ProductionOrderStatus.InProgress;
-            await ordersRepository.UpdateAsync(order, cancellationToken);
-        }
+            await confirmationsRepository.AddAsync(confirmation, cancellationToken);
+            await stockMovementsRepository.AddRangeAsync(movements, cancellationToken);
+
+            foreach (var edge in edges)
+                await genealogyEdgesRepository.AddAsync(edge, cancellationToken);
+
+            if (flipToInProgress)
+            {
+                order.Status = ProductionOrderStatus.InProgress;
+                await ordersRepository.UpdateAsync(order, cancellationToken);
+            }
+        }, cancellationToken);
 
         // Throughput + latency, success path only: rejected confirmations
         // are not production output. Recorded inside the request scope so

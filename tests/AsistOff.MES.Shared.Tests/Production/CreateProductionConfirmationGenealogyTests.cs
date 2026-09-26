@@ -29,6 +29,7 @@ public class CreateProductionConfirmationGenealogyTests
     private readonly Mock<IStockMovementsRepository> _movements = new();
     private readonly Mock<ILotsRepository> _lots = new();
     private readonly Mock<ILotGenealogyEdgesRepository> _edges = new();
+    private readonly Mock<IProductionUnitOfWork> _unitOfWork = new();
     private readonly Mock<IGuidProvider> _guids = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ITenantContext> _tenant = new();
@@ -42,11 +43,13 @@ public class CreateProductionConfirmationGenealogyTests
         _tenant.SetupGet(t => t.TenantId).Returns(_tenantId);
         _children.Setup(r => r.ListBomItemsForVersionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<BomItem>());
+        _unitOfWork.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task> op, CancellationToken _) => op());
     }
 
     private CreateProductionConfirmationRequestHandler CreateSut() =>
         new(_confirmations.Object, _orders.Object, _children.Object, _movements.Object,
-            _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object);
+            _lots.Object, _edges.Object, _unitOfWork.Object, _guids.Object, _clock.Object, _tenant.Object);
 
     private static ProductionOrder ReleasedOrder() => new()
     {

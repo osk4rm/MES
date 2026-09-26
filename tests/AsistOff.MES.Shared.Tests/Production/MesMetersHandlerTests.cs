@@ -48,6 +48,9 @@ public class MesMetersHandlerTests
         };
         var orders = MockOrders(order);
         var tenant = MockTenant();
+        var unitOfWork = new Mock<IProductionUnitOfWork>();
+        unitOfWork.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task> op, CancellationToken _) => op());
         var handler = new CreateProductionConfirmationRequestHandler(
             Mock.Of<IProductionConfirmationsRepository>(),
             orders.Object,
@@ -55,6 +58,7 @@ public class MesMetersHandlerTests
             Mock.Of<IStockMovementsRepository>(),
             Mock.Of<ILotsRepository>(),
             Mock.Of<ILotGenealogyEdgesRepository>(),
+            unitOfWork.Object,
             MockGuids(),
             MockClock(),
             tenant.Object);
