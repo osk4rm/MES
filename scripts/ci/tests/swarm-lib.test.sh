@@ -95,7 +95,14 @@ gh() {
     if [ -n "$JQ" ]; then printf '%s' "$1" | jq -r "$JQ" 2>/dev/null; else printf '%s' "$1"; fi
   }
   case "$*" in
-    *search/issues*) emit "$INFLIGHT" ;;
+    *search/issues*)
+      # swarm_in_flight_count now queries is:issue and is:pull-request
+      # separately and sums; serve the fake count for the issue half only.
+      case "$*" in
+        *is:pull-request*) emit '{"total_count":0}' ;;
+        *) emit "$INFLIGHT" ;;
+      esac
+      ;;
     *'workflow list'*) emit '[{"name":"ci","path":".github/workflows/ci.yml","state":"active"}]' ;;
     *'workflow run'*) printf '%s\n' "$*" >>"$DISPATCH_LOG"; return 0 ;;
     *'/approve'*) return "$APPROVE_RC" ;;
