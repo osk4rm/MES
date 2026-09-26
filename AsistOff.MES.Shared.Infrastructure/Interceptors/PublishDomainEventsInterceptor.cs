@@ -3,14 +3,13 @@ using AsistOff.MES.Shared.Abstractions.Models.DomainEvents;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using AsistOff.MES.Shared.Infrastructure.Outbox;
 using AsistOff.MES.Shared.Infrastructure.Persistence.Entities;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace AsistOff.MES.Shared.Infrastructure.Interceptors
 {
     /// <summary>
-    /// Slice 1 (#258) of the transactional outbox: domain events collected
+    /// Stage-only outbox interceptor (slice 2, #259). Domain events collected
     /// from tracked <see cref="IHasDomainEvents"/> entities are staged as
     /// <see cref="OutboxMessage"/> rows via <c>context.Add</c> inside
     /// <c>SavingChangesAsync</c>, so they commit in the same transaction as
@@ -20,13 +19,16 @@ namespace AsistOff.MES.Shared.Infrastructure.Interceptors
     /// tenant boundaries; the <c>SaasyEntityInterceptor</c> (registered
     /// before this one) has already backfilled and validated that id.
     ///
-    /// The pre-commit MediatR delivery is deliberately kept unchanged in this
-    /// slice; cutting over to relay-only dispatch (and thus removing ghost
-    /// events on rollback) is slice 3. Contexts whose model has no outbox set
-    /// (e.g. <c>MultitenancyDbContext</c>) skip staging but still publish.
+    /// Nothing is published here: the <c>OutboxRelayService</c> dispatches
+    /// staged rows through MediatR after commit, so a rolled-back transaction
+    /// results in zero dispatches and ghost events are impossible by
+    /// construction. Staged events are cleared from the entities once staged,
+    /// so a retry of the same <c>DbContext</c> can never stage duplicates.
+    /// Contexts whose model has no outbox set (e.g.
+    /// <c>MultitenancyDbContext</c>) skip staging; their entities carry no
+    /// domain events, so nothing is lost.
     /// </summary>
     public class PublishDomainEventsInterceptor(
-        IPublisher mediator,
         IDateTimeProvider dateTimeProvider,
         IGuidProvider guidProvider,
         ICurrentTenantAccessor tenantAccessor) : SaveChangesInterceptor
@@ -43,7 +45,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Interceptors
             CancellationToken cancellationToken = default)
         {
             StageOutboxMessages(eventData.Context);
-            await PublishDomainEvents(eventData.Context);
 
             return await base.SavingChangesAsync(eventData, result, cancellationToken);
         }
@@ -57,6 +58,11 @@ namespace AsistOff.MES.Shared.Infrastructure.Interceptors
 
             if (dbContext.Model.FindEntityType(typeof(OutboxMessage)) is null)
             {
+                foreach (var untracked in dbContext.ChangeTracker.Entries<IHasDomainEvents>())
+                {
+                    untracked.Entity.ClearDomainEvents();
+                }
+
                 return;
             }
 
@@ -87,25 +93,10 @@ namespace AsistOff.MES.Shared.Infrastructure.Interceptors
                     dbContext.Add(message);
                 }
             }
-        }
 
-        private async Task PublishDomainEvents(DbContext? dbContext)
-        {
-            if (dbContext is null)
-                return;
-
-            var entitiesWithDomainEvents = dbContext.ChangeTracker.Entries<IHasDomainEvents>()
-                .Where(entry => entry.Entity.DomainEvents.Any())
-                .Select(entry => entry.Entity)
-                .ToList();
-
-            var domainEvents = entitiesWithDomainEvents.SelectMany(entry => entry.DomainEvents).ToList();
-
-            entitiesWithDomainEvents.ForEach(entity => entity.ClearDomainEvents());
-
-            foreach (var domainEvent in domainEvents)
+            foreach (var entity in entitiesWithDomainEvents)
             {
-                await mediator.Publish(domainEvent);
+                entity.ClearDomainEvents();
             }
         }
     }

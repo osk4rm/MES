@@ -6,6 +6,7 @@ using AsistOff.MES.Multitenancy.Repositories;
 using AsistOff.MES.Multitenancy.Seeding;
 using AsistOff.MES.Shared.Abstractions.Seeder;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
+using AsistOff.MES.Shared.Infrastructure.Outbox;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ICurrentTenantAccessor>(sp => (ICurrentTenantAccessor)sp.GetRequiredService<ITenantContext>());
         services.AddScoped<ITenantRepository, TenantRepository>();
+        services.AddScoped<IOutboxTenantSource, OutboxTenantSource>();
 
         services.AddDbContext<MultitenancyDbContext>((sp, options) =>
         {
