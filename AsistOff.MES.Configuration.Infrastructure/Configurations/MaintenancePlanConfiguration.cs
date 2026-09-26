@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace AsistOff.MES.Configuration.Infrastructure.Configurations;
 
-public class MaintenanceWorkOrderConfiguration : IEntityTypeConfiguration<MaintenanceWorkOrder>
+public class MaintenancePlanConfiguration : IEntityTypeConfiguration<MaintenancePlan>
 {
-    public void Configure(EntityTypeBuilder<MaintenanceWorkOrder> builder)
+    public void Configure(EntityTypeBuilder<MaintenancePlan> builder)
     {
-        builder.ToTable("MaintenanceWorkOrders", "config");
+        builder.ToTable("MaintenancePlans", "config");
 
         builder.HasKey(x => x.Id);
 
@@ -16,41 +16,29 @@ public class MaintenanceWorkOrderConfiguration : IEntityTypeConfiguration<Mainte
             .IsRequired()
             .HasMaxLength(50);
 
-        builder.Property(x => x.Title)
+        builder.Property(x => x.Name)
             .IsRequired()
             .HasMaxLength(200);
 
         builder.Property(x => x.Description)
             .HasMaxLength(1000);
 
-        builder.Property(x => x.Priority)
+        builder.Property(x => x.TriggerType)
             .IsRequired()
             .HasConversion<short>();
 
-        builder.Property(x => x.Status)
-            .IsRequired()
-            .HasConversion<short>();
-
-        builder.Property(x => x.ReportedAt)
-            .IsRequired();
-
-        builder.Property(x => x.ResolutionNotes)
-            .HasMaxLength(2000);
+        builder.Property(x => x.MeterIntervalValue)
+            .HasPrecision(18, 4);
 
         builder.HasOne(x => x.Machine)
             .WithMany()
             .HasForeignKey(x => x.MachineId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Plan)
-            .WithMany()
-            .HasForeignKey(x => x.PlanId)
-            .OnDelete(DeleteBehavior.SetNull);
-
         builder.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.MachineId);
-        builder.HasIndex(x => x.PlanId);
-        builder.HasIndex(x => x.Status);
+        builder.HasIndex(x => x.IsActive);
+        builder.HasIndex(x => x.NextDueAt);
     }
 }
