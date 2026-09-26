@@ -309,6 +309,59 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.ToTable("MaintenanceWorkOrders", "config");
                 });
 
+            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.MaterialReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductionOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("QuantityRelieved")
+                        .HasColumnType("numeric(14,4)");
+
+                    b.Property<decimal>("QuantityReserved")
+                        .HasColumnType("numeric(14,4)");
+
+                    b.Property<short>("Status")
+                        .HasColumnType("smallint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ProductionOrderId");
+
+                    b.HasIndex("TenantId", "ProductionOrderId", "ProductId", "WarehouseId")
+                        .IsUnique();
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "ProductionOrderId", "ProductId", "WarehouseId"), false);
+
+                    b.ToTable("MaterialReservations", "config");
+                });
+
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.MeasureUnit", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2054,6 +2107,62 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.HasIndex("TenantId", "MachineId", "ReportedAt");
 
                     b.ToTable("ScrapEvents", "production");
+                });
+
+            modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.ShiftHandover", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ActiveAndonCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("From")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("OpenOrdersCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ShiftId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("To")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "MachineId");
+
+                    b.HasIndex("TenantId", "MachineId", "From")
+                        .IsUnique();
+
+                    b.ToTable("ShiftHandovers", "production");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Production.Domain.Entities.SpcCharacteristic", b =>

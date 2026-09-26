@@ -1,3 +1,6 @@
+using AsistOff.MES.Configuration.Domain.Entities;
+using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Close;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Complete;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Release;
@@ -6,6 +9,7 @@ using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Auth;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using FluentAssertions;
@@ -23,6 +27,11 @@ public class ProductionOrderConcurrencyTests
     private readonly Mock<IProductionOrdersRepository> _orders = new();
     private readonly Mock<IProductionConfirmationsRepository> _confirmations = new();
     private readonly Mock<IRecipeVersionsRepository> _versions = new();
+    private readonly Mock<IChildEntitiesRepository> _children = new();
+    private readonly Mock<IMaterialReservationsRepository> _reservations = new();
+    private readonly Mock<IGuidProvider> _guids = new();
+    private readonly Mock<ITenantContext> _tenant = new();
+    private readonly Mock<IUnitOfWork> _uow = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ICurrentUserAccessor> _user = new();
     private readonly DateTime _now = new(2026, 9, 25, 8, 0, 0, DateTimeKind.Utc);
@@ -31,7 +40,22 @@ public class ProductionOrderConcurrencyTests
     {
         _clock.SetupGet(c => c.UtcNow).Returns(_now);
         _user.SetupGet(u => u.UserId).Returns(Guid.NewGuid());
+        _guids.Setup(g => g.NewGuid()).Returns(() => Guid.NewGuid());
+        _tenant.SetupGet(t => t.TenantId).Returns(Guid.NewGuid());
+        _children.Setup(r => r.ListBomItemsForVersionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<BomItem>());
+        _reservations.Setup(r => r.ListForOrderAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MaterialReservation>());
+        _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task> op, CancellationToken _) => op());
     }
+
+    private ReleaseProductionOrderRequestHandler ReleaseSut() =>
+        new(_orders.Object, _versions.Object, _children.Object, _reservations.Object,
+            _guids.Object, _clock.Object, _user.Object, _tenant.Object, _uow.Object);
+
+    private CloseProductionOrderRequestHandler CloseSut() =>
+        new(_orders.Object, _confirmations.Object, _reservations.Object, _clock.Object, _uow.Object);
 
     private static ProductionOrder MakeOrder(ProductionOrderStatus status, uint xmin = 7) => new()
     {
@@ -115,7 +139,7 @@ public class ProductionOrderConcurrencyTests
         var order = MakeOrder(ProductionOrderStatus.Planned, xmin: 11);
         SetupOrder(order);
 
-        var act = () => new ReleaseProductionOrderRequestHandler(_orders.Object, _versions.Object, _clock.Object, _user.Object)
+        var act = () => ReleaseSut()
             .Handle(new ReleaseProductionOrderRequest(order.Id, "7"), CancellationToken.None);
 
         var thrown = await act.Should().ThrowAsync<ConcurrencyConflictException>();
@@ -137,7 +161,7 @@ public class ProductionOrderConcurrencyTests
                 Status = RecipeVersionStatus.Released
             });
 
-        var result = await new ReleaseProductionOrderRequestHandler(_orders.Object, _versions.Object, _clock.Object, _user.Object)
+        var result = await ReleaseSut()
             .Handle(new ReleaseProductionOrderRequest(order.Id, "11"), CancellationToken.None);
 
         result.Status.Should().Be(ProductionOrderStatus.Released);
@@ -181,7 +205,7 @@ public class ProductionOrderConcurrencyTests
         var order = MakeOrder(ProductionOrderStatus.Completed, xmin: 17);
         SetupOrder(order);
 
-        var act = () => new CloseProductionOrderRequestHandler(_orders.Object, _confirmations.Object, _clock.Object)
+        var act = () => CloseSut()
             .Handle(new CloseProductionOrderRequest(order.Id, "7"), CancellationToken.None);
 
         var thrown = await act.Should().ThrowAsync<ConcurrencyConflictException>();
@@ -197,7 +221,7 @@ public class ProductionOrderConcurrencyTests
         _confirmations.Setup(r => r.GetTotalsAsync(order.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync((60m, 5m, 3));
 
-        var result = await new CloseProductionOrderRequestHandler(_orders.Object, _confirmations.Object, _clock.Object)
+        var result = await CloseSut()
             .Handle(new CloseProductionOrderRequest(order.Id, "17"), CancellationToken.None);
 
         result.Status.Should().Be(ProductionOrderStatus.Closed);

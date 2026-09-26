@@ -33,6 +33,7 @@
     <ProjectReference Include="..\..\AsistOff.MES.Configuration.Application\AsistOff.MES.Configuration.Application.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Configuration.Core\AsistOff.MES.Configuration.Core.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Production.Application\AsistOff.MES.Production.Application.csproj" />
+    <ProjectReference Include="..\..\AsistOff.MES.Production.Api\AsistOff.MES.Production.Api.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Production.Core\AsistOff.MES.Production.Core.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Production.Infrastructure\AsistOff.MES.Production.Infrastructure.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Users.Application\AsistOff.MES.Users.Application.csproj" />

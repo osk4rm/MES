@@ -35,6 +35,7 @@ public class CreateProductionConfirmationGenealogyTests
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ITenantContext> _tenant = new();
     private readonly Mock<IUnitOfWork> _uow = new();
+    private readonly Mock<IMaterialReservationsRepository> _reservations = new();
     private readonly Guid _tenantId = Guid.NewGuid();
     private readonly DateTime _now = new(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc);
 
@@ -45,6 +46,8 @@ public class CreateProductionConfirmationGenealogyTests
         _tenant.SetupGet(t => t.TenantId).Returns(_tenantId);
         _children.Setup(r => r.ListBomItemsForVersionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<BomItem>());
+        _reservations.Setup(r => r.ListForOrderAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MaterialReservation>());
         _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
             .Returns((Func<Task> op, CancellationToken _) => op());
         _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task<ProductionConfirmationResponse>>>(), It.IsAny<CancellationToken>()))
@@ -53,7 +56,7 @@ public class CreateProductionConfirmationGenealogyTests
 
     private CreateProductionConfirmationRequestHandler CreateSut() =>
         new(_confirmations.Object, _orders.Object, _children.Object, _movements.Object,
-            _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object, _uow.Object);
+            _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object, _uow.Object, _reservations.Object);
 
     private static ProductionOrder ReleasedOrder() => new()
     {

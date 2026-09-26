@@ -25,7 +25,8 @@ internal sealed class CreateProductionConfirmationRequestHandler(
     IGuidProvider guidProvider,
     IDateTimeProvider dateTimeProvider,
     ITenantContext tenantContext,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IMaterialReservationsRepository reservationsRepository)
     : IRequestHandler<CreateProductionConfirmationRequest, ProductionConfirmationResponse>
 {
     public async Task<ProductionConfirmationResponse> Handle(CreateProductionConfirmationRequest request, CancellationToken cancellationToken)
@@ -156,6 +157,22 @@ internal sealed class CreateProductionConfirmationRequestHandler(
 
         var flipToInProgress = order.Status == ProductionOrderStatus.Released;
 
+        // Soft reservation relief (issue #291): relieve the order reservations
+        // from the same RW lines this confirmation persists, computed up
+        // front and flushed inside the fan-out transaction below so relief
+        // and ledger lines commit atomically. Relieved rows also bump
+        // UpdatedAt, consistent with the close path.
+        var reservations = await reservationsRepository.ListForOrderAsync(order.Id, cancellationToken);
+        var relievedBefore = reservations.ToDictionary(
+            r => r.Id, r => (QuantityRelieved: r.QuantityRelieved, Status: r.Status, UpdatedAt: r.UpdatedAt));
+        ReservationCalculator.ApplyRelief(reservations, preview);
+        var reliefNow = dateTimeProvider.UtcNow;
+        var relieved = reservations
+            .Where(r => r.QuantityRelieved != relievedBefore[r.Id].QuantityRelieved)
+            .ToList();
+        foreach (var reservation in relieved)
+            reservation.UpdatedAt = reliefNow;
+
         try
         {
             await unitOfWork.ExecuteInTransactionAsync(async () =>
@@ -166,6 +183,9 @@ internal sealed class CreateProductionConfirmationRequestHandler(
                 // movement preview, so persisted lines match the preview lines for
                 // this confirmation (PW for the good quantity plus RW per BOM item).
                 await stockMovementsRepository.AddRangeAsync(movements, cancellationToken);
+
+                foreach (var reservation in relieved)
+                    await reservationsRepository.UpdateAsync(reservation, cancellationToken);
 
                 // Post one genealogy edge per consumed lot entry so every confirmed
                 // production run leaves an auditable trace without a second manual
@@ -183,9 +203,19 @@ internal sealed class CreateProductionConfirmationRequestHandler(
         }
         catch
         {
-            // The database rolled back, so restore the in-memory status: the
-            // tracked order instance is mutated above, and without this the
-            // caller would observe InProgress for a still-Released row.
+            // The database rolled back, so restore the in-memory mutations:
+            // the tracked order instance is flipped above, and the tracked
+            // reservation rows are relieved above. Without this the scoped
+            // DefaultContext keeps rolled-back mutations and a later
+            // SaveChanges could persist them.
+            foreach (var reservation in relieved)
+            {
+                var before = relievedBefore[reservation.Id];
+                reservation.QuantityRelieved = before.QuantityRelieved;
+                reservation.Status = before.Status;
+                reservation.UpdatedAt = before.UpdatedAt;
+            }
+
             if (flipToInProgress && order.Status == ProductionOrderStatus.InProgress)
                 order.Status = ProductionOrderStatus.Released;
             throw;

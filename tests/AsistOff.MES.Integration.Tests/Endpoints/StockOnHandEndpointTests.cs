@@ -47,7 +47,7 @@ public sealed class StockOnHandEndpointTests(MesApplicationFixture fixture) : In
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var balances = await ReadAsync<List<StockOnHandDto>>(response);
         balances.Should().ContainSingle()
-            .Which.Should().Be(new StockOnHandDto(finishedProductId, null, 4.5m));
+            .Which.Should().Be(new StockOnHandDto(finishedProductId, null, 4.5m, 0m, 4.5m));
 
         // The per-unit RW issue (2 pcs per unit over 10 pcs = 20 pcs) sits on
         // its own pair with no receipt, hence a negative balance.
@@ -56,7 +56,7 @@ public sealed class StockOnHandEndpointTests(MesApplicationFixture fixture) : In
         warehouseResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var warehouseBalances = await ReadAsync<List<StockOnHandDto>>(warehouseResponse);
         warehouseBalances.Should().ContainSingle()
-            .Which.Should().Be(new StockOnHandDto(setup.PerUnitProductId, setup.PreferredWarehouseId, -20m));
+            .Which.Should().Be(new StockOnHandDto(setup.PerUnitProductId, setup.PreferredWarehouseId, -20m, 180m, -200m));
     }
 
     [Fact]
@@ -72,11 +72,14 @@ public sealed class StockOnHandEndpointTests(MesApplicationFixture fixture) : In
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var balances = await ReadAsync<List<StockOnHandDto>>(response);
         balances.Should().ContainSingle(b =>
-            b.ProductId == finishedProductId && b.WarehouseId == null && b.QuantityOnHand == 4.5m);
+            b.ProductId == finishedProductId && b.WarehouseId == null && b.QuantityOnHand == 4.5m
+            && b.ReservedQuantity == 0m && b.AvailableQuantity == 4.5m);
         balances.Should().ContainSingle(b =>
             b.ProductId == setup.PerUnitProductId
             && b.WarehouseId == setup.PreferredWarehouseId
-            && b.QuantityOnHand == -20m);
+            && b.QuantityOnHand == -20m
+            && b.ReservedQuantity == 180m
+            && b.AvailableQuantity == -200m);
     }
 
     [Fact]

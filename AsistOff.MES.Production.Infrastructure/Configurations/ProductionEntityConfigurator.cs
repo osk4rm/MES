@@ -29,6 +29,7 @@ public class ProductionEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<OpcUaConnection>();
         modelBuilder.Entity<KanbanLoop>();
         modelBuilder.Entity<KanbanCard>();
+        modelBuilder.Entity<ShiftHandover>();
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProductionEntityConfigurator).Assembly);
     }

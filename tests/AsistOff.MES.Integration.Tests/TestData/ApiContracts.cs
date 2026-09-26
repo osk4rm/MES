@@ -177,6 +177,7 @@ public sealed record MaintenanceWorkOrderDto(
     string? Description,
     Guid MachineId,
     string? MachineCode,
+    Guid? PlanId,
     short Priority,
     short Status,
     DateTime ReportedAt,
@@ -352,7 +353,22 @@ public sealed record StockMovementDto(
 public sealed record StockOnHandDto(
     Guid ProductId,
     Guid? WarehouseId,
-    decimal QuantityOnHand);
+    decimal QuantityOnHand,
+    decimal ReservedQuantity,
+    decimal AvailableQuantity);
+
+/// <summary>Shape of one soft material reservation returned by <c>/api/material-reservations</c>.</summary>
+public sealed record MaterialReservationDto(
+    Guid Id,
+    Guid ProductionOrderId,
+    Guid ProductId,
+    Guid? WarehouseId,
+    decimal QuantityReserved,
+    decimal QuantityRelieved,
+    decimal RemainingQuantity,
+    short Status,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
 
 /// <summary>Shape of the OEE snapshot returned by <c>/api/oee/snapshot</c>.</summary>
 public sealed record OeeSnapshotDto(
@@ -634,6 +650,20 @@ public sealed record ShiftHandoverContextDto(
     int ConfirmationsTotalCount,
     int ConfirmationPage,
     int ConfirmationPageSize);
+
+/// <summary>Shape of a persisted handover logbook entry returned by <c>/api/shift-handovers</c>.</summary>
+public sealed record ShiftHandoverDto(
+    Guid Id,
+    Guid MachineId,
+    Guid? ShiftId,
+    DateTime From,
+    DateTime To,
+    string Notes,
+    Guid? CreatedByUserId,
+    DateTime CreatedAt,
+    int OpenOrdersCount,
+    int ActiveAndonCount,
+    bool UncoveredShift);
 
 /// <summary>Shape of a tenant permission as returned by <c>/api/permissions</c>.</summary>
 public sealed record PermissionDto(
