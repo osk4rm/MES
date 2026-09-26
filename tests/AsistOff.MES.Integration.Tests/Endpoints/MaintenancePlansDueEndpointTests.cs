@@ -188,6 +188,30 @@ public sealed class MaintenancePlansDueEndpointTests(MesApplicationFixture fixtu
         untouched.NextDueAt.Should().BeCloseTo(plan.NextDueAt!.Value, TimeSpan.FromMinutes(5));
     }
 
+    [Fact]
+    public async Task RaiseNow_CrossTenantPlanId_Returns404_AndLeaksNothing()
+    {
+        // Arrange — the plan lives in another tenant.
+        var (email, password) = await Fixture.CreateTenantAsync();
+        using var otherTenantClient = await Fixture.CreateAuthenticatedClientAsync(email, password);
+        var otherMachineId = await CreateMachineAsync(otherTenantClient);
+        var otherPlan = await CreateTimePlanAsync(otherTenantClient, otherMachineId, DateTime.UtcNow.AddDays(5));
+
+        using var client = await Fixture.CreateAuthenticatedClientAsync();
+
+        // Act — raising from the other tenant's plan must not leak existence.
+        var raise = await client.PostAsync($"{PlansUrl}/{otherPlan.Id}/raise-now", null);
+
+        // Assert — hidden by the global tenant query filter, hence unknown.
+        raise.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        // The other tenant's plan never appears in this tenant's due list.
+        var dueResponse = await client.GetAsync($"{PlansUrl}/due");
+        dueResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var due = await ReadAsync<List<MaintenancePlanDto>>(dueResponse);
+        due.Should().NotContain(p => p.Id == otherPlan.Id);
+    }
+
     private async Task<Guid> CreateMachineAsync(HttpClient client)
     {
         var code = $"MC-{Guid.NewGuid():N}"[..12];
