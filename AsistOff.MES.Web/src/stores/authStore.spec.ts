@@ -64,3 +64,50 @@ describe('authStore cookie session', () => {
     expect(store.user).toBeNull();
   });
 });
+
+// Permission grants (issue #273): materialised from the sign-in/refresh
+// response-body claims, kept in memory only, exact-match like the backend.
+describe('authStore permissions', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it('starts with no permissions', () => {
+    expect(useAuthStore().hasPermission('tenant.admin')).toBe(false);
+  });
+
+  it('stores grants on sign-in and matches them exactly', () => {
+    const store = useAuthStore();
+
+    store.setAuth({ email: 'admin@dev.local' }, ['tenant.admin', 'production.write']);
+
+    expect(store.hasPermission('tenant.admin')).toBe(true);
+    expect(store.hasPermission('production.write')).toBe(true);
+    expect(store.hasPermission('production.read')).toBe(false);
+    expect(store.hasPermission('tenant')).toBe(false);
+  });
+
+  it('replaces grants via setPermissions and drops blanks', () => {
+    const store = useAuthStore();
+    store.setAuth({ email: 'admin@dev.local' }, ['tenant.admin']);
+
+    store.setPermissions(['production.read', '', 'production.read']);
+
+    expect(store.hasPermission('tenant.admin')).toBe(false);
+    expect(store.hasPermission('production.read')).toBe(true);
+    expect(store.permissions).toEqual(['production.read']);
+  });
+
+  it('clears grants on sign-out and never persists them', () => {
+    const store = useAuthStore();
+    store.setAuth({ email: 'admin@dev.local' }, ['tenant.admin']);
+
+    store.clearAuth();
+
+    expect(store.hasPermission('tenant.admin')).toBe(false);
+    expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+  });
+});

@@ -1,4 +1,4 @@
-import http from './http';
+import http, { type HttpRequestInit } from './http';
 import type { IPagedRequest, IPagedResponse } from '../models/pagedModels';
 import { buildPagedParams } from './tenantService';
 import type { MovementPreviewLine } from './productionConfirmationService';
@@ -72,8 +72,8 @@ function tokenParam(concurrencyToken?: string): { params?: Record<string, string
 }
 
 export const productionOrderService = {
-  async browse(req: BrowseProductionOrdersRequest): Promise<IPagedResponse<ProductionOrderResponse>> {
-    const { data } = await http.get<IPagedResponse<ProductionOrderResponse>>(BASE, { params: buildPagedParams(req) });
+  async browse(req: BrowseProductionOrdersRequest, init?: HttpRequestInit): Promise<IPagedResponse<ProductionOrderResponse>> {
+    const { data } = await http.get<IPagedResponse<ProductionOrderResponse>>(BASE, { params: buildPagedParams(req), signal: init?.signal });
     return data;
   },
   async get(id: string): Promise<ProductionOrderResponse> {
