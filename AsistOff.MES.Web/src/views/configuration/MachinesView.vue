@@ -16,9 +16,11 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-isActive="{ item }">
         <span :class="['pill', item.isActive ? 'pill--ok' : 'pill--muted']">
@@ -84,7 +86,8 @@
 
     <AppModal :open="calendarOpen" :title="calendarTitle" size="lg" @close="closeCalendar">
       <p v-if="calendarMachine" class="calendar-subtitle">{{ $t('calendar.subtitle') }} — {{ calendarMachine.code }} ({{ calendarMachine.name }})</p>
-      <div v-if="calendarLoading" class="calendar-loading">{{ $t('common.loading') }}</div>
+      <AppLoadingState v-if="calendarLoading" />
+      <AppErrorState v-else-if="calendarError" :message="calendarError" compact @retry="retryCalendar" />
       <div v-else>
         <div v-if="calendarEntries.length === 0" class="calendar-empty">{{ $t('calendar.empty') }}</div>
         <div v-for="(entry, idx) in calendarEntries" :key="idx" class="calendar-row">
@@ -128,6 +131,8 @@ import AppFormField from '../../components/ui/AppFormField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
+import AppLoadingState from '../../components/ui/AppLoadingState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import AppSelect from '../../components/ui/AppSelect.vue';
 import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';
@@ -239,6 +244,7 @@ interface CalendarEntryForm {
 const calendarOpen = ref(false);
 const calendarLoading = ref(false);
 const calendarSaving = ref(false);
+const calendarError = ref<string | null>(null);
 const calendarMachine = ref<MachineResponse | null>(null);
 const calendarEntries = ref<CalendarEntryForm[]>([]);
 const availableShifts = ref<ShiftResponse[]>([]);
@@ -269,6 +275,7 @@ async function ensureShiftsLoaded(): Promise<void> {
 async function openCalendar(item: MachineResponse): Promise<void> {
   calendarMachine.value = item;
   calendarEntries.value = [];
+  calendarError.value = null;
   calendarOpen.value = true;
   calendarLoading.value = true;
   try {
@@ -282,10 +289,15 @@ async function openCalendar(item: MachineResponse): Promise<void> {
       isWorking: e.isWorking
     }));
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
-    calendarOpen.value = false;
+    calendarError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     calendarLoading.value = false;
+  }
+}
+
+function retryCalendar(): void {
+  if (calendarMachine.value) {
+    void openCalendar(calendarMachine.value);
   }
 }
 
@@ -294,6 +306,7 @@ function closeCalendar(): void {
   calendarOpen.value = false;
   calendarMachine.value = null;
   calendarEntries.value = [];
+  calendarError.value = null;
 }
 
 function addEntry(): void {
@@ -341,7 +354,7 @@ onMounted(() => table.fetch());
 .pill--ok { background: var(--color-success-soft, #d1fae5); color: var(--color-success, #065f46); }
 .pill--muted { background: var(--color-neutral-soft, #e5e7eb); color: var(--color-neutral-strong, #374151); }
 .calendar-subtitle { margin: 0 0 var(--space-3); color: var(--color-text-muted); }
-.calendar-loading, .calendar-empty { padding: var(--space-4); color: var(--color-text-muted); }
+.calendar-empty { padding: var(--space-4); color: var(--color-text-muted); }
 .calendar-row {
   display: grid;
   grid-template-columns: 150px 110px 110px 1fr auto auto;

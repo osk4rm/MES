@@ -48,7 +48,8 @@
       </template>
     </AppFilterBar>
 
-    <AppSpinner v-if="loading && !loadedOnce" />
+    <AppErrorState v-if="loadError" :message="loadError" :loading="loading" @retry="refresh" />
+    <AppSpinner v-else-if="loading && !loadedOnce" />
     <AppEmptyState
       v-else-if="!machineId"
       icon="pi pi-chart-bar"
@@ -157,6 +158,7 @@ import AppCard from '../../components/ui/AppCard.vue';
 import AppTable from '../../components/ui/AppTable.vue';
 import AppSpinner from '../../components/ui/AppSpinner.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import {
   OeeBucket,
   formatOeeFactor,
@@ -200,6 +202,7 @@ const losses = ref<OeeLosses | null>(null);
 const loading = ref(false);
 const loadedOnce = ref(false);
 const notFound = ref(false);
+const loadError = ref<string | null>(null);
 
 const nullFactors = computed(() => hasNullFactors(snapshot.value));
 const trendBuckets = computed<OeeSnapshot[]>(() => trend.value?.buckets ?? []);
@@ -386,6 +389,7 @@ function syncQuery(q: ValidatedQuery): void {
 async function loadPanels(q: ValidatedQuery): Promise<void> {
   loading.value = true;
   notFound.value = false;
+  loadError.value = null;
   try {
     const [s, tr, lo] = await Promise.all([
       oeeService.getSnapshot(q.snapshot),
@@ -405,7 +409,7 @@ async function loadPanels(q: ValidatedQuery): Promise<void> {
       trend.value = null;
       losses.value = null;
     } else {
-      toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+      loadError.value = extractErrorMessage(err, t('errors.loadFailed'));
     }
   } finally {
     loading.value = false;
@@ -424,6 +428,7 @@ function clearPanels(): void {
   trend.value = null;
   losses.value = null;
   notFound.value = false;
+  loadError.value = null;
   loadedOnce.value = false;
 }
 

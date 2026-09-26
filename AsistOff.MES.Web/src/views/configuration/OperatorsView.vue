@@ -24,9 +24,11 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-ratePerHour="{ value }">{{ formatRate(value) }}</template>
       <template #cell-actions="{ item }">
@@ -69,22 +71,30 @@
           <AppButton type="submit" variant="primary" icon="pi pi-plus" :loading="assigning" :disabled="!assignOperatorId || !assignShiftId">{{ $t('operators.roster.assign') }}</AppButton>
         </div>
       </form>
-      <AppEmptyState v-if="!rosterLoading && rosterItems.length === 0" icon="pi pi-calendar" :title="$t('operators.roster.empty')" />
-      <AppTable
-        v-else
-        :items="rosterItems"
-        :columns="rosterColumns"
+      <AppDataState
         :loading="rosterLoading"
+        :error="rosterError"
+        :empty="rosterItems.length === 0"
+        :empty-title="$t('operators.roster.empty')"
+        empty-icon="pi pi-calendar"
+        compact
+        @retry="loadRoster"
       >
-        <template #cell-operator="{ item }">{{ item.operatorName || item.operatorIdentifier || item.operatorId }}</template>
-        <template #cell-shift="{ item }">{{ item.shiftName || item.shiftCode || item.shiftId }}</template>
-        <template #cell-actions="{ item }">
-          <AppRowActions
-            :actions="[{ key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger', disabled: removingRosterId === item.id }]"
-            @action="(k) => onRosterAction(k, item)"
-          />
-        </template>
-      </AppTable>
+        <AppTable
+          :items="rosterItems"
+          :columns="rosterColumns"
+          :loading="rosterLoading"
+        >
+          <template #cell-operator="{ item }">{{ item.operatorName || item.operatorIdentifier || item.operatorId }}</template>
+          <template #cell-shift="{ item }">{{ item.shiftName || item.shiftCode || item.shiftId }}</template>
+          <template #cell-actions="{ item }">
+            <AppRowActions
+              :actions="[{ key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger', disabled: removingRosterId === item.id }]"
+              @action="(k) => onRosterAction(k, item)"
+            />
+          </template>
+        </AppTable>
+      </AppDataState>
     </AppCard>
 
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('operators.create')" @close="closeModal">
@@ -138,7 +148,7 @@ import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import AppCard from '../../components/ui/AppCard.vue';
-import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import { operatorService, EMPTY_USER_ID, type OperatorResponse } from '../../services/operatorService';
 import { departmentService, type DepartmentResponse } from '../../services/departmentService';
@@ -282,6 +292,7 @@ function todayIso(): string {
 const rosterDate = ref<string>(todayIso());
 const rosterItems = ref<OperatorShiftAssignmentResponse[]>([]);
 const rosterLoading = ref(false);
+const rosterError = ref<string | null>(null);
 const rosterOperators = ref<OperatorResponse[]>([]);
 const rosterShifts = ref<ShiftResponse[]>([]);
 const assignOperatorId = ref<string | null>(null);
@@ -318,11 +329,12 @@ async function loadRosterLookups() {
 async function loadRoster() {
   if (!rosterDate.value) { rosterItems.value = []; return; }
   rosterLoading.value = true;
+  rosterError.value = null;
   try {
     const res = await operatorShiftAssignmentService.browse({ date: rosterDate.value, pageNumber: 1, pageSize: 100 });
     rosterItems.value = res.items;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    rosterError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally { rosterLoading.value = false; }
 }
 function onRosterDate(v: string | number | null | undefined) {

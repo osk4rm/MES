@@ -14,7 +14,12 @@
       <ul>
         <li v-for="item in items" :key="item.label" class="app-sidenav__group">
           <template v-if="!item.children">
-            <router-link :to="item.route!" class="app-sidenav__link" :title="collapsed ? $t(item.label) : undefined">
+            <router-link
+              :to="item.route!"
+              :class="['app-sidenav__link', { 'app-sidenav__link--active': isActive(item.route!) }]"
+              :aria-current="isActive(item.route!) ? 'page' : undefined"
+              :title="collapsed ? $t(item.label) : undefined"
+            >
               <i :class="['app-sidenav__icon', item.icon]" aria-hidden="true"></i>
               <span v-if="!collapsed" class="app-sidenav__label">{{ $t(item.label) }}</span>
             </router-link>
@@ -22,8 +27,9 @@
           <template v-else>
             <button
               type="button"
-              :class="['app-sidenav__link', 'app-sidenav__link--group', { 'app-sidenav__link--open': isOpen(item.label) }]"
+              :class="['app-sidenav__link', 'app-sidenav__link--group', { 'app-sidenav__link--open': isOpen(item.label), 'app-sidenav__link--active': isGroupActive(item) }]"
               :title="collapsed ? $t(item.label) : undefined"
+              :aria-expanded="!collapsed && isOpen(item.label)"
               @click="toggle(item.label)"
             >
               <i :class="['app-sidenav__icon', item.icon]" aria-hidden="true"></i>
@@ -32,7 +38,11 @@
             </button>
             <ul v-if="!collapsed && isOpen(item.label)" class="app-sidenav__subnav">
               <li v-for="sub in item.children" :key="sub.label">
-                <router-link :to="sub.route!" class="app-sidenav__link app-sidenav__link--sub">
+                <router-link
+                  :to="sub.route!"
+                  :class="['app-sidenav__link', 'app-sidenav__link--sub', { 'app-sidenav__link--active': isActive(sub.route!) }]"
+                  :aria-current="isActive(sub.route!) ? 'page' : undefined"
+                >
                   <i :class="['app-sidenav__icon app-sidenav__icon--sub', sub.icon]" aria-hidden="true"></i>
                   <span class="app-sidenav__label">{{ $t(sub.label) }}</span>
                 </router-link>
@@ -50,9 +60,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import type { NavItem } from '../../sitemap';
+import { isNavGroupActive, isNavRouteActive } from '../../utils/navigation';
 
 const props = defineProps<{ items: NavItem[]; collapsed: boolean }>();
 const emit = defineEmits<{ (e: 'update:collapsed', value: boolean): void }>();
@@ -60,22 +71,28 @@ const emit = defineEmits<{ (e: 'update:collapsed', value: boolean): void }>();
 const route = useRoute();
 const manualOpen = ref<Record<string, boolean>>({});
 
+// Active state is segment-aware (issue #314): detail pages highlight their
+// browse parent, and `/production/telemetry` stays inactive while on
+// `/production/telemetry-dashboard`.
+const currentPath = computed(() => route.path);
+
+function isActive(itemRoute: string): boolean {
+  return isNavRouteActive(currentPath.value, itemRoute);
+}
+
+function isGroupActive(group: NavItem): boolean {
+  return isNavGroupActive(currentPath.value, group);
+}
+
 function toggle(label: string) {
   manualOpen.value = { ...manualOpen.value, [label]: !isOpen(label) };
 }
 
 function isOpen(label: string) {
   if (label in manualOpen.value) return manualOpen.value[label];
-  return groupMatchesRoute(label);
-}
-
-function groupMatchesRoute(label: string) {
   const item = props.items.find(i => i.label === label);
-  if (!item?.children) return false;
-  return item.children.some(c => c.route && route.path.startsWith(c.route));
+  return item ? isNavGroupActive(currentPath.value, item) : false;
 }
-
-void computed;
 </script>
 
 <style scoped>
@@ -149,7 +166,8 @@ void computed;
 .app-sidenav--collapsed .app-sidenav__link { justify-content: center; padding: var(--space-2); }
 
 .app-sidenav__link:hover { background: var(--color-surface-sunken); color: var(--color-text); text-decoration: none; }
-.app-sidenav__link.router-link-active { background: var(--color-primary-soft); color: var(--color-primary); }
+.app-sidenav__link.router-link-active,
+.app-sidenav__link--active { background: var(--color-primary-soft); color: var(--color-primary); }
 
 .app-sidenav__icon { width: 16px; font-size: 14px; flex-shrink: 0; text-align: center; }
 .app-sidenav__icon--sub { font-size: 12px; }

@@ -26,7 +26,8 @@
       </template>
     </AppFilterBar>
 
-    <AppSpinner v-if="loading && !loadedOnce" />
+    <AppErrorState v-if="loadError" :message="loadError" :loading="loading" @retry="refresh" />
+    <AppSpinner v-else-if="loading && !loadedOnce" />
 
     <template v-else-if="board">
       <div class="dispatch-days">
@@ -68,10 +69,12 @@
           :items="orderRows"
           :columns="orderColumns"
           :loading="loading"
+          :error="loadError"
           row-key="id"
           :empty-label="$t('scheduleDispatch.ordersEmpty')"
           data-testid="dispatch-orders-table"
           @row-click="openOrder"
+          @retry="refresh"
         >
           <template #cell-code="{ item }">
             <code>{{ item.code }}</code>
@@ -110,6 +113,7 @@ import AppCard from '../../components/ui/AppCard.vue';
 import AppTable from '../../components/ui/AppTable.vue';
 import AppSpinner from '../../components/ui/AppSpinner.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import {
   currentWeekWindow,
   isDispatchRowOverdue,
@@ -134,6 +138,7 @@ const toInput = ref('');
 const board = ref<DispatchBoard | null>(null);
 const loading = ref(false);
 const loadedOnce = ref(false);
+const loadError = ref<string | null>(null);
 
 // Rows render in the backend ordering contract (overdue first, then due
 // date ascending with nulls last, then priority, then code) — the board
@@ -218,11 +223,12 @@ function syncQuery(q: GetDispatchBoardQuery): void {
 
 async function loadBoard(q: GetDispatchBoardQuery): Promise<void> {
   loading.value = true;
+  loadError.value = null;
   try {
     board.value = await scheduleService.getDispatch(q);
     loadedOnce.value = true;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    loadError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     loading.value = false;
   }

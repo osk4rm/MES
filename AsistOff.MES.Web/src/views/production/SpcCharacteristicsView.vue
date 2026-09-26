@@ -33,9 +33,11 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-code="{ item }">
         <code>{{ item.code }}</code>
@@ -174,12 +176,19 @@
         </template>
       </AppFilterBar>
 
-      <AppSpinner v-if="measurementsLoading && !measurementsLoaded" />
+      <AppLoadingState v-if="measurementsLoading && !measurementsLoaded" />
       <AppEmptyState
         v-else-if="measurementsNotFound"
         icon="pi pi-exclamation-circle"
         :title="$t('spcMeasurements.notFound')"
         :description="$t('spcMeasurements.notFoundHint')"
+      />
+      <AppErrorState
+        v-else-if="measurementsError"
+        :message="measurementsError"
+        :loading="measurementsLoading"
+        compact
+        @retry="fetchMeasurements"
       />
       <AppEmptyState
         v-else-if="measurementsLoaded && measurementsEmpty"
@@ -203,7 +212,9 @@
           :items="logItems"
           :columns="measurementColumns"
           :loading="measurementsLoading"
+          :error="measurementsError"
           :empty-label="$t('spcMeasurements.noMeasurements')"
+          @retry="fetchMeasurements"
         >
           <template #cell-measuredAt="{ value }">{{ formatDateTime(String(value)) }}</template>
           <template #cell-status="{ item }">
@@ -238,8 +249,9 @@ import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
+import AppLoadingState from '../../components/ui/AppLoadingState.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import SpcControlChart from '../../components/production/SpcControlChart.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import {
@@ -459,6 +471,7 @@ const measurementsItem = ref<SpcCharacteristicResponse | null>(null);
 const measurementsLoading = ref(false);
 const measurementsLoaded = ref(false);
 const measurementsNotFound = ref(false);
+const measurementsError = ref<string | null>(null);
 const measurementsFrom = ref('');
 const measurementsTo = ref('');
 const logItems = ref<SpcMeasurementResponse[]>([]);
@@ -548,6 +561,7 @@ function closeMeasurements(): void {
   chart.value = null;
   measurementsLoaded.value = false;
   measurementsNotFound.value = false;
+  measurementsError.value = null;
   measurementsLoading.value = false;
 }
 
@@ -581,6 +595,7 @@ async function fetchMeasurements(): Promise<void> {
   const request = ++measurementsRequest;
   measurementsLoading.value = true;
   measurementsNotFound.value = false;
+  measurementsError.value = null;
   try {
     const id = measurementsItem.value.id;
     const range = measurementsRange();
@@ -600,7 +615,7 @@ async function fetchMeasurements(): Promise<void> {
       measurementsNotFound.value = true;
       measurementsLoaded.value = false;
     } else {
-      toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+      measurementsError.value = extractErrorMessage(err, t('errors.loadFailed'));
     }
   } finally {
     if (request === measurementsRequest) measurementsLoading.value = false;

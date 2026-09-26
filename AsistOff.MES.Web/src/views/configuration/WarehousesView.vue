@@ -15,9 +15,11 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-actions="{ item }">
         <AppRowActions
@@ -51,19 +53,28 @@
           </AppButton>
         </div>
       </template>
-      <AppTable
-        :items="stockBalances"
-        :columns="stockColumns"
+      <AppDataState
         :loading="stockLoading"
-        :empty-label="$t('warehouses.stock.empty')"
+        :error="stockError"
+        :empty="stockBalances.length === 0"
+        :empty-title="$t('warehouses.stock.empty')"
+        compact
+        @retry="fetchStock"
       >
-        <template #cell-warehouseId="{ value }">
-          {{ warehouseLabel(value) }}
-        </template>
-        <template #cell-quantityOnHand="{ value }">
-          {{ formatQuantity(value) }}
-        </template>
-      </AppTable>
+        <AppTable
+          :items="stockBalances"
+          :columns="stockColumns"
+          :loading="stockLoading"
+          :empty-label="$t('warehouses.stock.empty')"
+        >
+          <template #cell-warehouseId="{ value }">
+            {{ warehouseLabel(value) }}
+          </template>
+          <template #cell-quantityOnHand="{ value }">
+            {{ formatQuantity(value) }}
+          </template>
+        </AppTable>
+      </AppDataState>
     </AppCard>
 
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('warehouses.create')" @close="closeModal">
@@ -106,6 +117,7 @@ import AppFormField from '../../components/ui/AppFormField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import { warehouseService, type WarehouseResponse } from '../../services/warehouseService';
 import { stockOnHandService, type StockOnHandBalance } from '../../services/stockOnHandService';
@@ -138,6 +150,7 @@ function clearFilters() { nameFilter.value = ''; table.resetFilters(); }
 
 const stockBalances = ref<StockOnHandBalance[]>([]);
 const stockLoading = ref(false);
+const stockError = ref<string | null>(null);
 
 const stockColumns = computed(() => [
   { key: 'productId', label: t('warehouses.stock.product') },
@@ -147,10 +160,11 @@ const stockColumns = computed(() => [
 
 async function fetchStock() {
   stockLoading.value = true;
+  stockError.value = null;
   try {
     stockBalances.value = await stockOnHandService.browse();
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    stockError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     stockLoading.value = false;
   }

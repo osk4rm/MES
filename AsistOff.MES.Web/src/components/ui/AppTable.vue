@@ -22,7 +22,12 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-if="loading">
+        <tr v-if="error">
+          <td :colspan="columns.length" class="app-table__state">
+            <AppErrorState :message="error" compact :loading="loading" @retry="emit('retry')" />
+          </td>
+        </tr>
+        <tr v-else-if="loading">
           <td :colspan="columns.length" class="app-table__state">
             <div class="app-table__loader"><span class="app-table__spinner"></span>{{ loadingLabel }}</div>
           </td>
@@ -54,6 +59,8 @@
 </template>
 
 <script setup lang="ts" generic="T extends Record<string, any>">
+import AppErrorState from './AppErrorState.vue';
+
 export interface TableColumn {
   key: string;
   label: string;
@@ -66,16 +73,19 @@ const props = withDefaults(defineProps<{
   items: T[];
   columns: TableColumn[];
   loading?: boolean;
+  /** List-fetch failure message — renders the shared error row with retry. */
+  error?: string | null;
   rowKey?: string;
   emptyLabel?: string;
   loadingLabel?: string;
   sortKey?: string | null;
   sortDirection?: 'asc' | 'desc' | null;
-}>(), { loading: false, rowKey: 'id', emptyLabel: 'No data', loadingLabel: 'Loading…' });
+}>(), { loading: false, error: null, rowKey: 'id', emptyLabel: 'No data', loadingLabel: 'Loading…' });
 
 const emit = defineEmits<{
   (e: 'row-click', item: T): void;
   (e: 'sort-change', key: string | null, direction: 'asc' | 'desc' | null): void;
+  (e: 'retry'): void;
 }>();
 
 function getRowKey(item: T, idx: number) {
