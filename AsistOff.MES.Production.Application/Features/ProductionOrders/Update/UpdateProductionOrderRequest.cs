@@ -17,4 +17,5 @@ public record UpdateProductionOrderRequest(
     int Priority,
     DateTime? DueDate,
     string? Notes,
-    string? SyncId) : ITenantRequest<ProductionOrderResponse>;
+    string? SyncId,
+    string? ConcurrencyToken) : ITenantRequest<ProductionOrderResponse>;

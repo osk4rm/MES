@@ -18,6 +18,8 @@ internal sealed class CloseProductionOrderRequestHandler(
         var order = await ordersRepository.GetAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException("ProductionOrder", request.Id);
 
+        ProductionOrderConcurrency.RequireMatchIfPresent(order, request.ConcurrencyToken);
+
         if (order.Status != ProductionOrderStatus.Completed)
             throw new ConflictException("Only orders in Completed status can be closed.");
 

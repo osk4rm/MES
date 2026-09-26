@@ -6,4 +6,4 @@ using AsistOff.MES.Users.Core.Rbac;
 namespace AsistOff.MES.Production.Application.Features.ProductionOrders.Complete;
 
 [RequirePermission(RbacDefaults.ProductionWrite)]
-public record CompleteProductionOrderRequest(Guid Id) : ITenantRequest<ProductionOrderResponse>;
+public record CompleteProductionOrderRequest(Guid Id, string? ConcurrencyToken = null) : ITenantRequest<ProductionOrderResponse>;

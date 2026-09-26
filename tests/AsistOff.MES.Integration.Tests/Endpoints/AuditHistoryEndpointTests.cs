@@ -71,7 +71,8 @@ public sealed class AuditHistoryEndpointTests(MesApplicationFixture fixture) : I
             priority = created.Priority,
             dueDate = (DateTime?)null,
             notes = "history probe",
-            syncId = (string?)null
+            syncId = (string?)null,
+            concurrencyToken = created.ConcurrencyToken
         });
         update.StatusCode.Should().Be(HttpStatusCode.OK);
 

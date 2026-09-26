@@ -25,6 +25,13 @@ public class ProductionOrder : IEntity, ISaasy, IAuditable, ISyncable
     public DateTime? ReleasedAt { get; set; }
     public Guid? ReleasedByUserId { get; set; }
     public string? Notes { get; set; }
+    /// <summary>
+    /// Optimistic concurrency token backed by the PostgreSQL <c>xmin</c>
+    /// system column (issue #263). Npgsql refreshes it on every successful
+    /// write; callers round-trip it as <see cref="string"/> via the order
+    /// response and send it back on updates and lifecycle transitions.
+    /// </summary>
+    public uint Xmin { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public Guid? CreatedBy { get; set; }
