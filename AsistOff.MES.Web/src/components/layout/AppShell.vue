@@ -3,7 +3,9 @@
     <AppSideNav v-model:collapsed="collapsed" :items="sitemap" />
     <AppTopBar :user="authStore.user" @sign-out="onSignOut" />
     <main class="app-shell__main">
-      <router-view />
+      <AppErrorBoundary>
+        <router-view />
+      </AppErrorBoundary>
     </main>
   </div>
 </template>
@@ -13,6 +15,7 @@ import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AppSideNav from './AppSideNav.vue';
 import AppTopBar from './AppTopBar.vue';
+import AppErrorBoundary from '../ui/AppErrorBoundary.vue';
 import { sitemap } from '../../sitemap';
 import { useAuthStore } from '../../stores/authStore';
 import { signOut } from '../../services/authService';

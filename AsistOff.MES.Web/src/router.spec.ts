@@ -2,27 +2,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import router from './router';
 import { useAuthStore } from './stores/authStore';
-import { refreshSession } from './services/authService';
+import { restoreSession } from './services/authService';
 
 vi.mock('./services/authService', () => ({
   signIn: vi.fn(),
   signOut: vi.fn(),
-  refreshSession: vi.fn()
+  refreshSession: vi.fn(),
+  restoreSession: vi.fn(),
+  extractSessionPermissions: vi.fn(() => [])
 }));
 
-const refreshMock = vi.mocked(refreshSession);
+const restoreMock = vi.mocked(restoreSession);
 
 // Guards the reliability dashboard (AC5): `reports/reliability` carries no
 // `meta.public`, so the global default-deny `beforeEach` must bounce
 // unauthenticated users to `login` instead of rendering the dashboard.
 // Cookie session (issue #242): the in-memory state is gone after a reload,
-// so the guard re-proves the httpOnly cookies via refreshSession() before
+// so the guard re-proves the httpOnly cookies via restoreSession() before
 // bouncing.
 describe('router auth guard', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
-    refreshMock.mockReset();
-    refreshMock.mockResolvedValue(false);
+    restoreMock.mockReset();
+    restoreMock.mockResolvedValue({ ok: false, permissions: [] });
     useAuthStore().clearAuth();
     // Start from a public route so each navigation triggers the guard.
     await router.replace('/login');
@@ -36,13 +38,13 @@ describe('router auth guard', () => {
   it('redirects unauthenticated users away from reports/reliability to login', async () => {
     await router.push('/reports/reliability');
 
-    expect(refreshMock).toHaveBeenCalled();
+    expect(restoreMock).toHaveBeenCalled();
     expect(router.currentRoute.value.name).toBe('login');
     expect(router.currentRoute.value.query['redirect']).toBe('/reports/reliability');
   });
 
   it('restores a cookie session on reload instead of bouncing to login', async () => {
-    refreshMock.mockResolvedValue(true);
+    restoreMock.mockResolvedValue({ ok: true, permissions: [] });
 
     await router.push('/reports/reliability');
 
@@ -57,7 +59,7 @@ describe('router auth guard', () => {
 
     await router.push('/reports/reliability');
 
-    expect(refreshMock).not.toHaveBeenCalled();
+    expect(restoreMock).not.toHaveBeenCalled();
     expect(router.currentRoute.value.name).toBe('reports-reliability');
   });
 
@@ -75,13 +77,13 @@ describe('router auth guard', () => {
   it('redirects unauthenticated users away from settings/roles to login', async () => {
     await router.push('/settings/roles');
 
-    expect(refreshMock).toHaveBeenCalled();
+    expect(restoreMock).toHaveBeenCalled();
     expect(router.currentRoute.value.name).toBe('login');
     expect(router.currentRoute.value.query['redirect']).toBe('/settings/roles');
   });
 
-  it('lets authenticated users open settings/roles', async () => {
-    useAuthStore().setAuth({ email: 'admin@example.com' });
+  it('lets admin users open settings/roles', async () => {
+    useAuthStore().setAuth({ email: 'admin@example.com' }, ['tenant.admin']);
 
     await router.push('/settings/roles');
 
