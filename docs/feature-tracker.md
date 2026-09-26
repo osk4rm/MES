@@ -64,6 +64,8 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | MES benchmark vs top-tier systems (recipes + Production Order) | BOM / Receptura, Production Order | Production, Web | gap | — | compare our recipe + order flow against leading MES (Siemens Opcenter, SAP ME/DMC, Rockwell FactoryTalk, Critical Manufacturing, AVEVA MES); produce a concrete gap list and prioritised improvements |
 | Operator panel (dedicated shopfloor view) | Operator | Web | gap | — | operator-facing panel to claim and handle assigned tasks: current-shift work, confirmations, scrap/downtime, Andon, next-up queue — minimal chrome, touch-friendly |
 | Demo data seed script | — | Ops | done | — | `scripts/seed/seed-demo-data.ps1` — one-off API-driven seed of a running stack (master data, recipes/routing/BOM, orders, lots, confirmations, losses, SPC, kanban, telemetry, maintenance) |
+| End-user manual (whole application) | — | Docs | gap | — | user-facing manual covering every module and workflow (getting started, master data, recipes/routing, production orders, shopfloor, analytics, admin); delivered as Markdown under `docs/manual/` |
+| Technical specification | — | Docs | gap | — | end-to-end specification of the system: architecture, module boundaries, domain model, API surface, multitenancy, auth/RBAC, deployment; Markdown document |
 
 ## Configuration (master data)
 
