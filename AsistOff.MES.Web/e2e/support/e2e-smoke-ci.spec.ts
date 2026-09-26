@@ -81,6 +81,21 @@ describe('e2e-smoke CI contract', () => {
     expect(workflow).toContain('if: always()');
   });
 
+  it('wires the stack endpoints the smoke suite actually dials once applied', () => {
+    const workflow = patchedWorkflow();
+
+    // The Playwright suite talks to the stack via E2E_FRONTEND_URL (:5173)
+    // and E2E_API_URL (:5243), and the backend needs the service Postgres
+    // (:5432) through the same connection-string key app.ps1 uses. A job
+    // with wrong ports/keys would start green and fail every check.
+    expect(workflow).toContain('needs: changes');
+    expect(workflow).toContain('5432:5432');
+    expect(workflow).toContain('pg_isready');
+    expect(workflow).toContain('postgres__connectionString');
+    expect(workflow).toContain('E2E_FRONTEND_URL: http://localhost:5173');
+    expect(workflow).toContain('E2E_API_URL: http://localhost:5243');
+  });
+
   it('keeps failure artifacts enabled in the Playwright config', () => {
     const config = readRepo('AsistOff.MES.Web/playwright.config.ts');
 
