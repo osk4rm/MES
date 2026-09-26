@@ -124,6 +124,12 @@ public sealed class ObservabilityEndpointTests(MesApplicationFixture fixture) : 
             {
                 ShouldListenTo = source => source.Name == "Microsoft.AspNetCore",
                 Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+                // The request carries an upstream W3C traceparent, so the
+                // runtime samples it through SampleUsingParentId (string parent
+                // id), NOT Sample. Without this the listener is built but the
+                // span is never recorded, the stopped collection comes back
+                // empty, and the assertion flaked depending on timing.
+                SampleUsingParentId = (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded,
                 ActivityStopped = activity => stopped.Add(activity),
             };
             ActivitySource.AddActivityListener(listener);
