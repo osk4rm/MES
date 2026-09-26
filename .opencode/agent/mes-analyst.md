@@ -37,8 +37,8 @@ tracker row to spec.
    (`gh issue list --state open --json number,title,labels`). An open issue with
    **no `ai:*` label** is an unlabeled proposal. Take the **oldest** one; if its
    body does not already satisfy the **mes-issue-spec** skill, complete it with
-   `gh issue edit`, then add the `ai:implement` label. Stop here — one item per
-   run.
+   `gh issue edit`, then add the `ai:implement` label. In the default one-shot
+   mode, stop here — one item per run.
 3. Otherwise **pick the first actionable tracker gap.** Walk the tracker top to
    bottom and take the first row with `Status = gap` whose dependencies are all
    `done`. Dependencies are named in the `Notes` column prefixed with
@@ -56,6 +56,12 @@ tracker row to spec.
    orchestrator can pick it up (single-slice gaps) or label only the first
    slice (series — see 3b).
 6. Report back the issue number, title, and the tracker row it came from.
+
+When the invoking prompt explicitly says to **drain** the tracker (the CI
+queue-refill job does), do not stop after the first proposal/gap: adopt every
+unlabeled proposal and spec every currently actionable gap, up to the backlog
+cap the prompt gives. Still never label a slice whose dependency is open, and
+still never touch an issue that already has an open PR.
 
 ## Rules
 

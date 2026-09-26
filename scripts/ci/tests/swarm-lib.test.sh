@@ -48,6 +48,10 @@ export GITHUB_REPOSITORY=osk4rm/MES
 export ACTIONS_TOKEN=fake-token
 export MAX_PARALLEL=3
 export CI_APPROVAL_TRIES=2
+# Pin the block budget/cooldown: the CI job exports BLOCK_RETRY_MAX/MINUTES from
+# ai-swarm.yml, so the assertions below must not depend on ambient values.
+export BLOCK_RETRY_MAX=2
+export BLOCK_RETRY_MINUTES=120
 
 SHA=aaaa1111bbbb2222cccc3333dddd4444eeee5555
 HEAD=$SHA
@@ -91,7 +95,14 @@ gh() {
     if [ -n "$JQ" ]; then printf '%s' "$1" | jq -r "$JQ" 2>/dev/null; else printf '%s' "$1"; fi
   }
   case "$*" in
-    *search/issues*) emit "$INFLIGHT" ;;
+    *search/issues*)
+      # swarm_in_flight_count now queries is:issue and is:pull-request
+      # separately and sums; serve the fake count for the issue half only.
+      case "$*" in
+        *is:pull-request*) emit '{"total_count":0}' ;;
+        *) emit "$INFLIGHT" ;;
+      esac
+      ;;
     *'workflow list'*) emit '[{"name":"ci","path":".github/workflows/ci.yml","state":"active"}]' ;;
     *'workflow run'*) printf '%s\n' "$*" >>"$DISPATCH_LOG"; return 0 ;;
     *'/approve'*) return "$APPROVE_RC" ;;
@@ -224,6 +235,26 @@ printf '<!-- swarm-block stage=ai:changes reason=no-progress attempt=1 at=1 -->\
 swarm_block_pr 276 ai:verify no-verdict 'Agent flow: other reason.' >/dev/null 2>&1
 checkh 'the budget is per PR, shared across reasons (stricter on purpose)' \
   'attempt=2' "$(last_marker)"
+
+echo 'swarm_clear_stale_changes drops only a genuinely stale ai:changes'
+LABELS='ai:changes'
+: >"$COMMENTS_FILE"
+printf '<!-- swarm-verdict gate=review sha=%s verdict=APPROVED -->\n' "$HEAD" >>"$COMMENTS_FILE"
+printf '<!-- swarm-verdict gate=verify sha=%s verdict=TESTS_SOUND -->\n' "$HEAD" >>"$COMMENTS_FILE"
+reset_logs
+if swarm_clear_stale_changes 276 >/dev/null; then ok 'stale changes cleared'; else no 'stale changes not cleared'; fi
+checkh 'the stale label is removed' 'remove-label ai:changes' "$(cat "$EDITS_LOG")"
+: >"$COMMENTS_FILE"
+printf '<!-- swarm-verdict gate=review sha=%s verdict=APPROVED -->\n' "$HEAD" >>"$COMMENTS_FILE"
+reset_logs
+if swarm_clear_stale_changes 276 >/dev/null; then no 'a real change request must not be cleared'; else ok 'a real change request is kept'; fi
+checkc 'nothing is removed when changes are real' 'remove-label ai:changes' "$(cat "$EDITS_LOG")"
+
+echo 'swarm_record_no_progress counts the streak for one sha'
+: >"$COMMENTS_FILE"
+check 'first no-progress is 1' 1 "$(swarm_record_no_progress 276 "$HEAD" 2>/dev/null)"
+check 'second no-progress is 2' 2 "$(swarm_record_no_progress 276 "$HEAD" 2>/dev/null)"
+check 'a different sha starts over' 1 "$(swarm_record_no_progress 276 deadbeef 2>/dev/null)"
 
 echo 'the nudge heals a PR parked on ci=approval'
 PR_LIST='[{"number":285,"headRefName":"ai/issue-265-fanout","labels":[{"name":"ai:e2e"}]}]'

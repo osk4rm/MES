@@ -65,6 +65,15 @@ env:
   BACKLOG_MAX: '5'
   QUEUE_TARGET: '2'
   STALE_LOCK_MINUTES: '45'
+  # How many consecutive identical "changed nothing" fix rounds before the
+  # swarm gives up on a PR. One proven-unchanged round used to block instantly,
+  # which dead-ended PRs whose agent had actually done the work but could not
+  # push it. Retry first, escalate only after this many.
+  NO_PROGRESS_MAX: '3'
+  # ai:blocked is a pause, not a grave: re-arm the recorded stage after this
+  # cooldown, up to this many times, before finally leaving it to a human.
+  BLOCK_RETRY_MINUTES: '30'
+  BLOCK_RETRY_MAX: '4'
   # Prefer a user PAT so bot-opened PRs are authored by a collaborator and skip
   # the public-repo approval gate (without it every bot PR stalls on approve,
   # and approved runs do not emit workflow_run events). Falls back to the
@@ -145,7 +154,7 @@ jobs:
           git config user.email 'mes-swarm@users.noreply.github.com'
           swarm_use_pat_remote "${{ secrets.SWARM_PAT }}"
           swarm_run_agent mes-implementer \
-            "Implement GitHub issue #$ISSUE. Read it with 'gh issue view $ISSUE --comments'. Follow AGENT.md and the area instructions. Write unit tests AND endpoint integration tests, but only RUN 'dotnet build AsistOff.MES.sln', 'dotnet test tests/AsistOff.MES.Shared.Tests' and 'npm --prefix AsistOff.MES.Web run build'. Do NOT run tests/AsistOff.MES.Integration.Tests and do NOT start the application, any database or docker (CI runs integration tests; Playwright e2e is a later stage). Push branch ai/issue-$ISSUE-<slug> and open a PR that closes #$ISSUE. Keep the branch current with master: before the final push run 'git fetch origin master && git merge origin/master' and resolve any conflicts (never leave conflict markers; never hand-merge Migrations/DefaultContextModelSnapshot.cs — regenerate the migration with 'dotnet ef migrations remove/add --project AsistOff.MES.Shared.Infrastructure --startup-project AsistOff.MES.Gateway --context DefaultContext'; in i18n.ts, sitemap.ts and ApiContracts.cs keep the union of both sides). Do not add or remove ai:* labels." \
+            "Implement GitHub issue #$ISSUE. Read it with 'gh issue view $ISSUE --comments'. Follow AGENT.md and the area instructions. Write unit tests AND endpoint integration tests, but only RUN 'dotnet build AsistOff.MES.sln', 'dotnet test tests/AsistOff.MES.Shared.Tests' and 'npm --prefix AsistOff.MES.Web run build'. Do NOT run tests/AsistOff.MES.Integration.Tests and do NOT start the application, any database or docker (CI runs integration tests; Playwright e2e is a later stage). Commit your work, push branch ai/issue-$ISSUE-<slug> and open a PR that closes #$ISSUE. You may edit .github/workflows/* files. Keep the branch current with master: before the final push run 'git fetch origin master && git merge origin/master' and resolve any conflicts (never leave conflict markers; never hand-merge Migrations/DefaultContextModelSnapshot.cs — regenerate the migration with 'dotnet ef migrations remove/add --project AsistOff.MES.Shared.Infrastructure --startup-project AsistOff.MES.Gateway --context DefaultContext'; in i18n.ts, sitemap.ts and ApiContracts.cs keep the union of both sides). Do not add or remove ai:* labels." \
             implement.log
           BRANCH=$(swarm_branch_for_issue "$ISSUE")
           if [ -n "$BRANCH" ]; then
@@ -161,9 +170,9 @@ jobs:
                 implement-merge.log
             fi
             if ! swarm_finish_merge_if_pending; then
-              swarm_remove_label issue "$ISSUE" ai:implement
-              swarm_add_label issue "$ISSUE" ai:blocked
-              swarm_say issue "$ISSUE" 'Agent flow (CI): merge with master left unresolved conflicts after the fix round. Needs human attention.'
+              # Keep ai:implement so the sweeper re-runs the implementation
+              # instead of dead-ending the issue for a human.
+              swarm_say issue "$ISSUE" 'Agent flow (CI): merge with master left unresolved conflicts after the implement round; keeping ai:implement so the sweeper retries.'
               exit 1
             fi
             if ! swarm_check_conflict_markers; then
@@ -171,13 +180,23 @@ jobs:
                 'Remove every merge-conflict marker from the working tree (they were committed by mistake). Resolve each file to the correct final content — union both sides for i18n.ts/sitemap.ts/ApiContracts.cs — then run the builds and push.' \
                 implement-markers.log
               if ! swarm_check_conflict_markers; then
-                swarm_remove_label issue "$ISSUE" ai:implement
-                swarm_add_label issue "$ISSUE" ai:blocked
-                swarm_say issue "$ISSUE" 'Agent flow (CI): conflict markers survived the cleanup round. Needs human attention.'
+                swarm_say issue "$ISSUE" 'Agent flow (CI): conflict markers survived the cleanup round; keeping ai:implement so the sweeper retries.'
                 exit 1
               fi
             fi
-            git push origin "$BRANCH" || true
+            swarm_commit_pending
+            PUSH_RC=0
+            swarm_push_branch "$BRANCH" "${{ secrets.SWARM_PAT }}" || PUSH_RC=$?
+            if [ "$PUSH_RC" != 0 ]; then
+              swarm_remove_label issue "$ISSUE" ai:implement
+              swarm_add_label issue "$ISSUE" ai:blocked
+              if [ "$PUSH_RC" = 2 ]; then
+                swarm_say issue "$ISSUE" 'Agent flow (CI): the push was refused for a .github/workflows permission. Add the Workflows permission to SWARM_PAT and the swarm will retry; no code change is needed.'
+              else
+                swarm_say issue "$ISSUE" 'Agent flow (CI): could not push the implementation branch. Needs human attention.'
+              fi
+              exit 1
+            fi
           fi
           PR=$(swarm_find_pr_for_issue "$ISSUE")
           if [ -z "$PR" ]; then
@@ -499,6 +518,14 @@ jobs:
       inputs.number != ''
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Mutating stages for one PR (fix/e2e/merge) share a queue: they must never
+    # race on the same branch. The old per-label group let an e2e run and a fix
+    # run overlap, the fix lost ai:running and exited silently, and its
+    # ai:changes label froze the PR (#295). ai:running stays as the
+    # cross-runner lock; this makes the local queue deterministic too.
+    concurrency:
+      group: ai-swarm-mutate-${{ github.event.pull_request.number || inputs.number || github.run_id }}
+      cancel-in-progress: false
     steps:
       # The fix job checks out the PR HEAD BRANCH, never refs/pull/N/merge:
       # the merge ref does not exist while the PR conflicts with master — and
@@ -545,9 +572,34 @@ jobs:
           PR='${{ steps.pr.outputs.number }}'
           HEAD_REF='${{ steps.pr.outputs.head }}'
           swarm_require_auth
-          # Lost race for the lock: exit green — the holder does the work.
-          # (A lock with no live run behind it is cleared by the stale-lock sweep.)
-          swarm_acquire_lock pr "$PR" || { echo 'lock held by another runner; exiting green'; exit 0; }
+          # If every gate already covers this head then ai:changes is stale (a
+          # fix job once lost the ai:running race and exited without clearing
+          # it). Promote instead of burning a fix session — UNLESS the PR
+          # conflicts with master, in which case it must be resolved first
+          # (otherwise promote -> merge-fails-conflict -> ai:changes -> promote
+          # would loop forever).
+          MERGE_STATE=$(swarm_pr_mergeable "$PR")
+          if [ "$MERGE_STATE" = CONFLICTING ]; then
+            echo 'PR conflicts with master; running the conflict resolver'
+          elif swarm_gates_satisfied "$PR"; then
+            swarm_remove_label pr "$PR" ai:changes
+            swarm_add_label pr "$PR" ai:ready
+            swarm_say pr "$PR" 'Agent flow (CI): every gate already covers this head — ai:changes was stale, promoting to ai:ready.'
+            exit 0
+          fi
+          # Serialize with the other mutating stages on this PR. If another
+          # stage still holds ai:running after a short wait, re-queue this run
+          # instead of silently dropping it (a dropped fix is how #295 froze).
+          LOCKED=0
+          for attempt in 0 1 2 3; do
+            if swarm_acquire_lock pr "$PR"; then LOCKED=1; break; fi
+            [ "$attempt" -lt 3 ] && sleep 30
+          done
+          if [ "$LOCKED" != 1 ]; then
+            swarm_log 'another stage still holds ai:running; re-queueing the fix'
+            swarm_refire_label pr "$PR" ai:changes
+            exit 0
+          fi
           swarm_auto_release pr "$PR"
           FAILS=$(swarm_fail_count "$PR")
           # MAX_ROUNDS=0 means unlimited: keep fixing until green. A nonzero
@@ -581,13 +633,16 @@ jobs:
           # Do NOT let the agent boot the app or a database — that burned whole
           # sessions (CORS/env rabbit holes) and starved the actual fixes.
           swarm_run_agent mes-implementer \
-            "Review/e2e feedback on PR #$PR requested changes. Read it with 'gh pr view $PR --comments'. Fix every point, re-run 'dotnet build AsistOff.MES.sln', 'dotnet test tests/AsistOff.MES.Shared.Tests' and 'npm --prefix AsistOff.MES.Web run build', then push to the same branch and reply. Do NOT run tests/AsistOff.MES.Integration.Tests. Never commit merge-conflict markers. Do not start the application, any database or docker — CI runs integration tests; e2e is a later stage. $CONFLICT_NOTE Do not add or remove ai:* labels." \
+            "Review/e2e feedback on PR #$PR requested changes. Read it with 'gh pr view $PR --comments'. Fix every point, re-run 'dotnet build AsistOff.MES.sln', 'dotnet test tests/AsistOff.MES.Shared.Tests' and 'npm --prefix AsistOff.MES.Web run build', then COMMIT and push to the same branch and reply. You MUST leave at least one real change committed on the branch; if you are prevented from pushing (for example a permission error), post a PR comment naming the exact command and its error instead of reporting success. Do not report success without a commit. You may edit .github/workflows/* files. Do NOT run tests/AsistOff.MES.Integration.Tests. Never commit merge-conflict markers. Do not start the application, any database or docker — CI runs integration tests; e2e is a later stage. $CONFLICT_NOTE Do not add or remove ai:* labels." \
             fix.log
           if ! swarm_finish_merge_if_pending; then
             swarm_remove_label pr "$PR" ai:changes
-            swarm_block_pr "$PR" "ai:changes" 'merge-conflict' 'Agent flow (CI): the master merge still has unresolved conflicts after the fix round. Needs human attention.'
+            swarm_block_pr "$PR" "ai:changes" 'merge-conflict' 'Agent flow (CI): the master merge still has unresolved conflicts after the fix round — the swarm retries this stage automatically.'
             exit 1
           fi
+          # The agent may have edited files without committing them; the job
+          # owns the branch, so commit before pushing (logs are gitignored).
+          swarm_commit_pending
           if ! swarm_check_conflict_markers; then
             swarm_run_agent mes-implementer \
               'Remove every merge-conflict marker from the working tree (they were committed by mistake). Resolve each file to the correct final content — union both sides for i18n.ts/sitemap.ts/ApiContracts.cs — then run the builds and push.' \
@@ -598,21 +653,31 @@ jobs:
               exit 1
             fi
           fi
-          if ! git push origin "$HEAD_REF"; then
-            echo 'push rejected (history was rewritten?) — retrying with --force-with-lease'
-            if ! git push --force-with-lease origin "$HEAD_REF"; then
+          PUSH_RC=0
+          swarm_push_branch "$HEAD_REF" "${{ secrets.SWARM_PAT }}" || PUSH_RC=$?
+          if [ "$PUSH_RC" != 0 ]; then
+            swarm_remove_label pr "$PR" ai:changes
+            if [ "$PUSH_RC" = 2 ]; then
+              swarm_block_pr "$PR" "ai:changes" 'permission' 'Agent flow (CI): the push was refused for a .github/workflows permission. Add the Workflows permission to SWARM_PAT (or use a workflow-scoped token) and the swarm will retry; no code change is needed.'
+            else
+              swarm_block_pr "$PR" "ai:changes" 'push-failed' 'Agent flow (CI): could not push the fix to the PR branch — the swarm retries this stage automatically.'
+            fi
+            exit 1
+          fi
+          # No-progress handling: the gate passes are idempotent per head SHA,
+          # so re-firing them on an unchanged diff reproduces the same verdict.
+          # That is usually a lost/denied push or an uncommitted session, not a
+          # human problem — retry with a stronger prompt, and only escalate
+          # after NO_PROGRESS_MAX consecutive identical rounds.
+          if swarm_fix_made_no_progress "$PR" "$HEAD_BEFORE" "$BODY_BEFORE"; then
+            N=$(swarm_record_no_progress "$PR" "${HEAD_BEFORE:-unknown}")
+            if [ "${N:-0}" -ge "${NO_PROGRESS_MAX:-3}" ]; then
               swarm_remove_label pr "$PR" ai:changes
-              swarm_block_pr "$PR" "ai:changes" 'push-failed' 'Agent flow (CI): could not push the fix to the PR branch. Needs human attention.'
+              swarm_block_pr "$PR" "ai:changes" 'no-progress' "Agent flow (CI): $N consecutive fix rounds changed neither the code nor the PR description — the agent cannot move this PR automatically. Needs human attention (the swarm retries this stage a few more times first)."
               exit 1
             fi
-          fi
-          # No-progress exit: the gate passes are idempotent per head SHA, so
-          # re-firing them on an unchanged diff can only reproduce the verdict
-          # we just got. Escalate instead of looping (MAX_ROUNDS=0 is unlimited).
-          if swarm_fix_made_no_progress "$PR" "$HEAD_BEFORE" "$BODY_BEFORE"; then
-            swarm_remove_label pr "$PR" ai:changes
-            swarm_block_pr "$PR" "ai:changes" 'no-progress' 'Agent flow (CI): the fix round changed neither the code nor the PR description, so another review/verify round would judge the identical diff. Needs human attention.'
-            exit 1
+            swarm_refire_label pr "$PR" ai:changes
+            exit 0
           fi
           swarm_remove_label pr "$PR" ai:changes
           # A round that really changed something also clears a stale
@@ -644,6 +709,9 @@ jobs:
       inputs.agent == 'mes-e2e-tester'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    concurrency:
+      group: ai-swarm-mutate-${{ github.event.pull_request.number || inputs.number || github.run_id }}
+      cancel-in-progress: false
     services:
       postgres:
         image: postgres:16-alpine
@@ -867,13 +935,16 @@ jobs:
   # ---------------------------------------------------------------------- sweep
   sweep:
     name: sweep queued issues
-    # Wakes up on every merge (push) and every 30 min. Re-fires the labeled
-    # event for the oldest queued issue when a parallel slot is free, so work
-    # refused by the MAX_PARALLEL gate retries instead of stalling.
+    # Wakes up on every merge (push), every 30 min, and after every CI run.
+    # Re-fires the labeled event for the oldest queued issue when a parallel
+    # slot is free, so work refused by the MAX_PARALLEL gate retries instead of
+    # stalling. The ci-completed wake-up matters because GitHub's cron is
+    # best-effort and can skip a tick for hours; a push/ci event is reliable.
     if: >
       github.event_name == 'schedule' &&
       github.event.schedule == '*/30 * * * *' ||
-      github.event_name == 'push'
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_run'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -927,6 +998,9 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'ai:ready')
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: ai-swarm-mutate-${{ github.event.pull_request.number || inputs.number || github.run_id }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
         with:
@@ -992,13 +1066,15 @@ jobs:
   # -------------------------------------------------------------------- analyst
   analyst:
     name: analyst (queue refill)
-    # Same wake-ups as sweep. Keeps QUEUE_TARGET unblocked ai:implement issues
-    # ready so the line does not go idle between slices. Exits green without an
-    # agent session when the queue is warm, the backlog is full, or nothing is actionable.
+    # Same wake-ups as sweep. Whenever there is an actionable tracker gap or an
+    # unlabeled proposal, the analyst turns it into an ai:implement issue so the
+    # line never sits idle. Exits green without an agent session when the
+    # backlog is full or nothing is actionable.
     if: >
       github.event_name == 'schedule' &&
       github.event.schedule == '*/30 * * * *' ||
-      github.event_name == 'push'
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_run'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -1013,26 +1089,21 @@ jobs:
         run: |
           # shellcheck disable=SC1091
           source scripts/ci/swarm-lib.sh
-          QUEUED=$(swarm_queued_count)
-          if [ "$QUEUED" -ge "${QUEUE_TARGET:-2}" ]; then
-            echo "implement queue has $QUEUED >= target; nothing to spec"
-            exit 0
-          fi
-          # The cap only limits NET-NEW work the analyst would create from a
-          # tracker gap. Adopting an existing unlabeled proposal is always
-          # allowed — those proposals COUNT toward the backlog, so gating on it
-          # deadlocks refill once the orphans reach BACKLOG_MAX.
+          # Spec when there is actionable work, not only when the implement
+          # queue is empty. The old QUEUE_TARGET gate left real tracker gaps
+          # unspecced while PRs were in flight, so the tracker never drained.
+          # BACKLOG_MAX still caps total net-new work.
           if [ "$(swarm_unlabeled_count)" -eq 0 ] && [ "$(swarm_backlog_count)" -ge "${BACKLOG_MAX:-5}" ]; then
-            echo 'backlog full; nothing to spec'
+            echo "backlog full ($(swarm_backlog_count) >= ${BACKLOG_MAX:-5}); nothing to spec"
             exit 0
           fi
           if ! swarm_has_actionable_gap; then
-            echo 'no unlabeled proposals and no tracker gap rows; queue truly done'
+            echo 'no unlabeled proposals and no tracker gap rows; nothing to spec'
             exit 0
           fi
           swarm_require_auth
           swarm_run_agent mes-analyst \
-            "The implement queue has fewer than ${QUEUE_TARGET:-2} unblocked ai:implement issues. Adopt the oldest unlabeled open proposal or spec the next actionable tracker gap (slice subsystem-sized gaps per the Sizing section of the mes-issue-spec skill). Create the issue(s) with gh issue create and add ai:implement to every unblocked slice until ${QUEUE_TARGET:-2} issues hold ai:implement, or you run out of unblocked work. Do not label a slice whose dependency is still open. Never adopt, re-spec or label an issue that already has an open PR: check 'gh pr list --state open --limit 100 --json number,title,headRefName' for a branch named ai/issue-<number>-* first, and if one exists move on to the next candidate - re-implementing an issue whose PR is in review wastes an agent session every time it is picked (issue #272 burned 17 of them)." \
+            "Turn tracker work into ai:implement issues. Adopt the oldest unlabeled open proposal and/or spec every currently actionable tracker gap (slice subsystem-sized gaps per the Sizing section of the mes-issue-spec skill). Create the issue(s) with gh issue create and add ai:implement to every unblocked slice, keeping the total open backlog at or below ${BACKLOG_MAX:-5}. Do not label a slice whose dependency is still open. Never adopt, re-spec or label an issue that already has an open PR: check 'gh pr list --state open --limit 100 --json number,title,headRefName' for a branch named ai/issue-<number>-* first, and if one exists move on to the next candidate - re-implementing an issue whose PR is in review wastes an agent session every time it is picked (issue #272 burned 17 of them)." \
             analyst.log
 
   # -------------------------------------------------------------- self-test

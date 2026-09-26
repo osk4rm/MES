@@ -53,7 +53,7 @@ jednoznacznie rozdziela „kto decyduje" (dyspozytor) od „kto pracuje" (agent)
 | `ai:changes` | reviewer/verifier/e2e/CI żąda poprawek | dyspozytor |
 | `ai:e2e` | PR gotowe do smoke e2e (Playwright) | dyspozytor |
 | `ai:ready` | CI + review + verify + e2e zielone; do merge przez człowieka | dyspozytor |
-| `ai:blocked` | eskalacja do człowieka (brak werdyktu, brak PR, nieusuwalny konflikt) — rundy fixów są nielimitowane | dyspozytor |
+| `ai:blocked` | wyjątek: eskalacja do człowieka tylko dla awarii infrastruktury/uprawnień oraz po wyczerpaniu ograniczonych ponowień | dyspozytor |
 | `ai:auto-merge` | opt-in na przyszły auto-merge (jeszcze nieaktywny) | człowiek |
 
 `ai:running` jest jednocześnie lockiem (dyspozytor jest jednowątkowy) i
@@ -194,9 +194,9 @@ Dlatego:
   `<!-- swarm-block stage=<etykieta> reason=<powód> attempt=<n> at=<epoch> -->`
   (`swarm_block_pr` w `scripts/ci/swarm-lib.sh`, `Block-PR` w
   `scripts/agent-dispatcher.ps1`). Sweeper wywołuje `swarm_retry_blocked_prs`:
-  po `BLOCK_RETRY_MINUTES` (domyślnie 120 min) od znacznika zdejmuje
+  po `BLOCK_RETRY_MINUTES` (domyślnie 30 min) od znacznika zdejmuje
   `ai:blocked` i odpala etap zapisany w markerze — najwyżej `BLOCK_RETRY_MAX`
-  (domyślnie 2) próby. Po wyczerpnięciu budżetu etap pozostaje zablokowany dla
+  (domyślnie 4) próby. Po wyczerpnięciu budżetu etap pozostaje zablokowany dla
   człowieka. Powód istnienia limitu: bez niego nienaprawialny PR krążyłby w
   nieskończoność; powód istnienia progu: 2026-09-26 nocą #276 i #268 leżały
   zablokowane po 6 godzin, bo markerów jeszcze nie było i nikt nie umiał ich
@@ -304,14 +304,37 @@ docker compose logs -f swarm
 
 ## 9. Guardrails
 
-- Rundy review/verify/e2e → fix bez limitu; `ai:blocked` + komentarz tylko
-  gdy utknięte (brak werdyktu, brak PR, nieusuwalny konflikt).
+- **`ai:blocked` jest wyjątkiem, nie regułą.** Blokujemy tylko rzeczy, których
+  żaden automat nie naprawi: awarie infrastruktury (np. brak uprawnienia
+  `workflows` na `SWARM_PAT` przy pushu pliku `.github/workflows/*`, brak
+  sekretu, `action_required` nie do zatwierdzenia), oraz po wyczerpaniu
+  ograniczonej liczby automatycznych ponowień. Wszystko inne (brak werdyktu,
+  runda bez zmian, konflikt, czerwone CI, zgubiony job) wraca do pętli samo.
+- **Zgubiony job nie blokuje pracy**: `swarm_cleanup_stale_locks` zdejmuje
+  osierocony `ai:running` i **re-queue'uje** zaparkowany etap (wcześniej
+  dodawał `ai:blocked`, co było ślepą uliczką wymagającą człowieka).
+- **Runda bez postępu nie blokuje od razu**: `swarm_record_no_progress` liczy
+  kolejne identyczne rundy per SHA; dopiero `NO_PROGRESS_MAX` (domyślnie 3)
+  eskaluje. Wcześniej jeden dowód braku zmiany blokował PR, mimo że agent
+  wykonał pracę, a tylko nie mógł jej wypchnąć.
+- **Push ma fallback**: `swarm_push_branch` próbuje PAT → `GITHUB_TOKEN` →
+  `--force-with-lease`. Odrzucenie z powodu uprawnień `workflows` to jedyny
+  przypadek, w którym push kończy się blokiem `reason=permission` (a i on jest
+  ponawiany przez sweeper). Agent ma też commitować zmiany, a job domyka
+  niezacommitowane pliki (`swarm_commit_pending`).
+- **`ai:changes` nie może zamrozić zielonego PR-a**: `swarm_clear_stale_changes`
+  zdejmuje etykietę, gdy review+verify już pokrywają bieżący head; to była
+  przyczyna zamrożenia #295.
+- **Mutujące etapy jednego PR-a są serializowane** wspólną grupą concurrency
+  (`ai-swarm-mutate-<pr>`); fix nie ginie już w wyścigu o `ai:running`.
+- Rundy review/verify/e2e → fix bez limitu (`MAX_ROUNDS=0`); eskalacja tylko
+  gdy naprawdę utknięte.
 - Nigdy push do `main`/`master` — zawsze branch + PR (default branch to `master`).
-- Bramka obiektywna = CI (`ci.yml`: `dotnet build/test` + `npm run build`),
-  potem review (subiektywna) i e2e (obserwacja UI).
-- Bramka człowieka = wyłącznie `ai:blocked`. `ai:ready` merguje się sam
-  (squash, kasowanie brancha); `ai:auto-merge` nie jest już potrzebny jako
-  osobna labelka.
+- Bramka obiektywna = CI (`ci.yml`: `dotnet build/test` + `npm run build`);
+  integracyjne flaki mają retry w `ci.yml`, żeby czerwone CI nie napędzało
+  fałszywych rund fixów. Potem review (subiektywna) i e2e (obserwacja UI).
+- Bramka człowieka = `ai:blocked` (rzadko). `ai:ready` merguje się samo
+  (squash, kasowanie brancha).
 - `--auto` tylko na izolowanym klonie/runnerze.
 - Reviewer i e2e dostają tylko artefakt (diff/PR), nie historię implementera.
 - **Granica reviewer ↔ verifier ↔ e2e**: `mes-reviewer` ocenia diff
@@ -392,8 +415,8 @@ werdykty, czekanie na CI) żyją w `scripts/ci/swarm-lib.sh`.
 | PR `labeled ai:changes` | `fix` | implementer fix → bramki `ai:review` + `ai:verify` od nowa, bez limitu rund (`MAX_ROUNDS=0`; >0 włącza limit z eskalacją do `ai:blocked`) |
 | PR `labeled ai:e2e` / `synchronize` z `ai:e2e` | `e2e` | Postgres service + stack + tester → `ai:ready` / `ai:changes` / `ai:blocked`; świeży `E2E_PASS` na tym samym head SHA = skip |
 | PR `labeled ai:ready` / `synchronize` z `ai:ready` | `merge` | `swarm_unsatisfied_gates` (markery muszą pokrywać bieżący head) → czeka na CI → squash-merge + delete-branch (czerwone CI → `ai:changes`, pending → trzyma `ai:ready`, konflikt mergu → `ai:changes`, `action_required` bez approve → `ai:blocked` raz) |
-| push na default / cron co 30 min | `sweep` | najstarszy `ai:implement` bez locka wraca do kolejki, gdy jest wolny slot |
-| push na default / cron co 30 min | `analyst` | kolejka < `QUEUE_TARGET=2` + backlog < `BACKLOG_MAX=5` + gap/proposal w zasięgu = `mes-analyst` dospecowuje do 2 odblokowanych `ai:implement`; inaczej zielone wyjście bez sesji agenta |
+| push na default / cron co 30 min / koniec `ci` (`workflow_run`) | `sweep` | najstarszy `ai:implement` bez locka wraca do kolejki, gdy jest wolny slot; czyści osierocone locki (re-queue, nie blok), re-armuje bloki i leczy zaparkowane etapy |
+| push na default / cron co 30 min / koniec `ci` (`workflow_run`) | `analyst` | gdy jest actionable `gap`/proposal i backlog < `BACKLOG_MAX=5`, `mes-analyst` dospecowuje issue z `ai:implement` (już nie wymaga pustej kolejki `QUEUE_TARGET`); inaczej zielone wyjście bez sesji agenta |
 | cron pn 06:00 UTC | `researcher` | gap rows → PR + auto-label `ai:review` (docs fast-path; review APPROVED → `ai:ready` → auto-merge) |
 | cron codziennie 05:30 UTC | `tracker` | sync trackera → PR `ai/tracker-sync` + auto-label `ai:review` |
 | `workflow_dispatch` | dowolny | ręczny trigger (zastępuje przyciski dashboardu w CI) |
@@ -451,7 +474,8 @@ Zasady:
   (samozakleszczenie kończące się timeoutem i demotowaniem `ai:ready`).
 - **Auto-cleanup locków**: sweep czyści `ai:running` starsze niż
   `STALE_LOCK_MINUTES=45` (znacznik = czas labela w timeline). Zgubiony job
-  nie blokuje slotu w nieskończoność.
+  nie blokuje slotu w nieskończoność, a jego etap jest **re-queue'owany**
+  (`swarm_cleanup_stale_locks`), nie blokowany — brak ręcznej akcji.
 - **Serializacja migracji EF**: max 1 PR z plikami `Migrations/` w locie.
   Dwa równoległe PR-y z migracjami zipper-mergują się w
   `DefaultContextModelSnapshot.cs` i psują mastera. Implement i sweep czekają
@@ -499,13 +523,15 @@ Zasady:
     review/verify w nieskończoność (PR #244: 14 review, 19 verify, zero
     commitów, `APPROVED` → `CHANGES_REQUESTED` na identycznym diffie).
     PR-y bez markera dostaną jeden dodatkowy przebieg — to bezpieczne.
-  - **Runda bez postępu = `ai:blocked`**: fix job liczy
+  - **Runda bez postępu = retry, nie blok**: fix job liczy
     `swarm_fix_made_no_progress` (head SHA z `git ls-remote` + hash opisu PR-a
-    przed rundą i po niej). Runda, która nie zmieniła ani kodu, ani opisu,
-    nie może zmienić werdyktu bramek (są idempotentne per SHA), więc zamiast
-    zapętlać `ai:changes` zostawia `ai:blocked` i komentarz dla człowieka.
-    Wymaga pozytywnego dowodu — nieczytelny SHA albo hash = brak eskalacji
-    (jedna dodatkowa runda jest tańsza niż fałszywe zablokowanie).
+    przed rundą i po niej), ale zamiast od razu blokować uruchamia
+    `swarm_record_no_progress` (streak per SHA) i ponawia rundę z mocniejszym
+    promptem. Dopiero po `NO_PROGRESS_MAX` (domyślnie 3) kolejnych identycznych
+    rundach eskaluje. Wymaga pozytywnego dowodu — nieczytelny SHA albo hash =
+    brak eskalacji. Powód: agent często wykonał pracę, a tylko nie mógł jej
+    wypchnąć (uprawnienia `workflows`) albo nie zacommitował; job domyka
+    niezacommitowane zmiany (`swarm_commit_pending`) przed pushem.
   - **Push w trakcie przebiegu = werdykt nie awansuje**: po agencie
     `swarm_head_moved` porównuje SHA odczytane przed startem z bieżącym
     headem. Jeśli commit wpadł w trakcie sesji, werdykt zostaje przypięty do

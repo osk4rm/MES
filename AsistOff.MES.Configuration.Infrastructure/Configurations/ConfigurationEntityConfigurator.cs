@@ -15,6 +15,7 @@ public class ConfigurationEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<Skill>();
         modelBuilder.Entity<ReasonCode>();
         modelBuilder.Entity<MaintenanceWorkOrder>();
+        modelBuilder.Entity<MaintenancePlan>();
         modelBuilder.Entity<Shift>();
         modelBuilder.Entity<OperatorShiftAssignment>();
         modelBuilder.Entity<WorkCenterCalendar>();
