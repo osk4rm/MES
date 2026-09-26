@@ -149,6 +149,8 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Production.Application.Features.ScrapEvents.Browse.BrowseScrapEventsRequest",
             "AsistOff.MES.Production.Application.Features.ScrapEvents.Get.GetScrapEventRequest",
             "AsistOff.MES.Production.Application.Features.ShiftHandovers.GetShiftHandoverContextRequest",
+            "AsistOff.MES.Production.Application.Features.ShiftHandovers.Browse.BrowseShiftHandoversRequest",
+            "AsistOff.MES.Production.Application.Features.ShiftHandovers.Get.GetShiftHandoverByIdRequest",
             "AsistOff.MES.Production.Application.Features.SpcCharacteristics.Browse.BrowseSpcCharacteristicsRequest",
             "AsistOff.MES.Production.Application.Features.SpcCharacteristics.Get.GetSpcCharacteristicRequest",
             "AsistOff.MES.Production.Application.Features.SpcMeasurements.Browse.BrowseSpcMeasurementsRequest",

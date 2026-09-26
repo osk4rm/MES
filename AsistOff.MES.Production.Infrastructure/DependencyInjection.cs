@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IKanbanLoopsRepository, KanbanLoopsRepository>();
         services.AddScoped<IKanbanCardsRepository, KanbanCardsRepository>();
         services.AddScoped<IOpcUaConnectionsRepository, OpcUaConnectionsRepository>();
+        services.AddScoped<IShiftHandoversRepository, ShiftHandoversRepository>();
 
         services.AddScoped<IEntityConfigurator, ProductionEntityConfigurator>();
 

@@ -635,6 +635,20 @@ public sealed record ShiftHandoverContextDto(
     int ConfirmationPage,
     int ConfirmationPageSize);
 
+/// <summary>Shape of a persisted handover logbook entry returned by <c>/api/shift-handovers</c>.</summary>
+public sealed record ShiftHandoverDto(
+    Guid Id,
+    Guid MachineId,
+    Guid? ShiftId,
+    DateTime From,
+    DateTime To,
+    string Notes,
+    Guid? CreatedByUserId,
+    DateTime CreatedAt,
+    int OpenOrdersCount,
+    int ActiveAndonCount,
+    bool UncoveredShift);
+
 /// <summary>Shape of a tenant permission as returned by <c>/api/permissions</c>.</summary>
 public sealed record PermissionDto(
     Guid Id,
