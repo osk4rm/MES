@@ -13,15 +13,20 @@ namespace AsistOff.MES.Shared.Infrastructure.Persistence.Entities;
 /// <list type="number">
 /// <item>Created with <c>Dispatched = false</c> and <c>RetryCount = 0</c>,
 /// sharing the source entity's <c>TenantId</c> and transaction.</item>
-/// <item>Slice 2 relay (planned): fetches undispatched rows oldest-first via
-/// <c>OutboxStager.ApplyUndispatched</c>, delivers them, then marks them
-/// dispatched (incrementing <c>RetryCount</c> on transient failures).</item>
-/// <item>Slice 3 cutover (planned): direct pre-commit MediatR delivery is
-/// removed, so the outbox becomes the only cross-module path and ghost
-/// events on rollback disappear entirely.</item>
+/// <item>The slice-2 relay (<c>OutboxRelayService</c>) fetches undispatched
+/// rows oldest-first via <c>OutboxStager.ApplyUndispatched</c>, publishes
+/// them through MediatR after commit, then marks them dispatched
+/// (incrementing <c>RetryCount</c> on transient failures with exponential
+/// backoff).</item>
+/// <item>A row whose <c>RetryCount</c> reaches the <c>Outbox:MaxAttempts</c>
+/// budget — or that can never be delivered (oversized payload, unknown event
+/// type, corrupt payload) — is parked as poison: <c>RetryCount</c> is pinned
+/// to the budget so the relay query never refetches it. No new columns were
+/// added for poison/dispatch timestamps (slice 2 owns no migration), so
+/// <c>Dispatched = true</c> always means "delivered", never "parked".</item>
 /// </list>
-/// Until slice 3, the existing pre-commit MediatR delivery is kept unchanged
-/// alongside staging.
+/// Nothing is published before the staging transaction commits, so a
+/// rolled-back write leaves no staged rows and produces zero dispatches.
 /// </summary>
 public class OutboxMessage : IEntity, ISaasy
 {
