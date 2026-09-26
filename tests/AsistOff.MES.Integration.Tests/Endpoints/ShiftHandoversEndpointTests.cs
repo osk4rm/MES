@@ -133,7 +133,12 @@ public sealed class ShiftHandoversEndpointTests(MesApplicationFixture fixture) :
         });
 
         create.StatusCode.Should().Be(HttpStatusCode.Created);
+        // Guards the CreatedAtAction regression (Async-suffix action name
+        // yielded 500 "No route matches the supplied values"): a 201 must
+        // carry a Location header pointing at the new entry.
+        create.Headers.Location.Should().NotBeNull();
         var created = await ReadAsync<ShiftHandoverDto>(create);
+        create.Headers.Location!.ToString().Should().Contain(created.Id.ToString());
         created.MachineId.Should().Be(machine.Id);
         created.ShiftId.Should().Be(shift.Id);
         created.UncoveredShift.Should().BeFalse();
