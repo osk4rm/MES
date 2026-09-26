@@ -431,12 +431,19 @@ Zasady:
 - **`SWARM_PAT` (zdecydowanie zalecane w publicznym repo)**: fine-grained PAT
   (Settings → Developer settings → Personal access tokens → Fine-grained,
   tylko to repo: Contents read+write, Pull requests read+write, Issues
-  read+write) zapisany jako sekret `SWARM_PAT`. Workflow używa go do operacji
+  read+write, **Workflows read+write**) zapisany jako sekret `SWARM_PAT`. Workflow używa go do operacji
   `gh` (`GH_TOKEN: SWARM_PAT || GITHUB_TOKEN`), więc PR-y otwiera collaborator,
   a nie `github-actions[bot]` — bez tego każdy bot-PR staje na „Approve and
   run", a runy po approve **nie emitują eventów `workflow_run`**, więc kolejka
   cichnie (review czeka → timeout → stoi). Bez sekretu wszystko dalej działa,
   tylko z ręcznym approve.
+- **Push plików `.github/workflows/*` wymaga tokenu z uprawnieniem Workflows**:
+  ani fine-grained `SWARM_PAT` bez tego scope'a, ani `GITHUB_TOKEN` (instalacja
+  GitHub App) nie mogą tworzyć/aktualizować plików workflow. `swarm_push_branch`
+  próbuje PAT → `GITHUB_TOKEN` → `--force-with-lease`, a gdy wszystkie zawiodą,
+  zostawia jednorazowy blok `reason=permission` z instrukcją. To jedyny świadomie
+  dozwolony blok „infra/uprawnienia”; dodanie `Workflows: Read and write` do
+  `SWARM_PAT` sprawia, że issue dotykające workflow jadą same (#276).
 - **Przegrany wyścig o lock wychodzi na zielono**: dwa joby na ten sam
   item (np. `labeled` + koniec CI naraz) — posiadacz locka pracuje, drugi kończy
   `exit 0` z notką w logu. Jeśli coś wisi w `ai:running` bez żywego runa,
