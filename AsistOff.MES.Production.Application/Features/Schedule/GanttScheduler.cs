@@ -217,5 +217,15 @@ public static class GanttScheduler
     }
 
     private static DateTime EnsureUtc(DateTime value)
-        => value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        => value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            // A local timestamp denotes a real instant: convert it instead of
+            // relabelling the ticks, otherwise the chain would anchor at the
+            // wrong moment on non-UTC hosts.
+            DateTimeKind.Local => value.ToUniversalTime(),
+            // Persisted timestamps (timestamptz) materialize as UTC, so an
+            // unspecified kind means "already UTC", not local.
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+        };
 }

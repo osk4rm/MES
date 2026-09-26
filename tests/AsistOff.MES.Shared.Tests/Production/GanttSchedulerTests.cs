@@ -196,6 +196,28 @@ public class GanttSchedulerTests
     }
 
     [Fact]
+    public void ComputeOrderSegments_LocalDueDate_AnchorsAtSameInstantInUtc()
+    {
+        // Arrange - a local-kind due date denotes a real instant: the chain
+        // must end at that instant rendered in UTC, not at the relabelled
+        // local ticks. Expected values convert first and do all arithmetic in
+        // UTC so the assertion holds on any host time zone.
+        var localDue = new DateTime(2026, 9, 22, 12, 0, 0, DateTimeKind.Local);
+        var dueUtc = localDue.ToUniversalTime();
+        var order = MakeOrder(60m, dueDate: localDue);
+        var a = MakeNode("OP-A", sortIndex: 0, perUnitSeconds: 60m);
+
+        // Act
+        var segments = GanttScheduler.ComputeOrderSegments(order, [a], AnchorNow);
+
+        // Assert
+        var segment = segments.Should().ContainSingle().Subject;
+        segment.PlannedEnd.Should().Be(dueUtc);
+        segment.PlannedEnd.Kind.Should().Be(DateTimeKind.Utc);
+        segment.PlannedStart.Should().Be(dueUtc.AddMinutes(-60));
+    }
+
+    [Fact]
     public void ComputeOrderSegments_NoNodes_ReturnsEmpty()
     {
         // Act

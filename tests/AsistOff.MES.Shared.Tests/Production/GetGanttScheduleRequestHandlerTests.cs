@@ -191,6 +191,32 @@ public class GetGanttScheduleRequestHandlerTests
     }
 
     [Fact]
+    public async Task Handle_LocalDueDate_AnchorsBarsAtSameInstantInUtc()
+    {
+        // Arrange - a local-kind due date denotes a real instant: bars must
+        // land on that instant rendered in UTC, and the overdue check must
+        // compare converted moments. Expected values convert first so the
+        // assertion holds on any host time zone.
+        var machine = MakeMachine("WC-10");
+        var versionId = Guid.NewGuid();
+        var localDue = new DateTime(2026, 9, 22, 12, 0, 0, DateTimeKind.Local);
+        var dueUtc = localDue.ToUniversalTime();
+        var order = MakeOrder("PO-LOCAL", versionId, dueDate: localDue);
+        var node = MakeNode(versionId, "OP-A", machineId: machine.Id);
+        Arrange([order], [node], machines: [machine]);
+
+        // Act
+        var result = await CreateSut().Handle(new GetGanttScheduleRequest(From, To, null), CancellationToken.None);
+
+        // Assert
+        var bar = result.Groups.SelectMany(g => g.Bars).Should().ContainSingle().Subject;
+        bar.PlannedEnd.Should().Be(dueUtc);
+        bar.PlannedEnd.Kind.Should().Be(DateTimeKind.Utc);
+        bar.PlannedStart.Should().Be(dueUtc.AddMinutes(-60));
+        bar.IsOverdue.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Handle_NoDueDate_AnchorsForwardFromClock()
     {
         // Arrange - 60min op with no due date starts at the provider's now.
