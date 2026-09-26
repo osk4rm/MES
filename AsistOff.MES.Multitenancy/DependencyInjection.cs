@@ -2,6 +2,7 @@
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Multitenancy.Entity;
+using AsistOff.MES.Multitenancy.Outbox;
 using AsistOff.MES.Multitenancy.Repositories;
 using AsistOff.MES.Multitenancy.Seeding;
 using AsistOff.MES.Shared.Abstractions.Seeder;
@@ -23,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ICurrentTenantAccessor>(sp => (ICurrentTenantAccessor)sp.GetRequiredService<ITenantContext>());
         services.AddScoped<ITenantRepository, TenantRepository>();
+        services.AddScoped<ITenantCreatedEventOutbox, TenantCreatedEventOutboxWriter>();
         services.AddScoped<IOutboxTenantSource, OutboxTenantSource>();
 
         services.AddDbContext<MultitenancyDbContext>((sp, options) =>

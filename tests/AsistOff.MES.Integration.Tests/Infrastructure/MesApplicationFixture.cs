@@ -1,6 +1,10 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AsistOff.MES.Integration.Tests.TestData;
+using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Shared.Infrastructure.Outbox;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
 
 namespace AsistOff.MES.Integration.Tests.Infrastructure;
@@ -28,6 +32,13 @@ public sealed class MesApplicationFixture : IAsyncLifetime
 
         // Force host startup: applies migrations and runs the dev seeder.
         using var _ = _factory.CreateClient();
+
+        // Slice 3 (#260): tenant provisioning now flows through the
+        // transactional outbox, but the relay timer loop is disabled in the
+        // test host for determinism — drive the relay explicitly for the
+        // seeded dev tenant so its admin user exists before the first test
+        // signs in.
+        await RelaySeededTenantAsync();
     }
 
     public async Task DisposeAsync()
@@ -85,6 +96,9 @@ public sealed class MesApplicationFixture : IAsyncLifetime
     /// <summary>
     /// Provisions a brand-new tenant (and its tenant-admin user) through the real
     /// anonymous <c>POST /api/tenants</c> endpoint, for isolation tests.
+    /// Slice 3 (#260): provisioning is delivered by the outbox relay, whose
+    /// timer loop is off in the test host — relay the new tenant explicitly so
+    /// the admin user exists when the test signs in.
     /// </summary>
     public async Task<(string Email, string Password)> CreateTenantAsync()
     {
@@ -105,6 +119,36 @@ public sealed class MesApplicationFixture : IAsyncLifetime
 
         response.EnsureSuccessStatusCode();
 
+        var tenantId = await GetTenantIdByEmailAsync(email);
+        await Services.GetRequiredService<OutboxRelayService>().RelayTenantAsync(tenantId);
+
         return (email, password);
+    }
+
+    /// <summary>
+    /// Relays the seeded dev tenant's staged tenant-created event (if any) so
+    /// the dev admin user exists. No-op when the seeder did not run.
+    /// </summary>
+    private async Task RelaySeededTenantAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MultitenancyDbContext>();
+        var tenant = await db.Tenants.AsNoTracking()
+            .SingleOrDefaultAsync(t => t.ContactEmail == IntegrationTestData.AdminEmail);
+
+        if (tenant is null)
+        {
+            return;
+        }
+
+        await _factory.Services.GetRequiredService<OutboxRelayService>().RelayTenantAsync(tenant.Id);
+    }
+
+    private async Task<Guid> GetTenantIdByEmailAsync(string email)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MultitenancyDbContext>();
+        var tenant = await db.Tenants.AsNoTracking().SingleAsync(t => t.ContactEmail == email);
+        return tenant.Id;
     }
 }

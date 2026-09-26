@@ -1,7 +1,7 @@
 using System.Text.Json;
 using AsistOff.MES.Multitenancy.Contracts;
+using AsistOff.MES.Multitenancy.Outbox;
 using AsistOff.MES.Multitenancy.Requests.Commands.Create;
-using AsistOff.MES.Shared.Abstractions.Events;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using AsistOff.MES.Multitenancy.Repositories;
 using AsistOff.MES.Users.Core.Entities;
@@ -22,7 +22,7 @@ public class AnonymousTenantResponseTests
     private readonly Mock<ITenantRepository> _repository = new();
     private readonly Mock<IGuidProvider> _guids = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
-    private readonly Mock<IEventDispatcher> _events = new();
+    private readonly Mock<ITenantCreatedEventOutbox> _outbox = new();
     private readonly Mock<IPasswordHasher<User>> _hasher = new();
     private readonly Guid _tenantId = Guid.NewGuid();
 
@@ -36,7 +36,7 @@ public class AnonymousTenantResponseTests
 
     private CreateTenantCommandHandler CreateSut() =>
         new(_repository.Object, _guids.Object, _clock.Object,
-            NullLogger<CreateTenantCommandHandler>.Instance, _events.Object, _hasher.Object);
+            NullLogger<CreateTenantCommandHandler>.Instance, _outbox.Object, _hasher.Object);
 
     [Fact]
     public async Task Handle_ValidCommand_ReturnsOnlyIdNameAndIsActive()
