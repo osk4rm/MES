@@ -500,7 +500,7 @@ onMounted(async () => {
   readStateFromQuery();
   machinesLoading.value = true;
   try {
-    const page = await machineService.browse({ pageSize: 500 });
+    const page = await machineService.browse({ pageNumber: 1, pageSize: 100 });
     machines.value = page.items;
   } catch {
     // Work Center lookup stays empty; ids still render raw.
