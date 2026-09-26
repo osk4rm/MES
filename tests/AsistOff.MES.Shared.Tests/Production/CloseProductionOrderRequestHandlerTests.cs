@@ -1,7 +1,10 @@
+using AsistOff.MES.Configuration.Domain.Entities;
+using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Close;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using FluentAssertions;
@@ -13,16 +16,22 @@ public class CloseProductionOrderRequestHandlerTests
 {
     private readonly Mock<IProductionOrdersRepository> _orders = new();
     private readonly Mock<IProductionConfirmationsRepository> _confirmations = new();
+    private readonly Mock<IMaterialReservationsRepository> _reservations = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
+    private readonly Mock<IUnitOfWork> _uow = new();
     private readonly DateTime _now = new(2026, 9, 24, 16, 0, 0, DateTimeKind.Utc);
 
     public CloseProductionOrderRequestHandlerTests()
     {
         _clock.SetupGet(c => c.UtcNow).Returns(_now);
+        _reservations.Setup(r => r.ListForOrderAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MaterialReservation>());
+        _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task> op, CancellationToken _) => op());
     }
 
     private CloseProductionOrderRequestHandler CreateSut() =>
-        new(_orders.Object, _confirmations.Object, _clock.Object);
+        new(_orders.Object, _confirmations.Object, _reservations.Object, _clock.Object, _uow.Object);
 
     private static ProductionOrder MakeOrder(ProductionOrderStatus status) => new()
     {

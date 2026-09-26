@@ -60,7 +60,8 @@ public class MesMetersHandlerTests
             MockGuids(),
             MockClock(),
             tenant.Object,
-            uow);
+            uow,
+            MockReservations());
 
         // Act
         await handler.Handle(
@@ -269,6 +270,14 @@ public class MesMetersHandlerTests
         uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
             .Returns((Func<Task> op, CancellationToken _) => op());
         return uow.Object;
+    }
+
+    private static IMaterialReservationsRepository MockReservations()
+    {
+        var reservations = new Mock<IMaterialReservationsRepository>();
+        reservations.Setup(r => r.ListForOrderAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MaterialReservation>());
+        return reservations.Object;
     }
 
     private sealed class MeterCapture : IDisposable

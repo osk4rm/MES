@@ -27,6 +27,7 @@ public class CreateProductionConfirmationRequestHandlerTests
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ITenantContext> _tenant = new();
     private readonly Mock<IUnitOfWork> _uow = new();
+    private readonly Mock<IMaterialReservationsRepository> _reservations = new();
     private readonly Guid _tenantId = Guid.NewGuid();
     private readonly DateTime _now = new(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc);
 
@@ -37,6 +38,8 @@ public class CreateProductionConfirmationRequestHandlerTests
         _tenant.SetupGet(t => t.TenantId).Returns(_tenantId);
         _children.Setup(r => r.ListBomItemsForVersionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<BomItem>());
+        _reservations.Setup(r => r.ListForOrderAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MaterialReservation>());
         // Inline transaction: execute the fan-out delegate directly, so unit
         // tests observe the same write order as production (issue #265).
         _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
@@ -46,7 +49,7 @@ public class CreateProductionConfirmationRequestHandlerTests
     }
 
     private CreateProductionConfirmationRequestHandler CreateSut() =>
-        new(_confirmations.Object, _orders.Object, _children.Object, _movements.Object, _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object, _uow.Object);
+        new(_confirmations.Object, _orders.Object, _children.Object, _movements.Object, _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object, _uow.Object, _reservations.Object);
 
     private static ProductionOrder ReleasedOrder() => new()
     {

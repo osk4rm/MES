@@ -1,8 +1,12 @@
+using AsistOff.MES.Configuration.Domain.Entities;
+using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Release;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Auth;
+using AsistOff.MES.Shared.Abstractions.DAL;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using FluentAssertions;
@@ -14,19 +18,34 @@ public class ReleaseProductionOrderRequestHandlerTests
 {
     private readonly Mock<IProductionOrdersRepository> _orders = new();
     private readonly Mock<IRecipeVersionsRepository> _versions = new();
+    private readonly Mock<IChildEntitiesRepository> _children = new();
+    private readonly Mock<IMaterialReservationsRepository> _reservations = new();
+    private readonly Mock<IGuidProvider> _guids = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ICurrentUserAccessor> _user = new();
+    private readonly Mock<ITenantContext> _tenant = new();
+    private readonly Mock<IUnitOfWork> _uow = new();
     private readonly Guid _userId = Guid.NewGuid();
+    private readonly Guid _tenantId = Guid.NewGuid();
     private readonly DateTime _now = DateTime.UtcNow;
 
     public ReleaseProductionOrderRequestHandlerTests()
     {
         _clock.SetupGet(c => c.UtcNow).Returns(_now);
         _user.SetupGet(u => u.UserId).Returns(_userId);
+        _guids.Setup(g => g.NewGuid()).Returns(() => Guid.NewGuid());
+        _tenant.SetupGet(t => t.TenantId).Returns(_tenantId);
+        _children.Setup(r => r.ListBomItemsForVersionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<BomItem>());
+        _reservations.Setup(r => r.ListForOrderAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MaterialReservation>());
+        _uow.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task> op, CancellationToken _) => op());
     }
 
     private ReleaseProductionOrderRequestHandler CreateSut() =>
-        new(_orders.Object, _versions.Object, _clock.Object, _user.Object);
+        new(_orders.Object, _versions.Object, _children.Object, _reservations.Object,
+            _guids.Object, _clock.Object, _user.Object, _tenant.Object, _uow.Object);
 
     private static ProductionOrder MakeOrder(ProductionOrderStatus status) => new()
     {
