@@ -21,12 +21,27 @@ public static class Extensions
 
         if (options.AuthenticationDisabled)
         {
-            if (hostEnvironment?.IsProduction() == true)
+            // Bypass semantics (issue #332, security audit 2026-09-26, Medium):
+            // auth:AuthenticationDisabled is an explicit local-development
+            // escape hatch only. When active, DisabledAuthenticationPolicyEvaluator
+            // unconditionally succeeds every authorization check, so all
+            // RequirePermission-guarded writes pass with no credential and no
+            // tenant attribution, contradicting the default-deny posture.
+            // Fail closed everywhere except Development: Staging/Test/Production
+            // (or an unknown host environment) refuse to boot instead of serving
+            // unauthenticated traffic. Development boots and emits an
+            // unmistakable warning via AuthenticationDisabledWarningService.
+            if (hostEnvironment?.IsDevelopment() != true)
             {
-                throw new InvalidOperationException("Authentication cannot be disabled in a Production environment.");
+                var environmentName = hostEnvironment?.EnvironmentName ?? "<unknown>";
+                throw new InvalidOperationException(
+                    $"auth:AuthenticationDisabled=true is only allowed in the Development environment " +
+                    $"(current: '{environmentName}'). Refusing to start with authentication disabled outside " +
+                    "local development. Unset auth:AuthenticationDisabled to enforce JWT + RBAC.");
             }
 
             services.AddSingleton<IPolicyEvaluator, DisabledAuthenticationPolicyEvaluator>();
+            services.AddHostedService<AuthenticationDisabledWarningService>();
         }
 
         var tokenValidationParameters = new TokenValidationParameters
