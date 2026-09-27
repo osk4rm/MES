@@ -79,6 +79,16 @@ services:
       # over the docker network. Configuration array elements are addressable
       # via __<index>__ — index 1 is the "Seq" sink in appsettings.json.
       Serilog__WriteTo__1__Args__serverUrl: "http://seq:80"
+      # Trusted-proxy config for correct client IPs behind nginx (issue #323):
+      # the web container proxies /api/* with X-Forwarded-For, so the api must
+      # trust the docker network for ForwardedHeadersMiddleware to rewrite
+      # RemoteIpAddress (which the abuse-protection throttle partitions by).
+      # Empty (default) is default-deny: XFF is ignored and throttling uses the
+      # raw TCP source (fail-closed, correct behind no proxy). To honor nginx
+      # XFF, set TRUSTED_PROXY_NETWORK to the compose network CIDR, e.g.
+      # TRUSTED_PROXY_NETWORK=172.18.0.0/16 in .env. Never expose the api
+      # container directly to the internet while trusting private ranges.
+      TrustedProxies__KnownNetworks__0: "${TRUSTED_PROXY_NETWORK:-}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -171,6 +181,10 @@ services:
       Boot__ApplyMigrations: "false"
       Boot__RunSeeders: "false"
       Serilog__WriteTo__1__Args__serverUrl: "http://seq:80"
+      # Trusted-proxy config, same as the api service above (issue #323):
+      # set TRUSTED_PROXY_NETWORK to the compose network CIDR so nginx
+      # X-Forwarded-For is honored; empty keeps default-deny (fail-closed).
+      TrustedProxies__KnownNetworks__0: "${TRUSTED_PROXY_NETWORK:-}"
     depends_on:
       postgres:
         condition: service_healthy
