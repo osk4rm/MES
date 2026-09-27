@@ -1,4 +1,15 @@
 node_modules
 dist
+# Never bake local secrets into the web image (issue #308): Vite loads
+# .env* files at build time, so any canary/secret file left in the build
+# context would bake straight into the bundle layers.
+.env
+.env.local
+.env.production
 .env*
+**/.env
+**/.env.*
+# .NET user-secrets / ad-hoc secret files must never enter the context.
+**/secrets.json
+**/*.secrets.json
 *.md
