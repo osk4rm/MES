@@ -200,6 +200,9 @@
 
     <AppModal :open="modalOpen" :title="$t('productionConfirmations.report')" data-testid="confirmation-modal" @close="closeModal">
       <form id="confirmation-form" ref="confirmationFormRef" class="form-grid" data-testid="confirmation-form" novalidate @submit.prevent="onSave">
+        <!-- Canonical confirmation field order (F-19): Work Center →
+            quantity → reason → notes → timestamp. Confirmations carry no
+            reason field; operator/lots extras follow the canonical block. -->
         <AppFormField :label="$t('productionConfirmations.machine')" required :error="confirmationErrors.fieldError('machineId')">
           <template #default="{ id, invalid }">
             <AppSelect
@@ -213,22 +216,6 @@
             />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionConfirmations.operator')">
-          <template #default="{ id }">
-            <AppSelect
-              :id="id"
-              v-model="form.operatorId"
-              :options="operatorFilterOptions"
-              :placeholder="$t('productionConfirmations.selectOperator')"
-            />
-          </template>
-        </AppFormField>
-        <AppFormField :label="$t('productionConfirmations.reportedAt')" required :error="confirmationErrors.fieldError('reportedAt')">
-          <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="form.reportedAt" type="datetime-local" :invalid="invalid" @blur="confirmationErrors.touch('reportedAt')" />
-          </template>
-        </AppFormField>
-        <div />
         <AppFormField :label="$t('productionConfirmations.goodQuantity')" required :error="confirmationErrors.fieldError('goodQuantity')">
           <template #default="{ id, invalid }">
             <AppNumberInput :id="id" v-model="form.goodQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-good-qty" @blur="confirmationErrors.touch('goodQuantity')" />
@@ -239,11 +226,29 @@
             <AppNumberInput :id="id" v-model="form.scrapQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-scrap-qty" @blur="confirmationErrors.touch('scrapQuantity')" />
           </template>
         </AppFormField>
+        <AppFormField :label="$t('productionConfirmations.operator')">
+          <template #default="{ id }">
+            <AppSelect
+              :id="id"
+              v-model="form.operatorId"
+              :options="operatorFilterOptions"
+              :placeholder="$t('productionConfirmations.selectOperator')"
+            />
+          </template>
+        </AppFormField>
         <AppFormField :label="$t('productionConfirmations.notes')" class="form-grid__full">
           <template #default="{ id }">
             <AppTextarea :id="id" v-model="form.notes" :rows="2" />
           </template>
         </AppFormField>
+        <AppDateTimeField
+          v-model="form.reportedAt"
+          :label="$t('productionConfirmations.reportedAt')"
+          required
+          :error="confirmationErrors.fieldError('reportedAt')"
+          class="form-grid__full"
+          @blur="confirmationErrors.touch('reportedAt')"
+        />
         <AppFormField
           :label="`${$t('productionConfirmations.producedLot')} (${$t('common.optional')})`"
           class="form-grid__full"
@@ -374,9 +379,9 @@ import AppTable from '../../components/ui/AppTable.vue';
 import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
-import AppInput from '../../components/ui/AppInput.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppSelect from '../../components/ui/AppSelect.vue';

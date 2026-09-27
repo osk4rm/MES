@@ -50,13 +50,13 @@
           <div class="board-card__actions">
             <AppButton
               v-if="signal.status === AndonSignalStatus.Active"
-              size="sm"
+              :size="boardActionSize"
               variant="secondary"
               @click="onAcknowledge(signal)"
             >
               {{ $t('andon.acknowledge') }}
             </AppButton>
-            <AppButton size="sm" variant="primary" @click="onResolve(signal)">
+            <AppButton :size="boardActionSize" variant="primary" @click="onResolve(signal)">
               {{ $t('andon.resolve') }}
             </AppButton>
           </div>
@@ -66,24 +66,39 @@
     </AppCard>
 
     <AppFilterBar @clear="clearFilters">
-      <AppSelect
-        v-model="machineFilter"
-        :options="machineFilterOptions"
-        allow-empty
-        @change="onMachineChange"
-      />
-      <AppSelect
-        v-model="categoryFilter"
-        :options="categoryFilterOptions"
-        allow-empty
-        @change="onCategoryChange"
-      />
-      <AppSelect
-        v-model="statusFilter"
-        :options="statusFilterOptions"
-        allow-empty
-        @change="onStatusChange"
-      />
+      <AppFormField :label="$t('andon.filters.machine')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="machineFilter"
+            :options="machineFilterOptions"
+            allow-empty
+            @change="onMachineChange"
+          />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('andon.filters.category')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="categoryFilter"
+            :options="categoryFilterOptions"
+            allow-empty
+            @change="onCategoryChange"
+          />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('andon.filters.status')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="statusFilter"
+            :options="statusFilterOptions"
+            allow-empty
+            @change="onStatusChange"
+          />
+        </template>
+      </AppFormField>
     </AppFilterBar>
 
     <AppTable
@@ -127,11 +142,12 @@
     <AppModal :open="modalOpen" :title="modalTitle" @close="closeModal">
       <form id="andon-form" class="form-grid" @submit.prevent="onSave">
         <template v-if="resolving">
-          <AppFormField :label="$t('andon.resolvedAt')" required class="form-grid__full">
-            <template #default="{ id }">
-              <AppInput :id="id" v-model="form.resolvedAt" type="datetime-local" required />
-            </template>
-          </AppFormField>
+          <AppDateTimeField
+            v-model="form.resolvedAt"
+            :label="$t('andon.resolvedAt')"
+            required
+            class="form-grid__full"
+          />
         </template>
         <template v-else>
           <AppFormField v-if="!editing" :label="$t('andon.machine')" required class="form-grid__full">
@@ -144,11 +160,12 @@
             <AppSelect :id="id" v-model="form.category" :options="categoryOptions" />
           </template>
         </AppFormField>
-        <AppFormField v-if="!editing" :label="$t('andon.raisedAt')" required>
-          <template #default="{ id }">
-            <AppInput :id="id" v-model="form.raisedAt" type="datetime-local" required />
-          </template>
-        </AppFormField>
+        <AppDateTimeField
+          v-if="!editing"
+          v-model="form.raisedAt"
+          :label="$t('andon.raisedAt')"
+          required
+        />
         <AppFormField :label="$t('andon.notes')" class="form-grid__full">
           <template #default="{ id }">
             <AppTextarea :id="id" v-model="form.notes" :rows="3" />
@@ -179,12 +196,12 @@ import { useI18n } from 'vue-i18n';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppCard from '../../components/ui/AppCard.vue';
 import AppFilterBar from '../../components/ui/AppFilterBar.vue';
-import AppInput from '../../components/ui/AppInput.vue';
 import AppSelect from '../../components/ui/AppSelect.vue';
 import AppTable from '../../components/ui/AppTable.vue';
 import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppDataState from '../../components/ui/AppDataState.vue';
@@ -209,6 +226,12 @@ const { density, viewClass, toggleDensity } = useShopfloorDensity();
 const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
   ? 'shopfloor.density.compact'
   : 'shopfloor.density.comfortable'));
+
+// F-11: board Ack/Resolve actions meet the 44 px gloved-operation minimum
+// under comfortable density (the shopfloor-view scope enforces it); sm is
+// kept for compact density only.
+const boardActionSize = computed((): 'sm' | 'md' =>
+  density.value === ShopfloorDensity.Compact ? 'sm' : 'md');
 
 interface Filters {
   machineId?: string;

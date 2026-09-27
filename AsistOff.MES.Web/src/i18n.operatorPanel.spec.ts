@@ -62,6 +62,7 @@ const PANEL_KEYS = [
   'subtitle',
   'operatorCode',
   'operatorCodePlaceholder',
+  'operatorCodeHint',
   'load',
   'enterCode',
   'shiftTitle',

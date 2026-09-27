@@ -36,6 +36,8 @@ const pl = {
     notifications: 'Powiadomienia',
     dismiss: 'Odrzuć powiadomienie',
     breadcrumb: 'Ścieżka nawigacji',
+    datetimeLocalHint: 'Czas lokalny.',
+    datetimeUtcNote: 'Zapisywany jako UTC.',
     pagination: {
       showing: 'Pokazano {from}–{to} z {total}',
       pageSize: 'Wierszy:',
@@ -49,7 +51,8 @@ const pl = {
     density: {
       label: 'Gęstość',
       comfortable: 'Dotykowa',
-      compact: 'Zwarta'
+      compact: 'Zwarta',
+      toggleHint: 'Przełącz gęstość dotykową / zwartą (min. 44 px w trybie dotykowym)'
     }
   },
   nav: {
@@ -492,7 +495,7 @@ const pl = {
     nextDueAt: 'Następny termin',
     dueState: 'Termin',
     states: { overdue: 'Zaległy', dueSoon: 'Wkrótce termin', scheduled: 'Zaplanowany', noSchedule: 'Bez terminu' },
-    filters: { machine: 'Stanowisko', overdueOnly: 'Tylko zaległe' },
+    filters: { machine: 'Stanowisko', overdueOnly: 'Tylko zaległe', status: 'Status' },
     evaluateDue: 'Oceń zaległości',
     raiseNow: 'Utwórz zlecenie',
     raisedCount: 'Utworzono zleceń: {n}'
@@ -514,7 +517,8 @@ const pl = {
     notes: 'Uwagi',
     filters: {
       machine: 'Stanowisko',
-      category: 'Kategoria'
+      category: 'Kategoria',
+      status: 'Status'
     },
     categories: {
       1: 'Przestój',
@@ -567,6 +571,10 @@ const pl = {
     selectRoleHint: 'Wybierz rolę…',
     assign: 'Przypisz',
     userIdPlaceholder: 'Wklej ID użytkownika…',
+    userLookupLabel: 'Użytkownik',
+    userLookupHint: 'Zacznij pisać e-mail lub ID — podpowiedzi pochodzą ze znanych członków.',
+    matrixFilter: 'Filtruj macierz…',
+    matrixFilterLabel: 'Filtr macierzy',
     unassign: 'Usuń z roli',
     emptyMembers: 'Rola nie ma jeszcze członków.',
     emptyRoles: 'Brak ról — utwórz pierwszą.'
@@ -643,7 +651,7 @@ const pl = {
     order: 'Zlecenie (opcjonalnie)',
     selectOrder: 'Wybierz zlecenie…',
     status: { open: 'Otwarty', closed: 'Zamknięty' },
-    filters: { machine: 'Stanowisko', reason: 'Przyczyna' }
+    filters: { machine: 'Stanowisko', reason: 'Przyczyna', status: 'Status', from: 'Od', to: 'Do' }
   },
   telemetry: {
     title: 'Telemetria',
@@ -842,7 +850,8 @@ const pl = {
     noMachineHint: 'Wybierz stanowisko robocze, aby zobaczyć wskaźniki OEE.',
     notFound: 'Nie znaleziono stanowiska lub brak dostępu',
     notFoundHint: 'Stanowisko może należeć do innej organizacji — wybierz inne stanowisko.',
-    invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko, okno i idealny czas cyklu'
+    invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko, okno i idealny czas cyklu',
+    invalidWindow: 'Nieprawidłowe okno — data końcowa musi być późniejsza niż początkowa'
   },
   reliabilityDashboard: {
     title: 'Panel niezawodności',
@@ -895,7 +904,8 @@ const pl = {
     noMachineHint: 'Wybierz stanowisko robocze, aby zobaczyć MTBF i MTTR.',
     notFound: 'Nie znaleziono stanowiska lub brak dostępu',
     notFoundHint: 'Stanowisko może należeć do innej organizacji — wybierz inne stanowisko.',
-    invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko i okno (maks. 93 dni)'
+    invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko i okno (maks. 93 dni)',
+    invalidWindow: 'Nieprawidłowe okno — data końcowa musi być późniejsza niż początkowa (maks. 93 dni)'
   },
   scheduleDispatch: {
     title: 'Tablica dyspozytorska',
@@ -929,6 +939,7 @@ const pl = {
     noCoverage: 'Bez obsady zmian',
     empty: 'Brak pasków w wybranym oknie — wydaj zlecenia z operacjami na stanowiska',
     hint: 'Przeciągnij pasek, aby zmienić termin; pociągnij prawą krawędź, aby zmienić czas trwania.',
+    keyboardHint: 'Klawiatura: Tab wybiera pasek, ←/→ przesuwa o dzień (Shift: o tydzień), Enter zatwierdza, Esc anuluje.',
     moved: 'Przeplanowano operację',
     movedNoCoverage: 'Zapisano, ale nowe okno nie ma obsady zmian.',
     conflict: 'Konflikt zasobów albo nieaktualne dane — pasek wrócił na poprzedni slot. Odśwież i spróbuj ponownie.',
@@ -940,6 +951,7 @@ const pl = {
     subtitle: 'Kolejka bieżącej zmiany — odbierz kolejne zadanie, potwierdź ilości i zgłoś problemy',
     operatorCode: 'Kod operatora',
     operatorCodePlaceholder: 'Wpisz kod operatora…',
+    operatorCodeHint: 'Możesz zeskanować identyfikator — czytnik zatwierdza kod klawiszem Enter.',
     load: 'Wczytaj kolejkę',
     enterCode: 'Wpisz kod operatora, aby wczytać kolejkę bieżącej zmiany.',
     shiftTitle: 'Zmiana',
@@ -975,7 +987,9 @@ const pl = {
     selectOrder: 'Wybierz zlecenie…',
     filters: {
       machine: 'Maszyna',
-      reasonCode: 'Kod przyczyny'
+      reasonCode: 'Kod przyczyny',
+      from: 'Od',
+      to: 'Do'
     }
   },
   scanBy: { 1: 'EAN', 2: 'Kod' },
@@ -1058,6 +1072,8 @@ const en: typeof pl = {
     notifications: 'Notifications',
     dismiss: 'Dismiss notification',
     breadcrumb: 'Breadcrumb',
+    datetimeLocalHint: 'Local time.',
+    datetimeUtcNote: 'Stored as UTC.',
     pagination: {
       showing: 'Showing {from}–{to} of {total}',
       pageSize: 'Rows:',
@@ -1071,7 +1087,8 @@ const en: typeof pl = {
     density: {
       label: 'Density',
       comfortable: 'Touch',
-      compact: 'Compact'
+      compact: 'Compact',
+      toggleHint: 'Toggle touch / compact density (44 px minimum in touch mode)'
     }
   },
   nav: {
@@ -1514,7 +1531,7 @@ const en: typeof pl = {
     nextDueAt: 'Next due',
     dueState: 'Due state',
     states: { overdue: 'Overdue', dueSoon: 'Due soon', scheduled: 'Scheduled', noSchedule: 'No schedule' },
-    filters: { machine: 'Work center', overdueOnly: 'Overdue only' },
+    filters: { machine: 'Work center', overdueOnly: 'Overdue only', status: 'Status' },
     evaluateDue: 'Evaluate due',
     raiseNow: 'Raise order',
     raisedCount: 'Orders raised: {n}'
@@ -1536,7 +1553,8 @@ const en: typeof pl = {
     notes: 'Notes',
     filters: {
       machine: 'Work center',
-      category: 'Category'
+      category: 'Category',
+      status: 'Status'
     },
     categories: {
       1: 'Downtime',
@@ -1590,6 +1608,10 @@ const en: typeof pl = {
     selectRoleHint: 'Select a role…',
     assign: 'Assign',
     userIdPlaceholder: 'Paste a user ID…',
+    userLookupLabel: 'User',
+    userLookupHint: 'Start typing an e-mail or ID — suggestions come from known members.',
+    matrixFilter: 'Filter matrix…',
+    matrixFilterLabel: 'Matrix filter',
     unassign: 'Remove from role',
     emptyMembers: 'This role has no members yet.',
     emptyRoles: 'No roles — create the first one.'
@@ -1666,7 +1688,7 @@ const en: typeof pl = {
     order: 'Order (optional)',
     selectOrder: 'Select an order…',
     status: { open: 'Open', closed: 'Closed' },
-    filters: { machine: 'Work center', reason: 'Reason' }
+    filters: { machine: 'Work center', reason: 'Reason', status: 'Status', from: 'From', to: 'To' }
   },
   telemetry: {
     title: 'Telemetry',
@@ -1865,7 +1887,8 @@ const en: typeof pl = {
     noMachineHint: 'Pick a work center to see its OEE factors.',
     notFound: 'Work center not found or access denied',
     notFoundHint: 'The work center may belong to another organization — pick a different one.',
-    invalidInput: 'Invalid input — check the work center, window and ideal cycle time'
+    invalidInput: 'Invalid input — check the work center, window and ideal cycle time',
+    invalidWindow: 'Invalid window — the end must be later than the start'
   },
   reliabilityDashboard: {
     title: 'Reliability dashboard',
@@ -1918,7 +1941,8 @@ const en: typeof pl = {
     noMachineHint: 'Pick a work center to see its MTBF and MTTR.',
     notFound: 'Work center not found or access denied',
     notFoundHint: 'The work center may belong to another organization — pick a different one.',
-    invalidInput: 'Invalid input — check the work center and window (93 days max)'
+    invalidInput: 'Invalid input — check the work center and window (93 days max)',
+    invalidWindow: 'Invalid window — the end must be later than the start (93 days max)'
   },
   scheduleDispatch: {
     title: 'Dispatch board',
@@ -1952,6 +1976,7 @@ const en: typeof pl = {
     noCoverage: 'No shift coverage',
     empty: 'No bars in the selected window — release orders with work-center operations',
     hint: 'Drag a bar to move it; pull the right edge to change its duration.',
+    keyboardHint: 'Keyboard: Tab focuses a bar, ←/→ nudges by a day (Shift: by a week), Enter commits, Esc cancels.',
     moved: 'Operation rescheduled',
     movedNoCoverage: 'Saved, but the new window has no shift coverage.',
     conflict: 'Resource conflict or stale data — the bar snapped back. Refresh and try again.',
@@ -1963,6 +1988,7 @@ const en: typeof pl = {
     subtitle: 'Current-shift queue — claim the next-up task, confirm quantities and flag issues',
     operatorCode: 'Operator code',
     operatorCodePlaceholder: 'Enter operator code…',
+    operatorCodeHint: 'You can scan the badge — the wedge confirms the code with Enter.',
     load: 'Load queue',
     enterCode: 'Enter an operator code to load the current-shift queue.',
     shiftTitle: 'Shift',
@@ -1998,7 +2024,9 @@ const en: typeof pl = {
     selectOrder: 'Select an order…',
     filters: {
       machine: 'Machine',
-      reasonCode: 'Reason code'
+      reasonCode: 'Reason code',
+      from: 'From',
+      to: 'To'
     }
   },
   scanBy: { 1: 'EAN', 2: 'Code' },

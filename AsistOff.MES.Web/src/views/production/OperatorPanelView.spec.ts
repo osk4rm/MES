@@ -363,6 +363,29 @@ describe('OperatorPanelView', () => {
     expect(group.text()).toContain('operatorPanel.openSignals');
   });
 
+  it('Enter in the badge-on field applies the operator like a scan wedge (F-20)', async () => {
+    const wrapper = mountPanel();
+    await flushPromises();
+    expect(getQueueMock).not.toHaveBeenCalled();
+
+    // The scan hint is rendered next to the badge-on field.
+    expect(wrapper.text()).toContain('operatorPanel.operatorCodeHint');
+
+    const input = wrapper.find('input');
+    expect(input.exists()).toBe(true);
+    await input.setValue('OP-1');
+    // A scan wedge terminates the badge payload with Enter; AppInput
+    // forwards keydown.enter as `enter`, which the panel wires to
+    // applyOperator (previously only proven by source scan in
+    // ShopfloorParity.spec).
+    await input.trigger('keydown.enter');
+    await flushPromises();
+    await flushPromises();
+
+    expect(getQueueMock).toHaveBeenCalledWith('OP-1');
+    expect(wrapper.find('[data-testid="queue-nextup"]').exists()).toBe(true);
+  });
+
   it('labels the Released row claim and the InProgress row report (claim is the first Confirmation)', async () => {
     const wrapper = mountPanel();
     await flushPromises();

@@ -21,12 +21,12 @@
           />
         </template>
       </AppFormField>
-      <AppFormField :label="$t('oeeDashboard.from')">
+      <AppFormField :label="$t('oeeDashboard.from')" :error="windowError">
         <template #default="{ id }">
           <AppInput :id="id" v-model="fromInput" type="datetime-local" @change="onWindowChange" />
         </template>
       </AppFormField>
-      <AppFormField :label="$t('oeeDashboard.to')">
+      <AppFormField :label="$t('oeeDashboard.to')" :error="windowError">
         <template #default="{ id }">
           <AppInput :id="id" v-model="toInput" type="datetime-local" @change="onWindowChange" />
         </template>
@@ -197,6 +197,9 @@ const losses = ref<OeeLosses | null>(null);
 const loading = ref(false);
 const notFound = ref(false);
 const loadError = ref<string | null>(null);
+// F-18: invalid-window feedback renders inline on the from/to fields via
+// AppFormField in addition to the toast, so the offending fields are marked.
+const windowError = ref<string | null>(null);
 
 // Shared region precedence (F-12: error > loading > empty > content): before
 // a Work Center is picked the region reads empty; a cross-tenant or deleted
@@ -348,9 +351,11 @@ function readValidatedQuery(): ValidatedQuery | null {
   const to = parseDatetimeLocal(toInput.value);
   const ideal = idealInput.value;
   if (!id || !from || !to || from >= to || ideal === null || !Number.isFinite(ideal) || ideal <= 0) {
+    windowError.value = t('oeeDashboard.invalidWindow');
     toast.error(t('oeeDashboard.invalidInput'));
     return null;
   }
+  windowError.value = null;
   const fromUtc = from.toISOString();
   const toUtc = to.toISOString();
   return {
@@ -466,6 +471,7 @@ function clearFilters(): void {
   toInput.value = window.to;
   idealInput.value = DEFAULT_IDEAL;
   bucket.value = OeeBucket.Day;
+  windowError.value = null;
   if (machineId.value) void refresh();
 }
 

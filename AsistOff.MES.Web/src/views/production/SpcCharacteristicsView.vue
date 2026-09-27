@@ -159,16 +159,16 @@
 
     <AppModal :open="measurementsOpen" :title="measurementsTitle" @close="closeMeasurements">
       <AppFilterBar @clear="clearMeasurementsRange">
-        <AppFormField :label="$t('spcMeasurements.from')">
-          <template #default="{ id }">
-            <AppInput :id="id" v-model="measurementsFrom" type="datetime-local" @change="onMeasurementsRangeChange" />
-          </template>
-        </AppFormField>
-        <AppFormField :label="$t('spcMeasurements.to')">
-          <template #default="{ id }">
-            <AppInput :id="id" v-model="measurementsTo" type="datetime-local" @change="onMeasurementsRangeChange" />
-          </template>
-        </AppFormField>
+        <AppDateTimeField
+          v-model="measurementsFrom"
+          :label="$t('spcMeasurements.from')"
+          @change="onMeasurementsRangeChange"
+        />
+        <AppDateTimeField
+          v-model="measurementsTo"
+          :label="$t('spcMeasurements.to')"
+          @change="onMeasurementsRangeChange"
+        />
         <template #actions>
           <AppButton variant="primary" size="sm" :loading="measurementsLoading" @click="applyMeasurementsRange">
             {{ $t('spcMeasurements.apply') }}
@@ -242,6 +242,7 @@ import AppTable from '../../components/ui/AppTable.vue';
 import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';

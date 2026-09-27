@@ -39,7 +39,11 @@
     <AppCard :title="$t('roles.permissionMatrix')" :subtitle="$t('roles.matrixSubtitle')">
       <AppErrorState v-if="matrixError" :message="matrixError" :loading="loading" compact @retry="refresh" />
       <AppLoadingState v-else-if="matrixLoading" />
-      <table v-else class="matrix-table">
+      <template v-else>
+      <div class="matrix-toolbar">
+        <AppInput v-model="matrixFilter" :placeholder="$t('roles.matrixFilter')" prefix-icon="pi pi-search" clearable />
+      </div>
+      <table class="matrix-table">
         <thead>
           <tr>
             <th class="matrix-table__head">{{ $t('roles.permissions') }}</th>
@@ -49,7 +53,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="permission in permissions" :key="permission.id">
+          <tr v-for="permission in filteredPermissions" :key="permission.id">
             <td class="matrix-table__cell">
               <code>{{ permission.code }}</code>
               <span class="matrix-table__category">{{ permission.category }}</span>
@@ -64,6 +68,7 @@
           </tr>
         </tbody>
       </table>
+      </template>
     </AppCard>
 
     <AppCard :title="$t('roles.membersTitle')" :subtitle="$t('roles.matrixSubtitle')">
@@ -95,7 +100,23 @@
         </template>
       </AppTable>
       <form class="assign-row" @submit.prevent="onAssign">
-        <AppInput v-model="assignUserId" :placeholder="$t('roles.userIdPlaceholder')" prefix-icon="pi pi-user" clearable />
+        <AppFormField :label="$t('roles.userLookupLabel')" :hint="$t('roles.userLookupHint')" class="assign-row__field">
+          <template #default="{ id }">
+            <AppInput
+              :id="id"
+              v-model="assignUserId"
+              :placeholder="$t('roles.userIdPlaceholder')"
+              prefix-icon="pi pi-user"
+              clearable
+              list="roles-known-users"
+            />
+          </template>
+        </AppFormField>
+        <datalist id="roles-known-users">
+          <option v-for="known in knownUsers" :key="known.userId" :value="known.userId">
+            {{ known.email }}
+          </option>
+        </datalist>
         <AppButton type="submit" variant="primary" icon="pi pi-plus" :loading="assigning" :disabled="!selectedRoleId || !assignUserId">
           {{ $t('roles.assign') }}
         </AppButton>
@@ -185,6 +206,24 @@ const saving = ref(false);
 
 const selectedRoleId = ref<string | null>(null);
 const assignUserId = ref('');
+const matrixFilter = ref('');
+// F-15: user lookup suggestions come from members already seen in this
+// session (no backend users endpoint — out of scope). Each loaded role
+// contributes its members to the pool backing the assign-flow datalist.
+const knownMembers = ref<Map<string, string>>(new Map());
+
+const filteredPermissions = computed(() => {
+  const needle = matrixFilter.value.trim().toLowerCase();
+  if (!needle) return permissions.value;
+  return permissions.value.filter((p) =>
+    p.code.toLowerCase().includes(needle) ||
+    p.name.toLowerCase().includes(needle) ||
+    p.category.toLowerCase().includes(needle));
+});
+
+const knownUsers = computed(() => [...knownMembers.value.entries()]
+  .map(([userId, email]) => ({ userId, email }))
+  .sort((a, b) => a.email.localeCompare(b.email)));
 
 const columns = computed(() => [
   { key: 'code', label: t('roles.code'), sortable: true },
@@ -249,6 +288,9 @@ async function loadMembers(): Promise<void> {
   try {
     const detail = await roleService.get(selectedRoleId.value);
     members.value = detail.members;
+    for (const member of detail.members) {
+      knownMembers.value.set(member.userId, member.email);
+    }
   } catch (err) {
     membersError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
@@ -420,5 +462,7 @@ onMounted(() => {
 .matrix-table__cell--check { text-align: center; }
 .matrix-table__category { margin-left: var(--space-2); font-size: var(--font-size-sm); color: var(--color-text-subtle); }
 .members-toolbar { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); max-width: 420px; }
-.assign-row { display: flex; gap: var(--space-3); margin-top: var(--space-3); max-width: 560px; }
+.matrix-toolbar { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); max-width: 420px; }
+.assign-row { display: flex; gap: var(--space-3); margin-top: var(--space-3); max-width: 560px; align-items: end; }
+.assign-row__field { flex: 1; min-width: 0; }
 </style>

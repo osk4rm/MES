@@ -1,7 +1,8 @@
 <template>
-  <div data-testid="gantt-board">
+  <div data-testid="gantt-board" :class="viewClass">
     <AppPageHeader :title="$t('scheduleGantt.title')" :subtitle="$t('scheduleGantt.subtitle')" icon="pi pi-calendar">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" :loading="loading" @click="refresh">
           {{ $t('common.refresh') }}
         </AppButton>
@@ -27,6 +28,7 @@
     </AppFilterBar>
 
     <p class="gantt-hint">{{ $t('scheduleGantt.hint') }}</p>
+    <p class="gantt-hint">{{ $t('scheduleGantt.keyboardHint') }}</p>
 
     <AppDataState
       :loading="loading"
@@ -87,7 +89,11 @@
               :title="barTitle(bar)"
               :data-testid="`gantt-bar-${bar.operationNodeId}`"
               :data-overdue="isGanttBarOverdue(bar) ? 'true' : 'false'"
+              :tabindex="group.machineId === null ? -1 : 0"
+              role="button"
+              :aria-label="barTitle(bar)"
               @pointerdown="onBarPointerDown($event, group, bar)"
+              @keydown="onBarKeyDown($event, group, bar)"
             >
               <span class="gantt-bar__label">{{ bar.operationCode }} · {{ bar.productionOrderCode }}</span>
               <AppBadge v-if="isGanttBarOverdue(bar)" variant="danger" dot>
@@ -96,6 +102,12 @@
               <AppBadge v-if="warned[bar.operationNodeId] === true" variant="warning" dot>
                 {{ $t('scheduleGantt.noCoverage') }}
               </AppBadge>
+              <span
+                v-if="group.machineId !== null"
+                class="gantt-bar__handle"
+                :title="$t('scheduleGantt.hint')"
+                @pointerdown.stop="onBarPointerDown($event, group, bar)"
+              />
               <span
                 v-if="group.machineId !== null"
                 class="gantt-bar__resize"
@@ -140,11 +152,18 @@ import {
 } from '../../services/scheduleGanttService';
 import { currentWeekWindow } from '../../services/scheduleService';
 import { productionOrderService } from '../../services/productionOrderService';
+import { ShopfloorDensity, useShopfloorDensity } from '../../composables/useShopfloorDisplay';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const { t } = useI18n();
 const toast = useToastStore();
+// F-14: Gantt joins the shared density affordance so touch targets match
+// the other shopfloor-adjacent views (44 px minimum by default).
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 const route = useRoute();
 const router = useRouter();
 
@@ -345,6 +364,54 @@ function onBarPointerDown(e: PointerEvent, group: GanttMachineGroup, bar: GanttB
 
 function onResizePointerDown(e: PointerEvent, group: GanttMachineGroup, bar: GanttBar): void {
   beginDrag(e, group, bar, 'resize');
+}
+
+/** Keyboard nudge step: one day, or one week with Shift held (F-07). */
+const KEYBOARD_DAY_MS = 86400000;
+const KEYBOARD_WEEK_MS = 7 * 86400000;
+
+// F-07: keyboard path for Gantt rescheduling. Bars are focusable; Arrow
+// keys preview a move by day (Shift: by week), Enter commits the preview
+// via the same PUT + token flow as pointer drag, Esc cancels the preview.
+function onBarKeyDown(e: KeyboardEvent, group: GanttMachineGroup, bar: GanttBar): void {
+  if (group.machineId === null || moving.value[bar.operationNodeId] === true) return;
+  const startMs = new Date(bar.plannedStart).getTime();
+  const endMs = new Date(bar.plannedEnd).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    const stepMs = e.shiftKey ? KEYBOARD_WEEK_MS : KEYBOARD_DAY_MS;
+    const deltaMs = e.key === 'ArrowRight' ? stepMs : -stepMs;
+    const base = previews.value[bar.operationNodeId] ?? { startMs, endMs };
+    previews.value[bar.operationNodeId] = clampMoveToWindow(
+      base.startMs, base.endMs, deltaMs, fromInput.value, toInput.value
+    );
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const preview = previews.value[bar.operationNodeId];
+    if (preview === undefined) {
+      openOrder(bar.productionOrderId);
+      return;
+    }
+    previews.value[bar.operationNodeId] = undefined;
+    void commitMove(
+      {
+        nodeId: bar.operationNodeId,
+        mode: 'move',
+        machineId: group.machineId,
+        productionOrderId: bar.productionOrderId,
+        startX: 0,
+        trackPx: 0,
+        origStartMs: startMs,
+        origEndMs: endMs
+      },
+      preview.startMs,
+      preview.endMs
+    );
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    previews.value[bar.operationNodeId] = undefined;
+  }
 }
 
 function onDragPointerMove(e: Event): void {
@@ -548,8 +615,14 @@ onUnmounted(() => {
   background: var(--color-primary);
   color: #fff;
   cursor: grab;
-  touch-action: none;
+  /* F-07: touch-scroll starting on a bar scrolls (pan-y) instead of
+     dragging; touch-action: none is scoped to the explicit drag handle. */
+  touch-action: pan-y;
   user-select: none;
+}
+.gantt-bar:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 .gantt-bar--overdue {
   background: var(--color-danger);
@@ -579,5 +652,16 @@ onUnmounted(() => {
   width: 12px;
   height: 100%;
   cursor: ew-resize;
+}
+/* Explicit drag handle (F-07): the only region with touch-action none,
+   so touch drags starting here move the bar while scrolls elsewhere pan. */
+.gantt-bar__handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
 }
 </style>

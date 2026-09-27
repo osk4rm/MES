@@ -1,7 +1,8 @@
 <template>
-  <div>
+  <div :class="viewClass">
     <AppPageHeader :title="$t('kanban.title')" :subtitle="$t('kanban.subtitle')" icon="pi pi-th-large">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" :loading="refreshing" @click="refreshAll">
           {{ $t('common.refresh') }}
         </AppButton>
@@ -146,11 +147,18 @@ import {
 import { productService } from '../../services/productService';
 import { machineService } from '../../services/machineService';
 import { warehouseService } from '../../services/warehouseService';
+import { ShopfloorDensity, useShopfloorDensity } from '../../composables/useShopfloorDisplay';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const { t, tm } = useI18n();
 const toast = useToastStore();
+// F-14: Kanban joins the shared density affordance so touch targets match
+// the other shopfloor-adjacent views (44 px minimum by default).
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 const route = useRoute();
 const router = useRouter();
 

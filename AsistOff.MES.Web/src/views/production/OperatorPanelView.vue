@@ -10,7 +10,7 @@
     </AppPageHeader>
 
     <AppFilterBar @clear="clearOperator">
-      <AppFormField :label="$t('operatorPanel.operatorCode')" required :error="codeError">
+      <AppFormField :label="$t('operatorPanel.operatorCode')" required :error="codeError" :hint="$t('operatorPanel.operatorCodeHint')">
         <template #default="{ id, invalid }">
           <AppInput
             :id="id"
@@ -18,6 +18,8 @@
             :placeholder="$t('operatorPanel.operatorCodePlaceholder')"
             :invalid="invalid"
             autocomplete="off"
+            inputmode="search"
+            autofocus
             @enter="applyOperator"
           />
         </template>
@@ -154,6 +156,8 @@
 
     <AppModal :open="confirmOpen" :title="$t('productionConfirmations.report')" data-testid="panel-confirm-modal" @close="closeConfirm">
       <form id="panel-confirm-form" class="form-grid" novalidate @submit.prevent="onConfirmSave">
+        <!-- Canonical confirmation field order (F-19): Work Center →
+            quantity → notes → timestamp. -->
         <AppFormField :label="$t('productionConfirmations.machine')" required :error="confirmErrors.machineId">
           <template #default="{ id, invalid }">
             <AppSelect
@@ -163,11 +167,6 @@
               :placeholder="$t('productionConfirmations.selectMachine')"
               :invalid="invalid"
             />
-          </template>
-        </AppFormField>
-        <AppFormField :label="$t('productionConfirmations.reportedAt')" required :error="confirmErrors.reportedAt">
-          <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="confirmForm.reportedAt" type="datetime-local" :invalid="invalid" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('productionConfirmations.goodQuantity')" required :error="confirmErrors.quantities">
@@ -185,6 +184,13 @@
             <AppTextarea :id="id" v-model="confirmForm.notes" :rows="2" />
           </template>
         </AppFormField>
+        <AppDateTimeField
+          v-model="confirmForm.reportedAt"
+          :label="$t('productionConfirmations.reportedAt')"
+          required
+          :error="confirmErrors.reportedAt"
+          class="form-grid__full"
+        />
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="confirmSaving" @click="closeConfirm">{{ $t('common.cancel') }}</AppButton>
@@ -194,6 +200,8 @@
 
     <AppModal :open="scrapOpen" :title="$t('scrap.report')" data-testid="panel-scrap-modal" @close="closeScrap">
       <form id="panel-scrap-form" class="form-grid" novalidate @submit.prevent="onScrapSave">
+        <!-- Canonical confirmation field order (F-19): Work Center →
+            quantity → reason → notes → timestamp. -->
         <AppFormField :label="$t('scrap.machine')" required :error="scrapErrors.machineId">
           <template #default="{ id, invalid }">
             <AppSelect
@@ -203,6 +211,11 @@
               :placeholder="$t('scrap.selectMachine')"
               :invalid="invalid"
             />
+          </template>
+        </AppFormField>
+        <AppFormField :label="$t('scrap.quantity')" required :error="scrapErrors.quantity">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="scrapForm.quantity" :min="0" :step="1" :invalid="invalid" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('scrap.reasonCode')" required :error="scrapErrors.reasonCodeId">
@@ -216,21 +229,18 @@
             />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('scrap.quantity')" required :error="scrapErrors.quantity">
-          <template #default="{ id, invalid }">
-            <AppNumberInput :id="id" v-model="scrapForm.quantity" :min="0" :step="1" :invalid="invalid" />
-          </template>
-        </AppFormField>
-        <AppFormField :label="$t('scrap.reportedAt')" required :error="scrapErrors.reportedAt">
-          <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="scrapForm.reportedAt" type="datetime-local" :invalid="invalid" />
-          </template>
-        </AppFormField>
         <AppFormField :label="$t('scrap.notes')" class="form-grid__full">
           <template #default="{ id }">
             <AppTextarea :id="id" v-model="scrapForm.notes" :rows="2" />
           </template>
         </AppFormField>
+        <AppDateTimeField
+          v-model="scrapForm.reportedAt"
+          :label="$t('scrap.reportedAt')"
+          required
+          :error="scrapErrors.reportedAt"
+          class="form-grid__full"
+        />
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="scrapSaving" @click="closeScrap">{{ $t('common.cancel') }}</AppButton>
@@ -240,6 +250,8 @@
 
     <AppModal :open="downtimeOpen" :title="$t('downtime.start')" data-testid="panel-downtime-modal" @close="closeDowntime">
       <form id="panel-downtime-form" class="form-grid" novalidate @submit.prevent="onDowntimeSave">
+        <!-- Canonical confirmation field order (F-19): Work Center →
+            reason → notes → timestamp. -->
         <AppFormField :label="$t('downtime.machine')" required :error="downtimeErrors.machineId">
           <template #default="{ id, invalid }">
             <AppSelect
@@ -262,16 +274,18 @@
             />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('downtime.startedAt')" required :error="downtimeErrors.startedAt">
-          <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="downtimeForm.startedAt" type="datetime-local" :invalid="invalid" />
-          </template>
-        </AppFormField>
         <AppFormField :label="$t('downtime.notes')" class="form-grid__full">
           <template #default="{ id }">
             <AppTextarea :id="id" v-model="downtimeForm.notes" :rows="2" />
           </template>
         </AppFormField>
+        <AppDateTimeField
+          v-model="downtimeForm.startedAt"
+          :label="$t('downtime.startedAt')"
+          required
+          :error="downtimeErrors.startedAt"
+          class="form-grid__full"
+        />
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="downtimeSaving" @click="closeDowntime">{{ $t('common.cancel') }}</AppButton>
@@ -288,6 +302,7 @@ import { useRouter } from 'vue-router';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppFilterBar from '../../components/ui/AppFilterBar.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppInput from '../../components/ui/AppInput.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
