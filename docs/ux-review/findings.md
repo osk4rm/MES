@@ -554,8 +554,54 @@ Result: **no new drift; no production-code change required.**
 - **i18n:** no hardcoded user-visible strings in the six views (brand
   literals only, same accepted exception as the audit); every `nav.*` key
   resolves in PL and EN (`en: typeof pl` enforces structural parity).
-- **Tests:** `AsistOff.MES.Web/src/views/ux-slice1-389.spec.ts` re-proves the
-  slice-1 contract in one place — shared-state loading/empty/error branches
-  with retry, per-view wiring of the six views, and PL/EN nav-key resolution.
-  No backend unit or endpoint integration tests apply (frontend-only change,
-  no API or handler touched; existing backend suites must stay green).
+## Addendum — issue #392 verification (slice 1/3, shell consistency)
+
+Issue #392 asks for the findings list plus shell-level consistency fixes
+(navigation labels/order in PL and EN, consistent page headers, loading /
+empty / error states with recovery actions). The audit above plus slices
+(2/3) (#384) and (3/3) (#385) already landed those fixes, and issue #389
+re-verified the slice-1 scope — so this addendum maps each #392 acceptance
+criterion to its evidence. **No production code was changed for #392; the
+only additions are this addendum and the `ux-slice1-392` Vitest spec that
+pins the contract.**
+
+- **Findings list:** this document covers every route in `src/router.ts`
+  (route-visit log, 40 records incl. redirects and the guarded not-found
+  route, walked in PL and EN); every finding F-01…F-20 carries severity,
+  observation, seeded-stack repro steps, a proposed fix, and a slice
+  assignment (slice 2/3 vs 3/3 scopes at the end of the document).
+- **Navigation labels/order + page headers:** one `src/sitemap.ts` source
+  drives both locales (`en: typeof pl` enforces structural EN-parity), so
+  order cannot drift; `AppSideNav` renders `$t(item.label)` with the
+  `nav.main` + `sidenav.expand/collapse` keys (F-10 fixed); every shell view
+  renders `AppPageHeader` (public auth views exempt by design — verified by
+  scan); every titled route resolves to a translated title and a nav trail
+  in PL and EN; unknown routes render the guarded `not-found` view inside
+  `AppShell`.
+- **Loading / empty states:** every list/state view binds a loading
+  indicator (`:loading=` / `AppSpinner` / `AppLoadingState`) and surfaces
+  empty via the shared `AppTable` empty row (with `emptyLabel`) or an
+  `AppDataState` / `AppEmptyState` region; list views additionally expose a
+  recovery action (`common.refresh` / filter clear on tables, retry on
+  regions).
+- **Error states with retry:** every list/state view binds the shared error
+  row or region (`:error=` / `AppErrorState` / `AppDataState`) with
+  `@retry=` back to the fetch, and failures toast through `toastStore` +
+  `extractErrorMessage`, honouring `ProblemDetails` in both locales — no
+  blank views, no stuck spinners.
+- **Tests:** `AsistOff.MES.Web/src/views/ux-slice1-392.spec.ts` pins the
+  #392 contract in one place — shared-state loading/empty/error branches
+  with retry (`AppDataState`, `AppTable`), per-view `AppPageHeader` and
+  loading/error/retry wiring scans over every view, a no-hardcoded-English
+  scan, locale-independent nav order with PL+EN key resolution, per-route
+  title/trail resolution in PL and EN, and the guarded not-found route.
+- **Backend / migration:** no handler, validator, or HTTP contract changed,
+  so per the issue test plan no backend unit tests
+  (`tests/AsistOff.MES.Shared.Tests`) and no endpoint integration tests
+  (`tests/AsistOff.MES.Integration.Tests`) apply; no EF Core migration was
+  added (frontend-only slice).
+- **Verification:** `dotnet build AsistOff.MES.sln`,
+  `dotnet test tests/AsistOff.MES.Shared.Tests`, and
+  `npm --prefix AsistOff.MES.Web run build` stay green; the seeded-stack
+  Playwright click-through (navigation, loading, empty, error states in PL
+  and EN) belongs to the e2e stage.
