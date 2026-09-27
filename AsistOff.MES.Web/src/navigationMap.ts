@@ -9,8 +9,8 @@ import { sitemap, type NavItem } from './sitemap';
  * breadcrumb trail (also i18n keys, group-first). `AppShell` renders the
  * trail and the router sets `document.title` from the same source, so the
  * side nav, breadcrumbs and document titles can never drift apart. The
- * Operator panel route from issue #336 is intentionally absent — it does
- * not exist yet and will extend this map when it lands.
+ * Operator panel route (issue #336) ships as a Production child so its
+ * trail resolves to [nav.production, nav.operatorPanel].
  */
 export interface NavigationMapRow {
   path: string;
