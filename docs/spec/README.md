@@ -1,9 +1,9 @@
-# AsistOff MES — Technical Specification (Slice 1 of 2)
+# AsistOff MES — Technical Specification
 
-Authoritative end-to-end description of the system as built. Slice 1 covers
-architecture, module boundaries, the domain model, multitenancy, and
-authentication/RBAC. Slice 2 adds the endpoint catalog, deployment and
-operations, observability, and frontend architecture.
+Authoritative end-to-end description of the system as built. The first five
+pages cover architecture, module boundaries, the domain model, multitenancy,
+and authentication/RBAC. The remaining four cover the HTTP surface,
+deployment and operations, observability, and frontend architecture.
 
 ## Pages
 
@@ -18,6 +18,18 @@ operations, observability, and frontend architecture.
 - [Authentication and RBAC](auth-rbac.md) — `ITenantRequest` versus
   `IAllowAnonymousRequest`, JWT claims, the interim permission model, and
   the default-deny `RequirePermission` enforcement.
+- [Endpoint catalog](endpoints.md) — every controller and route per module
+  with auth and permission requirements, the ProblemDetails contract, and
+  the paging, sorting, and filtering conventions.
+- [Deployment and operations](deployment.md) — compose topology, the gated
+  migration job, backup and restore, environment separation, and container
+  hardening.
+- [Health and observability](observability.md) — live versus ready probes,
+  correlation ID flow, OpenTelemetry traces and metrics, and business
+  meters including OEE latency.
+- [Frontend architecture](frontend.md) — Vue 3 plus Vite plus Pinia SPA,
+  in-house `App*` components, cookie session handling, route guards, error
+  boundary and resilience, and i18n.
 
 ## Conventions used in every page
 
@@ -38,7 +50,7 @@ operations, observability, and frontend architecture.
   [../adr/0003-auth-jwt-and-rbac.md](../adr/0003-auth-jwt-and-rbac.md) —
   the architecture decisions this spec describes.
 - [../deployment.md](../deployment.md) — environments, configuration, and
-  the production boot gate (covered in slice 2).
+  the production boot gate.
 - [../production-runbook.md](../production-runbook.md) — shopfloor operating
   procedures that consume the domain model described in
   [Domain model](domain-model.md).
@@ -47,11 +59,3 @@ operations, observability, and frontend architecture.
   and Production Order verification evidence.
 - [../manual/README.md](../manual/README.md) — the end-user manual; the spec
   describes the same entities from the builder/integrator point of view.
-
-## Slice 2 preview (not in scope here)
-
-Slice 2 adds four pages under this directory using the same conventions
-(English Markdown, relative links, tables for reference data, text diagrams
-only): `endpoints.md` (controller-to-handler catalog), `deployment.md`
-(deploy, backup, container hardening), `observability.md` (health probes,
-correlation IDs, OpenTelemetry), and `frontend.md` (SPA architecture).
