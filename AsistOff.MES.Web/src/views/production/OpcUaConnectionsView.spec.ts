@@ -274,4 +274,33 @@ describe('OpcUaConnectionsView', () => {
     expect(wrapper.findAll('table.app-table')).toHaveLength(0);
     expect(toast.toasts.filter((t) => t.variant === 'error')).toHaveLength(0);
   });
+
+  it('renders redacted lastError rows with the empty marker and intact counts', async () => {
+    // Issue #372: read-only callers receive lastError null even on failed
+    // connections. The view must show the empty state for the error cell —
+    // never raw text, never an error toast — while the health signal and
+    // reporting counts stay visible.
+    const redacted = entry({
+      connectionId: 'conn-redacted',
+      endpointUrl: 'opc.tcp://plc-c:4840',
+      isEnabled: true,
+      lastSeenAtUtc: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      lastError: null,
+      isLive: false,
+      totalTags: 2,
+      reportingTags: 0,
+      staleTags: 2
+    });
+    getStatusMock.mockResolvedValue(statusPayload([redacted]));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('opc.tcp://plc-c:4840');
+    expect(wrapper.find('.conn-error').text()).toBe('—');
+    expect(wrapper.text()).toContain('opcUaConnections.statusStale');
+    expect(wrapper.text()).toContain('opcUaConnections.tagsLine');
+    const toast = useToastStore();
+    expect(toast.toasts.filter((t) => t.variant === 'error')).toHaveLength(0);
+  });
 });

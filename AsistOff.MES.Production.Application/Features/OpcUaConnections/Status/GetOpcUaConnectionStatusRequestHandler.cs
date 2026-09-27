@@ -1,5 +1,7 @@
 using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Production.Application.Features.Common;
 using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using MediatR;
@@ -11,7 +13,8 @@ internal sealed class GetOpcUaConnectionStatusRequestHandler(
     IMachineTelemetryTagsRepository tagsRepository,
     ITelemetryReadingsRepository readingsRepository,
     IMachinesRepository machinesRepository,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    ICurrentPermissionsAccessor permissionsAccessor)
     : IRequestHandler<GetOpcUaConnectionStatusRequest, OpcUaConnectionStatusResponse>
 {
     public async Task<OpcUaConnectionStatusResponse> Handle(GetOpcUaConnectionStatusRequest request, CancellationToken cancellationToken)
@@ -34,6 +37,11 @@ internal sealed class GetOpcUaConnectionStatusRequestHandler(
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var now = dateTimeProvider.UtcNow;
+
+        // Issue #372: raw provider errors stay privileged-only; liveness
+        // flags and reporting counts remain visible to every signed-in caller.
+        var showSensitiveDetails =
+            SensitiveProjectionPolicy.CanSeeSensitiveDetails(permissionsAccessor.Permissions);
 
         var entries = new List<OpcUaConnectionStatusEntry>(connections.Count);
         foreach (var connection in connections
@@ -58,7 +66,7 @@ internal sealed class GetOpcUaConnectionStatusRequestHandler(
                 connection.EndpointUrl,
                 connection.IsEnabled,
                 connection.LastSeenAtUtc,
-                connection.LastError,
+                showSensitiveDetails ? connection.LastError : null,
                 OpcUaConnectionHealth.IsLive(connection, now),
                 machineTags.Count,
                 reporting,

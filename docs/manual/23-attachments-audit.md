@@ -61,6 +61,14 @@ update and delete of Production Orders, Machines and Production
 Confirmations — in descending time order. Each row carries the
 actor, the action, the entity and the timestamp.
 
+Sensitive projection: the row `Payload` (the full change JSON)
+is returned only to callers holding `production.write`; callers
+with the read-only role receive `null` and still see that the
+event happened, who did it and when. The same redaction applies
+to the per-order history (`GET
+/api/production-orders/{id}/history`). Unauthenticated calls
+still return `401`, and rows stay tenant-scoped.
+
 There are no write endpoints on purpose: history rows are written
 by the system as side effects of the operations above and are
 never edited through the API.

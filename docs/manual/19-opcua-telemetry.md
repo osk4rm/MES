@@ -96,6 +96,12 @@ connection shape only — it never writes to the server),
 Status, reads and the connection test need only a signed-in user;
 creating, editing, toggling and deleting need `production.write`.
 
+Sensitive projection: the raw `LastError` provider message on the
+browse, get and status reads is returned only to callers holding
+`production.write`; callers with the read-only role receive `null`
+(the status view shows the empty marker) while liveness flags,
+tag counts and totals stay visible to everyone.
+
 Procedure:
 
 1. Open `/production/opcua-connections` and register the server

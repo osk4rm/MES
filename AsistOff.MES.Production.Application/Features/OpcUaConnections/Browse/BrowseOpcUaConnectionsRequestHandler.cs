@@ -1,6 +1,8 @@
+using AsistOff.MES.Production.Application.Features.Common;
 using AsistOff.MES.Production.Application.Features.OpcUaConnections;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Abstractions.Pagination;
 using LinqKit;
@@ -8,7 +10,9 @@ using MediatR;
 
 namespace AsistOff.MES.Production.Application.Features.OpcUaConnections.Browse;
 
-internal sealed class BrowseOpcUaConnectionsRequestHandler(IOpcUaConnectionsRepository repository)
+internal sealed class BrowseOpcUaConnectionsRequestHandler(
+    IOpcUaConnectionsRepository repository,
+    ICurrentPermissionsAccessor permissionsAccessor)
     : IRequestHandler<BrowseOpcUaConnectionsRequest, PagedResponse<OpcUaConnectionResponse>>
 {
     public async Task<PagedResponse<OpcUaConnectionResponse>> Handle(BrowseOpcUaConnectionsRequest request, CancellationToken cancellationToken)
@@ -29,8 +33,16 @@ internal sealed class BrowseOpcUaConnectionsRequestHandler(IOpcUaConnectionsRepo
         var paginator = new Paginator<OpcUaConnection>(predicate, request);
         var items = await repository.BrowseAsync(paginator, cancellationToken);
 
-        return new PagedOpcUaConnectionsResponse(
-            items.Select(Map).ToList(), totalCount, request.PageSize);
+        var responses = items.Select(Map).ToList();
+
+        // Issue #372: the raw provider error can leak endpoint topology or
+        // network fragments, so read-only callers get null while liveness
+        // flags stay visible. Create/toggle responses keep the full value —
+        // those requests require production.write, hence privileged callers.
+        if (!SensitiveProjectionPolicy.CanSeeSensitiveDetails(permissionsAccessor.Permissions))
+            responses = responses.Select(x => x with { LastError = null }).ToList();
+
+        return new PagedOpcUaConnectionsResponse(responses, totalCount, request.PageSize);
     }
 
     internal static OpcUaConnectionResponse Map(OpcUaConnection e) => new(
