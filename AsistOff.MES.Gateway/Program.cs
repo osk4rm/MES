@@ -53,6 +53,14 @@ try
         builder.Configuration["auth:IssuerSigningKey"],
         builder.Environment.IsProduction());
 
+    // Host-header validation (issue #369): the default appsettings.json pins
+    // AllowedHosts to loopback hosts (fail-closed); only the Development override
+    // opts into the '*' wildcard. A wildcard outside Development never boots,
+    // so a forged Host header cannot poison cached links or reset URLs.
+    HostFilteringGuard.Validate(
+        builder.Configuration["AllowedHosts"],
+        builder.Environment.IsDevelopment());
+
     // Pull all logging configuration from appsettings (Serilog section). Sinks,
     // minimum levels, enrichers, and Seq URL are all declarative — no code
     // changes are required to add another sink or change verbosity per env.
@@ -114,7 +122,12 @@ try
 
     builder.Services.AddAbuseProtection(builder.Configuration);
 
-    var allowedOrigins = builder.Configuration.GetSection("cors:allowedOrigins").Get<string[]>() ?? [];
+    var configuredOrigins = builder.Configuration.GetSection("cors:allowedOrigins").Get<string[]>() ?? [];
+    // Production fail-fast lives in DevCorsPolicy.EnsureConfigured so it is
+    // unit-testable without booting the host: an empty list outside
+    // Development throws; in Development it falls through to the
+    // loopback-only fallback below.
+    var allowedOrigins = DevCorsPolicy.EnsureConfigured(configuredOrigins, builder.Environment.IsDevelopment());
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("DefaultPolicy", policy =>
@@ -132,15 +145,19 @@ try
             }
             else if (builder.Environment.IsDevelopment())
             {
-                // Dev fallback without configured origins: mirror the above
-                // but reflect any origin. SetIsOriginAllowed (instead of
-                // AllowAnyOrigin) is required — ASP.NET Core refuses
+                // Dev fallback without configured origins (issue #369): accept
+                // only loopback origins (localhost / 127.0.0.1 / ::1, any
+                // port) with credentials. The previous
+                // SetIsOriginAllowed(_ => true) reflected an arbitrary origin
+                // — a dev API run would serve auth cookies to any site the
+                // operator visited. SetIsOriginAllowed (instead of
+                // AllowAnyOrigin) is still required — ASP.NET Core refuses
                 // AllowAnyOrigin combined with AllowCredentials.
-                // NOTE: reflecting any origin together with AllowCredentials
-                // is dev-only. Production requires explicit cors:allowedOrigins
-                // (see the branch above); never enable this wildcard with
-                // credentials outside Development.
-                policy.SetIsOriginAllowed(_ => true)
+                // NOTE: loopback-only is dev-only. Production requires
+                // explicit cors:allowedOrigins (EnsureConfigured throws above);
+                // never allow arbitrary origins with credentials outside
+                // Development.
+                policy.SetIsOriginAllowed(DevCorsPolicy.IsLoopbackOrigin)
                     .AllowAnyMethod()
                     .AllowAnyHeader()
                     .AllowCredentials()
