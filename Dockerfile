@@ -52,6 +52,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 
 COPY --from=build --chown=app:app /app/publish .
 
+# Attachment blobs (issue #373): seed the default blob root owned by the
+# non-root `app` user. Docker copies this ownership into a fresh
+# attachments_data named volume on first mount, so the app can write blobs
+# without ever running as root. Runs while still root, before USER app.
+RUN mkdir -p /app/App_Data/attachments && chown -R app:app /app/App_Data
+
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 
