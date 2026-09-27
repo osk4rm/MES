@@ -96,7 +96,9 @@ creates no Traefik route for the bare form (requests 404).
    | `POSTGRES_PASSWORD` | min. 32 bytes; enforced at boot, no defaults |
    | `AUTH_ISSUER_SIGNING_KEY` | min. 32 bytes (256 bits); signs the session JWTs |
    | `API_BASE_URL` / `VITE_API_BASE_URL` | public frontend origin (runtime value wins, no rebuild needed) |
-   | `CORS_ALLOWED_ORIGIN` | same public origin; Production refuses to boot without it |
+    | `CORS_ALLOWED_ORIGIN` | same public origin; Production refuses to boot without it |
+    | `AllowedHosts` | public API host name(s), semicolon-separated (e.g. `mes.twojadomena.pl`); set as the `AllowedHosts` environment variable in Coolify. The shipped default allows only loopback hosts (`localhost;127.0.0.1;[::1]`, fail-closed) and any wildcard outside Development fails fast at startup, so set this on the server or every request gets `400` |
+    | `TRUSTED_PROXY_NETWORK` | compose-network CIDR (e.g. `172.18.0.0/16`) so the API honors `X-Forwarded-Proto`/`X-Forwarded-For` from the web nginx; required for HSTS (`Strict-Transport-Security`) to reach browsers behind the TLS-terminating proxy. Empty (default) is default-deny: no HSTS is emitted and throttling uses the raw TCP source |
    | `BOOT_APPLY_MIGRATIONS` | default `true`: api applies EF Core migrations on boot (single-server path) |
    | `BOOT_RUN_SEEDERS` | default `false`; seeders never run in Production via this path |
 
