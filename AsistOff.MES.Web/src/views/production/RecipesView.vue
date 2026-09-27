@@ -117,7 +117,8 @@ import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import AppAutocomplete, { type AutocompleteOption } from '../../components/ui/AppAutocomplete.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import { useFormErrors } from '../../composables/useFormErrors';
-import { recipeService, RecipeVersionStatus, type RecipeResponse } from '../../services/recipeService';
+import { recipeService, type RecipeResponse } from '../../services/recipeService';
+import { releasedVersionNumber } from '../../services/releasedVersion';
 import { productService } from '../../services/productService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
@@ -152,17 +153,8 @@ const columns = computed(() => [
   { key: 'actions', label: t('common.actions'), width: '130px' }
 ]);
 
-// Order-readiness signal (issue #388 R-1): the browse payload already carries
-// `versions` + `currentVersionId`, so this is display-only — no extra request.
-function releasedVersionNumber(item: RecipeResponse): number | null {
-  const released = (item.versions ?? []).filter(v => v.status === RecipeVersionStatus.Released);
-  if (released.length === 0) return null;
-  if (item.currentVersionId) {
-    const current = released.find(v => v.id === item.currentVersionId);
-    if (current) return current.versionNumber;
-  }
-  return Math.max(...released.map(v => v.versionNumber));
-}
+// Badge value lives in `services/releasedVersion.ts` (pure, unit-tested) —
+// the browse payload already carries `versions` + `currentVersionId`.
 
 const codeFilter = ref('');
 const nameFilter = ref('');

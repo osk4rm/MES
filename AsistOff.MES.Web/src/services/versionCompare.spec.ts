@@ -166,4 +166,67 @@ describe('compareRecipeVersions', () => {
     expect(result.changed[0].outputs).toHaveLength(1);
     expect(result.changed[0].outputs[0].after).toBe('—');
   });
+
+  it('reports added, removed and changed resource requirements by capability', () => {
+    const weld2 = {
+      id: 'r-weld',
+      requiredCapability: 'WELD',
+      requiredOperatorCount: 2,
+      requiredRole: 'Welder'
+    };
+    const weld3 = { ...weld2, requiredOperatorCount: 3 };
+    const cut = {
+      id: 'r-cut',
+      requiredCapability: 'CUT',
+      requiredOperatorCount: 1,
+      requiredRole: null
+    };
+    const pack = {
+      id: 'r-pack',
+      requiredCapability: 'PACK',
+      requiredOperatorCount: 1,
+      requiredRole: 'Packer'
+    };
+    const a = version('va', 1, [op('a1', 'OP-10', { resourceRequirements: [weld2, cut] })]);
+    const b = version('vb', 2, [op('b1', 'OP-10', { resourceRequirements: [weld3, pack] })]);
+
+    const result = compareRecipeVersions(a, b);
+
+    expect(result.changed).toHaveLength(1);
+    const resources = result.changed[0].resources;
+    // Changed headcount on the kept WELD capability.
+    expect(resources).toContainEqual({
+      field: 'resource:WELD',
+      before: '2×Welder',
+      after: '3×Welder'
+    });
+    // Removed CUT capability (null role renders as '—').
+    expect(resources).toContainEqual({
+      field: 'resource:CUT',
+      before: '1×—',
+      after: '—'
+    });
+    // Added PACK capability.
+    expect(resources).toContainEqual({
+      field: 'resource:PACK',
+      before: '—',
+      after: '1×Packer'
+    });
+  });
+
+  it('matches capability-less requirements by id', () => {
+    const before = { id: 'r-1', requiredCapability: null, requiredOperatorCount: 1, requiredRole: null };
+    const after = { ...before, requiredOperatorCount: 2 };
+    const a = version('va', 1, [op('a1', 'OP-10', { resourceRequirements: [before] })]);
+    const b = version('vb', 2, [op('b1', 'OP-10', { resourceRequirements: [after] })]);
+
+    const result = compareRecipeVersions(a, b);
+
+    expect(result.changed).toHaveLength(1);
+    expect(result.changed[0].resources).toContainEqual({
+      field: 'resource:#r-1',
+      before: '1×—',
+      after: '2×—'
+    });
+  });
 });
