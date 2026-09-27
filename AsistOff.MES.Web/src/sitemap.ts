@@ -21,6 +21,8 @@ export const sitemap: NavItem[] = [
     // (telemetry stack). The dispatch board moved to the Schedule group.
     children: [
       { label: 'nav.productionOrders', icon: 'pi pi-list', route: '/production/orders' },
+      // Operator panel (issue #336): touch-friendly shift queue for operators.
+      { label: 'nav.operatorPanel', icon: 'pi pi-tablet', route: '/production/operator-panel' },
       { label: 'nav.productionRecipes', icon: 'pi pi-book', route: '/production/recipes' },
       { label: 'nav.productionKanban', icon: 'pi pi-th-large', route: '/production/kanban' },
       { label: 'nav.productionLots', icon: 'pi pi-box', route: '/production/lots' },
