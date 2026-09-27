@@ -53,30 +53,30 @@
     />
 
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('productionOrders.create')" @close="closeModal">
-      <form id="production-order-form" class="form-grid" @submit.prevent="onSave">
-        <AppFormField :label="$t('productionOrders.code')" required>
+      <form id="production-order-form" ref="formRef" class="form-grid" novalidate @submit.prevent="onSave">
+        <AppFormField :label="$t('productionOrders.code')" required :error="formErrors.fieldError('code')">
           <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="form.code" required :invalid="invalid" />
+            <AppInput :id="id" v-model="form.code" required :invalid="invalid" @blur="formErrors.touch('code')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionOrders.plannedQuantity')" required>
-          <template #default="{ id }">
-            <AppNumberInput :id="id" v-model="form.plannedQuantity" :min="0" :step="1" />
+        <AppFormField :label="$t('productionOrders.plannedQuantity')" required :error="formErrors.fieldError('plannedQuantity')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.plannedQuantity" :min="0" :step="1" :invalid="invalid" @blur="formErrors.touch('plannedQuantity')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionOrders.product')" required class="form-grid__full">
-          <template #default="{ id }">
-            <AppAutocomplete :id="id" v-model="form.productId" :options="productOptions" :placeholder="$t('productionOrders.productPlaceholder')" />
+        <AppFormField :label="$t('productionOrders.product')" required class="form-grid__full" :error="formErrors.fieldError('productId')">
+          <template #default="{ id, invalid }">
+            <AppAutocomplete :id="id" v-model="form.productId" :options="productOptions" :placeholder="$t('productionOrders.productPlaceholder')" :invalid="invalid" @blur="formErrors.touch('productId')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionOrders.recipe')" required class="form-grid__full">
-          <template #default="{ id }">
-            <AppAutocomplete :id="id" v-model="form.recipeId" :options="recipeOptions" :placeholder="$t('productionOrders.recipePlaceholder')" />
+        <AppFormField :label="$t('productionOrders.recipe')" required class="form-grid__full" :error="formErrors.fieldError('recipeId')">
+          <template #default="{ id, invalid }">
+            <AppAutocomplete :id="id" v-model="form.recipeId" :options="recipeOptions" :placeholder="$t('productionOrders.recipePlaceholder')" :invalid="invalid" @blur="formErrors.touch('recipeId')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionOrders.recipeVersion')" required class="form-grid__full">
-          <template #default="{ id }">
-            <AppSelect :id="id" v-model="form.recipeVersionId" :options="versionOptions" :placeholder="$t('productionOrders.recipeVersionPlaceholder')" />
+        <AppFormField :label="$t('productionOrders.recipeVersion')" required class="form-grid__full" :error="formErrors.fieldError('recipeVersionId')">
+          <template #default="{ id, invalid }">
+            <AppSelect :id="id" v-model="form.recipeVersionId" :options="versionOptions" :placeholder="$t('productionOrders.recipeVersionPlaceholder')" :invalid="invalid" @blur="formErrors.touch('recipeVersionId')" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('productionOrders.measureUnit')" class="form-grid__full">
@@ -84,14 +84,14 @@
             <AppAutocomplete :id="id" v-model="form.measureUnitId" :options="measureUnitOptions" :placeholder="$t('productionOrders.measureUnitPlaceholder')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionOrders.priority')">
-          <template #default="{ id }">
-            <AppNumberInput :id="id" v-model="form.priority" :step="1" />
+        <AppFormField :label="$t('productionOrders.priority')" :error="formErrors.fieldError('priority')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.priority" :step="1" :invalid="invalid" @blur="formErrors.touch('priority')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionOrders.dueDate')">
-          <template #default="{ id }">
-            <AppInput :id="id" v-model="form.dueDate" type="date" />
+        <AppFormField :label="$t('productionOrders.dueDate')" :error="formErrors.fieldError('dueDate')">
+          <template #default="{ id, invalid }">
+            <AppInput :id="id" v-model="form.dueDate" type="date" :invalid="invalid" @blur="formErrors.touch('dueDate')" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('productionOrders.notes')" class="form-grid__full">
@@ -137,6 +137,7 @@ import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import AppAutocomplete, { type AutocompleteOption } from '../../components/ui/AppAutocomplete.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
+import { useFormErrors } from '../../composables/useFormErrors';
 import {
   productionOrderService,
   ProductionOrderStatus,
@@ -289,6 +290,29 @@ function toDateInput(v: string | null | undefined): string {
   return v.slice(0, 10);
 }
 
+const formRef = ref<HTMLFormElement | null>(null);
+const formErrors = useFormErrors();
+
+function collectErrors(): Record<string, string | null> {
+  const qty = form.plannedQuantity;
+  const priority = form.priority;
+  return {
+    code: form.code.trim() ? null : t('validation.required'),
+    plannedQuantity: qty === null || qty === undefined || Number.isNaN(qty)
+      ? t('validation.required')
+      : qty <= 0 ? t('validation.mustBePositive') : null,
+    productId: form.productId ? null : t('validation.required'),
+    recipeId: form.recipeId ? null : t('validation.required'),
+    recipeVersionId: form.recipeVersionId ? null : t('validation.required'),
+    priority: priority !== null && priority !== undefined && Number.isNaN(priority)
+      ? t('validation.invalidNumber')
+      : null,
+    dueDate: form.dueDate && Number.isNaN(new Date(form.dueDate).getTime())
+      ? t('validation.invalidDate')
+      : null
+  };
+}
+
 function openCreate(): void {
   editing.value = null;
   Object.assign(form, {
@@ -296,6 +320,7 @@ function openCreate(): void {
     plannedQuantity: null, measureUnitId: null, priority: 0, dueDate: '', notes: ''
   });
   recipeVersions.value = [];
+  formErrors.reset();
   modalOpen.value = true;
 }
 
@@ -313,6 +338,7 @@ async function openEdit(item: ProductionOrderResponse): Promise<void> {
     notes: item.notes ?? ''
   });
   await loadVersions(item.recipeId);
+  formErrors.reset();
   // keep the stored version even if it is not released anymore
   modalOpen.value = true;
 }
@@ -320,18 +346,25 @@ async function openEdit(item: ProductionOrderResponse): Promise<void> {
 function closeModal(): void { if (saving.value) return; modalOpen.value = false; editing.value = null; }
 
 async function onSave(): Promise<void> {
-  if (!form.productId || !form.recipeId || !form.recipeVersionId || form.plannedQuantity === null) {
-    toast.error(t('validation.required'));
+  if (!formErrors.submitWith(collectErrors())) {
+    toast.error(t('validation.formHasErrors'));
+    formErrors.focusFirstInvalidIn(formRef.value);
     return;
   }
+  // Type-narrowing guard: submitWith already reported per-field errors above.
+  const productId = form.productId;
+  const recipeId = form.recipeId;
+  const recipeVersionId = form.recipeVersionId;
+  const plannedQuantity = form.plannedQuantity;
+  if (!productId || !recipeId || !recipeVersionId || plannedQuantity === null) return;
   saving.value = true;
   try {
     const payload = {
       code: form.code,
-      productId: form.productId,
-      recipeId: form.recipeId,
-      recipeVersionId: form.recipeVersionId,
-      plannedQuantity: form.plannedQuantity,
+      productId,
+      recipeId,
+      recipeVersionId,
+      plannedQuantity,
       measureUnitId: form.measureUnitId || null,
       priority: form.priority ?? 0,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
@@ -347,7 +380,12 @@ async function onSave(): Promise<void> {
     await table.fetch();
     modalOpen.value = false; editing.value = null;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    if (formErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      formErrors.focusFirstInvalidIn(formRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
   } finally { saving.value = false; }
 }
 

@@ -1,5 +1,5 @@
 <template>
-  <nav class="app-breadcrumbs" aria-label="Breadcrumb">
+  <nav class="app-breadcrumbs" :aria-label="$t('common.breadcrumb')">
     <ol>
       <li v-for="(crumb, idx) in items" :key="idx" class="app-breadcrumbs__item">
         <router-link v-if="crumb.to && idx < items.length - 1" :to="crumb.to">{{ crumb.label }}</router-link>

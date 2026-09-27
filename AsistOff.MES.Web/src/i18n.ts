@@ -34,9 +34,15 @@ const pl = {
     signedIn: 'Zalogowany',
     signOut: 'Wyloguj',
     notifications: 'Powiadomienia',
+    dismiss: 'Odrzuć powiadomienie',
+    breadcrumb: 'Ścieżka nawigacji',
     pagination: {
       showing: 'Pokazano {from}–{to} z {total}',
-      pageSize: 'Wierszy:'
+      pageSize: 'Wierszy:',
+      firstPage: 'Pierwsza strona',
+      previousPage: 'Poprzednia strona',
+      nextPage: 'Następna strona',
+      lastPage: 'Ostatnia strona'
     }
   },
   nav: {
@@ -937,7 +943,14 @@ const pl = {
   validation: {
     required: 'Pole jest wymagane',
     tooShort: 'Wartość jest za krótka',
-    invalidEmail: 'Nieprawidłowy adres e-mail'
+    tooLong: 'Wartość jest za długa (maks. {max} znaków)',
+    invalidEmail: 'Nieprawidłowy adres e-mail',
+    invalidNumber: 'Podaj prawidłową liczbę',
+    mustBePositive: 'Wartość musi być większa od zera',
+    mustBeNonNegative: 'Wartość nie może być ujemna',
+    outOfRange: 'Wartość musi być z zakresu {min}–{max}',
+    invalidDate: 'Podaj prawidłową datę',
+    formHasErrors: 'Formularz zawiera błędy — popraw wyróżnione pola i spróbuj ponownie'
   },
   errors: {
     generic: 'Wystąpił nieoczekiwany błąd',
@@ -992,9 +1005,15 @@ const en: typeof pl = {
     signedIn: 'Signed in',
     signOut: 'Sign out',
     notifications: 'Notifications',
+    dismiss: 'Dismiss notification',
+    breadcrumb: 'Breadcrumb',
     pagination: {
       showing: 'Showing {from}–{to} of {total}',
-      pageSize: 'Rows:'
+      pageSize: 'Rows:',
+      firstPage: 'First page',
+      previousPage: 'Previous page',
+      nextPage: 'Next page',
+      lastPage: 'Last page'
     }
   },
   nav: {
@@ -1896,7 +1915,14 @@ const en: typeof pl = {
   validation: {
     required: 'Field is required',
     tooShort: 'Value is too short',
-    invalidEmail: 'Invalid email address'
+    tooLong: 'Value is too long (max {max} characters)',
+    invalidEmail: 'Invalid email address',
+    invalidNumber: 'Enter a valid number',
+    mustBePositive: 'Value must be greater than zero',
+    mustBeNonNegative: 'Value must not be negative',
+    outOfRange: 'Value must be between {min} and {max}',
+    invalidDate: 'Enter a valid date',
+    formHasErrors: 'The form has errors — fix the highlighted fields and try again'
   },
   errors: {
     generic: 'An unexpected error occurred',
