@@ -9,20 +9,38 @@
     </AppPageHeader>
 
     <AppFilterBar @clear="clearFilters">
-      <AppSelect
-        v-model="machineFilter"
-        :options="machineFilterOptions"
-        allow-empty
-        @change="onMachineChange"
-      />
-      <AppSelect
-        v-model="reasonFilter"
-        :options="reasonFilterOptions"
-        allow-empty
-        @change="onReasonChange"
-      />
-      <AppInput v-model="fromFilter" type="datetime-local" @update:modelValue="onFrom" />
-      <AppInput v-model="toFilter" type="datetime-local" @update:modelValue="onTo" />
+      <AppFormField :label="$t('scrap.filters.machine')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="machineFilter"
+            :options="machineFilterOptions"
+            allow-empty
+            @change="onMachineChange"
+          />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('scrap.filters.reasonCode')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="reasonFilter"
+            :options="reasonFilterOptions"
+            allow-empty
+            @change="onReasonChange"
+          />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('scrap.filters.from')">
+        <template #default="{ id }">
+          <AppInput :id="id" v-model="fromFilter" type="datetime-local" @update:modelValue="onFrom" />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('scrap.filters.to')">
+        <template #default="{ id }">
+          <AppInput :id="id" v-model="toFilter" type="datetime-local" @update:modelValue="onTo" />
+        </template>
+      </AppFormField>
     </AppFilterBar>
 
     <AppTable
@@ -69,6 +87,9 @@
 
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('scrap.report')" @close="closeModal">
       <form id="scrap-form" class="form-grid" @submit.prevent="onSave">
+        <!-- Canonical confirmation field order (F-19): Work Center →
+            quantity → reason → notes → timestamp, shared across
+            Confirmation, scrap and downtime flows. -->
         <AppFormField :label="$t('scrap.machine')" required>
           <template #default="{ id }">
             <AppSelect
@@ -80,6 +101,11 @@
             />
           </template>
         </AppFormField>
+        <AppFormField :label="$t('scrap.quantity')" required>
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.quantity" :invalid="invalid" />
+          </template>
+        </AppFormField>
         <AppFormField :label="$t('scrap.reasonCode')" required>
           <template #default="{ id }">
             <AppSelect
@@ -88,16 +114,6 @@
               :options="reasonOptions"
               :placeholder="$t('scrap.selectReason')"
             />
-          </template>
-        </AppFormField>
-        <AppFormField :label="$t('scrap.quantity')" required>
-          <template #default="{ id, invalid }">
-            <AppNumberInput :id="id" v-model="form.quantity" :invalid="invalid" />
-          </template>
-        </AppFormField>
-        <AppFormField :label="$t('scrap.reportedAt')" required>
-          <template #default="{ id }">
-            <AppInput :id="id" v-model="form.reportedAt" type="datetime-local" :disabled="isEditing" />
           </template>
         </AppFormField>
         <AppFormField v-if="!isEditing" :label="$t('scrap.order')">
@@ -115,6 +131,13 @@
             <AppTextarea :id="id" v-model="form.notes" :rows="2" />
           </template>
         </AppFormField>
+        <AppDateTimeField
+          v-model="form.reportedAt"
+          :label="$t('scrap.reportedAt')"
+          required
+          :disabled="isEditing"
+          class="form-grid__full"
+        />
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="saving" @click="closeModal">{{ $t('common.cancel') }}</AppButton>
@@ -144,6 +167,7 @@ import AppTable from '../../components/ui/AppTable.vue';
 import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';

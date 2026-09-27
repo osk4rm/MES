@@ -26,12 +26,12 @@
           <AppSelect :id="id" v-model="preset" :options="presetOptions" @change="onPresetChange" />
         </template>
       </AppFormField>
-      <AppFormField :label="$t('reliabilityDashboard.from')">
+      <AppFormField :label="$t('reliabilityDashboard.from')" :error="windowError">
         <template #default="{ id }">
           <AppInput :id="id" v-model="fromInput" type="datetime-local" @change="onWindowChange" />
         </template>
       </AppFormField>
-      <AppFormField :label="$t('reliabilityDashboard.to')">
+      <AppFormField :label="$t('reliabilityDashboard.to')" :error="windowError">
         <template #default="{ id }">
           <AppInput :id="id" v-model="toInput" type="datetime-local" @change="onWindowChange" />
         </template>
@@ -175,6 +175,9 @@ const fleet = ref<ReliabilityFleetRow[]>([]);
 const loading = ref(false);
 const notFound = ref(false);
 const loadError = ref<string | null>(null);
+// F-18: invalid-window feedback renders inline on the from/to fields via
+// AppFormField in addition to the toast, so the offending fields are marked.
+const windowError = ref<string | null>(null);
 
 // Shared region precedence (F-12: error > loading > empty > content): before
 // a Work Center is picked the region reads empty; a cross-tenant or deleted
@@ -377,24 +380,29 @@ interface ValidatedQuery {
 function readValidatedQuery(): ValidatedQuery | null {
   const id = machineId.value;
   if (!id) {
+    windowError.value = null;
     toast.error(t('reliabilityDashboard.invalidInput'));
     return null;
   }
-  const windowError = validateReliabilityWindow(fromInput.value, toInput.value);
-  if (windowError !== null) {
+  const windowErrorCode = validateReliabilityWindow(fromInput.value, toInput.value);
+  if (windowErrorCode !== null) {
+    windowError.value = t('reliabilityDashboard.invalidWindow');
     toast.error(t('reliabilityDashboard.invalidInput'));
     return null;
   }
   if (validateReliabilityBucket(bucket.value) !== null) {
+    windowError.value = null;
     toast.error(t('reliabilityDashboard.invalidInput'));
     return null;
   }
   const from = parseDatetimeLocal(fromInput.value);
   const to = parseDatetimeLocal(toInput.value);
   if (!from || !to) {
+    windowError.value = t('reliabilityDashboard.invalidWindow');
     toast.error(t('reliabilityDashboard.invalidInput'));
     return null;
   }
+  windowError.value = null;
   const fromUtc = from.toISOString();
   const toUtc = to.toISOString();
   return {
@@ -514,6 +522,7 @@ function clearFilters(): void {
   fromInput.value = window.from;
   toInput.value = window.to;
   bucket.value = ReliabilityTrendBucket.Day;
+  windowError.value = null;
   if (machineId.value) void refresh();
 }
 

@@ -85,7 +85,7 @@ describe('shopfloor i18n and touch wiring (issue #331)', () => {
 
     expect(plKeys.length).toBeGreaterThan(0);
     expect(enKeys).toEqual(plKeys);
-    expect(enKeys).toEqual(['density.comfortable', 'density.compact', 'density.label']);
+    expect(enKeys).toEqual(['density.comfortable', 'density.compact', 'density.label', 'density.toggleHint']);
   });
 
   it('resolves every shopfloor key referenced by touched views in both locales', () => {

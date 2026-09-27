@@ -1,7 +1,8 @@
 <template>
-  <div v-if="recipe" class="recipe-detail">
+  <div v-if="recipe" class="recipe-detail" :class="viewClass">
     <AppPageHeader :title="`${recipe.code} — ${recipe.name}`" :subtitle="$t('recipes.detail.subtitle')" icon="pi pi-book">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-arrow-left" @click="$router.push({ name: 'production-recipes' })">
           {{ $t('common.back') }}
         </AppButton>
@@ -86,6 +87,7 @@ import AppErrorState from '../../components/ui/AppErrorState.vue';
 import RecipeVersionEditor from '../../components/production/RecipeVersionEditor.vue';
 import { recipeService, type RecipeResponse, type RecipeVersionSummary, RecipeVersionStatus } from '../../services/recipeService';
 import { recipeVersionService, type RecipeVersionDetailResponse } from '../../services/recipeVersionService';
+import { ShopfloorDensity, useShopfloorDensity } from '../../composables/useShopfloorDisplay';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -93,6 +95,12 @@ const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const toast = useToastStore();
+// F-14: recipe detail joins the shared density affordance so version chips
+// and editor targets match the other shopfloor-adjacent views.
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 
 const recipe = ref<RecipeResponse | null>(null);
 const selectedVersionId = ref<string | null>(null);

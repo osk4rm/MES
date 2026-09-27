@@ -21,8 +21,9 @@ All primitives are namespaced with the `App` prefix.
 
 | Component          | Purpose                                                 |
 |--------------------|---------------------------------------------------------|
-| `AppButton`        | Primary / secondary / ghost / danger buttons; icons, loading |
-| `AppInput`         | Text / email / password input with prefix icon          |
+| `AppButton`        | Primary / secondary / ghost / danger / subtle / link buttons; icons, loading. `link` is the text-only variant for navigation affordances (auth side panels) |
+| `AppInput`         | Text / email / password input with prefix icon; `list` binds a `<datalist>` id, `autofocus` focuses on mount (scan-wedge fields), `enter` event fires on Enter |
+| `AppDateTimeField` | Shared touch-friendly date-time entry (F-06): labelled `datetime-local` with 44 px targets, local-time hint + UTC note, app-locale `error` |
 | `AppNumberInput`   | Numeric input with optional suffix                      |
 | `AppTextarea`      | Multi-line text area                                    |
 | `AppSelect`        | Native-backed select with label resolution              |
@@ -46,15 +47,25 @@ All primitives are namespaced with the `App` prefix.
 | `AppDataState`     | List-region state machine: fixed `error > loading > empty > content` precedence with `retry` event |
 
 Layout components live in `src/components/layout/`:
-
 | Component    | Purpose                                      |
 |--------------|----------------------------------------------|
 | `AppShell`   | Grid layout wrapping sidenav + topbar + main |
 | `AppSideNav` | Collapsible navigation from `sitemap.ts`     |
 | `AppTopBar`  | User menu, locale switcher, env indicator    |
 
-## Services
+Shopfloor components live in `src/components/shopfloor/`:
 
+| Component               | Purpose                                      |
+|-------------------------|----------------------------------------------|
+| `ShopfloorDensityToggle` | Shared comfortable/compact density toggle (F-14); 44 px touch minimum is the comfortable default, persisted per operator |
+
+## Shopfloor form conventions (F-06 / F-19 / F-20)
+
+- Timestamp entry uses `AppDateTimeField` (labelled, 44 px targets, local-time hint + UTC note); invalid input yields an app-locale message.
+- Confirmation-family modals (Confirmation, scrap, downtime, Andon resolve) share the canonical field order: Work Center → quantity → reason → notes → timestamp. Per-flow i18n namespaces stay as aliases for the overlapping labels.
+- Badge-on/scan fields accept scan-wedge Enter-terminated input (`enter` event) with `autofocus` (operator panel code field mirrors the lot scan field).
+
+## Services
 HTTP calls live in `src/services/*Service.ts`. They all share:
 
 - `http` — the Axios instance with a JWT request interceptor and a `401 → /login` response interceptor.

@@ -9,26 +9,49 @@
     </AppPageHeader>
 
     <AppFilterBar @clear="clearFilters">
-      <AppSelect
-        v-model="machineFilter"
-        :options="machineFilterOptions"
-        allow-empty
-        @change="onMachineChange"
-      />
-      <AppSelect
-        v-model="reasonFilter"
-        :options="reasonFilterOptions"
-        allow-empty
-        @change="onReasonChange"
-      />
-      <AppSelect
-        v-model="statusFilter"
-        :options="statusFilterOptions"
-        allow-empty
-        @change="onStatusChange"
-      />
-      <AppInput v-model="fromFilter" type="datetime-local" @change="onFromChange" />
-      <AppInput v-model="toFilter" type="datetime-local" @change="onToChange" />
+      <AppFormField :label="$t('downtime.filters.machine')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="machineFilter"
+            :options="machineFilterOptions"
+            allow-empty
+            @change="onMachineChange"
+          />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('downtime.filters.reason')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="reasonFilter"
+            :options="reasonFilterOptions"
+            allow-empty
+            @change="onReasonChange"
+          />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('downtime.filters.status')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="statusFilter"
+            :options="statusFilterOptions"
+            allow-empty
+            @change="onStatusChange"
+          />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('downtime.filters.from')">
+        <template #default="{ id }">
+          <AppInput :id="id" v-model="fromFilter" type="datetime-local" @change="onFromChange" />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('downtime.filters.to')">
+        <template #default="{ id }">
+          <AppInput :id="id" v-model="toFilter" type="datetime-local" @change="onToChange" />
+        </template>
+      </AppFormField>
     </AppFilterBar>
 
     <AppTable
@@ -80,6 +103,8 @@
 
     <AppModal :open="startOpen" :title="$t('downtime.start')" @close="closeStart">
       <form id="downtime-start-form" class="form-grid" @submit.prevent="onStartSave">
+        <!-- Canonical confirmation field order (F-19): Work Center →
+            reason → notes → timestamp. -->
         <AppFormField :label="$t('downtime.machine')" required>
           <template #default="{ id }">
             <AppSelect :id="id" v-model="startForm.machineId" :options="machineOptions" :placeholder="$t('downtime.selectMachine')" />
@@ -88,11 +113,6 @@
         <AppFormField :label="$t('downtime.reasonCode')" required>
           <template #default="{ id }">
             <AppSelect :id="id" v-model="startForm.reasonCodeId" :options="reasonOptions" :placeholder="$t('downtime.selectReason')" />
-          </template>
-        </AppFormField>
-        <AppFormField :label="$t('downtime.startedAt')" required class="form-grid__full">
-          <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="startForm.startedAt" type="datetime-local" required :invalid="invalid" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('downtime.order')" class="form-grid__full">
@@ -105,6 +125,12 @@
             <AppTextarea :id="id" v-model="startForm.notes" :rows="2" />
           </template>
         </AppFormField>
+        <AppDateTimeField
+          v-model="startForm.startedAt"
+          :label="$t('downtime.startedAt')"
+          required
+          class="form-grid__full"
+        />
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="saving" @click="closeStart">{{ $t('common.cancel') }}</AppButton>
@@ -114,11 +140,12 @@
 
     <AppModal :open="closeOpen" :title="$t('downtime.closeTitle')" @close="cancelClose">
       <form id="downtime-close-form" class="form-grid" @submit.prevent="confirmClose">
-        <AppFormField :label="$t('downtime.endedAt')" required class="form-grid__full">
-          <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="closeForm.endedAt" type="datetime-local" required :invalid="invalid" />
-          </template>
-        </AppFormField>
+        <AppDateTimeField
+          v-model="closeForm.endedAt"
+          :label="$t('downtime.endedAt')"
+          required
+          class="form-grid__full"
+        />
       </form>
       <template #footer>
         <AppButton variant="ghost" :disabled="closing" @click="cancelClose">{{ $t('common.cancel') }}</AppButton>
@@ -167,6 +194,7 @@ import AppTable from '../../components/ui/AppTable.vue';
 import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';

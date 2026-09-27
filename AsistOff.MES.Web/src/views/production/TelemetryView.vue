@@ -125,11 +125,11 @@
 
     <AppModal :open="readingsOpen" :title="readingsTitle" @close="closeReadings">
       <form id="telemetry-reading-form" class="form-grid" @submit.prevent="onReadingSubmit">
-        <AppFormField :label="$t('telemetry.readAt')" required>
-          <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="readingForm.readAt" type="datetime-local" required :invalid="invalid" />
-          </template>
-        </AppFormField>
+        <AppDateTimeField
+          v-model="readingForm.readAt"
+          :label="$t('telemetry.readAt')"
+          required
+        />
         <AppFormField :label="$t('telemetry.value')" required>
           <template #default="{ id, invalid }">
             <AppInput v-if="readingIsText" :id="id" v-model="readingForm.textValue" required :invalid="invalid" />
@@ -191,6 +191,7 @@ import AppTable from '../../components/ui/AppTable.vue';
 import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
