@@ -354,7 +354,7 @@ Business rules:
 - New versions are drafts.
 - Clone creates a new draft from a source version, copying operations, dependencies, BOM items, outputs and resource requirements with new IDs.
 - Only a draft can be released.
-- A version must contain at least one operation before release.
+- A version must contain at least one operation before release. Release also runs a preflight (`RecipeReleasePreflight`, issue #388): fail-state rules — coherent validity dates, acyclic/in-version dependencies, active BOM/output products, known warehouses — return 400; warn-state rules — outputs defined, warehouses set — show in the checklist dialog but do not block.
 - Releasing a version demotes any previous released sibling version to obsolete.
 - Release updates `Recipe.CurrentVersionId`.
 - Non-draft versions should be treated as immutable by business logic and UI.

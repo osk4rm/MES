@@ -1,3 +1,4 @@
+using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
@@ -9,6 +10,8 @@ namespace AsistOff.MES.Production.Application.Features.RecipeVersions.Release;
 internal sealed class ReleaseRecipeVersionRequestHandler(
     IRecipeVersionsRepository versionsRepository,
     IRecipesRepository recipesRepository,
+    IProductsRepository productsRepository,
+    IWarehousesRepository warehousesRepository,
     IDateTimeProvider dateTimeProvider)
     : IRequestHandler<ReleaseRecipeVersionRequest>
 {
@@ -20,8 +23,30 @@ internal sealed class ReleaseRecipeVersionRequestHandler(
         if (version.Status != RecipeVersionStatus.Draft)
             throw new ConflictException("Only Draft versions can be released.");
 
-        if (version.Operations.Count == 0)
-            throw new ValidationException(nameof(version.Operations), "A recipe version must contain at least one operation before it can be released.");
+        // Server-side recheck of the release preflight rules (issue #388, R-7):
+        // the checklist dialog cannot be bypassed from the API. Fail-state
+        // rules surface as a structured 400; warn-state rules do not block.
+        var productIds = version.Operations
+            .SelectMany(o => o.BomItems.Select(b => b.ProductId).Concat(o.Outputs.Select(o => o.ProductId)))
+            .ToHashSet();
+        var productActiveById = new Dictionary<Guid, bool>(productIds.Count);
+        foreach (var productId in productIds)
+        {
+            var product = await productsRepository.GetAsync(productId, cancellationToken);
+            if (product is not null)
+                productActiveById[productId] = product.IsActive;
+        }
+
+        var warehouses = await warehousesRepository.BrowseAsync(cancellationToken);
+        var checks = RecipeReleasePreflight.Evaluate(
+            version,
+            productActiveById,
+            warehouses.Select(w => w.Id).ToHashSet());
+
+        var failures = checks.Where(c => c.State == PreflightState.Fail).ToList();
+        if (failures.Count > 0)
+            throw new ValidationException(
+                failures.ToDictionary(f => f.Rule, f => new[] { f.Message }));
 
         var now = dateTimeProvider.UtcNow;
 
