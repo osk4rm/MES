@@ -13,8 +13,8 @@ namespace AsistOff.MES.Integration.Tests.Endpoints;
 /// Low): the production host must enforce the global fallback authorization
 /// policy (unauthenticated requests to endpoints without
 /// <c>[AllowAnonymous]</c> are rejected with 401), while the documented
-/// anonymous surface — sign-in, tenant lookup, health probes, and the
-/// <c>/error</c> path — keeps working unchanged.
+/// anonymous surface — sign-in, tenant lookup, health probes, the Prometheus
+/// scrape endpoint, and the <c>/error</c> path — keeps working unchanged.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class FallbackAuthorizationEndpointTests(MesApplicationFixture fixture)
@@ -112,5 +112,31 @@ public sealed class FallbackAuthorizationEndpointTests(MesApplicationFixture fix
         // Assert
         live.StatusCode.Should().Be(HttpStatusCode.OK);
         ready.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task MetricsScrape_WhenEnabled_AnonymousReturnsPrometheusExposition()
+    {
+        // Arrange — an isolated Prometheus-enabled host (the shared host runs
+        // with PrometheusEnabled=false). Scrapers call without credentials, so
+        // the AllowAnonymous() scrape mapping must survive the fallback.
+        Environment.SetEnvironmentVariable("Observability__PrometheusEnabled", "true");
+        try
+        {
+            await using var factory = new MesWebApplicationFactory(Fixture.PostgresConnectionString);
+            using var client = factory.CreateClient();
+
+            // Act — hit a probe first so request metrics exist, then scrape anonymously.
+            await client.GetAsync("/health/live");
+            var response = await client.GetAsync("/metrics");
+
+            // Assert
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            response.Content.Headers.ContentType?.MediaType.Should().Be("text/plain");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("Observability__PrometheusEnabled", null);
+        }
     }
 }

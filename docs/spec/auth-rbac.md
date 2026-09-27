@@ -105,7 +105,12 @@ opt-out, and the anonymous HTTP surface is exactly: sign-in + refresh
 (`AuthenticationController`), tenant self-registration + lookup
 (`TenantsController`, minimal `AnonymousTenantResponse` projection only),
 health probes (`AllowAnonymous()` mappings for live/ready/alias in
-`Program.cs`), Swagger in Development, and `GET /error`
+`Program.cs`), the Prometheus scrape endpoint (`GET /metrics` mapped via
+`MapMesObservability` with `AllowAnonymous()` — scrapers call it without
+credentials, like the probes; mapped explicitly as an endpoint rather than
+middleware so the opt-out applies, and returning 404 when
+`Observability:PrometheusEnabled` is false), Swagger in Development, and
+`GET /error`
 (`ErrorsController`). The `/error` exception exists because the
 exception-handler re-execution path must render the sanitized
 `ProblemDetails` (`GlobalExceptionHandler` exposes only `IServiceException`

@@ -187,8 +187,9 @@ public static class Extensions
             // anonymously reachable by default. The HTTP edge must mirror the
             // application-layer default-deny (AuthorizationBehavior): only
             // endpoints carrying [AllowAnonymous] (sign-in/refresh, tenant
-            // self-registration + lookup, health probes, /error) stay
-            // reachable without authentication.
+            // self-registration + lookup, health probes, the Prometheus
+            // /metrics scrape endpoint, /error) stay reachable without
+            // authentication.
             authorization.FallbackPolicy = new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .Build();
