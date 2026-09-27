@@ -72,6 +72,40 @@ public sealed class SpaNginxSecurityHeadersTests
     }
 
     [Fact]
+    public void Nginx_SpaFallback_ServedFromHeaderCarryingLocation()
+    {
+        // Arrange — an unknown SPA route (e.g. /production/orders/42) must be
+        // served by the same header-carrying block, not by a bare fallback.
+        var block = LocationBlock(ReadNginxConf(), "location / {");
+
+        // Assert — try_files falls back to /index.html inside the location
+        // that already carries the four always-on headers (proven per-block
+        // above), so the fallback inherits them by construction.
+        block.Should().Contain("try_files");
+        block.Should().Contain("/index.html");
+    }
+
+    [Fact]
+    public void Nginx_StaticLocations_ShareIdenticalFullHeaderSet()
+    {
+        // Arrange — the conf comment requires the three static blocks to stay
+        // in sync; CSP sameness is proven separately, here the other three
+        // headers must not drift per resource type either.
+        var conf = ReadNginxConf();
+        var blocks = StaticLocations
+            .Select(l => LocationBlock(conf, l))
+            .ToList();
+
+        // Assert
+        foreach (var block in blocks)
+        {
+            block.Should().Contain("add_header X-Content-Type-Options \"nosniff\" always;");
+            block.Should().Contain("add_header Referrer-Policy \"no-referrer\" always;");
+            block.Should().Contain("add_header X-Frame-Options \"DENY\" always;");
+        }
+    }
+
+    [Fact]
     public void Nginx_Csp_RestrictsEveryDirectiveToSelf()
     {
         // Arrange

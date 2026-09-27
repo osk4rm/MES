@@ -161,6 +161,53 @@ public sealed class SpaCspBootCompatibilityTests
     }
 
     [Fact]
+    public void SpaShell_HasNoInlineStyleAttributes_WideningCoversRuntimeOnly()
+    {
+        // Arrange — the served shell must boot even without 'unsafe-inline':
+        // the documented style-src widening exists only for Vue runtime
+        // :style bindings and transitions, not for the static shell.
+        var shell = ReadWebFile("index.html");
+
+        // Assert
+        Regex.IsMatch(shell, "\\sstyle\\s*=", RegexOptions.IgnoreCase)
+            .Should().BeFalse("index.html must not use inline style= attributes");
+        shell.Should().NotContain("<style", "the shell must load styles via the external CSS bundle, not inline <style> blocks");
+    }
+
+    [Fact]
+    public void SpaSources_UseNoCrossOriginImportsOrFontLoads()
+    {
+        // Arrange — img-src/font-src allow 'self' + data: only (inlined SVG
+        // icons, PrimeIcons woff2). Any absolute http(s) asset reference,
+        // remote @import, or remote url() font/image load would violate the
+        // policy at runtime.
+        var offenders = SourceFiles()
+            .Where(f => Regex.IsMatch(ReadWebFile(f),
+                "src\\s*=\\s*[\"']https?://|href\\s*=\\s*[\"']https?://|url\\(\\s*['\"]?https?://|@import\\s+['\"]https?://",
+                RegexOptions.IgnoreCase))
+            .ToList();
+
+        // Assert
+        offenders.Should().BeEmpty("no frontend source may load cross-origin assets outside img-src/font-src 'self' data:");
+    }
+
+    [Fact]
+    public void SpaProductionSources_UseNoRawInnerHtmlInjection()
+    {
+        // Arrange — innerHTML/outerHTML/document.write sinks would execute
+        // markup as code under script-src 'self' with no CSP mitigation, so
+        // production sources must not use them (.spec.ts harnesses excluded
+        // from SourceFiles()).
+        var offenders = SourceFiles()
+            .Where(f => Regex.IsMatch(ReadWebFile(f),
+                "\\.innerHTML\\s*=|\\.outerHTML\\s*=|document\\.write\\s*\\("))
+            .ToList();
+
+        // Assert
+        offenders.Should().BeEmpty("production sources must not use raw HTML injection sinks");
+    }
+
+    [Fact]
     public void SpaBuild_EmitsExternalBundlesOnly()
     {
         // Arrange — Vite must emit the app as external hashed files (served
