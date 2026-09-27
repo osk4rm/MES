@@ -16,6 +16,23 @@ public sealed class ManualDocsTests
         new(@"\bTODO\b|\bTBD\b|\bFIXME\b|\bLOREM\b|PLACEHOLDER",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex PermissionPattern =
+        new(@"`([a-z]+\.(?:write|read))`", RegexOptions.Compiled);
+
+    private static string RepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (Directory.Exists(Path.Combine(directory.FullName, "AsistOff.MES.Production.Api")))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException(
+            "Could not locate repository root from " + AppContext.BaseDirectory);
+    }
+
     private static string ManualDirectory()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -100,6 +117,69 @@ public sealed class ManualDocsTests
 
         Assert.True(incomplete.Count == 0,
             "Chapters missing access or error documentation: " + string.Join("; ", incomplete));
+    }
+
+    /// <summary>
+    /// Every API endpoint and permission code documented in the execution
+    /// chapters must exist in the Api controllers / RBAC defaults on this
+    /// branch, so the manual cannot drift from current behavior
+    /// (issue #345, AC2/AC3 correctness, not just structural presence).
+    /// </summary>
+    [Fact]
+    public void Execution_documented_endpoints_and_permissions_match_code()
+    {
+        var manual = ManualDirectory();
+        var apiCorpus = string.Concat(Directory
+            .GetFiles(RepositoryRoot(), "*Controller.cs", SearchOption.AllDirectories)
+            .Where(path => path.Contains($"{Path.DirectorySeparatorChar}Controllers{Path.DirectorySeparatorChar}"))
+            .Select(File.ReadAllText));
+        var rbac = File.ReadAllText(Path.Combine(
+            RepositoryRoot(), "AsistOff.MES.Users.Core", "Rbac", "RbacDefaults.cs"));
+
+        (string Chapter, string[] Fragments)[] expectations =
+        [
+            ("07-production-orders.md",
+                ["api/production-orders", "/release", "/complete", "/close", "/history"]),
+            ("08-dispatch-board.md",
+                ["api/schedule", "dispatch"]),
+            ("09-confirmations.md",
+                ["api/production-confirmations", "/movements"]),
+            ("10-scrap-downtime.md",
+                ["api/scrap-events", "api/downtime-events", "api/reason-codes", "/close"]),
+            ("11-lots-genealogy.md",
+                ["api/lots", "api/lot-genealogy", "by-code", "upstream", "downstream"]),
+            ("12-gantt-schedule.md",
+                ["api/schedule", "gantt", "gantt/segments"]),
+            ("13-shift-handover.md",
+                ["api/shift-handovers", "context"]),
+            ("14-operator-panel.md",
+                ["api/schedule", "operator-queue", "api/andon-signals", "acknowledge", "resolve"]),
+        ];
+
+        var problems = new List<string>();
+
+        foreach (var (chapter, fragments) in expectations)
+        {
+            var content = File.ReadAllText(Path.Combine(manual, chapter));
+
+            foreach (var fragment in fragments)
+            {
+                if (!content.Contains(fragment, StringComparison.Ordinal))
+                    problems.Add($"{chapter} does not document '{fragment}'");
+                else if (!apiCorpus.Contains(fragment, StringComparison.Ordinal))
+                    problems.Add($"'{fragment}' documented in {chapter} has no match in the Api controllers");
+            }
+
+            foreach (Match match in PermissionPattern.Matches(content))
+            {
+                var permission = match.Groups[1].Value;
+                if (!rbac.Contains($"\"{permission}\"", StringComparison.Ordinal))
+                    problems.Add($"{chapter} documents unknown permission '{permission}'");
+            }
+        }
+
+        Assert.True(problems.Count == 0,
+            "Manual/code drift: " + string.Join("; ", problems));
     }
 
     [Fact]
