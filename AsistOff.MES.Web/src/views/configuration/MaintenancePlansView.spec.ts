@@ -207,4 +207,23 @@ describe('MaintenancePlansView due state', () => {
     const raiseBtn = wrapper.findAll('button').find((b) => b.attributes('aria-label') === 'maintenancePlans.raiseNow');
     expect(raiseBtn).toBeUndefined();
   });
+
+  it('labels every filter select (F-05)', async () => {
+    const wrapper = mountPlans();
+    await flushPromises();
+
+    // Each filter select sits inside an AppFormField with a visible label.
+    const text = wrapper.text();
+    expect(text).toContain('maintenancePlans.filters.machine');
+    expect(text).toContain('maintenancePlans.filters.status');
+
+    // Labels are associated with their selects via for/id.
+    const selects = wrapper.findAll('.app-filter-bar select');
+    expect(selects.length).toBe(2);
+    for (const select of selects) {
+      const id = select.attributes('id');
+      expect(id).toBeTruthy();
+      expect(wrapper.find(`label[for="${id}"]`).exists()).toBe(true);
+    }
+  });
 });
