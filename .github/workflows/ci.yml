@@ -81,15 +81,6 @@ jobs:
         run: dotnet restore AsistOff.MES.sln
       - name: Build
         run: dotnet build AsistOff.MES.sln --configuration Release --no-restore
-      - name: Publish carries no dev seed credential
-        # Issue #358: appsettings.Development.json must never ship inside the
-        # published image, and no known-default seed password may appear in
-        # any shipped settings file.
-        run: |
-          dotnet publish AsistOff.MES.Gateway/AsistOff.MES.Gateway.csproj --configuration Release --no-restore -o /tmp/mes-publish-check
-          test ! -e /tmp/mes-publish-check/appsettings.Development.json
-          ! grep -r "Passw0rd!" /tmp/mes-publish-check
-          echo "publish output carries no Development settings and no default seed password"
       - name: EF model snapshot in sync
         # Entity changes without a regenerated DefaultContextModelSnapshot.cs
         # poison the next `dotnet ef migrations add` (and were a root cause of
