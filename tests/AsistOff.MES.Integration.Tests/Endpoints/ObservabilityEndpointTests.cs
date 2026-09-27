@@ -201,6 +201,7 @@ public sealed class ObservabilityEndpointTests(MesApplicationFixture fixture) : 
     {
         // Arrange
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         // Act
         var response = await client.PostAsJsonAsync(
