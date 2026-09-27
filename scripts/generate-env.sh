@@ -43,5 +43,10 @@ fill_if_empty() {
 
 fill_if_empty "POSTGRES_PASSWORD" "$(gen_secret 32)"
 fill_if_empty "AUTH_ISSUER_SIGNING_KEY" "$(gen_secret 48)"
+# Seq admin password (issue #377): first-run credential for the Seq UI.
+# The ingestion API key (SEQ_INGESTION_API_KEY) is provisioned manually in
+# the Seq UI after the first boot (see .env.example), so it is not generated
+# here — only its empty placeholder from .env.example is kept.
+fill_if_empty "SEQ_ADMIN_PASSWORD" "$(gen_secret 24)"
 
 echo "generate-env: done ($ENV_FILE). Never commit it."
