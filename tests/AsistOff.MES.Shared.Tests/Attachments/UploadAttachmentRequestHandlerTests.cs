@@ -3,6 +3,7 @@ using AsistOff.MES.Attachments.Application.Features.Upload;
 using AsistOff.MES.Attachments.Domain.Entities;
 using AsistOff.MES.Attachments.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using AsistOff.MES.Shared.Abstractions.Storage;
@@ -24,6 +25,7 @@ public class UploadAttachmentRequestHandlerTests
     private readonly Mock<IGuidProvider> _guids = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ITenantContext> _tenant = new();
+    private readonly Mock<ICurrentUserAccessor> _user = new();
     private readonly Mock<IAttachmentOwnerVerifier> _owners = new();
     private readonly Mock<IAttachmentMalwareScanner> _scanner = new();
     private readonly AttachmentUploadOptions _options = new();
@@ -51,7 +53,7 @@ public class UploadAttachmentRequestHandlerTests
 
     private UploadAttachmentRequestHandler CreateSut() =>
         new(_repository.Object, _storage.Object, _guids.Object, _clock.Object,
-            _tenant.Object, Options.Create(_options), _owners.Object, _scanner.Object);
+            _tenant.Object, _user.Object, Options.Create(_options), _owners.Object, _scanner.Object);
 
     private static UploadAttachmentRequest Request(
         string fileName, string contentType, byte[] bytes, Guid? ownerId = null, string ownerType = "operation") =>
@@ -183,6 +185,45 @@ public class UploadAttachmentRequestHandlerTests
         await act.Should().ThrowAsync<ValidationException>();
         _storage.Verify(s => s.SaveAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _repository.Verify(r => r.AddAsync(It.IsAny<Attachment>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_AuthenticatedUpload_SetsUploadedByUserIdAndEchoesInResponse()
+    {
+        // Arrange - calling user resolved from the accessor (issue #354)
+        var userId = Guid.NewGuid();
+        _user.SetupGet(u => u.UserId).Returns(userId);
+        Attachment? persisted = null;
+        _repository.Setup(r => r.AddAsync(It.IsAny<Attachment>(), It.IsAny<CancellationToken>()))
+            .Callback<Attachment, CancellationToken>((a, _) => persisted = a)
+            .ReturnsAsync((Attachment a, CancellationToken _) => a);
+
+        // Act
+        var result = await CreateSut().Handle(Request("photo.png", "image/png", PngBytes, _ownerId), CancellationToken.None);
+
+        // Assert - stored value and response value match the calling user
+        persisted.Should().NotBeNull();
+        persisted!.UploadedByUserId.Should().Be(userId);
+        result.UploadedByUserId.Should().Be(userId);
+    }
+
+    [Fact]
+    public async Task Handle_NullActor_LeavesUploadedByUserIdNullInsteadOfThrowing()
+    {
+        // Arrange - actorless path stays null-safe and succeeds
+        _user.SetupGet(u => u.UserId).Returns((Guid?)null);
+        Attachment? persisted = null;
+        _repository.Setup(r => r.AddAsync(It.IsAny<Attachment>(), It.IsAny<CancellationToken>()))
+            .Callback<Attachment, CancellationToken>((a, _) => persisted = a)
+            .ReturnsAsync((Attachment a, CancellationToken _) => a);
+
+        // Act
+        var result = await CreateSut().Handle(Request("photo.png", "image/png", PngBytes, _ownerId), CancellationToken.None);
+
+        // Assert
+        result.UploadedByUserId.Should().BeNull();
+        persisted.Should().NotBeNull();
+        persisted!.UploadedByUserId.Should().BeNull();
     }
 
     private static byte[] ExeBytes() => [0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00];

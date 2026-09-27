@@ -3,6 +3,7 @@ using AsistOff.MES.Attachments.Application.Features.Responses;
 using AsistOff.MES.Attachments.Domain.Entities;
 using AsistOff.MES.Attachments.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using AsistOff.MES.Shared.Abstractions.Storage;
@@ -17,6 +18,7 @@ internal sealed class UploadAttachmentRequestHandler(
     IGuidProvider guidProvider,
     IDateTimeProvider dateTimeProvider,
     ITenantContext tenantContext,
+    ICurrentUserAccessor currentUserAccessor,
     IOptions<AttachmentUploadOptions> uploadOptions,
     IAttachmentOwnerVerifier ownerVerifier,
     IAttachmentMalwareScanner malwareScanner)
@@ -82,6 +84,7 @@ internal sealed class UploadAttachmentRequestHandler(
             SizeBytes = content.Length,
             StorageKey = storageKey,
             Description = request.Description,
+            UploadedByUserId = currentUserAccessor.UserId,
             CreatedAt = dateTimeProvider.UtcNow
         };
 
