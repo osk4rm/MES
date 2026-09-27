@@ -14,7 +14,7 @@ hosting layer.
 | Service | Role |
 |---------|------|
 | `postgres` | Single shared database with a data volume and a readiness check; CPU and memory limited |
-| `seq` | Optional log sink for the request logs |
+| `seq` | Optional log sink for the request logs (authenticated since #377; localhost-only in dev) |
 | `api` | Single-server mode: serves traffic and applies migrations on boot by default; waits for healthy `postgres`; health-checked against `/health` |
 | `web` | Static SPA behind nginx; the API origin is baked at build with a runtime override |
 | `migrate` | Gated migration job: applies migrations (optionally seeds), then exits without serving |
