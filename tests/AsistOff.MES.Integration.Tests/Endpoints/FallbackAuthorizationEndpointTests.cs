@@ -72,6 +72,7 @@ public sealed class FallbackAuthorizationEndpointTests(MesApplicationFixture fix
     {
         // Arrange — the [AllowAnonymous] sign-in action must survive the fallback.
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         // Act
         var response = await client.PostAsJsonAsync("/api/auth/sign-in", new

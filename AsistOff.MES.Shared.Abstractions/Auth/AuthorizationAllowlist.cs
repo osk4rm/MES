@@ -62,6 +62,12 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Users.Application.Features.Authentication.Refresh.RefreshTokenRequest",
             "AsistOff.MES.Users.Application.Features.Authentication.SignOut.SignOutRequest",
 
+            // Users — anonymous CSRF issuance (issue #376): the token carries no
+            // authority by itself and touches no tenant rows; it only becomes
+            // meaningful when echoed back alongside the session cookies on an
+            // auth write. Anonymous by design — no tenant context exists before sign-in.
+            "AsistOff.MES.Users.Application.Features.Authentication.Csrf.GetCsrfTokenRequest",
+
             // Multitenancy — anonymous bootstrap: tenant provisioning creates the tenant
             // and its admin user. Pre-authentication by definition; no tenant data accessed.
             "AsistOff.MES.Multitenancy.Requests.Commands.Create.CreateTenantCommand",

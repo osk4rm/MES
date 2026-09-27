@@ -181,6 +181,7 @@ public sealed class AuditActorEndpointTests(MesApplicationFixture fixture) : Int
     private async Task<string> SignInAsync(string email, string password)
     {
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);

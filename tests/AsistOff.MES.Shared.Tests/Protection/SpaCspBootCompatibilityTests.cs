@@ -208,6 +208,23 @@ public sealed class SpaCspBootCompatibilityTests
     }
 
     [Fact]
+    public void SpaProductionSources_UseNoMarkupSinks_TextOnlyErrorRendering()
+    {
+        // Arrange — issue #376: server error text flows into toasts via
+        // extractErrorMessage and must render as text only. Any v-html,
+        // innerHTML, outerHTML or document.write sink under src/ could turn
+        // that text into script, so production sources (.spec.ts harnesses
+        // excluded from SourceFiles()) must stay free of all four.
+        var offenders = SourceFiles()
+            .Where(f => Regex.IsMatch(ReadWebFile(f),
+                "v-html|\\.innerHTML\\s*=|\\.outerHTML\\s*=|document\\.write\\s*\\("))
+            .ToList();
+
+        // Assert
+        offenders.Should().BeEmpty("error text must only ever be interpolated as text");
+    }
+
+    [Fact]
     public void SpaBuild_EmitsExternalBundlesOnly()
     {
         // Arrange — Vite must emit the app as external hashed files (served

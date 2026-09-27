@@ -36,6 +36,7 @@ public sealed class RolePermissionsEndpointTests(MesApplicationFixture fixture) 
     {
         // Arrange — seeded dev admin predates explicit role assignment (fallback path).
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var response = await client.PostAsJsonAsync(SignInUrl, new
         {
             email = IntegrationTestData.AdminEmail,
@@ -152,6 +153,7 @@ public sealed class RolePermissionsEndpointTests(MesApplicationFixture fixture) 
     private async Task<string> SignInAsync(string email, string password)
     {
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
