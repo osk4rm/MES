@@ -34,6 +34,22 @@
       @version-deleted="onVersionDeleted"
     />
 
+    <section v-if="(recipe.versions?.length ?? 0) >= 2" class="compare-section">
+      <h3>{{ $t('recipes.compare.title') }}</h3>
+      <p class="muted">{{ $t('recipes.compare.description') }}</p>
+      <div class="compare-pickers">
+        <AppFormField :label="$t('recipes.compare.base')">
+          <template #default="{ id }"><AppSelect :id="id" v-model="compareBaseId" :options="versionOptions" /></template>
+        </AppFormField>
+        <AppFormField :label="$t('recipes.compare.target')">
+          <template #default="{ id }"><AppSelect :id="id" v-model="compareTargetId" :options="versionOptions" /></template>
+        </AppFormField>
+      </div>
+      <p v-if="!canCompare" class="muted">{{ $t('recipes.compare.selectHint') }}</p>
+      <AppLoadingState v-else-if="compareLoading" />
+      <RecipeVersionCompare v-else-if="compareResult" :result="compareResult" />
+    </section>
+
     <AppModal
       :open="cleanupModalOpen"
       :title="$t('recipes.detail.noVersionsLeftTitle')"
@@ -74,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue';
+import { onMounted, ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
@@ -84,7 +100,12 @@ import AppModal from '../../components/ui/AppModal.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
 import AppLoadingState from '../../components/ui/AppLoadingState.vue';
 import AppErrorState from '../../components/ui/AppErrorState.vue';
+import AppFormField from '../../components/ui/AppFormField.vue';
+import AppSelect from '../../components/ui/AppSelect.vue';
 import RecipeVersionEditor from '../../components/production/RecipeVersionEditor.vue';
+import RecipeVersionCompare from '../../components/production/RecipeVersionCompare.vue';
+import { compareRecipeVersions, type VersionCompareResult } from '../../services/versionCompare';
+import { productService } from '../../services/productService';
 import { recipeService, type RecipeResponse, type RecipeVersionSummary, RecipeVersionStatus } from '../../services/recipeService';
 import { recipeVersionService, type RecipeVersionDetailResponse } from '../../services/recipeVersionService';
 import { ShopfloorDensity, useShopfloorDensity } from '../../composables/useShopfloorDisplay';
@@ -149,6 +170,7 @@ async function loadRecipe() {
   if (recipe.value && (recipe.value.versions?.length ?? 0) > 0) {
     const targetId = recipe.value.currentVersionId ?? recipe.value.versions![recipe.value.versions!.length - 1].id;
     await loadVersion(targetId);
+    seedCompareDefaults();
   } else {
     selectedVersionId.value = null;
     selectedVersion.value = null;
@@ -190,6 +212,7 @@ async function reloadAll() {
   const versionToKeep = selectedVersionId.value;
   await fetchRecipeData();
   await loadVersion(versionToKeep);
+  await refreshCompare();
 }
 
 /// <summary>
@@ -213,8 +236,11 @@ async function onVersionDeleted(deletedId: string) {
 
   await fetchRecipeData();
 
-  const remaining = (recipe.value?.versions ?? []).slice().sort(byVersionNumberDesc);
-  if (remaining.length === 0) {
+  if (compareBaseId.value === deletedId) compareBaseId.value = null;
+  if (compareTargetId.value === deletedId) compareTargetId.value = null;
+  compareResult.value = null;
+
+  const remaining = (recipe.value?.versions ?? []).slice().sort(byVersionNumberDesc);  if (remaining.length === 0) {
     clearSelection();
     wasEverReleased.value = everReleasedSnapshot;
     cleanupModalOpen.value = true;
@@ -234,6 +260,72 @@ async function onVersionDeleted(deletedId: string) {
 
 function byVersionNumberDesc(a: RecipeVersionSummary, b: RecipeVersionSummary): number {
   return b.versionNumber - a.versionNumber;
+}
+
+// ─── version compare (issue #388 R-8) ─────────────────────────────────────────
+// Computed in the frontend from the two existing version-detail responses;
+// no backend change.
+const compareBaseId = ref<string | null>(null);
+const compareTargetId = ref<string | null>(null);
+const compareResult = ref<VersionCompareResult | null>(null);
+const compareLoading = ref(false);
+const productLabels = ref(new Map<string, string>());
+
+const versionOptions = computed(() =>
+  (recipe.value?.versions ?? [])
+    .slice()
+    .sort((a, b) => a.versionNumber - b.versionNumber)
+    .map(v => ({
+      value: v.id,
+      label: `v${v.versionNumber} · ${t(`recipes.versionStatus.${statusKey(v.status)}`)}`
+    }))
+);
+
+const canCompare = computed(
+  () => compareBaseId.value !== null && compareTargetId.value !== null && compareBaseId.value !== compareTargetId.value
+);
+
+function labelOf(productId: string): string {
+  return productLabels.value.get(productId) ?? productId;
+}
+
+async function refreshCompare() {
+  compareResult.value = null;
+  if (!canCompare.value) return;
+  compareLoading.value = true;
+  try {
+    const [a, b] = await Promise.all([
+      recipeVersionService.get(compareBaseId.value as string),
+      recipeVersionService.get(compareTargetId.value as string)
+    ]);
+    compareResult.value = compareRecipeVersions(a, b, labelOf);
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  } finally {
+    compareLoading.value = false;
+  }
+}
+
+watch([compareBaseId, compareTargetId], refreshCompare);
+
+function seedCompareDefaults() {
+  if (compareBaseId.value !== null || compareTargetId.value !== null) return;
+  const ordered = (recipe.value?.versions ?? []).slice().sort((a, b) => a.versionNumber - b.versionNumber);
+  if (ordered.length >= 2) {
+    const released = ordered.find(v => v.id === recipe.value?.currentVersionId) ?? ordered[0];
+    compareBaseId.value = released.id;
+    const latest = ordered[ordered.length - 1];
+    compareTargetId.value = latest.id !== released.id ? latest.id : ordered[ordered.length - 2].id;
+  }
+}
+
+async function loadProductLabels() {
+  try {
+    const result = await productService.browse({ pageNumber: 1, pageSize: 100 });
+    productLabels.value = new Map(result.items.map(p => [p.id, `${p.code} — ${p.name}`]));
+  } catch {
+    productLabels.value = new Map();
+  }
 }
 
 async function deleteRecipe() {
@@ -273,11 +365,18 @@ async function deactivateRecipe() {
   }
 }
 
-onMounted(loadRecipe);
+onMounted(async () => {
+  await Promise.all([loadRecipe(), loadProductLabels()]);
+});
 </script>
 
 <style scoped>
 .recipe-detail { display: flex; flex-direction: column; gap: var(--space-4); }
+.compare-section { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 8px); background: var(--color-surface, #fff); }
+.compare-section h3 { margin: 0; font-size: 0.95rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.compare-section p { margin: 0; }
+.compare-pickers { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.muted { color: var(--color-text-muted, #6b7280); }
 .versions-section h3 { margin: 0 0 var(--space-2) 0; font-size: 0.95rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .versions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .loading { padding: var(--space-6); text-align: center; color: var(--color-text-muted); }

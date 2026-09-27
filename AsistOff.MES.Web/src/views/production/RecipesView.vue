@@ -32,6 +32,14 @@
           {{ item.isActive ? $t('common.active') : $t('common.inactive') }}
         </span>
       </template>
+      <template #cell-released="{ item }">
+        <AppBadge v-if="releasedVersionNumber(item) !== null" variant="success" dot>
+          {{ $t('recipes.releasedVersion', { version: releasedVersionNumber(item) }) }}
+        </AppBadge>
+        <AppBadge v-else variant="warning" icon="pi pi-exclamation-triangle">
+          {{ $t('recipes.noReleasedVersion') }}
+        </AppBadge>
+      </template>
       <template #cell-actions="{ item }">
         <AppRowActions
           :actions="[
@@ -102,6 +110,7 @@ import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
+import AppBadge from '../../components/ui/AppBadge.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import AppCheckbox from '../../components/ui/AppCheckbox.vue';
@@ -109,6 +118,7 @@ import AppAutocomplete, { type AutocompleteOption } from '../../components/ui/Ap
 import { useCrudPage } from '../../composables/useCrudPage';
 import { useFormErrors } from '../../composables/useFormErrors';
 import { recipeService, type RecipeResponse } from '../../services/recipeService';
+import { releasedVersionNumber } from '../../services/releasedVersion';
 import { productService } from '../../services/productService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
@@ -138,9 +148,13 @@ const table = useCrudPage<RecipeResponse, Filters>({
 const columns = computed(() => [
   { key: 'code', label: t('recipes.code'), sortable: true },
   { key: 'name', label: t('recipes.name'), sortable: true },
+  { key: 'released', label: t('recipes.releasedColumn') },
   { key: 'isActive', label: t('common.status') },
   { key: 'actions', label: t('common.actions'), width: '130px' }
 ]);
+
+// Badge value lives in `services/releasedVersion.ts` (pure, unit-tested) —
+// the browse payload already carries `versions` + `currentVersionId`.
 
 const codeFilter = ref('');
 const nameFilter = ref('');
