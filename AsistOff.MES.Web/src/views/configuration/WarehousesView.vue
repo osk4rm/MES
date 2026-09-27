@@ -78,9 +78,9 @@
     </AppCard>
 
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('warehouses.create')" @close="closeModal">
-      <form id="wh-form" class="form-grid" @submit.prevent="onSave">
-        <AppFormField :label="$t('warehouses.name')" required class="form-grid__full">
-          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.name" required :invalid="invalid" /></template>
+      <form id="wh-form" ref="formRef" class="form-grid" novalidate @submit.prevent="onSave">
+        <AppFormField :label="$t('warehouses.name')" required class="form-grid__full" :error="formErrors.fieldError('name')">
+          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.name" required :invalid="invalid" @blur="formErrors.touch('name')" /></template>
         </AppFormField>
         <AppFormField v-if="!editing" :label="$t('warehouses.syncId')" class="form-grid__full">
           <template #default="{ id }"><AppInput :id="id" v-model="form.syncId" /></template>
@@ -119,6 +119,7 @@ import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import AppDataState from '../../components/ui/AppDataState.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
+import { useFormErrors } from '../../composables/useFormErrors';
 import { warehouseService, type WarehouseResponse } from '../../services/warehouseService';
 import { stockOnHandService, type StockOnHandBalance } from '../../services/stockOnHandService';
 import { useToastStore } from '../../stores/toastStore';
@@ -187,12 +188,25 @@ const modalOpen = ref(false);
 const editing = ref<WarehouseResponse | null>(null);
 const saving = ref(false);
 const form = reactive({ name: '', syncId: '' as string | null });
+const formRef = ref<HTMLFormElement | null>(null);
+const formErrors = useFormErrors();
 
-function openCreate() { editing.value = null; Object.assign(form, { name: '', syncId: '' }); modalOpen.value = true; }
-function openEdit(item: WarehouseResponse) { editing.value = item; Object.assign(form, { name: item.name, syncId: item.syncId ?? '' }); modalOpen.value = true; }
+function collectErrors(): Record<string, string | null> {
+  return {
+    name: form.name.trim() ? null : t('validation.required')
+  };
+}
+
+function openCreate() { editing.value = null; Object.assign(form, { name: '', syncId: '' }); formErrors.reset(); modalOpen.value = true; }
+function openEdit(item: WarehouseResponse) { editing.value = item; Object.assign(form, { name: item.name, syncId: item.syncId ?? '' }); formErrors.reset(); modalOpen.value = true; }
 function closeModal() { if (saving.value) return; modalOpen.value = false; editing.value = null; }
 
 async function onSave() {
+  if (!formErrors.submitWith(collectErrors())) {
+    toast.error(t('validation.formHasErrors'));
+    formErrors.focusFirstInvalidIn(formRef.value);
+    return;
+  }
   saving.value = true;
   try {
     if (editing.value) {
@@ -205,7 +219,12 @@ async function onSave() {
     await table.fetch();
     modalOpen.value = false; editing.value = null;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    if (formErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      formErrors.focusFirstInvalidIn(formRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
   } finally { saving.value = false; }
 }
 

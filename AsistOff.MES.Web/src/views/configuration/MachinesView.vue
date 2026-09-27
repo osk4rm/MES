@@ -49,24 +49,24 @@
     />
 
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('machines.create')" @close="closeModal">
-      <form id="machine-form" class="form-grid" @submit.prevent="onSave">
-        <AppFormField :label="$t('machines.code')" required>
-          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.code" required :invalid="invalid" /></template>
+      <form id="machine-form" ref="formRef" class="form-grid" novalidate @submit.prevent="onSave">
+        <AppFormField :label="$t('machines.code')" required :error="formErrors.fieldError('code')">
+          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.code" required :invalid="invalid" @blur="formErrors.touch('code')" /></template>
         </AppFormField>
-        <AppFormField :label="$t('machines.name')" required>
-          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.name" required :invalid="invalid" /></template>
+        <AppFormField :label="$t('machines.name')" required :error="formErrors.fieldError('name')">
+          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.name" required :invalid="invalid" @blur="formErrors.touch('name')" /></template>
         </AppFormField>
         <AppFormField :label="$t('machines.description')" class="form-grid__full">
           <template #default="{ id }"><AppInput :id="id" v-model="form.description" /></template>
         </AppFormField>
-        <AppFormField :label="$t('machines.capacity')" required>
-          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.capacity" :min="0" step="any" required :invalid="invalid" /></template>
+        <AppFormField :label="$t('machines.capacity')" required :error="formErrors.fieldError('capacity')">
+          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.capacity" :min="0" step="any" required :invalid="invalid" @blur="formErrors.touch('capacity')" /></template>
         </AppFormField>
-        <AppFormField :label="$t('machines.efficiencyFactor')" required>
-          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.efficiencyFactor" :min="0" :max="1" step="any" required :invalid="invalid" /></template>
+        <AppFormField :label="$t('machines.efficiencyFactor')" required :error="formErrors.fieldError('efficiencyFactor')">
+          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.efficiencyFactor" :min="0" :max="1" step="any" required :invalid="invalid" @blur="formErrors.touch('efficiencyFactor')" /></template>
         </AppFormField>
         <AppFormField :label="$t('common.active')" class="form-grid__full">
-          <template #default><input type="checkbox" v-model="form.isActive" /></template>
+          <template #default><AppCheckbox v-model="form.isActive" :label="$t('common.active')" /></template>
         </AppFormField>
       </form>
       <template #footer>
@@ -137,6 +137,7 @@ import AppSelect from '../../components/ui/AppSelect.vue';
 import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
+import { useFormErrors } from '../../composables/useFormErrors';
 import { machineService, type MachineResponse, type SaveWorkCenterCalendarEntryRequest } from '../../services/machineService';
 import { shiftService, type ShiftResponse } from '../../services/shiftService';
 import { useToastStore } from '../../stores/toastStore';
@@ -172,20 +173,46 @@ const modalOpen = ref(false);
 const editing = ref<MachineResponse | null>(null);
 const saving = ref(false);
 const form = reactive({ code: '', name: '', description: '' as string | null, isActive: true, capacity: 1 as number | null, efficiencyFactor: 1 as number | null });
+const formRef = ref<HTMLFormElement | null>(null);
+const formErrors = useFormErrors();
+
+function collectErrors(): Record<string, string | null> {
+  const capacity = form.capacity;
+  const efficiency = form.efficiencyFactor;
+  return {
+    code: form.code.trim() ? null : t('validation.required'),
+    name: form.name.trim() ? null : t('validation.required'),
+    capacity: capacity === null || Number.isNaN(capacity)
+      ? t('validation.required')
+      : capacity <= 0 ? t('validation.mustBePositive') : null,
+    efficiencyFactor: efficiency === null || Number.isNaN(efficiency)
+      ? t('validation.required')
+      : efficiency <= 0 || efficiency > 1
+        ? t('validation.outOfRange', { min: 0, max: 1 })
+        : null
+  };
+}
 
 function openCreate() {
   editing.value = null;
   Object.assign(form, { code: '', name: '', description: '', isActive: true, capacity: 1, efficiencyFactor: 1 });
+  formErrors.reset();
   modalOpen.value = true;
 }
 function openEdit(item: MachineResponse) {
   editing.value = item;
   Object.assign(form, { code: item.code, name: item.name, description: item.description ?? '', isActive: item.isActive, capacity: item.capacity, efficiencyFactor: item.efficiencyFactor });
+  formErrors.reset();
   modalOpen.value = true;
 }
 function closeModal() { if (saving.value) return; modalOpen.value = false; editing.value = null; }
 
 async function onSave() {
+  if (!formErrors.submitWith(collectErrors())) {
+    toast.error(t('validation.formHasErrors'));
+    formErrors.focusFirstInvalidIn(formRef.value);
+    return;
+  }
   saving.value = true;
   try {
     const payload = {
@@ -206,7 +233,12 @@ async function onSave() {
     await table.fetch();
     modalOpen.value = false; editing.value = null;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    if (formErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      formErrors.focusFirstInvalidIn(formRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
   } finally { saving.value = false; }
 }
 

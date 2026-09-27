@@ -6,6 +6,7 @@
     :disabled="disabled"
     :readonly="readonly"
     :required="required"
+    :aria-invalid="invalid"
     :rows="rows"
     :class="['app-textarea', { 'app-textarea--invalid': invalid }]"
     @input="onInput"

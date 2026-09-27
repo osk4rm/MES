@@ -198,15 +198,17 @@
     </section>
 
     <AppModal :open="modalOpen" :title="$t('productionConfirmations.report')" data-testid="confirmation-modal" @close="closeModal">
-      <form id="confirmation-form" class="form-grid" data-testid="confirmation-form" @submit.prevent="onSave">
-        <AppFormField :label="$t('productionConfirmations.machine')" required>
-          <template #default="{ id }">
+      <form id="confirmation-form" ref="confirmationFormRef" class="form-grid" data-testid="confirmation-form" novalidate @submit.prevent="onSave">
+        <AppFormField :label="$t('productionConfirmations.machine')" required :error="confirmationErrors.fieldError('machineId')">
+          <template #default="{ id, invalid }">
             <AppSelect
               :id="id"
               v-model="form.machineId"
               :options="machineOptions"
               :placeholder="$t('productionConfirmations.selectMachine')"
+              :invalid="invalid"
               data-testid="confirmation-machine-select"
+              @blur="confirmationErrors.touch('machineId')"
             />
           </template>
         </AppFormField>
@@ -220,20 +222,20 @@
             />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionConfirmations.reportedAt')" required>
-          <template #default="{ id }">
-            <AppInput :id="id" v-model="form.reportedAt" type="datetime-local" />
+        <AppFormField :label="$t('productionConfirmations.reportedAt')" required :error="confirmationErrors.fieldError('reportedAt')">
+          <template #default="{ id, invalid }">
+            <AppInput :id="id" v-model="form.reportedAt" type="datetime-local" :invalid="invalid" @blur="confirmationErrors.touch('reportedAt')" />
           </template>
         </AppFormField>
         <div />
-        <AppFormField :label="$t('productionConfirmations.goodQuantity')" required>
+        <AppFormField :label="$t('productionConfirmations.goodQuantity')" required :error="confirmationErrors.fieldError('goodQuantity')">
           <template #default="{ id, invalid }">
-            <AppNumberInput :id="id" v-model="form.goodQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-good-qty" />
+            <AppNumberInput :id="id" v-model="form.goodQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-good-qty" @blur="confirmationErrors.touch('goodQuantity')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionConfirmations.scrapQuantity')" required>
+        <AppFormField :label="$t('productionConfirmations.scrapQuantity')" required :error="confirmationErrors.fieldError('scrapQuantity')">
           <template #default="{ id, invalid }">
-            <AppNumberInput :id="id" v-model="form.scrapQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-scrap-qty" />
+            <AppNumberInput :id="id" v-model="form.scrapQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-scrap-qty" @blur="confirmationErrors.touch('scrapQuantity')" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('productionConfirmations.notes')" class="form-grid__full">
@@ -405,6 +407,7 @@ import {
   validateProducedLot,
   type ConsumedLotFormRow
 } from '../../services/confirmationLots';
+import { useFormErrors } from '../../composables/useFormErrors';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -597,12 +600,19 @@ function removeConsumedRow(idx: number): void {
   form.consumedLots.splice(idx, 1);
 }
 
+const confirmationFormRef = ref<HTMLFormElement | null>(null);
+const confirmationErrors = useFormErrors();
+
 const producedLotError = computed((): string | null => {
+  // Touched-vs-submit behavior: the lots editor only complains after the
+  // operator attempts to save, never on a freshly opened dialog.
+  if (!confirmationErrors.submitted.value) return null;
   const code = validateProducedLot(form.producedLotId, form.consumedLots.length);
   return code ? t('productionConfirmations.producedLotRequired') : null;
 });
 
 function consumedRowError(idx: number): string | null {
+  if (!confirmationErrors.submitted.value) return null;
   const row = form.consumedLots[idx];
   if (!row) return null;
   const code = validateConsumedLotRow(row, form.producedLotId);
@@ -623,6 +633,7 @@ function openReport(): void {
     producedLotId: null,
     consumedLots: []
   });
+  confirmationErrors.reset();
   modalOpen.value = true;
 }
 
@@ -631,34 +642,48 @@ function closeModal(): void {
   modalOpen.value = false;
 }
 
-async function onSave(): Promise<void> {
-  if (!order.value) return;
-  if (!form.machineId || !form.reportedAt) {
-    toast.error(t('validation.required'));
-    return;
-  }
+function collectConfirmationErrors(): Record<string, string | null> {
   const good = form.goodQuantity ?? 0;
   const scrap = form.scrapQuantity ?? 0;
-  if (good <= 0 && scrap <= 0) {
-    toast.error(t('productionConfirmations.positiveQuantityRequired'));
-    return;
-  }
-  if (producedLotError.value) {
-    toast.error(producedLotError.value);
-    return;
-  }
+  const quantitiesValid = good > 0 || scrap > 0;
+  return {
+    machineId: form.machineId ? null : t('validation.required'),
+    reportedAt: !form.reportedAt
+      ? t('validation.required')
+      : Number.isNaN(new Date(form.reportedAt).getTime()) ? t('validation.invalidDate') : null,
+    goodQuantity: quantitiesValid ? null : t('productionConfirmations.positiveQuantityRequired'),
+    scrapQuantity: quantitiesValid ? null : t('productionConfirmations.positiveQuantityRequired')
+  };
+}
+
+function hasLotErrors(): boolean {
+  if (producedLotError.value) return true;
   for (let i = 0; i < form.consumedLots.length; i++) {
-    const rowError = consumedRowError(i);
-    if (rowError) {
-      toast.error(rowError);
-      return;
-    }
+    if (consumedRowError(i)) return true;
   }
+  return false;
+}
+
+async function onSave(): Promise<void> {
+  if (!order.value) return;
+  // Mark submitted first so the gated lot errors render, then validate.
+  confirmationErrors.markSubmitted();
+  const fieldsValid = confirmationErrors.setErrors(collectConfirmationErrors());
+  if (!fieldsValid || hasLotErrors()) {
+    toast.error(t('validation.formHasErrors'));
+    confirmationErrors.focusFirstInvalidIn(confirmationFormRef.value);
+    return;
+  }
+  // Type-narrowing guard: submit-time validation already reported per-field errors above.
+  const machineId = form.machineId;
+  if (!machineId) return;
+  const good = form.goodQuantity ?? 0;
+  const scrap = form.scrapQuantity ?? 0;
   saving.value = true;
   try {
     await productionConfirmationService.create({
       productionOrderId: order.value.id,
-      machineId: form.machineId,
+      machineId,
       reportedByOperatorId: form.operatorId,
       reportedAt: new Date(form.reportedAt).toISOString(),
       goodQuantity: good,
@@ -672,7 +697,12 @@ async function onSave(): Promise<void> {
     // First confirmation moves the order to InProgress — refresh header, list and movements in place.
     await Promise.all([loadOrder(), table.fetch(), loadMovements()]);
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    if (confirmationErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      confirmationErrors.focusFirstInvalidIn(confirmationFormRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
   } finally {
     saving.value = false;
   }

@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="app-toast-host" role="region" aria-live="polite" aria-label="Notifications">
+    <div class="app-toast-host" role="region" aria-live="polite" :aria-label="$t('common.notifications')">
       <TransitionGroup name="app-toast">
         <div
           v-for="t in store.toasts"
@@ -10,7 +10,7 @@
         >
           <i :class="['app-toast__icon', iconClass(t.variant)]" aria-hidden="true"></i>
           <span class="app-toast__message">{{ t.message }}</span>
-          <button class="app-toast__close" aria-label="Dismiss" @click="store.dismiss(t.id)">
+          <button class="app-toast__close" :aria-label="$t('common.dismiss')" @click="store.dismiss(t.id)">
             <i class="pi pi-times"></i>
           </button>
         </div>

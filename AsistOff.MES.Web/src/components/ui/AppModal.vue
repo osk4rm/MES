@@ -14,7 +14,7 @@
             <slot name="header">
               <h3 class="app-modal__title">{{ title }}</h3>
             </slot>
-            <button v-if="closable" type="button" class="app-modal__close" aria-label="Close" @click="emit('close')">
+            <button v-if="closable" type="button" class="app-modal__close" :aria-label="$t('common.close')" @click="emit('close')">
               <i class="pi pi-times"></i>
             </button>
           </header>

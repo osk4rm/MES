@@ -9,6 +9,7 @@
       :disabled="disabled"
       :readonly="readonly"
       :required="required"
+      :aria-invalid="invalid"
       :autocomplete="autocomplete"
       :inputmode="inputmode"
       :name="name"
@@ -23,7 +24,7 @@
       v-if="clearable && modelValue"
       type="button"
       class="app-input__clear"
-      aria-label="Clear"
+      :aria-label="$t('common.clear')"
       @click="onClear"
     >
       <i class="pi pi-times"></i>

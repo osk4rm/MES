@@ -6,9 +6,9 @@ using AsistOff.MES.Shared.Abstractions.Jbl;
 namespace AsistOff.MES.Multitenancy.Requests.Queries;
 
 public class GetTenantQueryHandler(ITenantRepository tenantRepository)
-    : IJblHandler<GetTenantQuery, TenantResponse?>
+    : IJblHandler<GetTenantQuery, AnonymousTenantResponse>
 {
-    public async Task<TenantResponse?> Handle(GetTenantQuery request, CancellationToken cancellationToken)
+    public async Task<AnonymousTenantResponse> Handle(GetTenantQuery request, CancellationToken cancellationToken)
     {
         var tenant = await tenantRepository.GetByIdAsync(request.Id, cancellationToken);
 
@@ -17,13 +17,11 @@ public class GetTenantQueryHandler(ITenantRepository tenantRepository)
             throw new NotFoundException("Tenant", request.Id);
         }
 
-        return new TenantResponse
+        return new AnonymousTenantResponse
         (
             Id: tenant.Id,
             Name: tenant.Name,
-            DisplayName: tenant.DisplayName,
-            ContactEmail: tenant.ContactEmail,
-            Settings: new TenantSettingsResponse(tenant.Settings?.Country ?? string.Empty)
+            IsActive: tenant.IsActive
         );
     }
 }

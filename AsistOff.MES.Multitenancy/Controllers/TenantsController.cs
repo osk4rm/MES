@@ -34,9 +34,14 @@ public class TenantsController : ApiController
         return CreatedAtAction(nameof(GetTenant), new { id = result.Id }, result);
     }
 
+    /// <summary>
+    /// Anonymous single-tenant lookup for the pre-auth provisioning/health
+    /// surface. Returns only the minimal public projection (id, name, active
+    /// status) — never contact e-mail, display name, settings or secrets.
+    /// </summary>
     [HttpGet("{id}")]
     [AllowAnonymous]
-    public async Task<ActionResult<TenantResponse>> GetTenant(Guid id)
+    public async Task<ActionResult<AnonymousTenantResponse>> GetTenant(Guid id)
     {
         var result = await _mediator.Send(new GetTenantQuery(id));
         return result;

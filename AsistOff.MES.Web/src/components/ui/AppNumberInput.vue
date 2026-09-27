@@ -8,6 +8,7 @@
       :disabled="disabled"
       :readonly="readonly"
       :required="required"
+      :aria-invalid="invalid"
       :min="min"
       :max="max"
       :step="step"
