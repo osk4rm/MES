@@ -570,12 +570,14 @@ Business rules:
 
 - Attachments are tenant-scoped.
 - Binary content is stored through `IFileStorage`; the database stores metadata and `StorageKey`.
-- Upload request size limit is 100 MB.
+- Edge request size limit is 11 MiB (10 MiB app cap + 1 MiB multipart margin; nginx `client_max_body_size 12m`).
+- Per-tenant storage quota (`Attachments:Upload:MaxTotalBytesPerTenant`, default 500 MiB) enforced in the upload handler (HTTP 409); deleting frees quota.
+- Malware-scan hook (`IAttachmentMalwareScanner`): default implementation rejects EICAR probes, allows with a logged warning when no `MalwareScannerEndpoint` is configured, and fails closed when a configured endpoint is unreachable.
 - `OwnerType` + `OwnerId` make the module reusable for recipes and future entities.
 
 Known limitations:
 
-- No virus scanning.
+- No real AV engine / virus signature database (ClamAV sidecar is a separate ops task; plug it behind `IAttachmentMalwareScanner`).
 - No attachment versioning.
 - No deletion audit trail beyond standard logs.
 

@@ -27,4 +27,11 @@ internal sealed class AttachmentsRepository(DefaultContext context) : IAttachmen
     {
         await context.Set<Attachment>().Where(x => x.Id == id).ExecuteDeleteAsync(cancellationToken);
     }
+
+    public async Task<long> GetTotalSizeBytesAsync(CancellationToken cancellationToken = default)
+    {
+        // The global ISaasy query filter scopes this sum to the current tenant.
+        var total = await context.Set<Attachment>().SumAsync(x => (long?)x.SizeBytes, cancellationToken);
+        return total ?? 0L;
+    }
 }

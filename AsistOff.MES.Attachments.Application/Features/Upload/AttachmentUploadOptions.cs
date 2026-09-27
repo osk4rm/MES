@@ -12,7 +12,51 @@ public sealed class AttachmentUploadOptions
     /// <summary>Default maximum upload size: 10 MiB. Enforced before persistence.</summary>
     public const long DefaultMaxFileSizeBytes = 10 * 1024 * 1024;
 
+    /// <summary>
+    /// Default multipart overhead margin above <see cref="DefaultMaxFileSizeBytes"/>:
+    /// 1 MiB. The edge <c>RequestSizeLimit</c> is app cap plus this margin so
+    /// oversized payloads are rejected by Kestrel before buffering.
+    /// </summary>
+    public const long DefaultEdgeMarginBytes = 1 * 1024 * 1024;
+
+    /// <summary>
+    /// Edge request-size limit compiled into
+    /// <c>AttachmentsController.UploadAsync</c>: app cap plus multipart margin
+    /// (11 MiB by default). Must stay a <c>const</c> for the attribute; when an
+    /// operator raises <see cref="MaxFileSizeBytes"/> via configuration, raise
+    /// the edge accordingly (see <see cref="EdgeLimitFor"/>).
+    /// </summary>
+    public const long EdgeRequestSizeLimitBytes = DefaultMaxFileSizeBytes + DefaultEdgeMarginBytes;
+
+    /// <summary>
+    /// Default per-tenant attachment storage quota: 500 MiB of summed
+    /// <c>SizeBytes</c> across the tenant's attachments.
+    /// </summary>
+    public const long DefaultMaxTotalBytesPerTenant = 500L * 1024 * 1024;
+
     public long MaxFileSizeBytes { get; set; } = DefaultMaxFileSizeBytes;
+
+    /// <summary>
+    /// Multipart overhead margin added to <see cref="MaxFileSizeBytes"/> to form
+    /// the effective edge limit (see <see cref="EdgeLimitFor"/>).
+    /// </summary>
+    public long EdgeMarginBytes { get; set; } = DefaultEdgeMarginBytes;
+
+    /// <summary>
+    /// Per-tenant storage quota in bytes. Uploads that would push the tenant's
+    /// summed attachment sizes above this value are rejected (HTTP 409).
+    /// Deleting an attachment frees quota.
+    /// </summary>
+    public long MaxTotalBytesPerTenant { get; set; } = DefaultMaxTotalBytesPerTenant;
+
+    /// <summary>
+    /// Optional malware-scanner endpoint (e.g. a ClamAV sidecar HTTP proxy URL).
+    /// Empty means no external scanner is configured: uploads are allowed with
+    /// a logged warning (plus the built-in EICAR probe). When set, the scanner
+    /// POSTs the file bytes there; an unreachable endpoint fails closed
+    /// (upload rejected). Example: <c>http://clamav-proxy:8080/scan</c>.
+    /// </summary>
+    public string? MalwareScannerEndpoint { get; set; }
 
     public HashSet<string> AllowedExtensions { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -44,9 +88,28 @@ public sealed class AttachmentUploadOptions
         if (MaxFileSizeBytes <= 0)
             MaxFileSizeBytes = DefaultMaxFileSizeBytes;
 
+        if (EdgeMarginBytes <= 0)
+            EdgeMarginBytes = DefaultEdgeMarginBytes;
+
+        if (MaxTotalBytesPerTenant <= 0)
+            MaxTotalBytesPerTenant = DefaultMaxTotalBytesPerTenant;
+
+        if (string.IsNullOrWhiteSpace(MalwareScannerEndpoint))
+            MalwareScannerEndpoint = null;
+        else
+            MalwareScannerEndpoint = MalwareScannerEndpoint.Trim();
+
         AllowedExtensions = NormalizeExtensions(AllowedExtensions) ?? new HashSet<string>(DefaultExtensions(), StringComparer.OrdinalIgnoreCase);
         AllowedContentTypes = NormalizeContentTypes(AllowedContentTypes) ?? new HashSet<string>(DefaultContentTypes(), StringComparer.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// Effective edge limit for the given options: app cap plus multipart margin.
+    /// Keep <see cref="EdgeRequestSizeLimitBytes"/> (= the default evaluation of
+    /// this method) in sync with the <c>RequestSizeLimit</c> on the controller.
+    /// </summary>
+    public static long EdgeLimitFor(AttachmentUploadOptions options)
+        => options.MaxFileSizeBytes + options.EdgeMarginBytes;
 
     private static HashSet<string>? NormalizeExtensions(HashSet<string>? values)
     {

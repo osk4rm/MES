@@ -25,6 +25,7 @@ public class UploadAttachmentRequestHandlerTests
     private readonly Mock<IDateTimeProvider> _clock = new();
     private readonly Mock<ITenantContext> _tenant = new();
     private readonly Mock<IAttachmentOwnerVerifier> _owners = new();
+    private readonly Mock<IAttachmentMalwareScanner> _scanner = new();
     private readonly AttachmentUploadOptions _options = new();
 
     private readonly Guid _tenantId = Guid.NewGuid();
@@ -42,11 +43,15 @@ public class UploadAttachmentRequestHandlerTests
             .ReturnsAsync("ab/cd/key-file.png");
         _repository.Setup(r => r.AddAsync(It.IsAny<Attachment>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Attachment a, CancellationToken _) => a);
+        _repository.Setup(r => r.GetTotalSizeBytesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+        _scanner.Setup(s => s.ScanAsync(It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AttachmentScanVerdict.Clean);
     }
 
     private UploadAttachmentRequestHandler CreateSut() =>
         new(_repository.Object, _storage.Object, _guids.Object, _clock.Object,
-            _tenant.Object, Options.Create(_options), _owners.Object);
+            _tenant.Object, Options.Create(_options), _owners.Object, _scanner.Object);
 
     private static UploadAttachmentRequest Request(
         string fileName, string contentType, byte[] bytes, Guid? ownerId = null, string ownerType = "operation") =>
