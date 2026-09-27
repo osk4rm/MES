@@ -1,6 +1,6 @@
 <template>
   <div data-testid="dispatch-board" :class="viewClass">
-    <AppPageHeader :title="$t('scheduleDispatch.title')" :subtitle="$t('scheduleDispatch.subtitle')" icon="pi pi-calendar">
+    <AppPageHeader :title="$t('scheduleDispatch.title')" :subtitle="$t('scheduleDispatch.subtitle')" icon="pi pi-truck">
       <template #actions>
         <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" :loading="loading" @click="refresh">

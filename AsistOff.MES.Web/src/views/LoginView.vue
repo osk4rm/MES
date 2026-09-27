@@ -55,9 +55,9 @@
 
       <aside class="auth-page__side" aria-hidden="true">
         <div class="auth-page__side-inner">
-          <div class="auth-page__side-kicker">AsistOff MES</div>
-          <h2 class="auth-page__side-title">Enterprise-grade shop-floor control.</h2>
-          <p class="auth-page__side-text">Orders, recipes, operators, warehouses — one tenant-isolated workspace.</p>
+          <div class="auth-page__side-kicker">{{ $t('auth.loginSideKicker') }}</div>
+          <h2 class="auth-page__side-title">{{ $t('auth.loginSideTitle') }}</h2>
+          <p class="auth-page__side-text">{{ $t('auth.loginSideText') }}</p>
         </div>
       </aside>
     </div>

@@ -68,7 +68,8 @@ const pl = {
     productionKanban: 'Kanban',
     operatorPanel: 'Panel operatora',
     schedule: 'Harmonogram',
-    dispatchBoard: 'Tablica wysyłkowa',
+    gantt: 'Wykres Gantta',
+    dispatchBoard: 'Tablica dyspozytorska',
     reports: 'Raporty',
     oeeDashboard: 'Panel OEE',
     reliabilityDashboard: 'Panel niezawodności',
@@ -108,7 +109,13 @@ const pl = {
     goToRegister: 'Utwórz organizację',
     passwordsMismatch: 'Hasła nie są identyczne',
     registerSuccess: 'Organizacja utworzona. Zaloguj się.',
-    registerError: 'Nie udało się utworzyć organizacji'
+    registerError: 'Nie udało się utworzyć organizacji',
+    loginSideKicker: 'AsistOff MES',
+    loginSideTitle: 'Sterowanie produkcją klasy enterprise.',
+    loginSideText: 'Zlecenia, receptury, operatorzy, magazyny — jeden wyodrębniony obszar roboczy tenanta.',
+    registerSideKicker: 'Wiele organizacji',
+    registerSideTitle: 'Wyodrębniony obszar roboczy dla Twojej organizacji.',
+    registerSideText: 'Każdy tenant otrzymuje dedykowany, ściśle odizolowany zbiór danych z własnym kontem administratora.'
   },
   dashboard: {
     title: 'Pulpit',
@@ -883,7 +890,7 @@ const pl = {
     invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko i okno (maks. 93 dni)'
   },
   scheduleDispatch: {
-    title: 'Tablica wysyłkowa',
+    title: 'Tablica dyspozytorska',
     subtitle: 'Tablica dyspozytorska — zaległe zlecenia i obsada zmian',
     from: 'Okno od',
     to: 'Okno do',
@@ -1072,6 +1079,7 @@ const en: typeof pl = {
     productionKanban: 'Kanban',
     operatorPanel: 'Operator panel',
     schedule: 'Schedule',
+    gantt: 'Gantt chart',
     dispatchBoard: 'Dispatch board',
     reports: 'Reports',
     oeeDashboard: 'OEE dashboard',
@@ -1112,7 +1120,13 @@ const en: typeof pl = {
     goToRegister: 'Create an organization',
     passwordsMismatch: 'Passwords do not match',
     registerSuccess: 'Organization created. Please sign in.',
-    registerError: 'Organization creation failed'
+    registerError: 'Organization creation failed',
+    loginSideKicker: 'AsistOff MES',
+    loginSideTitle: 'Enterprise-grade shop-floor control.',
+    loginSideText: 'Orders, recipes, operators, warehouses — one tenant-isolated workspace.',
+    registerSideKicker: 'Multi-tenant',
+    registerSideTitle: 'Isolated workspace for your organization.',
+    registerSideText: 'Every tenant gets a dedicated, strictly-isolated dataset with its own admin account.'
   },
   dashboard: {
     title: 'Dashboard',
