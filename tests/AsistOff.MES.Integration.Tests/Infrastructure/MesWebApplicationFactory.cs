@@ -1,3 +1,4 @@
+using AsistOff.MES.Gateway.Protection;
 using AsistOff.MES.Integration.Tests.Outbox;
 using AsistOff.MES.Multitenancy.Context;
 using AsistOff.MES.Production.Application.Telemetry;
@@ -113,15 +114,22 @@ public sealed class MesWebApplicationFactory(
                 services.Configure(configureProtection);
             }
 
-            // Trusted-proxy overrides (issue #323): the production binding
-            // defaults to deny (no trusted proxies), so forwarded headers are
-            // ignored. Hosts proving the trusted-proxy path pass explicit
-            // allowlists (e.g. trust-all loopback/CIDRs for TestServer),
-            // which flow into ForwardedHeadersOptions via the Gateway wiring.
+            // Trusted-proxy pinning (issue #323 fix): apply the effective
+            // allowlist directly to ForwardedHeadersOptions so every test host
+            // deterministically honors exactly its intended trust through the
+            // real Forwarded Headers middleware — default-deny when the test
+            // passes no override, the explicit proxy/network otherwise.
+            // Registered after the Gateway wiring so it wins for this host
+            // only. Production binds TrustedProxies at startup (see
+            // Program.cs); these pins only keep the test hosts hermetic.
+            var trustedSnapshot = new TrustedProxyOptions();
+            configureTrustedProxies?.Invoke(trustedSnapshot);
             if (configureTrustedProxies is not null)
             {
                 services.Configure(configureTrustedProxies);
             }
+
+            ForwardedHeadersSetup.Pin(services, trustedSnapshot);
         });
     }
 

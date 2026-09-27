@@ -96,27 +96,17 @@ try
     // TrustedProxyOptions docs and docker-compose.yml notes. Never expose the
     // api container directly to the internet while trusting private ranges.
     builder.Services.Configure<TrustedProxyOptions>(builder.Configuration.GetSection(TrustedProxyOptions.SectionName));
-    builder.Services.AddOptions<ForwardedHeadersOptions>().Configure<Microsoft.Extensions.Options.IOptions<TrustedProxyOptions>>(
-        (options, trusted) =>
-        {
-            // Default-deny: clear the framework defaults, then trust only the
-            // explicitly configured proxies/networks. Malformed entries were
-            // already filtered by TrustedProxyOptions parsing, so this never
-            // throws and never opens the throttle to spoofing.
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            options.KnownIPNetworks.Clear();
-            options.KnownProxies.Clear();
-
-            foreach (var proxy in trusted.Value.GetKnownProxies())
-            {
-                options.KnownProxies.Add(proxy);
-            }
-
-            foreach (var network in trusted.Value.GetKnownNetworks())
-            {
-                options.KnownIPNetworks.Add(network);
-            }
-        });
+    // Eager, explicit wiring (issue #323 fix): snapshot the allowlist once at
+    // startup and apply it directly. The previous lazy
+    // AddOptions<ForwardedHeadersOptions>().Configure<IOptions<TrustedProxyOptions>>
+    // indirection did not deterministically clear the framework defaults in
+    // every host (CI: untrusted X-Forwarded-For still moved the throttle
+    // partition, so the rotating-header test got 401 instead of 429).
+    // Default-deny is now applied explicitly; per-host test overrides pin
+    // ForwardedHeadersOptions directly in MesWebApplicationFactory.
+    var trustedSnapshot = ForwardedHeadersSetup.Snapshot(builder.Configuration);
+    builder.Services.Configure<ForwardedHeadersOptions>(
+        options => ForwardedHeadersSetup.Apply(options, trustedSnapshot));
 
     // OpenTelemetry traces/metrics (issue #252): OTLP export when an endpoint
     // is configured, Prometheus exposition when enabled, no-op otherwise.
