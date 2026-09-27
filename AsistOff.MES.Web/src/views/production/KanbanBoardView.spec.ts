@@ -8,6 +8,9 @@ import {
   type KanbanCardResponse,
   type KanbanLoopResponse
 } from '../../services/kanbanService';
+import { productService } from '../../services/productService';
+import { machineService } from '../../services/machineService';
+import { warehouseService } from '../../services/warehouseService';
 import { useToastStore } from '../../stores/toastStore';
 
 // Verifier gaps for #147 / PR #158 (TESTS_INSUFFICIENT): the service spec only
@@ -36,6 +39,21 @@ vi.mock('../../services/kanbanService', async (importOriginal) => {
 const mockReplace = vi.fn();
 const mockQuery: Record<string, unknown> = {};
 
+vi.mock('../../services/productService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/productService')>();
+  return { ...actual, productService: { ...actual.productService, get: vi.fn() } };
+});
+
+vi.mock('../../services/machineService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/machineService')>();
+  return { ...actual, machineService: { ...actual.machineService, get: vi.fn() } };
+});
+
+vi.mock('../../services/warehouseService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/warehouseService')>();
+  return { ...actual, warehouseService: { ...actual.warehouseService, get: vi.fn() } };
+});
+
 vi.mock('vue-router', () => ({
   useRoute: (): { query: Record<string, unknown> } => ({ query: mockQuery }),
   useRouter: (): { replace: (...args: unknown[]) => void } => ({ replace: mockReplace })
@@ -57,6 +75,9 @@ const browseCardsMock = vi.mocked(kanbanService.browseCards);
 const consumeMock = vi.mocked(kanbanService.consumeCard);
 const orderMock = vi.mocked(kanbanService.orderCard);
 const replenishMock = vi.mocked(kanbanService.replenishCard);
+const productGetMock = vi.mocked(productService.get);
+const machineGetMock = vi.mocked(machineService.get);
+const warehouseGetMock = vi.mocked(warehouseService.get);
 
 function loop(overrides: Partial<KanbanLoopResponse> = {}): KanbanLoopResponse {
   return {
@@ -117,6 +138,11 @@ describe('KanbanBoardView', () => {
     consumeMock.mockResolvedValue(card({ status: KanbanCardStatus.Empty }));
     orderMock.mockResolvedValue(card({ status: KanbanCardStatus.Ordered }));
     replenishMock.mockResolvedValue(card({ status: KanbanCardStatus.Full }));
+    productGetMock.mockResolvedValue({ id: 'product-1', code: 'PRD-1', name: 'Widget', scanBy: 2, isActive: true });
+    machineGetMock.mockResolvedValue({
+      id: 'machine-1', code: 'WC-1', name: 'Work Center 1', isActive: true, capacity: 1, efficiencyFactor: 1
+    });
+    warehouseGetMock.mockResolvedValue({ id: 'warehouse-1', name: 'Main warehouse' });
   });
 
   it('renders three status columns with seeded cards in the correct column and keeps loop state in the URL (no full reload)', async () => {
@@ -329,6 +355,43 @@ describe('KanbanBoardView', () => {
     expect(wrapper.text()).toContain('kanban.notFoundHint');
     expect(wrapper.findAll('table.app-table')).toHaveLength(0);
     expect(wrapper.text()).not.toContain('KB-LOOP-1-001');
+  });
+
+  it('resolves product, Work Center and warehouse labels instead of raw GUIDs', async () => {
+    mockQuery.loopId = 'loop-1';
+    browseLoopsMock.mockResolvedValue(page([loop()]));
+    browseCardsMock.mockResolvedValue(page([card({ cardNumber: 'KB-LOOP-1-001', status: KanbanCardStatus.Full })]));
+
+    const wrapper = mountBoard();
+    await flushPromises();
+
+    expect(productGetMock).toHaveBeenCalledWith('product-1');
+    expect(machineGetMock).toHaveBeenCalledWith('machine-1');
+    expect(warehouseGetMock).toHaveBeenCalledWith('warehouse-1');
+    const text = wrapper.text();
+    expect(text).toContain('PRD-1');
+    expect(text).toContain('Widget');
+    expect(text).toContain('WC-1');
+    expect(text).toContain('Work Center 1');
+    expect(text).toContain('Main warehouse');
+    // No raw foreign-key GUID leaks into any card cell.
+    expect(text).not.toContain('product-1');
+    expect(text).not.toContain('machine-1');
+    expect(text).not.toContain('warehouse-1');
+  });
+
+  it('falls back to the neutral dash (never a GUID) when a lookup fails', async () => {
+    mockQuery.loopId = 'loop-1';
+    browseLoopsMock.mockResolvedValue(page([loop()]));
+    browseCardsMock.mockResolvedValue(page([card({ cardNumber: 'KB-LOOP-1-001', status: KanbanCardStatus.Full })]));
+    productGetMock.mockRejectedValueOnce(new Error('gone'));
+
+    const wrapper = mountBoard();
+    await flushPromises();
+
+    const text = wrapper.text();
+    expect(text).not.toContain('product-1');
+    expect(text).toContain('WC-1');
   });
 
   it('syncs the loop selector to ?loopId= without a full page reload', async () => {

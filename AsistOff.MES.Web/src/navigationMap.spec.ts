@@ -108,9 +108,26 @@ describe('navigation map (issue #337)', () => {
       'nav.productionDowntime',
       'nav.productionAndon',
       'nav.productionTelemetry',
-      'nav.productionOpcUaConnections',
+      'nav.productionOpcUaConnections'
+      // Telemetry dashboard (issue #382, F-16) lives under Reports, not
+      // Production — every dashboard shares one group.
+    ]);
+  });
+
+  it('groups every dashboard under Reports with a canonical trail (issue #382, F-16)', () => {
+    const reports = sitemap.find((item) => item.label === 'nav.reports');
+    expect(reports?.children?.map((child) => child.label)).toEqual([
+      'nav.oeeDashboard',
+      'nav.reliabilityDashboard',
       'nav.productionTelemetryDashboard'
     ]);
+    expect(trailKeysForPath('/reports/telemetry')).toEqual(['nav.reports', 'nav.productionTelemetryDashboard']);
+  });
+
+  it('redirects the retired production telemetry-dashboard path to Reports', () => {
+    const retired = router.getRoutes().find((record) => record.path === '/production/telemetry-dashboard');
+
+    expect(retired?.redirect).toBe('/reports/telemetry');
   });
 
   it('groups the Gantt view and the dispatch board under Schedule', () => {
@@ -160,6 +177,15 @@ describe('navigation map (issue #337)', () => {
     expect(enKeys).toEqual(plKeys);
     expect(enKeys).toContain('gantt');
     expect(enKeys).toContain('dispatchBoard');
+  });
+
+  it('keeps the sidenav chrome and gated Settings labels translated in both locales (issue #382, F-02/F-10)', () => {
+    for (const key of ['nav.main', 'nav.settings', 'nav.roles', 'sidenav.collapse', 'sidenav.expand']) {
+      for (const locale of ['pl', 'en'] as const) {
+        const value = resolveKey(localeDict(locale), key);
+        expect(typeof value === 'string' && (value as string).trim() !== '' && value !== key, `${locale}:${key}`).toBe(true);
+      }
+    }
   });
 
   it('gives every titled route a translated document title and a breadcrumb trail', () => {

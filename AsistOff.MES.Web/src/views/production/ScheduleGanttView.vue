@@ -28,22 +28,28 @@
 
     <p class="gantt-hint">{{ $t('scheduleGantt.hint') }}</p>
 
-    <AppSpinner v-if="loading && !loadedOnce" />
-
-    <template v-else-if="schedule">
-      <div v-if="dayColumns.length > 0" class="gantt-axis" :style="axisStyle" aria-hidden="true">
-        <div v-for="day in dayColumns" :key="day" class="gantt-axis__cell">
-          {{ formatDay(day) }}
+    <AppDataState
+      :loading="loading"
+      :error="loadError"
+      :empty="schedule === null || totalBars === 0"
+      empty-icon="pi pi-calendar"
+      :empty-title="$t('scheduleGantt.empty')"
+      @retry="refresh"
+    >
+      <template v-if="schedule">
+        <div v-if="dayColumns.length > 0" class="gantt-axis" :style="axisStyle" aria-hidden="true">
+          <div v-for="day in dayColumns" :key="day" class="gantt-axis__cell">
+            {{ formatDay(day) }}
+          </div>
         </div>
-      </div>
 
-      <AppEmptyState
-        v-if="totalBars === 0"
-        icon="pi pi-calendar"
-        :title="$t('scheduleGantt.empty')"
-      />
+        <AppEmptyState
+          v-if="totalBars === 0"
+          icon="pi pi-calendar"
+          :title="$t('scheduleGantt.empty')"
+        />
 
-      <AppCard v-for="group in schedule.groups" :key="laneKey(group)" class="gantt-lane">
+        <AppCard v-for="group in schedule.groups" :key="laneKey(group)" class="gantt-lane">
         <template #header>
           <div class="gantt-lane__header">
             <span class="gantt-lane__machine">{{ laneTitle(group) }}</span>
@@ -100,13 +106,8 @@
           </div>
         </div>
       </AppCard>
-    </template>
-
-    <AppEmptyState
-      v-else-if="!loading"
-      icon="pi pi-exclamation-circle"
-      :title="$t('errors.loadFailed')"
-    />
+      </template>
+    </AppDataState>
   </div>
 </template>
 
@@ -121,7 +122,7 @@ import AppInput from '../../components/ui/AppInput.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppCard from '../../components/ui/AppCard.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
 import {
   assignGanttRows,
@@ -160,7 +161,9 @@ const toInput = ref('');
 
 const schedule = ref<GanttSchedule | null>(null);
 const loading = ref(false);
-const loadedOnce = ref(false);
+// A failed window fetch is an error with retry (F-13), never a silent
+// stale lane: AppDataState renders it above loading/empty/content.
+const loadError = ref<string | null>(null);
 
 /** Drag/resize previews keyed by operation node id (reverted on conflict). */
 const previews = ref<Record<string, { startMs: number; endMs: number } | undefined>>({});
@@ -280,11 +283,11 @@ function syncQuery(q: GetGanttScheduleQuery): void {
 
 async function loadSchedule(q: GetGanttScheduleQuery): Promise<void> {
   loading.value = true;
+  loadError.value = null;
   try {
     schedule.value = await scheduleGanttService.getSchedule(q);
-    loadedOnce.value = true;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    loadError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     loading.value = false;
   }

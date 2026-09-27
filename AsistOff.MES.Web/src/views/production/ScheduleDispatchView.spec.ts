@@ -272,4 +272,27 @@ describe('ScheduleDispatchView', () => {
 
     expect(mockPush).toHaveBeenCalledWith({ name: 'production-order-detail', params: { id: 'order-ovd' } });
   });
+
+  it('shares the AppDataState precedence: error with retry beats the board, and retry recovers', async () => {
+    seedDeepLink();
+    getDispatchMock.mockRejectedValueOnce({
+      response: { status: 500, data: { title: 'Server blew up' } },
+      message: 'Request failed with status code 500'
+    });
+
+    const wrapper = mountBoard();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Server blew up');
+    expect(wrapper.text()).not.toContain('OVD-1');
+
+    const retry = wrapper.findAll('button').find((b) => b.text().includes('common.retry'));
+    expect(retry).toBeDefined();
+    await retry?.trigger('click');
+    await flushPromises();
+
+    expect(getDispatchMock).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain('OVD-1');
+    expect(wrapper.text()).not.toContain('Server blew up');
+  });
 });

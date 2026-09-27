@@ -67,13 +67,13 @@
               <code>{{ item.cardNumber }}</code>
             </template>
             <template #cell-product>
-              {{ selectedLoop.productId }}
+              {{ productLabel }}
             </template>
             <template #cell-workCenter>
-              {{ selectedLoop.consumingMachineId }}
+              {{ workCenterLabel }}
             </template>
             <template #cell-warehouse>
-              {{ selectedLoop.supplyingWarehouseId }}
+              {{ warehouseLabel }}
             </template>
             <template #cell-cardQuantity>
               {{ formatQuantity(selectedLoop.cardQuantity) }}
@@ -143,6 +143,9 @@ import {
   type KanbanCardResponse,
   type KanbanLoopResponse
 } from '../../services/kanbanService';
+import { productService } from '../../services/productService';
+import { machineService } from '../../services/machineService';
+import { warehouseService } from '../../services/warehouseService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -185,6 +188,39 @@ const selectedLoopId = ref<string | null>(null);
 
 const selectedLoop = computed(() => loops.value.find((l) => l.id === selectedLoopId.value) ?? null);
 const loopMissing = computed(() => loopsLoaded.value && selectedLoopId.value !== null && selectedLoop.value === null);
+
+// Human-readable card labels (F-03): the loop carries raw foreign-key ids,
+// so product / Work Center / warehouse names resolve via the configuration
+// lookups. A failed lookup keeps the neutral dash — a raw GUID is never
+// rendered in a card cell.
+const UNRESOLVED_LABEL = '—';
+const productLabel = ref(UNRESOLVED_LABEL);
+const workCenterLabel = ref(UNRESOLVED_LABEL);
+const warehouseLabel = ref(UNRESOLVED_LABEL);
+
+async function loadLookupLabels(): Promise<void> {
+  const loop = selectedLoop.value;
+  productLabel.value = UNRESOLVED_LABEL;
+  workCenterLabel.value = UNRESOLVED_LABEL;
+  warehouseLabel.value = UNRESOLVED_LABEL;
+  if (!loop) return;
+  const [product, machine, warehouse] = await Promise.allSettled([
+    productService.get(loop.productId),
+    machineService.get(loop.consumingMachineId),
+    warehouseService.get(loop.supplyingWarehouseId)
+  ]);
+  // Stale-response guard: the operator may have switched loops mid-fetch.
+  if (selectedLoop.value?.id !== loop.id) return;
+  if (product.status === 'fulfilled') {
+    productLabel.value = `${product.value.code} — ${product.value.name}`;
+  }
+  if (machine.status === 'fulfilled') {
+    workCenterLabel.value = `${machine.value.code} — ${machine.value.name}`;
+  }
+  if (warehouse.status === 'fulfilled') {
+    warehouseLabel.value = warehouse.value.name;
+  }
+}
 
 const anyColumnLoading = computed(() => board.value.some((c) => c.loading));
 const anyColumnError = computed(() => board.value.some((c) => c.error !== null));
@@ -309,6 +345,7 @@ async function selectLoop(id: string | null, sync: boolean): Promise<void> {
   }
   if (sync) syncLoopQuery();
   await loadBoard();
+  await loadLookupLabels();
 }
 
 function onLoopChange(v: string | number | null): void {
@@ -400,6 +437,7 @@ onMounted(async () => {
   selectedLoopId.value = readLoopIdFromQuery();
   await loadLoops();
   await loadBoard();
+  await loadLookupLabels();
 });
 </script>
 

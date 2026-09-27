@@ -48,27 +48,22 @@
       </template>
     </AppFilterBar>
 
-    <AppErrorState v-if="loadError" :message="loadError" :loading="loading" @retry="refresh" />
-    <AppSpinner v-else-if="loading && !loadedOnce" />
-    <AppEmptyState
-      v-else-if="!machineId"
-      icon="pi pi-wrench"
-      :title="$t('reliabilityDashboard.noMachine')"
-      :description="$t('reliabilityDashboard.noMachineHint')"
-    />
-    <AppEmptyState
-      v-else-if="notFound"
-      icon="pi pi-exclamation-circle"
-      :title="$t('reliabilityDashboard.notFound')"
-      :description="$t('reliabilityDashboard.notFoundHint')"
-    />
-    <template v-else-if="snapshot">
-      <AppEmptyState
-        v-if="nullReliability"
-        icon="pi pi-info-circle"
-        :title="$t('reliabilityDashboard.nullMtbfTitle')"
-        :description="$t('reliabilityDashboard.nullMtbfHint')"
-      />
+    <AppDataState
+      :loading="loading"
+      :error="loadError"
+      :empty="snapshot === null"
+      :empty-icon="emptyIcon"
+      :empty-title="emptyTitle"
+      :empty-description="emptyDescription"
+      @retry="refresh"
+    >
+      <template v-if="snapshot">
+        <AppEmptyState
+          v-if="nullReliability"
+          icon="pi pi-info-circle"
+          :title="$t('reliabilityDashboard.nullMtbfTitle')"
+          :description="$t('reliabilityDashboard.nullMtbfHint')"
+        />
 
       <div class="reliability-cards">
         <AppCard v-for="card in kpiCards" :key="card.key" class="reliability-card">
@@ -120,7 +115,8 @@
           <template #cell-mttrMinutes="{ value }">{{ formatNullableMinutes(toNullableNumber(value)) }}</template>
         </AppTable>
       </AppCard>
-    </template>
+      </template>
+    </AppDataState>
   </div>
 </template>
 
@@ -136,9 +132,8 @@ import AppInput from '../../components/ui/AppInput.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppCard from '../../components/ui/AppCard.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
-import AppErrorState from '../../components/ui/AppErrorState.vue';
 import AppTable from '../../components/ui/AppTable.vue';
 import {
   ReliabilityPreset,
@@ -178,9 +173,19 @@ const snapshot = ref<ReliabilitySnapshot | null>(null);
 const trend = ref<ReliabilityTrend | null>(null);
 const fleet = ref<ReliabilityFleetRow[]>([]);
 const loading = ref(false);
-const loadedOnce = ref(false);
 const notFound = ref(false);
 const loadError = ref<string | null>(null);
+
+// Shared region precedence (F-12: error > loading > empty > content): before
+// a Work Center is picked the region reads empty; a cross-tenant or deleted
+// Work Center keeps the not-found feedback.
+const emptyIcon = computed(() => !machineId.value || !notFound.value ? 'pi pi-wrench' : 'pi pi-exclamation-circle');
+const emptyTitle = computed(() => !machineId.value || !notFound.value
+  ? t('reliabilityDashboard.noMachine')
+  : t('reliabilityDashboard.notFound'));
+const emptyDescription = computed(() => !machineId.value || !notFound.value
+  ? t('reliabilityDashboard.noMachineHint')
+  : t('reliabilityDashboard.notFoundHint'));
 
 const nullReliability = computed(() => hasNullReliability(snapshot.value));
 const trendBuckets = computed<ReliabilitySnapshot[]>(() => trend.value?.buckets ?? []);
@@ -438,7 +443,6 @@ async function loadPanels(q: ValidatedQuery): Promise<void> {
     snapshot.value = s;
     trend.value = tr;
     fleet.value = fl;
-    loadedOnce.value = true;
   } catch (err) {
     if (isNotFoundError(err)) {
       // Cross-tenant or deleted Work Center: the API hides foreign rows
@@ -468,7 +472,6 @@ function clearPanels(): void {
   fleet.value = [];
   notFound.value = false;
   loadError.value = null;
-  loadedOnce.value = false;
 }
 
 function onMachineChange(v: string | number | null): void {

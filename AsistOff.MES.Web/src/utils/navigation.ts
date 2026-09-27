@@ -6,8 +6,9 @@ import type { NavItem } from '../sitemap';
  * The sidebar must highlight the entry for the current page, including
  * detail pages (`/production/orders/:id` highlights `/production/orders`)
  * and the `/settings` overview stub (highlights the Settings group).
- * Matching is segment-aware on purpose: a naive `startsWith` would mark
- * `/production/telemetry` active while on `/production/telemetry-dashboard`.
+ * Matching is segment-aware on purpose: detail pages resolve to their
+ * browse parent on a segment boundary (`/production/orders/123` is under
+ * `/production/orders`, but `/production/orders-archive` would not be).
  */
 
 /** Strips query/hash and trailing slashes (keeps the root `/`). */
