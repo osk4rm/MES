@@ -113,6 +113,10 @@ describe('navigation map (issue #337)', () => {
   it('groups the Gantt view and the dispatch board under Schedule', () => {
     const schedule = sitemap.find((item) => item.label === 'nav.schedule');
     expect(schedule?.children?.map((child) => child.label)).toEqual(['nav.gantt', 'nav.dispatchBoard']);
+    // The group has no own overview route: the Gantt leaf owns `/schedule`,
+    // so crumbs and the published map agree on one canonical trail.
+    expect(schedule?.route).toBeUndefined();
+    expect(trailKeysForPath('/schedule')).toEqual(['nav.schedule', 'nav.gantt']);
     expect(trailKeysForPath('/schedule/dispatch')).toEqual(['nav.schedule', 'nav.dispatchBoard']);
   });
 

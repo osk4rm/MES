@@ -42,7 +42,9 @@ export const sitemap: NavItem[] = [
     // share the /schedule/* path prefix but used to live in different nav
     // areas (top-level leaf vs Production child). Both now sit under one
     // group so the breadcrumb trail and the highlight agree with the URL.
-    route: '/schedule',
+    // The group itself has no overview route: the Gantt leaf owns `/schedule`
+    // so the published map keeps one row per path and `/schedule` resolves
+    // to the canonical trail [nav.schedule, nav.gantt].
     children: [
       { label: 'nav.gantt', icon: 'pi pi-bars', route: '/schedule' },
       { label: 'nav.dispatchBoard', icon: 'pi pi-truck', route: '/schedule/dispatch' }

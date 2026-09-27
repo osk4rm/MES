@@ -21,18 +21,32 @@ export interface NavigationMapRow {
 /** Flattens the sitemap into map rows: group overviews plus every leaf. */
 export function buildNavigationMap(items: NavItem[] = sitemap): NavigationMapRow[] {
   const rows: NavigationMapRow[] = [];
+  const seen = new Set<string>();
+  const pushRow = (row: NavigationMapRow): void => {
+    // A group overview must never shadow a leaf on the same path (issue
+    // #337 review): the leaf trail is canonical, so the first row wins and
+    // later duplicates are skipped to keep the map 1:1 with paths.
+    if (seen.has(row.path)) return;
+    seen.add(row.path);
+    rows.push(row);
+  };
   for (const item of items) {
+    const childPaths = new Set(
+      (item.children ?? []).filter((child) => child.route !== undefined).map((child) => child.route as string)
+    );
     if (item.children !== undefined && item.children.length > 0) {
-      if (item.route !== undefined) {
-        rows.push({ path: item.route, labelKey: item.label, trailKeys: [item.label] });
+      // Skip the group overview row when a child owns the same path, so the
+      // leaf trail (e.g. [nav.schedule, nav.gantt]) stays canonical.
+      if (item.route !== undefined && !childPaths.has(item.route)) {
+        pushRow({ path: item.route, labelKey: item.label, trailKeys: [item.label] });
       }
       for (const child of item.children) {
         if (child.route !== undefined) {
-          rows.push({ path: child.route, labelKey: child.label, trailKeys: [item.label, child.label] });
+          pushRow({ path: child.route, labelKey: child.label, trailKeys: [item.label, child.label] });
         }
       }
     } else if (item.route !== undefined) {
-      rows.push({ path: item.route, labelKey: item.label, trailKeys: [item.label] });
+      pushRow({ path: item.route, labelKey: item.label, trailKeys: [item.label] });
     }
   }
   return rows;
