@@ -97,6 +97,9 @@ describe('navigation map (issue #337)', () => {
     const production = sitemap.find((item) => item.label === 'nav.production');
     expect(production?.children?.map((child) => child.label)).toEqual([
       'nav.productionOrders',
+      // Operator panel (issue #336): the shopfloor shift queue sits right
+      // after orders in the workflow order.
+      'nav.operatorPanel',
       'nav.productionRecipes',
       'nav.productionKanban',
       'nav.productionLots',
@@ -194,10 +197,11 @@ describe('navigation map (issue #337)', () => {
     expect(deepestTitleKey([match('nav.production'), match('nav.productionOrders')])).toBe('nav.productionOrders');
   });
 
-  it('notes the operator panel as planned, not shipped (issue #336)', () => {
-    const operatorRoutes = router.getRoutes().filter((record) => record.path.startsWith('/operator'));
+  it('ships the operator panel under production with a canonical trail (issue #336)', () => {
+    const operatorRoutes = router.getRoutes().filter((record) => record.path === '/production/operator-panel');
 
-    expect(operatorRoutes).toEqual([]);
+    expect(operatorRoutes.length).toBe(1);
+    expect(trailKeysForPath('/production/operator-panel')).toEqual(['nav.production', 'nav.operatorPanel']);
   });
 
   it('keeps the touched auth and schedule strings translated in both locales', () => {
