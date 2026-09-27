@@ -1,7 +1,9 @@
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.AuditEvents;
 using AsistOff.MES.Production.Application.Features.AuditEvents.Browse;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
+using AsistOff.MES.Users.Core.Rbac;
 using FluentAssertions;
 using Moq;
 
@@ -11,7 +13,16 @@ public class BrowseAuditEventsRequestHandlerTests
 {
     private readonly Mock<IAuditEventsRepository> _repository = new();
 
-    private BrowseAuditEventsRequestHandler CreateSut() => new(_repository.Object);
+    private static Mock<ICurrentPermissionsAccessor> PermissionsWith(params string[] permissions)
+    {
+        var mock = new Mock<ICurrentPermissionsAccessor>();
+        mock.SetupGet(m => m.Permissions).Returns(permissions);
+        return mock;
+    }
+
+    private BrowseAuditEventsRequestHandler CreateSut(params string[] permissions) =>
+        new(_repository.Object, PermissionsWith(
+            permissions.Length == 0 ? [RbacDefaults.ProductionWrite] : permissions).Object);
 
     private static AuditEventResponse Row(string entityName, Guid entityId) => new(
         Guid.NewGuid(), entityName, entityId, 1, DateTime.UtcNow, Guid.NewGuid(), "{}");
@@ -72,6 +83,51 @@ public class BrowseAuditEventsRequestHandlerTests
         // Assert
         result.Items.Should().BeEmpty();
         result.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Handle_PrivilegedCaller_KeepsFullPayload()
+    {
+        // Arrange
+        var entityId = Guid.NewGuid();
+        _repository.Setup(r => r.CountAsync(null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _repository.Setup(r => r.BrowseAsync(null, null, 0, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AuditEventResponse> { Row("ProductionOrder", entityId) });
+
+        // Act
+        var result = await CreateSut(RbacDefaults.ProductionWrite)
+            .Handle(new BrowseAuditEventsRequest(), CancellationToken.None);
+
+        // Assert — privileged callers keep the full change payload.
+        result.Items.Should().ContainSingle().Which.Payload.Should().Be("{}");
+    }
+
+    [Fact]
+    public async Task Handle_ReadOnlyCaller_RedactsPayloadToNull()
+    {
+        // Arrange
+        var entityId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        _repository.Setup(r => r.CountAsync(null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _repository.Setup(r => r.BrowseAsync(null, null, 0, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AuditEventResponse>
+            {
+                new(Guid.NewGuid(), "ProductionOrder", entityId, 1, DateTime.UtcNow, actorId, "{\"notes\":\"secret\"}")
+            });
+
+        // Act
+        var result = await CreateSut(RbacDefaults.ProductionRead)
+            .Handle(new BrowseAuditEventsRequest(), CancellationToken.None);
+
+        // Assert — the event itself stays visible, only the payload is redacted.
+        var row = result.Items.Should().ContainSingle().Subject;
+        row.Payload.Should().BeNull();
+        row.EntityName.Should().Be("ProductionOrder");
+        row.EntityId.Should().Be(entityId);
+        row.ActorId.Should().Be(actorId);
+        result.TotalCount.Should().Be(1);
     }
 }
 

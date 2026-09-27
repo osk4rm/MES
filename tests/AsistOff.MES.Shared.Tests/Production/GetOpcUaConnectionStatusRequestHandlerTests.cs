@@ -5,8 +5,10 @@ using AsistOff.MES.Production.Application.Features.OpcUaConnections.Status;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
+using AsistOff.MES.Users.Core.Rbac;
 using FluentAssertions;
 using Moq;
 
@@ -93,8 +95,18 @@ public class GetOpcUaConnectionStatusRequestHandlerTests
         IsEnabled = true
     };
 
-    private GetOpcUaConnectionStatusRequestHandler CreateSut() => new(
-        _connections.Object, _tags.Object, _readings.Object, _machines.Object, _clock.Object);
+    private GetOpcUaConnectionStatusRequestHandler CreateSut()
+    {
+        // Existing behavior tests run as a privileged caller so the seeded
+        // rows (no LastError set) assert unchanged; redaction has dedicated
+        // coverage in OpcUaSensitiveProjectionHandlerTests.
+        var permissions = new Mock<ICurrentPermissionsAccessor>();
+        permissions.SetupGet(p => p.Permissions).Returns([RbacDefaults.ProductionWrite]);
+
+        return new(
+            _connections.Object, _tags.Object, _readings.Object, _machines.Object, _clock.Object,
+            permissions.Object);
+    }
 
     [Fact]
     public async Task Handle_ReturnsOneEntryPerConnection_InStableOrder()

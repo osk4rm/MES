@@ -56,6 +56,9 @@
         {{ lastSeenLabel(item) }}
       </template>
       <template #cell-lastError="{ value }">
+        <!-- Issue #372: null covers both "no error" and "redacted for
+             read-only callers" — both render as the empty marker, so raw
+             provider error text never reaches an unprivileged screen. -->
         <span class="conn-error">{{ value ?? '—' }}</span>
       </template>
       <template #cell-tags="{ item }">
