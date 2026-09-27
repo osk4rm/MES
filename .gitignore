@@ -11,6 +11,14 @@
 *.sln.docstates
 *.env
 
+# Environment secrets — never commit (issue #365).
+# Covers the root and any nested dotenv files while keeping templates tracked.
+.env
+.env.local
+.env.production
+.env.*.local
+!.env.example
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
