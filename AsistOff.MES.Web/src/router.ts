@@ -7,13 +7,14 @@ import { abortPendingRequests } from './services/http';
 import { Permissions } from './models/authModels';
 import i18n from './i18n';
 import type { RouteRecordRaw } from 'vue-router';
+import { deepestTitleKey, documentTitleForTitleKey } from './navigationMap';
 
 const AppShell = () => import('./components/layout/AppShell.vue');
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/dashboard' },
-  { path: '/login', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
-  { path: '/register', name: 'register', component: () => import('./views/RegisterView.vue'), meta: { public: true } },
+  { path: '/login', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true, titleKey: 'auth.signInTitle' } },
+  { path: '/register', name: 'register', component: () => import('./views/RegisterView.vue'), meta: { public: true, titleKey: 'auth.signUpTitle' } },
   {
     path: '/',
     component: AppShell,
@@ -33,7 +34,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'production/opcua-connections', name: 'production-opcua-connections', component: () => import('./views/production/OpcUaConnectionsView.vue'), meta: { titleKey: 'nav.productionOpcUaConnections', icon: 'pi pi-link' } },
       { path: 'production/telemetry-dashboard', name: 'production-telemetry-dashboard', component: () => import('./views/production/TelemetryDashboardView.vue'), meta: { titleKey: 'nav.productionTelemetryDashboard', icon: 'pi pi-chart-line' } },
       { path: 'production/kanban', name: 'production-kanban', component: () => import('./views/production/KanbanBoardView.vue'), meta: { titleKey: 'nav.productionKanban', icon: 'pi pi-th-large' } },
-      { path: 'schedule', name: 'schedule', component: () => import('./views/production/ScheduleGanttView.vue'), meta: { titleKey: 'nav.schedule', icon: 'pi pi-calendar' } },
+      { path: 'schedule', name: 'schedule', component: () => import('./views/production/ScheduleGanttView.vue'), meta: { titleKey: 'nav.gantt', icon: 'pi pi-calendar' } },
       { path: 'schedule/dispatch', name: 'schedule-dispatch', component: () => import('./views/production/ScheduleDispatchView.vue'), meta: { titleKey: 'nav.dispatchBoard', icon: 'pi pi-truck' } },
       { path: 'reports', redirect: '/reports/oee' },
       { path: 'reports/oee', name: 'reports-oee', component: () => import('./views/production/OeeDashboardView.vue'), meta: { titleKey: 'nav.oeeDashboard', icon: 'pi pi-chart-bar' } },
@@ -130,6 +131,18 @@ router.beforeEach(async (to) => {
     return { name: 'dashboard' };
   }
   return true;
+});
+
+// Document titles (issue #337): every route carries meta.titleKey, so the
+// tab title follows navigation in the active locale. The AppShell watcher
+// re-applies it on locale switch using the same helper.
+router.afterEach((to) => {
+  try {
+    document.title = documentTitleForTitleKey(
+      (key: string) => i18n.global.t(key) as string,
+      deepestTitleKey(to.matched)
+    );
+  } catch { /* ignore - document is unavailable in some test hosts */ }
 });
 
 export default router;

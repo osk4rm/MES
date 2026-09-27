@@ -52,9 +52,9 @@
 
       <aside class="auth-page__side" aria-hidden="true">
         <div class="auth-page__side-inner">
-          <div class="auth-page__side-kicker">Multi-tenant</div>
-          <h2 class="auth-page__side-title">Isolated workspace for your organization.</h2>
-          <p class="auth-page__side-text">Every tenant gets a dedicated, strictly-isolated dataset with its own admin account.</p>
+          <div class="auth-page__side-kicker">{{ $t('auth.registerSideKicker') }}</div>
+          <h2 class="auth-page__side-title">{{ $t('auth.registerSideTitle') }}</h2>
+          <p class="auth-page__side-text">{{ $t('auth.registerSideText') }}</p>
         </div>
       </aside>
     </div>
