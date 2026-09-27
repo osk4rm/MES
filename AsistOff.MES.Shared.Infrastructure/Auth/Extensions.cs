@@ -143,7 +143,19 @@ public static class Extensions
         services.AddSingleton(options);
         services.AddSingleton(tokenValidationParameters);
 
-        var policies = modules?.SelectMany(x => x.Policies) ?? [];
+        // Module permission policies (issue #329): every IModule.Policies entry is
+        // registered as an MVC authorization policy requiring the matching
+        // "permissions" claim value. Deduplicated by name (last-wins is
+        // equivalent here since every registration uses the same
+        // RequireClaim shape) because AuthorizationOptions.AddPolicy throws on
+        // duplicate names and two modules may declare the same policy.
+        // Null modules, null Policies collections and blank names register
+        // nothing and throw nothing, preserving the default-deny pipeline.
+        var policies = (modules ?? [])
+            .SelectMany(x => x.Policies ?? [])
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
         services.AddAuthorization(authorization =>
         {
             foreach (var policy in policies)

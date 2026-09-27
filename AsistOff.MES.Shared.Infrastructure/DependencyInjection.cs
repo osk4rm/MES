@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.DAL;
+using AsistOff.MES.Shared.Abstractions.Modules;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using AsistOff.MES.Shared.Infrastructure.Auth;
 using AsistOff.MES.Shared.Infrastructure.Behaviors;
@@ -22,7 +23,8 @@ namespace AsistOff.MES.Shared.Infrastructure
     public static class DependencyInjection
     {
         public static IServiceCollection AddInfrastructure(this IServiceCollection services,
-            IConfiguration configuration, IList<Assembly> assemblies, IHostEnvironment? hostEnvironment = null)
+            IConfiguration configuration, IList<Assembly> assemblies, IHostEnvironment? hostEnvironment = null,
+            IList<IModule>? modules = null)
         {
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
@@ -30,7 +32,10 @@ namespace AsistOff.MES.Shared.Infrastructure
             services.AddSingleton<IGuidProvider, GuidProvider>();
             services.AddScoped<ICurrentUserAccessor, HttpCurrentUserAccessor>();
             services.AddScoped<ICurrentPermissionsAccessor, HttpCurrentPermissionsAccessor>();
-            services.AddAuth(hostEnvironment);
+            // Issue #329: forward the discovered modules so every
+            // IModule.Policies entry is registered as an MVC policy in AddAuth.
+            // Null/empty registers nothing and throws nothing.
+            services.AddAuth(hostEnvironment, modules);
             services.AddMessaging();
             services.AddValidation(assemblies);
             services.AddPersistence(configuration);
