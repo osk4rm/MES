@@ -74,16 +74,17 @@ creates no Traefik route for the bare form (requests 404).
 5. In **Environment Variables** add (generate secrets with
    `sh scripts/generate-env.sh` on any machine with sh/openssl):
 
-   ```env
-   ASPNETCORE_ENVIRONMENT=Production
-   POSTGRES_DB=mes
-   POSTGRES_USER=admin
-   POSTGRES_PASSWORD=<openssl rand -base64 32>
-   AUTH_ISSUER_SIGNING_KEY=<openssl rand -base64 48>
-   API_BASE_URL=https://TWOJA_DOMENA
-   VITE_API_BASE_URL=https://TWOJA_DOMENA
-   CORS_ALLOWED_ORIGIN=https://TWOJA_DOMENA
-   ```
+    ```env
+    ASPNETCORE_ENVIRONMENT=Production
+    POSTGRES_DB=mes
+    POSTGRES_USER=admin
+    POSTGRES_PASSWORD=<openssl rand -base64 32>
+    AUTH_ISSUER_SIGNING_KEY=<openssl rand -base64 48>
+    SEQ_ADMIN_PASSWORD=<openssl rand -base64 24>
+    API_BASE_URL=https://TWOJA_DOMENA
+    VITE_API_BASE_URL=https://TWOJA_DOMENA
+    CORS_ALLOWED_ORIGIN=https://TWOJA_DOMENA
+    ```
 
    Replace `https://TWOJA_DOMENA` with e.g. `https://1-2-3-4.sslip.io`
    (no trailing slash). `API_BASE_URL` **must be the public frontend origin
@@ -93,8 +94,9 @@ creates no Traefik route for the bare form (requests 404).
    | Variable | Meaning |
    | --- | --- |
    | `ASPNETCORE_ENVIRONMENT` | `Production` on the server (strict CORS, no Swagger, secrets enforced) |
-   | `POSTGRES_PASSWORD` | min. 32 bytes; enforced at boot, no defaults |
-   | `AUTH_ISSUER_SIGNING_KEY` | min. 32 bytes (256 bits); signs the session JWTs |
+    | `POSTGRES_PASSWORD` | min. 32 bytes; enforced at boot, no defaults |
+    | `AUTH_ISSUER_SIGNING_KEY` | min. 32 bytes (256 bits); signs the session JWTs |
+    | `SEQ_ADMIN_PASSWORD` | required: first-run admin password for the Seq log UI (compose fails fast without it); the ingestion key (`SEQ_INGESTION_API_KEY`) is provisioned in the Seq UI after boot — see section 8 |
    | `API_BASE_URL` / `VITE_API_BASE_URL` | public frontend origin (runtime value wins, no rebuild needed) |
     | `CORS_ALLOWED_ORIGIN` | same public origin; Production refuses to boot without it |
     | `AllowedHosts` | public API host name(s), semicolon-separated (e.g. `mes.twojadomena.pl`); set as the `AllowedHosts` environment variable in Coolify. The shipped default allows only loopback hosts (`localhost;127.0.0.1;[::1]`, fail-closed) and any wildcard outside Development fails fast at startup, so set this on the server or every request gets `400` |
@@ -246,9 +248,48 @@ docker compose --profile production up --build -d
 
 ---
 
-## 8. Seq (optional)
+## 8. Seq (optional, authenticated)
 
 `seq` ships MES logs to a searchable UI. It runs by default in the compose
-stack but needs no public domain. To expose it temporarily, add a second domain
-in Coolify pointing at the `seq` service (internal port `80`), or drop the
-service from your deployment if you only need `docker logs`.
+stack but needs no public domain — and since issue #377 it **requires
+authentication**: anonymous requests to the Seq UI and anonymous ingestion
+posts are rejected. Log events carry operator activity and tenant data, so
+an open Seq is an open data leak.
+
+Local dev binds the published port to **localhost only**
+(`127.0.0.1:${SEQ_PORT:-5341}:80` in `docker-compose.override.yml`), so the
+log browser stays convenient without exposing Seq to the LAN. Coolify
+ignores the override file, so the server never publishes host ports at all.
+
+| Variable | Meaning |
+| --- | --- |
+| `SEQ_PORT` | local host port for the Seq UI (default `5341`) |
+| `SEQ_ADMIN_PASSWORD` | **required, no default**: first-run admin password for the Seq UI; compose fails fast without it (generate with `sh scripts/generate-env.sh`) |
+| `SEQ_INGESTION_API_KEY` | ingestion API key the api/api-prod Serilog sink authenticates with; provisioned once in the Seq UI (see bootstrap below) |
+
+First boot on any machine (fresh `seq_data` volume):
+
+```bash
+cp .env.example .env
+sh scripts/generate-env.sh   # fills POSTGRES_PASSWORD + AUTH_ISSUER_SIGNING_KEY + SEQ_ADMIN_PASSWORD
+docker compose up -d
+```
+
+Then wire log shipping (Seq only honors `SEQ_FIRSTRUN_*` when the volume is
+initialized, so the ingestion key is a one-time manual step):
+
+1. Open `http://localhost:5341`, log in as `admin` with `SEQ_ADMIN_PASSWORD`
+   (Seq forces a password change on this first login — that is expected).
+2. **Settings → API Keys → Add API Key** (Ingest permission), copy the key.
+3. Paste it as `SEQ_INGESTION_API_KEY` in `.env`, then
+   `docker compose restart api` — the api resumes shipping logs to Seq.
+   Until the key is set the api still boots and logs to the console; Seq
+   just rejects its anonymous posts (fail-closed).
+
+Upgrading a stack that already ran Seq **without** authentication: the
+`SEQ_FIRSTRUN_*` variables have no effect on the existing `seq_data`
+volume. Either enable authentication inside the running Seq
+(**Settings → Users**, set the admin password and require authentication
+for HTTP ingestion), or recreate the volume and follow the first-boot flow
+above (`docker compose down seq && docker volume rm <project>_seq_data`
+loses stored logs — export first if they matter).

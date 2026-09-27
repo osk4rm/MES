@@ -16,8 +16,10 @@ services:
   seq:
     ports:
       # Seq serves both the web UI and the ingestion API on a single HTTP
-      # port (80 inside the container).
-      - "${SEQ_PORT:-5341}:80"
+      # port (80 inside the container). Bound to localhost only (issue #377):
+      # anyone able to reach this port can read full application logs, so the
+      # dev browser stays convenient without exposing Seq to the LAN.
+      - "127.0.0.1:${SEQ_PORT:-5341}:80"
 
   api:
     environment:
