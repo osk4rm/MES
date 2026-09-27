@@ -298,9 +298,6 @@ try
     app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
-    // Prometheus scrape endpoint (issue #252): mapped only when
-    // Observability:PrometheusEnabled is true; otherwise GET /metrics is 404.
-    app.UseMesObservability();
     // Health probes for container orchestrators (issue #249). All three are
     // anonymous infrastructure endpoints with no tenant context: orchestrators
     // call them with no user or tenant. AllowAnonymous makes the opt-out
@@ -326,6 +323,13 @@ try
     app.MapHealthChecks(HealthProbes.LivePath, liveOptions).AllowAnonymous().DisableRateLimiting();
     app.MapHealthChecks(HealthProbes.ReadyPath, readyOptions).AllowAnonymous().DisableRateLimiting();
     app.MapHealthChecks(HealthProbes.AliasPath, readyOptions).AllowAnonymous().DisableRateLimiting();
+    // Prometheus scrape endpoint (issue #252): an anonymous infrastructure
+    // endpoint scraped without credentials, like the health probes above.
+    // Mapped with the other endpoints (not as middleware behind
+    // UseAuthorization) so the AllowAnonymous() opt-out from the global
+    // fallback policy (issue #351) actually applies. Mapped only when
+    // Observability:PrometheusEnabled is true; otherwise GET /metrics is 404.
+    app.MapMesObservability();
     app.MapControllers();
 
     app.Run();
