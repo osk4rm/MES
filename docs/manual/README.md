@@ -1,8 +1,11 @@
-# AsistOff MES — End-User Manual (Slice 1 of 3)
+# AsistOff MES — End-User Manual (Slices 1–2 of 3)
 
 Slice 1 covers getting started, master data, and recipes engineering.
-It is the first of three slices; slices 2 (production execution) and 3
-(analytics, integration, administration and operations) follow separately.
+Slice 2 (this slice) covers production execution: orders, dispatch,
+confirmations, scrap and Downtime, lots and genealogy, the Gantt
+Harmonogram, shift handover and the Operator panel. Slice 3
+(analytics, integration, administration and operations) follows
+separately.
 
 ## How to use this manual
 
@@ -36,6 +39,28 @@ the permission it needs, and its error cases.
 - [Routing, BOM and resources](06-recipes-routing-bom.md) —
   OperationNode and OperationDependency routing, OperationTemplate,
   OperationOutput, BomItem, ResourceRequirement.
+
+### Production execution
+
+- [Production Orders](07-production-orders.md) — order lifecycle
+  Planned → Released → InProgress → Completed → Closed, priorities,
+  due dates, reservations on release.
+- [Dispatch board](08-dispatch-board.md) — shift-aware
+  Released-orders board with uncovered-shift flags (and the
+  Harmonogram name note).
+- [Confirmations with RW/PW](09-confirmations.md) — operator
+  confirmations with produced/consumed lots, RW/PW preview and stock
+  effect, complete/close.
+- [Scrap and Downtime with Reason codes](10-scrap-downtime.md) —
+  scrap capture, Downtime start/close, Reason code dictionary.
+- [Lots and genealogy](11-lots-genealogy.md) — Lot registry, status
+  lifecycle, genealogy edges, upstream/downstream traces.
+- [Gantt schedule (Harmonogram)](12-gantt-schedule.md) — time-phased
+  schedule read-model, reschedule moves, leveling conflicts.
+- [Shift handover](13-shift-handover.md) — handover context snapshot
+  and the append-only logbook.
+- [Operator panel (shift queue)](14-operator-panel.md) — operator
+  shift queue with claim/confirm/scrap/downtime/Andon actions.
 
 ## Conventions used in every chapter
 
