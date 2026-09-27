@@ -3,6 +3,7 @@ using AsistOff.MES.Shared.Abstractions.Observability;
 using AsistOff.MES.Shared.Infrastructure.Correlation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -81,21 +82,35 @@ public static class ObservabilityRegistration
         new(new TraceIdRatioBasedSampler(options.GetSamplingRatio()));
 
     /// <summary>
-    /// Maps the Prometheus scrape endpoint (<c>/metrics</c>) when
-    /// <c>Observability:PrometheusEnabled</c> is <c>true</c>. When disabled
-    /// nothing is mapped and <c>GET /metrics</c> falls through to 404.
+    /// Maps the Prometheus scrape endpoint (<c>/metrics</c>) as endpoint-routed
+    /// infrastructure (issue #252), explicitly opted out of the global
+    /// fallback authorization policy (issue #351) via
+    /// <c>AllowAnonymous()</c>. Prometheus scrapes without credentials, like
+    /// the health probes, so the endpoint must stay anonymously reachable:
+    /// the previous middleware branch (<c>UseOpenTelemetryPrometheusScrapingEndpoint</c>)
+    /// carried no endpoint metadata and ran behind <c>UseAuthorization</c>,
+    /// so the fallback policy challenged anonymous scrapes with 401. When
+    /// <c>Observability:PrometheusEnabled</c> is <c>false</c>, an explicit
+    /// anonymous <c>/metrics</c> route returning 404 is mapped instead, so the
+    /// documented "disabled means 404" contract holds under the fallback
+    /// policy (an unmapped path would otherwise surface a 401 challenge
+    /// instead of 404).
     /// </summary>
-    public static IApplicationBuilder UseMesObservability(this IApplicationBuilder app)
+    public static IEndpointRouteBuilder MapMesObservability(this IEndpointRouteBuilder endpoints)
     {
-        var options = app.ApplicationServices
+        var options = endpoints.ServiceProvider
             .GetRequiredService<IOptions<ObservabilityOptions>>().Value;
 
         if (options.PrometheusEnabled)
         {
-            app.UseOpenTelemetryPrometheusScrapingEndpoint();
+            endpoints.MapPrometheusScrapingEndpoint().AllowAnonymous();
+        }
+        else
+        {
+            endpoints.MapGet("/metrics", () => Results.NotFound()).AllowAnonymous();
         }
 
-        return app;
+        return endpoints;
     }
 
     private static TracerProviderBuilder AddOtlpExporterIfConfigured(

@@ -2,6 +2,7 @@
 using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Modules;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -177,6 +178,21 @@ public static class Extensions
             {
                 authorization.AddPolicy(policy, x => x.RequireClaim("permissions", policy));
             }
+
+            // Global fallback authorization policy (issue #351, security audit
+            // 2026-09-26, Low): endpoints without explicit auth metadata fail
+            // closed with 401. Every API controller inherits [Authorize] from
+            // ApiController, but any controller that does not derive from it
+            // (today: ErrorsController at /error) would otherwise be
+            // anonymously reachable by default. The HTTP edge must mirror the
+            // application-layer default-deny (AuthorizationBehavior): only
+            // endpoints carrying [AllowAnonymous] (sign-in/refresh, tenant
+            // self-registration + lookup, health probes, the Prometheus
+            // /metrics scrape endpoint, /error) stay reachable without
+            // authentication.
+            authorization.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
         });
 
         return services;
