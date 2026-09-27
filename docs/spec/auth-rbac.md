@@ -95,6 +95,23 @@ any handler runs. The `auth:AuthenticationDisabled` evaluator that bypasses
 all checks exists only outside Production and only as a documented dev/test
 aid.
 
+HTTP-edge default-deny (issue #351): `AddAuth` additionally registers a
+global MVC fallback policy (`RequireAuthenticatedUser`), so any controller
+endpoint without explicit auth metadata fails closed with 401 instead of
+being anonymously reachable. Every API controller inherits `[Authorize]`
+from `ApiController`, but the fallback covers controllers that do not derive
+from it (current and future). Explicit `[AllowAnonymous]` is the only
+opt-out, and the anonymous HTTP surface is exactly: sign-in + refresh
+(`AuthenticationController`), tenant self-registration + lookup
+(`TenantsController`, minimal `AnonymousTenantResponse` projection only),
+health probes (`AllowAnonymous()` mappings for live/ready/alias in
+`Program.cs`), Swagger in Development, and `GET /error`
+(`ErrorsController`). The `/error` exception exists because the
+exception-handler re-execution path must render the sanitized
+`ProblemDetails` (`GlobalExceptionHandler` exposes only `IServiceException`
+messages, generic 500 otherwise) for anonymous callers too — challenging on
+the error path would mask the real error.
+
 ## Failure-code contract
 
 | Situation | Exception | HTTP |

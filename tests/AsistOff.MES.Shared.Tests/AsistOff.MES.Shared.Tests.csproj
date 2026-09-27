@@ -40,6 +40,7 @@
     <ProjectReference Include="..\..\AsistOff.MES.Users.Core\AsistOff.MES.Users.Core.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Attachments.Application\AsistOff.MES.Attachments.Application.csproj" />
     <ProjectReference Include="..\..\AsistOff.MES.Attachments.Core\AsistOff.MES.Attachments.Core.csproj" />
+    <ProjectReference Include="..\..\AsistOff.MES.Gateway\AsistOff.MES.Gateway.csproj" />
   </ItemGroup>
 
 </Project>
