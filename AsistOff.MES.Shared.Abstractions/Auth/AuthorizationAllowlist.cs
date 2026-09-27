@@ -153,6 +153,7 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Production.Application.Features.Reliability.Trend.GetReliabilityTrendRequest",
             "AsistOff.MES.Production.Application.Features.Schedule.GetDispatchBoardRequest",
             "AsistOff.MES.Production.Application.Features.Schedule.GetGanttScheduleRequest",
+            "AsistOff.MES.Production.Application.Features.Schedule.GetOperatorShiftQueueRequest",
             "AsistOff.MES.Production.Application.Features.ScrapEvents.Browse.BrowseScrapEventsRequest",
             "AsistOff.MES.Production.Application.Features.ScrapEvents.Get.GetScrapEventRequest",
             "AsistOff.MES.Production.Application.Features.ShiftHandovers.GetShiftHandoverContextRequest",
