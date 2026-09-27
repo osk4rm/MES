@@ -3,9 +3,18 @@
 # the server compose (docker-compose.yml) contains only MES services
 # (postgres, seq, api, web + the migrate/api-prod/backup profiles).
 #
-# Usage (needs GH_TOKEN in `.env`):
+# Usage (needs GH_TOKEN and OPENCODE_API_KEY in `.env`):
 #   docker compose -f docker-compose.yml -f docker-compose.swarm.yml up -d --build swarm
 #   docker compose -f docker-compose.yml -f docker-compose.swarm.yml logs -f swarm
+#
+# Hardening (issue #357): the swarm runs as non-root `swarm` (UID 10000,
+# `docker exec <swarm> id -u` is non-zero), never privileged, with
+# no-new-privileges and no capabilities. Docker socket access is
+# least-privilege via docker-group GID membership (build arg DOCKER_GID
+# must match the host `docker` group GID: `getent group docker`), so
+# Testcontainers keeps working without root. Host AI-service credentials
+# are never bind-mounted: opencode authenticates via the env-passed
+# OPENCODE_API_KEY (same model as GH_TOKEN).
 #
 # The swarm works on an isolated clone of the repo (named volume `swarm_work`)
 # and survives reboots (`restart: unless-stopped`).
@@ -16,33 +25,56 @@ services:
     build:
       context: ./docker/swarm
       dockerfile: Dockerfile
+      args:
+        # Must match the host `docker` group GID for socket access
+        # (Linux: `getent group docker`; Docker Desktop: default 999 works).
+        DOCKER_GID: "${DOCKER_GID:-999}"
+    # Non-root runtime user (mirrors the Dockerfile USER directive so
+    # `docker compose config` never shows a root user).
+    user: "swarm"
+    privileged: false
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
       TEMP: /tmp
       TMPDIR: /tmp
+      HOME: /home/swarm
+      PLAYWRIGHT_BROWSERS_PATH: /home/swarm/.cache/ms-playwright
       DASHBOARD_PORT: "5178"
       REPO_URL: "${SWARM_REPO_URL:-https://github.com/osk4rm/MES.git}"
       REPO_BRANCH: "${SWARM_REPO_BRANCH:-master}"
       GH_TOKEN: "${GH_TOKEN:-}"
+      # opencode (opencode.ai/auth) authenticates from this env var — the
+      # same env-passed model as GH_TOKEN. No host auth dirs are mounted.
+      OPENCODE_API_KEY: "${OPENCODE_API_KEY:-}"
       SWARM_AUTOSTART_DISPATCHER: "${SWARM_AUTOSTART_DISPATCHER:-1}"
       # So the e2e agent's `dotnet run` inside the container reaches the
       # compose PostgreSQL instead of localhost.
       ASPNETCORE_ENVIRONMENT: Development
       postgres__connectionString: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-mes};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
-      # Testcontainers (integration tests) talk to the host Docker daemon.
+      # Testcontainers (integration tests) talk to the host Docker daemon
+      # through the group-readable socket mount below.
       DOCKER_HOST: "unix:///var/run/docker.sock"
       TESTCONTAINERS_HOST_OVERRIDE: "host.docker.internal"
     ports:
       - "${DASHBOARD_PORT:-5178}:5178"
     volumes:
+      # Isolated repo clone (named volume, owned by `swarm` on first
+      # create). Upgrading from a pre-#357 root container: the old volume
+      # is root-owned and not writable — recreate it with
+      # `docker volume rm asistoff-mes_swarm_work` (or chown it).
       - swarm_work:/work
-      # opencode config + auth from the host (no spaces in these paths).
-      - type: bind
-        source: "${USERPROFILE}/.config/opencode"
-        target: /root/.config/opencode
-      - type: bind
-        source: "${USERPROFILE}/.local/share/opencode"
-        target: /root/.local/share/opencode
-      # Docker socket for Testcontainers.
+      # Scoped container-local opencode state (auth cache, sessions).
+      # Replaces the former host bind mounts of
+      # ${USERPROFILE}/.config/opencode and
+      # ${USERPROFILE}/.local/share/opencode: a compromise of this
+      # always-on container no longer yields host AI-service credentials.
+      - swarm_opencode_share:/home/swarm/.local/share/opencode
+      # Docker socket for Testcontainers (least-privilege form: the
+      # `swarm` user is in the docker group with the host GID, see
+      # DOCKER_GID above). A full socket proxy is a future option.
       - type: bind
         source: /var/run/docker.sock
         target: /var/run/docker.sock
@@ -58,3 +90,4 @@ services:
 
 volumes:
   swarm_work:
+  swarm_opencode_share:

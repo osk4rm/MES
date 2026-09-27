@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Entrypoint for the MES Agent Swarm container.
+# Runs as non-root `swarm` (UID 10000, issue #357):
 #  1. wire gh auth for git (clone + push)
 #  2. clone/pull the repo into the isolated /work volume
 #  3. install web deps once
@@ -10,6 +11,19 @@ set -euo pipefail
 REPO_URL="${REPO_URL:-https://github.com/osk4rm/MES.git}"
 REPO_BRANCH="${REPO_BRANCH:-master}"
 WORK=/work
+HOME_DIR="${HOME:-/home/swarm}"
+
+# Container-local writable dirs (all owned by `swarm`; the opencode state
+# dir is the scoped named volume from docker-compose.swarm.yml).
+mkdir -p "$HOME_DIR/.config" "$HOME_DIR/.local/share/opencode" \
+  "$HOME_DIR/.cache/ms-playwright" "$HOME_DIR/.npm" 2>/dev/null || true
+
+if [ ! -w "$WORK" ]; then
+  echo "[swarm] ERROR: $WORK is not writable by $(id -un) (uid $(id -u))."
+  echo "[swarm] The volume was likely created by a pre-#357 root container."
+  echo "[swarm] Recreate it: docker compose -f docker-compose.yml -f docker-compose.swarm.yml down swarm && docker volume rm asistoff-mes_swarm_work"
+  exit 1
+fi
 
 git config --global user.name  "${GIT_USER_NAME:-MES Agent Swarm}"
 git config --global user.email "${GIT_USER_EMAIL:-mes-swarm@users.noreply.github.com}"
@@ -23,6 +37,12 @@ if [ -n "${GH_TOKEN:-}" ]; then
   fi
 else
   echo "[swarm] WARNING: GH_TOKEN is empty — a private repo cannot be cloned and agents cannot push/comment"
+fi
+
+# opencode authenticates via env-passed OPENCODE_API_KEY (same model as
+# GH_TOKEN); no host auth dirs are mounted (issue #357).
+if [ -z "${OPENCODE_API_KEY:-}" ]; then
+  echo "[swarm] WARNING: OPENCODE_API_KEY is empty — agents cannot call the AI service. Set it in .env (opencode.ai/auth)."
 fi
 
 if [ ! -d "$WORK/.git" ]; then
