@@ -138,9 +138,11 @@ try
         });
     });
 
+    // Issue #329: pass the discovered modules so every IModule.Policies
+    // entry is registered as an MVC authorization policy in AddAuth.
     builder.Services
         .AddPresentation()
-        .AddInfrastructure(builder.Configuration, assemblies, builder.Environment);
+        .AddInfrastructure(builder.Configuration, assemblies, builder.Environment, modules);
 
     builder.Services.AddMultitenancy(builder.Configuration);
 
