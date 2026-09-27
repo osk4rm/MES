@@ -395,7 +395,7 @@ async function loadLookups() {
       productService.browse({ pageNumber: 1, pageSize: 100 }),
       skillService.browse({ pageNumber: 1, pageSize: 100 }),
       operationTemplateService.browse({ pageNumber: 1, pageSize: 200, isActive: true }),
-      warehouseService.browse({ pageNumber: 1, pageSize: 200 })
+      warehouseService.browse({ pageNumber: 1, pageSize: 100 })
     ]);
     products.value = prods.items;
     skills.value = skls.items;
