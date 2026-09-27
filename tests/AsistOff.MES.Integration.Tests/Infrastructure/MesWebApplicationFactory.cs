@@ -1,6 +1,8 @@
 using AsistOff.MES.Gateway.Protection;
 using AsistOff.MES.Integration.Tests.Outbox;
+using AsistOff.MES.Integration.Tests.TestData;
 using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Multitenancy.Seeding;
 using AsistOff.MES.Production.Application.Telemetry;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Outbox;
@@ -59,6 +61,29 @@ public sealed class MesWebApplicationFactory(
             // Runs after the production Telemetry section binding, so the
             // poller stays off for the whole integration run.
             services.Configure<TelemetryOptions>(options => options.SimulatorEnabled = false);
+
+            // Issue #358: appsettings.Development.json ships with an empty dev
+            // seed AdminPassword (fail-closed), so the seeder would provision
+            // no admin. The suite authenticates as the seeded dev admin, so
+            // every test host sets the seed password explicitly in code —
+            // proving the supported override path
+            // (Seed__Tenants__0__AdminPassword / user secrets) instead of
+            // depending on a hardcoded credential in a shipped settings file.
+            // Runs after the Gateway's Seed section binding, so it wins.
+            services.Configure<DevTenantSeedOptions>(options =>
+            {
+                options.Enabled = true;
+                options.Tenants =
+                [
+                    new DevTenantSeed
+                    {
+                        Name = IntegrationTestData.TenantName,
+                        DisplayName = "Dev Tenant",
+                        ContactEmail = IntegrationTestData.AdminEmail,
+                        AdminPassword = IntegrationTestData.AdminPassword,
+                    },
+                ];
+            });
 
             // Same for the OPC UA poller: LastSeenAtUtc must only change via
             // explicit test actions, otherwise connection-status assertions

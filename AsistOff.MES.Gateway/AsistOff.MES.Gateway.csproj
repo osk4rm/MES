@@ -29,4 +29,15 @@
       <ProjectReference Include="..\AsistOff.MES.Users.Api\AsistOff.MES.Users.Api.csproj" />
     </ItemGroup>
 
+    <!-- Issue #358: the Development settings carry local-only seed defaults and
+         must never ship inside the published image (dotnet publish copies them
+         by default). Local dev still reads the file from the source tree; only
+         the publish output excludes it. The dev seed password itself is empty
+         by default and provided via Seed__Tenants__0__AdminPassword instead. -->
+    <ItemGroup>
+      <Content Update="appsettings.Development.json">
+        <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+      </Content>
+    </ItemGroup>
+
 </Project>
