@@ -44,8 +44,10 @@ redirects to `/dashboard`; `/login` and `/register` are the only public
 routes (`meta.public`). Everything else renders inside `AppShell`:
 `dashboard`, `production/*` (orders, order detail, scrap, andon, recipes,
 recipe detail, spc-characteristics, downtime, lots, operator-panel,
-telemetry, opcua-connections, telemetry-dashboard, kanban), `schedule` and
-`schedule/dispatch`, `reports/oee` and `reports/reliability`, `settings`
+telemetry, opcua-connections, kanban), `schedule` and
+`schedule/dispatch`, `reports/oee`, `reports/reliability` and
+`reports/telemetry` (every dashboard lives under Reports; the old
+`production/telemetry-dashboard` path redirects to `reports/telemetry`), `settings`
 (still a coming-soon view) and `settings/roles`, and `configuration/*`
 (products, product-groups, measure-units, warehouses, departments, machines,
 operators, skills, shifts, reason-codes, operation-templates, maintenance,

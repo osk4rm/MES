@@ -87,7 +87,7 @@ All CRUD list pages follow the same pattern (see `views/configuration/*View.vue`
 ## Navigation
 
 - Sidebar entries come from [`src/sitemap.ts`](./src/sitemap.ts); group items carry their base `route` so the group highlights on overview routes (e.g. `/settings`).
-- Active-state matching lives in [`src/utils/navigation.ts`](./src/utils/navigation.ts) (`isNavRouteActive`, `isNavGroupActive`, `findActiveNavTrail`) — segment-aware, so `/production/telemetry` never lights up on `/production/telemetry-dashboard`, while detail pages (`/production/orders/:id`) highlight their browse parent.
+- Active-state matching lives in [`src/utils/navigation.ts`](./src/utils/navigation.ts) (`isNavRouteActive`, `isNavGroupActive`, `findActiveNavTrail`) — segment-aware, so detail pages (`/production/orders/:id`) highlight their browse parent without cross-matching unrelated prefixes.
 - Unknown routes render the guarded `NotFoundView` inside `AppShell` (auth + permission guards apply first) instead of silently bouncing to the dashboard.
 
 ## i18n

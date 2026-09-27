@@ -31,10 +31,7 @@ export const sitemap: NavItem[] = [
       { label: 'nav.productionDowntime', icon: 'pi pi-pause-circle', route: '/production/downtime' },
       { label: 'nav.productionAndon', icon: 'pi pi-bell', route: '/production/andon' },
       { label: 'nav.productionTelemetry', icon: 'pi pi-wave-pulse', route: '/production/telemetry' },
-      { label: 'nav.productionOpcUaConnections', icon: 'pi pi-link', route: '/production/opcua-connections' },
-      // Desktop mark (issue #337): the chart-line icon was shared with the
-      // SPC characteristics leaf in the same group.
-      { label: 'nav.productionTelemetryDashboard', icon: 'pi pi-desktop', route: '/production/telemetry-dashboard' }
+      { label: 'nav.productionOpcUaConnections', icon: 'pi pi-link', route: '/production/opcua-connections' }
     ]
   },
   {
@@ -58,7 +55,12 @@ export const sitemap: NavItem[] = [
     route: '/reports',
     children: [
       { label: 'nav.oeeDashboard', icon: 'pi pi-chart-bar', route: '/reports/oee' },
-      { label: 'nav.reliabilityDashboard', icon: 'pi pi-wrench', route: '/reports/reliability' }
+      { label: 'nav.reliabilityDashboard', icon: 'pi pi-wrench', route: '/reports/reliability' },
+      // Desktop mark (issue #337): the chart-line icon was shared with the
+      // SPC characteristics leaf. Placement (issue #382, F-16): every
+      // dashboard lives under Reports, so KPI (OEE/reliability) versus live
+      // telemetry is one group instead of a Production/Reports split.
+      { label: 'nav.productionTelemetryDashboard', icon: 'pi pi-desktop', route: '/reports/telemetry' }
     ]
   },
   {

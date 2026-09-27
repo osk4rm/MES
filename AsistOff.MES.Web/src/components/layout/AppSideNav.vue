@@ -10,9 +10,9 @@
       </div>
     </div>
 
-    <nav class="app-sidenav__nav" aria-label="Main">
+    <nav class="app-sidenav__nav" :aria-label="$t('nav.main')">
       <ul>
-        <li v-for="item in items" :key="item.label" class="app-sidenav__group">
+        <li v-for="item in visibleItems" :key="item.label" class="app-sidenav__group">
           <template v-if="!item.children">
             <router-link
               :to="item.route!"
@@ -53,7 +53,7 @@
       </ul>
     </nav>
 
-    <button type="button" class="app-sidenav__toggle" @click="emit('update:collapsed', !collapsed)" :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+    <button type="button" class="app-sidenav__toggle" @click="emit('update:collapsed', !collapsed)" :aria-label="$t(collapsed ? 'sidenav.expand' : 'sidenav.collapse')">
       <i :class="['pi', collapsed ? 'pi-angle-double-right' : 'pi-angle-double-left']"></i>
     </button>
   </aside>
@@ -61,19 +61,50 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import type { NavItem } from '../../sitemap';
 import { isNavGroupActive, isNavRouteActive } from '../../utils/navigation';
+import { hasRoutePermission } from '../../router';
+import { useAuthStore } from '../../stores/authStore';
 
 const props = defineProps<{ items: NavItem[]; collapsed: boolean }>();
 const emit = defineEmits<{ (e: 'update:collapsed', value: boolean): void }>();
 
 const route = useRoute();
+const router = useRouter();
+const auth = useAuthStore();
 const manualOpen = ref<Record<string, boolean>>({});
 
+// Permission-gated leaves (e.g. Settings → Roles with tenant.admin) stay
+// hidden for users who may not open them (F-02): the router guard remains
+// the defence for direct navigation, the sidebar simply stops promising a
+// dead end. A group with no visible child is hidden as well.
+function isRouteVisible(itemRoute: string | undefined): boolean {
+  if (!itemRoute) return true;
+  try {
+    return hasRoutePermission(router.resolve(itemRoute), auth.permissions);
+  } catch {
+    return true;
+  }
+}
+
+const visibleItems = computed<NavItem[]>(() => {
+  const result: NavItem[] = [];
+  for (const item of props.items) {
+    if (!isRouteVisible(item.route)) continue;
+    if (item.children !== undefined && item.children.length > 0) {
+      const children = item.children.filter((child) => isRouteVisible(child.route));
+      if (children.length === 0) continue;
+      result.push({ ...item, children });
+    } else {
+      result.push(item);
+    }
+  }
+  return result;
+});
+
 // Active state is segment-aware (issue #314): detail pages highlight their
-// browse parent, and `/production/telemetry` stays inactive while on
-// `/production/telemetry-dashboard`.
+// browse parent.
 const currentPath = computed(() => route.path);
 
 function isActive(itemRoute: string): boolean {
@@ -90,7 +121,7 @@ function toggle(label: string) {
 
 function isOpen(label: string) {
   if (label in manualOpen.value) return manualOpen.value[label];
-  const item = props.items.find(i => i.label === label);
+  const item = visibleItems.value.find(i => i.label === label);
   return item ? isNavGroupActive(currentPath.value, item) : false;
 }
 </script>

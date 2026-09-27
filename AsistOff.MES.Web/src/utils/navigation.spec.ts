@@ -33,8 +33,8 @@ describe('isNavRouteActive', () => {
   });
 
   it('does not cross-match sibling prefixes', () => {
-    expect(isNavRouteActive('/production/telemetry-dashboard', '/production/telemetry')).toBe(false);
-    expect(isNavRouteActive('/production/telemetry', '/production/telemetry-dashboard')).toBe(false);
+    expect(isNavRouteActive('/reports/telemetry', '/production/telemetry')).toBe(false);
+    expect(isNavRouteActive('/production/telemetry', '/reports/telemetry')).toBe(false);
   });
 
   it('does not match unrelated routes', () => {
@@ -51,8 +51,19 @@ const items: NavItem[] = [
     route: '/production',
     children: [
       { label: 'nav.productionOrders', icon: 'pi pi-list', route: '/production/orders' },
-      { label: 'nav.productionTelemetry', icon: 'pi pi-wave-pulse', route: '/production/telemetry' },
-      { label: 'nav.productionTelemetryDashboard', icon: 'pi pi-chart-line', route: '/production/telemetry-dashboard' }
+      { label: 'nav.productionTelemetry', icon: 'pi pi-wave-pulse', route: '/production/telemetry' }
+    ]
+  },
+  // Reports placement (issue #382, F-16): every dashboard lives under
+  // Reports; the old /production/telemetry-dashboard path redirects at the
+  // router level and has no sitemap row of its own.
+  {
+    label: 'nav.reports',
+    icon: 'pi pi-chart-bar',
+    route: '/reports',
+    children: [
+      { label: 'nav.oeeDashboard', icon: 'pi pi-chart-bar', route: '/reports/oee' },
+      { label: 'nav.productionTelemetryDashboard', icon: 'pi pi-desktop', route: '/reports/telemetry' }
     ]
   },
   {
@@ -71,7 +82,7 @@ describe('isNavGroupActive', () => {
   });
 
   it('is active on the group overview route with no child match', () => {
-    const group = items[2] as NavItem;
+    const group = items[3] as NavItem;
     expect(isNavGroupActive('/settings', group)).toBe(true);
     expect(isNavGroupActive('/settings/roles', group)).toBe(true);
   });
@@ -96,10 +107,14 @@ describe('findActiveNavTrail', () => {
     expect(trail.map((i) => i.label)).toEqual(['nav.production', 'nav.productionOrders']);
   });
 
-  it('prefers the longest matching sibling route', () => {
-    const trail = findActiveNavTrail(items, '/production/telemetry-dashboard');
+  it('resolves the telemetry dashboard under Reports, not Production', () => {
+    const trail = findActiveNavTrail(items, '/reports/telemetry');
 
-    expect(trail.map((i) => i.label)).toEqual(['nav.production', 'nav.productionTelemetryDashboard']);
+    expect(trail.map((i) => i.label)).toEqual(['nav.reports', 'nav.productionTelemetryDashboard']);
+  });
+
+  it('resolves no trail for the retired telemetry-dashboard path (router redirects it)', () => {
+    expect(findActiveNavTrail(items, '/production/telemetry-dashboard')).toEqual([]);
   });
 
   it('resolves the settings overview stub to its group', () => {

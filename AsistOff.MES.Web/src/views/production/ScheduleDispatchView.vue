@@ -27,11 +27,16 @@
       </template>
     </AppFilterBar>
 
-    <AppErrorState v-if="loadError" :message="loadError" :loading="loading" @retry="refresh" />
-    <AppSpinner v-else-if="loading && !loadedOnce" />
-
-    <template v-else-if="board">
-      <div class="dispatch-days">
+    <AppDataState
+      :loading="loading"
+      :error="loadError"
+      :empty="board === null"
+      empty-icon="pi pi-truck"
+      :empty-title="$t('scheduleDispatch.ordersEmpty')"
+      @retry="refresh"
+    >
+      <template v-if="board">
+        <div class="dispatch-days">
         <AppCard v-for="day in board.days" :key="day.date" class="dispatch-day">
           <template #header>
             <div class="dispatch-day__header">
@@ -96,7 +101,8 @@
           </template>
         </AppTable>
       </AppCard>
-    </template>
+      </template>
+    </AppDataState>
   </div>
 </template>
 
@@ -112,9 +118,8 @@ import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppCard from '../../components/ui/AppCard.vue';
 import AppTable from '../../components/ui/AppTable.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
-import AppErrorState from '../../components/ui/AppErrorState.vue';
 import {
   currentWeekWindow,
   isDispatchRowOverdue,
@@ -143,7 +148,6 @@ const toInput = ref('');
 
 const board = ref<DispatchBoard | null>(null);
 const loading = ref(false);
-const loadedOnce = ref(false);
 const loadError = ref<string | null>(null);
 
 // Rows render in the backend ordering contract (overdue first, then due
@@ -230,7 +234,6 @@ async function loadBoard(q: GetDispatchBoardQuery): Promise<void> {
   loadError.value = null;
   try {
     board.value = await scheduleService.getDispatch(q);
-    loadedOnce.value = true;
   } catch (err) {
     loadError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {

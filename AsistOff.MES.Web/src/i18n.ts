@@ -54,6 +54,7 @@ const pl = {
   },
   nav: {
     dashboard: 'Pulpit',
+    main: 'Nawigacja główna',
     production: 'Produkcja',
     productionOrders: 'Zlecenia produkcyjne',
     productionAndon: 'Andon',
@@ -90,6 +91,10 @@ const pl = {
     settings: 'Ustawienia',
     roles: 'Role'
   },
+  sidenav: {
+    expand: 'Rozwiń pasek boczny',
+    collapse: 'Zwiń pasek boczny'
+  },
   auth: {
     signInTitle: 'Logowanie do AsistOff MES',
     signInSubtitle: 'Wpisz dane aby kontynuować',
@@ -120,11 +125,14 @@ const pl = {
   dashboard: {
     title: 'Pulpit',
     subtitle: 'Monitoring kluczowych wskaźników produkcji',
-    placeholderNote: 'Wskaźniki są symulowane — zostaną podłączone do backendu po udostępnieniu endpointów metryk.',
+    placeholderNote: 'Liczniki pochodzą z bieżących danych tenanta — pełne metryki OEE pojawią się po udostępnieniu endpointów metryk.',
     activeOrders: 'Aktywne zlecenia',
-    oee: 'OEE',
-    operatorsOnline: 'Operatorzy on-line',
-    warehouses: 'Magazyny'
+    machines: 'Stanowiska',
+    operators: 'Operatorzy',
+    warehouses: 'Magazyny',
+    live: 'Na żywo',
+    emptyTitle: 'Brak danych do wyświetlenia',
+    emptyHint: 'Ten tenant nie ma jeszcze zleceń, stanowisk, operatorów ani magazynów.'
   },
   products: {
     title: 'Produkty',
@@ -971,6 +979,9 @@ const pl = {
     }
   },
   scanBy: { 1: 'EAN', 2: 'Kod' },
+  settings: {
+    indexHint: 'Wybierz sekcję ustawień, aby kontynuować.'
+  },
   stubs: {
     title: 'Moduł w przygotowaniu',
     description: 'Ten obszar zostanie udostępniony po implementacji odpowiednich endpointów na backendzie.'
@@ -1065,6 +1076,7 @@ const en: typeof pl = {
   },
   nav: {
     dashboard: 'Dashboard',
+    main: 'Main navigation',
     production: 'Production',
     productionOrders: 'Production orders',
     productionAndon: 'Andon',
@@ -1101,6 +1113,10 @@ const en: typeof pl = {
     settings: 'Settings',
     roles: 'Roles'
   },
+  sidenav: {
+    expand: 'Expand sidebar',
+    collapse: 'Collapse sidebar'
+  },
   auth: {
     signInTitle: 'Sign in to AsistOff MES',
     signInSubtitle: 'Enter your credentials to continue',
@@ -1131,11 +1147,14 @@ const en: typeof pl = {
   dashboard: {
     title: 'Dashboard',
     subtitle: 'Top-level production KPIs',
-    placeholderNote: 'Metrics below are placeholders — they will be wired up once metric endpoints are available.',
+    placeholderNote: 'Counters read live tenant data — full OEE metrics will arrive once metric endpoints are available.',
     activeOrders: 'Active orders',
-    oee: 'OEE',
-    operatorsOnline: 'Operators online',
-    warehouses: 'Warehouses'
+    machines: 'Work centers',
+    operators: 'Operators',
+    warehouses: 'Warehouses',
+    live: 'Live',
+    emptyTitle: 'No data to show',
+    emptyHint: 'This tenant has no orders, work centers, operators or warehouses yet.'
   },
   products: {
     title: 'Products',
@@ -1983,6 +2002,9 @@ const en: typeof pl = {
     }
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
+  settings: {
+    indexHint: 'Choose a settings section to continue.'
+  },
   stubs: {
     title: 'Module in preparation',
     description: 'This area will be available once the matching backend endpoints are implemented.'

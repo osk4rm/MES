@@ -85,9 +85,9 @@ browser tab title always follow the same map.
 | Group | Views (route) |
 |-------|---------------|
 | Dashboard | Dashboard (`/dashboard`) |
-| Production | Production Orders (`/production/orders`), Recipes (`/production/recipes`), Kanban (`/production/kanban`), Lots (`/production/lots`), SPC characteristics (`/production/spc-characteristics`), Scrap (`/production/scrap`), Downtime (`/production/downtime`), Andon (`/production/andon`), Telemetry (`/production/telemetry`), OPC UA connections (`/production/opcua-connections`), Telemetry dashboard (`/production/telemetry-dashboard`) |
+| Production | Production Orders (`/production/orders`), Recipes (`/production/recipes`), Kanban (`/production/kanban`), Lots (`/production/lots`), SPC characteristics (`/production/spc-characteristics`), Scrap (`/production/scrap`), Downtime (`/production/downtime`), Andon (`/production/andon`), Telemetry (`/production/telemetry`), OPC UA connections (`/production/opcua-connections`) |
 | Schedule | Gantt (`/schedule`), Dispatch board (`/schedule/dispatch`) |
-| Reports | OEE dashboard (`/reports/oee`), Reliability dashboard (`/reports/reliability`) |
+| Reports | OEE dashboard (`/reports/oee`), Reliability dashboard (`/reports/reliability`), Telemetry dashboard (`/reports/telemetry`) |
 | Configuration (master data) | Products (`/configuration/products`), Product groups (`/configuration/product-groups`), Measure units (`/configuration/measure-units`), Warehouses (`/configuration/warehouses`), Departments (`/configuration/departments`), Machines (`/configuration/machines`), Operators (`/configuration/operators`), Skills (`/configuration/skills`), Shifts (`/configuration/shifts`), Reason codes (`/configuration/reason-codes`), Operation templates (`/configuration/operation-templates`), Maintenance (`/configuration/maintenance`), Maintenance plans (`/configuration/maintenance-plans`) |
 | Settings | Settings (`/settings`), Roles (`/settings/roles`, needs `tenant.admin`) |
 

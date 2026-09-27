@@ -273,7 +273,7 @@ async function refreshAll(): Promise<void> {
 }
 
 function goDashboard(): void {
-  void router.push('/production/telemetry-dashboard');
+  void router.push('/reports/telemetry');
 }
 const machineOptions = computed<SelectOption[]>(() =>
   machines.value.map(m => ({ value: m.id, label: `${m.code} — ${m.name}` })));

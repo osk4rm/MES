@@ -412,6 +412,28 @@ describe('ScheduleGanttView', () => {
     expect(wrapper.text()).toContain('ORDER-1');
   });
 
+  it('shows an error with retry when the schedule fetch fails instead of a stale lane', async () => {
+    seedDeepLink();
+    getScheduleMock.mockRejectedValueOnce(new Error('offline'));
+
+    const wrapper = mountGantt();
+    await flushPromises();
+
+    // A failed window fetch reads as an error, never as an empty schedule.
+    expect(wrapper.text()).toContain('offline');
+    expect(wrapper.text()).not.toContain('scheduleGantt.empty');
+    expect(wrapper.find('[data-testid="gantt-bar-node-a"]').exists()).toBe(false);
+
+    const retry = wrapper.findAll('button').find((b) => b.text().includes('common.retry'));
+    expect(retry).toBeDefined();
+    await retry?.trigger('click');
+    await flushPromises();
+
+    expect(getScheduleMock).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain('ORDER-1');
+    expect(wrapper.text()).not.toContain('offline');
+  });
+
   it('shows an empty state when the window has no bars', async () => {
     seedDeepLink();
     getScheduleMock.mockResolvedValue({ from: '2026-09-21', to: '2026-09-27', groups: [] });

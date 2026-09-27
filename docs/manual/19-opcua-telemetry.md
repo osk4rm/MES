@@ -11,7 +11,7 @@ Three surfaces work together:
 |---------|-------|---------|
 | Tag dictionary | `/production/telemetry` | Which tags exist per Work Center |
 | Connection registry | `/production/opcua-connections` | Which OPC UA servers are polled |
-| Live dashboard | `/production/telemetry-dashboard` | Latest values plus stale flags |
+| Live dashboard | `/reports/telemetry` | Latest values plus stale flags |
 
 Reads and the connection test need only a signed-in user; every
 dictionary and connection write needs the `production.write`
@@ -62,7 +62,7 @@ history needs narrower filters, not retries.
 `GET /api/telemetry-tags/status` reports every tag of your tenant
 with its latest reading plus a stale flag: a tag is stale when no
 reading arrived within twice the simulator poll interval. The
-dashboard at `/production/telemetry-dashboard` renders each tag as
+dashboard at `/reports/telemetry` renders each tag as
 a card — recent, stale, or never — with text badges, never color
 alone.
 
@@ -74,7 +74,7 @@ means its OPC UA source stopped delivering.
 
 Procedure:
 
-1. Open `/production/telemetry-dashboard` at shift start.
+1. Open `/reports/telemetry` at shift start.
 2. A stale card means "no fresh data", not "bad value": check the
    connection below before trusting the last value.
 3. A never card means the tag was never polled: enable it and

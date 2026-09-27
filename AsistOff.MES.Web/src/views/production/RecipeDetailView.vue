@@ -12,16 +12,16 @@
     <section class="versions-section">
       <h3>{{ $t('recipes.detail.versions') }}</h3>
       <div class="versions">
-        <button
+        <AppButton
           v-for="v in recipe.versions || []"
           :key="v.id"
-          type="button"
-          :class="['version-chip', selectedVersionId === v.id && 'version-chip--active']"
+          :variant="selectedVersionId === v.id ? 'primary' : 'secondary'"
+          size="sm"
           @click="loadVersion(v.id)"
         >
-          <span class="version-chip__num">v{{ v.versionNumber }}</span>
-          <span :class="['pill', statusPillClass(v.status)]">{{ $t(`recipes.versionStatus.${statusKey(v.status)}`) }}</span>
-        </button>
+          v{{ v.versionNumber }}
+          <AppBadge :variant="statusBadgeVariant(v.status)" dot>{{ $t(`recipes.versionStatus.${statusKey(v.status)}`) }}</AppBadge>
+        </AppButton>
       </div>
     </section>
 
@@ -78,6 +78,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppButton from '../../components/ui/AppButton.vue';
+import AppBadge from '../../components/ui/AppBadge.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
 import AppLoadingState from '../../components/ui/AppLoadingState.vue';
@@ -116,10 +117,10 @@ function statusKey(status: RecipeVersionStatus): string {
   if (status === RecipeVersionStatus.Released) return 'released';
   return 'obsolete';
 }
-function statusPillClass(status: RecipeVersionStatus): string {
-  if (status === RecipeVersionStatus.Released) return 'pill--ok';
-  if (status === RecipeVersionStatus.Draft) return 'pill--info';
-  return 'pill--muted';
+function statusBadgeVariant(status: RecipeVersionStatus): 'success' | 'info' | 'idle' {
+  if (status === RecipeVersionStatus.Released) return 'success';
+  if (status === RecipeVersionStatus.Draft) return 'info';
+  return 'idle';
 }
 
 async function fetchRecipeData() {
@@ -269,16 +270,8 @@ onMounted(loadRecipe);
 
 <style scoped>
 .recipe-detail { display: flex; flex-direction: column; gap: var(--space-4); }
-.versions-section h3 { margin: 0 0 var(--space-2) 0; font-size: 0.95rem; color: var(--color-text-muted, #6b7280); text-transform: uppercase; letter-spacing: 0.05em; }
+.versions-section h3 { margin: 0 0 var(--space-2) 0; font-size: 0.95rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .versions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.version-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--color-border, #e5e7eb); background: var(--color-surface, #fff); border-radius: 999px; cursor: pointer; font: inherit; }
-.version-chip:hover { border-color: var(--color-primary, #2563eb); }
-.version-chip--active { border-color: var(--color-primary, #2563eb); background: var(--color-primary-soft, #dbeafe); }
-.version-chip__num { font-weight: 600; }
-.pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
-.pill--ok { background: #d1fae5; color: #065f46; }
-.pill--info { background: #dbeafe; color: #1e40af; }
-.pill--muted { background: #e5e7eb; color: #374151; }
-.loading { padding: var(--space-6); text-align: center; color: var(--color-text-muted, #6b7280); }
-.cleanup-hint { color: var(--color-text-muted, #6b7280); margin-top: var(--space-2); }
+.loading { padding: var(--space-6); text-align: center; color: var(--color-text-muted); }
+.cleanup-hint { color: var(--color-text-muted); margin-top: var(--space-2); }
 </style>
