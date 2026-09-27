@@ -27,12 +27,17 @@ public record PreflightCheck(string Rule, PreflightState State, string Message);
 /// <para/>
 /// Severity contract: <see cref="PreflightState.Fail"/> blocks the release
 /// (surfaced as HTTP 400), <see cref="PreflightState.Warn"/> is shown in the
-/// dialog but does not block.
+/// dialog but does not block. Uncertainty is always warn, never fail:
+/// BOM/output product ids and warehouse ids are opaque references (older
+/// data and movement-preview helpers use ids without a backing Product or
+/// Warehouse row), so a missing product or an unknown warehouse only warns
+/// and lets the release proceed; only a positively inactive product blocks.
+/// This mirrors the frontend <c>releaseChecklist.ts</c> contract.
 /// <list type="bullet">
 /// <item><c>operations</c> — fail when the version has no operations.</item>
 /// <item><c>outputs</c> — warn when no operation output is defined.</item>
-/// <item><c>products</c> — fail when a BOM/output product is missing or inactive.</item>
-/// <item><c>warehouses</c> — fail on unknown warehouse references, warn when unset.</item>
+/// <item><c>products</c> — fail when a BOM/output product is inactive; warn when a referenced product no longer exists (unverifiable).</item>
+/// <item><c>warehouses</c> — warn on unknown warehouse references or when unset; never fails.</item>
 /// <item><c>validity</c> — fail when ValidFrom is later than ValidTo.</item>
 /// <item><c>dependencies</c> — fail on self-references, cross-version predecessors or cycles.</item>
 /// </list>
@@ -121,7 +126,8 @@ public static class RecipeReleasePreflight
         RecipeVersion version,
         IReadOnlyDictionary<Guid, bool> productActiveById)
     {
-        var problems = new List<string>();
+        var inactive = new List<string>();
+        var missing = 0;
         var seen = new HashSet<Guid>();
 
         foreach (var op in version.Operations)
@@ -131,24 +137,31 @@ public static class RecipeReleasePreflight
             {
                 if (!seen.Add(productId)) continue;
                 if (!productActiveById.TryGetValue(productId, out var active))
-                    problems.Add($"referenced product {productId} no longer exists");
+                    missing++;
                 else if (!active)
-                    problems.Add($"referenced product {productId} is inactive");
+                    inactive.Add($"referenced product {productId} is inactive");
             }
         }
 
-        return problems.Count > 0
-            ? new PreflightCheck(ProductsRule, PreflightState.Fail,
-                "BOM/output products are not order-ready: " + string.Join("; ", problems) + ".")
-            : new PreflightCheck(ProductsRule, PreflightState.Pass,
-                "All BOM/output products are active.");
+        if (inactive.Count > 0)
+            return new PreflightCheck(ProductsRule, PreflightState.Fail,
+                "BOM/output products are not order-ready: " + string.Join("; ", inactive) + ".");
+
+        // Missing products are unverifiable (opaque ids without a backing row),
+        // so they warn like the frontend checklist instead of blocking.
+        if (missing > 0)
+            return new PreflightCheck(ProductsRule, PreflightState.Warn,
+                $"{missing} referenced product(s) could not be verified and may no longer exist.");
+
+        return new PreflightCheck(ProductsRule, PreflightState.Pass,
+            "All BOM/output products are active.");
     }
 
     private static PreflightCheck CheckWarehouses(
         RecipeVersion version,
         IReadOnlySet<Guid> knownWarehouseIds)
     {
-        var unknown = new HashSet<Guid>();
+        var unknown = 0;
         var unset = 0;
 
         foreach (var op in version.Operations)
@@ -157,19 +170,19 @@ public static class RecipeReleasePreflight
                          .Concat(op.Outputs.Select(o => o.PreferredWarehouseId)))
             {
                 if (!warehouseId.HasValue) unset++;
-                else if (!knownWarehouseIds.Contains(warehouseId.Value)) unknown.Add(warehouseId.Value);
+                else if (!knownWarehouseIds.Contains(warehouseId.Value)) unknown++;
             }
         }
 
-        if (unknown.Count > 0)
-            return new PreflightCheck(WarehousesRule, PreflightState.Fail,
-                "Unknown warehouse reference(s): " + string.Join(", ", unknown) + ".");
+        // Unknown warehouse ids warn (not fail): BOM/output warehouse
+        // references are opaque and the lookup may be incomplete, so only the
+        // movement/stock logic resolves them. Mirrors releaseChecklist.ts.
+        if (unknown > 0 || unset > 0)
+            return new PreflightCheck(WarehousesRule, PreflightState.Warn,
+                $"{unset} BOM/output item(s) have no preferred warehouse set; {unknown} reference(s) could not be verified.");
 
-        return unset > 0
-            ? new PreflightCheck(WarehousesRule, PreflightState.Warn,
-                $"{unset} BOM/output item(s) have no preferred warehouse set.")
-            : new PreflightCheck(WarehousesRule, PreflightState.Pass,
-                "Warehouses are set.");
+        return new PreflightCheck(WarehousesRule, PreflightState.Pass,
+            "Warehouses are set.");
     }
 
     /// <summary>DFS-based cycle detection over the version's dependency edges.</summary>

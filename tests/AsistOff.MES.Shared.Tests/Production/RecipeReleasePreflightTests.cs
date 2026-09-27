@@ -217,9 +217,11 @@ public class RecipeReleasePreflightTests
     }
 
     [Fact]
-    public void Evaluate_MissingProduct_Fail()
+    public void Evaluate_MissingProduct_Warn_DoesNotBlock()
     {
-        // Arrange
+        // Arrange: opaque product ids without a backing row are unverifiable
+        // (movement-preview helpers use random guids), so they warn like the
+        // frontend checklist instead of blocking the release.
         var version = MakeVersion();
         AddOperation(version, "OP-10", withOutput: null, withBom: (Guid.NewGuid(), null));
 
@@ -228,15 +230,15 @@ public class RecipeReleasePreflightTests
 
         // Assert
         var products = checks.Should().ContainSingle(c => c.Rule == RecipeReleasePreflight.ProductsRule).Subject;
-        products.State.Should().Be(PreflightState.Fail);
-        products.Message.Should().Contain("no longer exists");
-        RecipeReleasePreflight.HasFailures(checks).Should().BeTrue();
+        products.State.Should().Be(PreflightState.Warn);
+        RecipeReleasePreflight.HasFailures(checks).Should().BeFalse();
     }
 
     [Fact]
-    public void Evaluate_UnknownWarehouse_Fail()
+    public void Evaluate_UnknownWarehouse_Warn_DoesNotBlock()
     {
-        // Arrange
+        // Arrange: unknown warehouse references warn (not fail) to mirror
+        // releaseChecklist.ts — the lookup may be capped and ids are opaque.
         var version = MakeVersion();
         AddOperation(version, "OP-10", withOutput: (Guid.NewGuid(), Guid.NewGuid()), withBom: null);
 
@@ -250,8 +252,8 @@ public class RecipeReleasePreflightTests
 
         // Assert
         var warehouses = checks.Should().ContainSingle(c => c.Rule == RecipeReleasePreflight.WarehousesRule).Subject;
-        warehouses.State.Should().Be(PreflightState.Fail);
-        RecipeReleasePreflight.HasFailures(checks).Should().BeTrue();
+        warehouses.State.Should().Be(PreflightState.Warn);
+        RecipeReleasePreflight.HasFailures(checks).Should().BeFalse();
     }
 
     [Fact]

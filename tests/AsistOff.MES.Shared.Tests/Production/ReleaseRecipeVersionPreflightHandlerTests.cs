@@ -72,23 +72,54 @@ public class ReleaseRecipeVersionPreflightHandlerTests
     }
 
     [Fact]
-    public async Task Throws_ValidationException_WithWarehousesKey_when_warehouse_unknown()
+    public async Task Releases_when_warehouse_unknown_warn_only()
     {
-        // Arrange
+        // Arrange: unknown warehouse references are warn-only (opaque ids,
+        // mirrors releaseChecklist.ts) and must not block the release.
+        // Regression cover for the ConfirmationMovements / MaterialReservations
+        // / Stock integration helpers, which release versions with random
+        // warehouse guids.
         var productId = Guid.NewGuid();
-        var version = MakeVersion();
+        var recipeId = Guid.NewGuid();
+        var version = MakeVersion(recipeId);
         var op = AddOperation(version, "OP-10", outputProductId: productId, bomProductId: null);
         op.Outputs.Single().PreferredWarehouseId = Guid.NewGuid();
+        var recipe = new Recipe { Id = recipeId, Code = "R", Name = "R" };
         _versions.Setup(v => v.GetFullAsync(version.Id, It.IsAny<CancellationToken>())).ReturnsAsync(version);
+        _versions.Setup(v => v.ListForRecipeAsync(recipeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { version });
+        _recipes.Setup(r => r.GetAsync(recipeId, It.IsAny<CancellationToken>())).ReturnsAsync(recipe);
         _products.Setup(p => p.GetAsync(productId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Product { Id = productId, Code = "P", Name = "P", IsActive = true });
 
         // Act
-        var act = () => CreateSut().Handle(new ReleaseRecipeVersionRequest(version.Id), CancellationToken.None);
+        await CreateSut().Handle(new ReleaseRecipeVersionRequest(version.Id), CancellationToken.None);
 
         // Assert
-        var ex = await act.Should().ThrowAsync<ValidationException>();
-        ex.Which.Errors.Should().ContainKey(RecipeReleasePreflight.WarehousesRule);
+        version.Status.Should().Be(RecipeVersionStatus.Released);
+    }
+
+    [Fact]
+    public async Task Releases_when_product_missing_warn_only()
+    {
+        // Arrange: referenced products without a backing row are unverifiable
+        // (opaque ids) and must not block the release; only inactive products fail.
+        var recipeId = Guid.NewGuid();
+        var version = MakeVersion(recipeId);
+        AddOperation(version, "OP-10", outputProductId: null, bomProductId: Guid.NewGuid());
+        var recipe = new Recipe { Id = recipeId, Code = "R", Name = "R" };
+        _versions.Setup(v => v.GetFullAsync(version.Id, It.IsAny<CancellationToken>())).ReturnsAsync(version);
+        _versions.Setup(v => v.ListForRecipeAsync(recipeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { version });
+        _recipes.Setup(r => r.GetAsync(recipeId, It.IsAny<CancellationToken>())).ReturnsAsync(recipe);
+        _products.Setup(p => p.GetAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Product?)null);
+
+        // Act
+        await CreateSut().Handle(new ReleaseRecipeVersionRequest(version.Id), CancellationToken.None);
+
+        // Assert
+        version.Status.Should().Be(RecipeVersionStatus.Released);
     }
 
     [Fact]
