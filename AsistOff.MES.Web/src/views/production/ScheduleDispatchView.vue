@@ -1,7 +1,8 @@
 <template>
-  <div data-testid="dispatch-board">
+  <div data-testid="dispatch-board" :class="viewClass">
     <AppPageHeader :title="$t('scheduleDispatch.title')" :subtitle="$t('scheduleDispatch.subtitle')" icon="pi pi-calendar">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" :loading="loading" @click="refresh">
           {{ $t('common.refresh') }}
         </AppButton>
@@ -45,7 +46,7 @@
           />
           <ul v-else class="dispatch-shifts">
             <li v-for="shift in day.shifts" :key="shift.shiftId" class="dispatch-shift">
-              <AppBadge :variant="shift.isOvernight ? 'info' : 'primary'" dot>
+              <AppBadge :variant="shift.isOvernight ? 'info' : 'primary'" icon="pi pi-clock" dot>
                 {{ shift.code }}
               </AppBadge>
               <span class="dispatch-shift__name">{{ shift.name }}</span>
@@ -53,7 +54,7 @@
               <span class="dispatch-shift__headcount">{{
                 $t('scheduleDispatch.headcount', { count: shift.headcount })
               }}</span>
-              <AppBadge v-if="shift.isUncovered" variant="warning" dot>
+              <AppBadge v-if="shift.isUncovered" variant="warning" icon="pi pi-user" dot>
                 {{ $t('scheduleDispatch.uncovered') }}
               </AppBadge>
             </li>
@@ -83,13 +84,13 @@
             {{ formatDueDate(item.dueDate) }}
           </template>
           <template #cell-overdue="{ item }">
-            <AppBadge v-if="isDispatchRowOverdue(item)" variant="danger" dot>
+            <AppBadge v-if="isDispatchRowOverdue(item)" variant="danger" icon="pi pi-exclamation-triangle" dot>
               {{ $t('scheduleDispatch.overdue') }}
             </AppBadge>
-            <span v-else class="dispatch-ontime">{{ $t('scheduleDispatch.onTime') }}</span>
+            <AppBadge v-else variant="neutral" icon="pi pi-check" dot>{{ $t('scheduleDispatch.onTime') }}</AppBadge>
           </template>
           <template #cell-status="{ item }">
-            <AppBadge :variant="statusVariant(item.status)" dot>
+            <AppBadge :variant="statusVariant(item.status)" :icon="statusIcon(item.status)" dot>
               {{ statusLabel(item.status) }}
             </AppBadge>
           </template>
@@ -124,11 +125,16 @@ import {
   type GetDispatchBoardQuery
 } from '../../services/scheduleService';
 import { ProductionOrderStatus } from '../../services/productionOrderService';
+import { productionOrderStatusMeta, ShopfloorDensity, useShopfloorDensity, type StatusSignalMeta } from '../../composables/useShopfloorDisplay';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const { t } = useI18n();
 const toast = useToastStore();
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 const route = useRoute();
 const router = useRouter();
 
@@ -165,14 +171,12 @@ function statusLabel(v: number): string {
   }
 }
 
-function statusVariant(v: number): 'info' | 'primary' | 'success' | 'warning' | 'idle' {
-  switch (v) {
-    case ProductionOrderStatus.Released: return 'success';
-    case ProductionOrderStatus.InProgress: return 'warning';
-    case ProductionOrderStatus.Completed: return 'primary';
-    case ProductionOrderStatus.Closed: return 'idle';
-    default: return 'info';
-  }
+function statusVariant(v: number): StatusSignalMeta['variant'] {
+  return productionOrderStatusMeta(v).variant;
+}
+
+function statusIcon(v: number): string {
+  return productionOrderStatusMeta(v).icon;
 }
 
 function formatDay(date: string): string {
@@ -342,8 +346,12 @@ onMounted(() => {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
 }
-.dispatch-ontime {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+@media (max-width: 1100px) {
+  .dispatch-days {
+    grid-template-columns: 1fr;
+  }
+  .dispatch-shift {
+    padding: var(--space-2) 0;
+  }
 }
 </style>

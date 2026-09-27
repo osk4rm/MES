@@ -1,13 +1,25 @@
 <template>
-  <div>
+  <div :class="viewClass">
     <AppPageHeader :title="$t('andon.title')" :subtitle="$t('andon.subtitle')" icon="pi pi-bell">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" @click="refreshAll">{{ $t('common.refresh') }}</AppButton>
         <AppButton variant="primary" icon="pi pi-plus" @click="openRaise">{{ $t('andon.raise') }}</AppButton>
       </template>
     </AppPageHeader>
 
     <AppCard :title="$t('andon.board')">
+      <div class="board-legend">
+        <AppBadge variant="danger" icon="pi pi-exclamation-triangle" dot>
+          {{ statusLabel(AndonSignalStatus.Active) }}
+        </AppBadge>
+        <AppBadge variant="warning" icon="pi pi-eye" dot>
+          {{ statusLabel(AndonSignalStatus.Acknowledged) }}
+        </AppBadge>
+        <AppBadge variant="success" icon="pi pi-check-circle" dot>
+          {{ statusLabel(AndonSignalStatus.Resolved) }}
+        </AppBadge>
+      </div>
       <AppDataState
         :loading="boardLoading"
         :error="boardError"
@@ -24,8 +36,11 @@
           :class="`board-card--${statusKey(signal.status)}`"
         >
           <div class="board-card__header">
-            <strong>{{ machineLabel(signal.machineId) }}</strong>
-            <AppBadge :variant="statusVariant(signal.status)" dot>
+            <span class="board-card__machine">
+              <i :class="['board-card__severity', statusIcon(signal.status)]" aria-hidden="true"></i>
+              <strong>{{ machineLabel(signal.machineId) }}</strong>
+            </span>
+            <AppBadge :variant="statusVariant(signal.status)" :icon="statusIcon(signal.status)" dot>
               {{ statusLabel(signal.status) }}
             </AppBadge>
           </div>
@@ -87,11 +102,11 @@
       <template #cell-category="{ value }">
         {{ categoryLabel(Number(value)) }}
       </template>
-      <template #cell-status="{ value }">
-        <AppBadge :variant="statusVariant(Number(value))" dot>
-          {{ statusLabel(Number(value)) }}
-        </AppBadge>
-      </template>
+        <template #cell-status="{ value }">
+          <AppBadge :variant="statusVariant(Number(value))" :icon="statusIcon(Number(value))" dot>
+            {{ statusLabel(Number(value)) }}
+          </AppBadge>
+        </template>
       <template #cell-raisedAt="{ value }">
         {{ formatDateTime(String(value)) }}
       </template>
@@ -186,9 +201,14 @@ import {
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
+import { andonSeverityMeta, ShopfloorDensity, useShopfloorDensity, type StatusSignalMeta } from '../../composables/useShopfloorDisplay';
 
 const { t, tm } = useI18n();
 const toast = useToastStore();
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 
 interface Filters {
   machineId?: string;
@@ -225,10 +245,12 @@ function statusKey(v: number): string {
   return 'active';
 }
 
-function statusVariant(v: number): 'danger' | 'warning' | 'success' {
-  if (v === AndonSignalStatus.Acknowledged) return 'warning';
-  if (v === AndonSignalStatus.Resolved) return 'success';
-  return 'danger';
+function statusVariant(v: number): StatusSignalMeta['variant'] {
+  return andonSeverityMeta(v).variant;
+}
+
+function statusIcon(v: number): string {
+  return andonSeverityMeta(v).icon;
 }
 
 function formatDateTime(v: string): string {
@@ -493,8 +515,14 @@ onMounted(async () => {
 }
 .board {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--space-3);
+}
+.board-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 .board-card {
   border: 1px solid var(--color-border);
@@ -514,11 +542,31 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  flex-wrap: wrap;
 }
-.board-card__category { font-weight: 600; }
+.board-card__machine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-lg);
+  min-width: 0;
+}
+.board-card__severity {
+  font-size: 22px;
+  flex: none;
+}
+.board-card--active .board-card__severity { color: var(--color-danger); }
+.board-card--acknowledged .board-card__severity { color: var(--color-warning); }
+.board-card--resolved .board-card__severity { color: var(--color-success); }
+.board-card__category { font-weight: 600; font-size: var(--font-size-md); }
 .board-card__time { font-size: var(--font-size-sm); opacity: 0.8; }
 .board-card__notes { font-size: var(--font-size-sm); }
-.board-card__actions { display: flex; gap: var(--space-2); }
+.board-card__actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.board-card__actions > * { flex: 1 1 140px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+@media (max-width: 1100px) {
+  .board { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+}
 </style>

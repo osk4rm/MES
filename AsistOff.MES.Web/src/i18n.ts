@@ -45,6 +45,13 @@ const pl = {
       lastPage: 'Ostatnia strona'
     }
   },
+  shopfloor: {
+    density: {
+      label: 'Gęstość',
+      comfortable: 'Dotykowa',
+      compact: 'Zwarta'
+    }
+  },
   nav: {
     dashboard: 'Pulpit',
     production: 'Produkcja',
@@ -1014,6 +1021,13 @@ const en: typeof pl = {
       previousPage: 'Previous page',
       nextPage: 'Next page',
       lastPage: 'Last page'
+    }
+  },
+  shopfloor: {
+    density: {
+      label: 'Density',
+      comfortable: 'Touch',
+      compact: 'Compact'
     }
   },
   nav: {

@@ -1,7 +1,8 @@
 <template>
-  <div>
+  <div :class="viewClass">
     <AppPageHeader :title="$t('scrap.title')" :subtitle="$t('scrap.subtitle')" icon="pi pi-trash">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" @click="table.fetch">{{ $t('common.refresh') }}</AppButton>
         <AppButton variant="primary" icon="pi pi-plus" @click="openCreate">{{ $t('scrap.report') }}</AppButton>
       </template>
@@ -155,9 +156,14 @@ import { reasonCodeService, ReasonCodeCategory, type ReasonCodeResponse } from '
 import { productionOrderService, ProductionOrderStatus, type ProductionOrderResponse } from '../../services/productionOrderService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
+import { ShopfloorDensity, useShopfloorDensity } from '../../composables/useShopfloorDisplay';
 
 const { t } = useI18n();
 const toast = useToastStore();
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 
 interface Filters {
   machineId?: string;
@@ -387,4 +393,7 @@ onMounted(() => {
 <style scoped>
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+@media (max-width: 1100px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
 </style>

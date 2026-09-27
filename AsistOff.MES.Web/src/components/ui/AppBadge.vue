@@ -1,5 +1,6 @@
 <template>
   <span :class="['app-badge', `app-badge--${variant}`, { 'app-badge--dot': dot }]">
+    <i v-if="icon" :class="['app-badge__icon', icon]" aria-hidden="true"></i>
     <span v-if="dot" class="app-badge__dot" aria-hidden="true"></span>
     <slot />
   </span>
@@ -7,7 +8,9 @@
 
 <script setup lang="ts">
 type Variant = 'neutral' | 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'idle';
-defineProps<{ variant?: Variant; dot?: boolean }>();
+// Optional leading glyph so status signals never rely on color alone
+// (Andon/severity visibility, issue #331): color + icon + text.
+defineProps<{ variant?: Variant; dot?: boolean; icon?: string }>();
 </script>
 
 <style scoped>
@@ -30,6 +33,12 @@ defineProps<{ variant?: Variant; dot?: boolean }>();
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+  flex: none;
+}
+
+.app-badge__icon {
+  font-size: 1em;
+  flex: none;
 }
 
 .app-badge--neutral { background: var(--color-surface-sunken); color: var(--color-text-muted); }
