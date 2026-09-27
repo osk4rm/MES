@@ -62,6 +62,8 @@
   --control-height-sm: 28px;
   --control-height-md: 34px;
   --control-height-lg: 40px;
+  /* Gloved-operation minimum touch-target edge for shopfloor views (#331) */
+  --control-height-touch: 44px;
 
   /* Layout */
   --layout-topbar-height: 52px;
@@ -111,6 +113,86 @@
   --color-primary-active: #3f6a9c;
   --color-primary-soft: rgba(79, 127, 181, 0.18);
   --color-primary-soft-hover: rgba(79, 127, 181, 0.26);
+}
+
+/* =========================================================
+   Shopfloor ergonomics (issue #331, slice 3/3)
+   Views that opt in add the `shopfloor-view` class to their root
+   (see `useShopfloorDisplay`). Comfortable is the default: every
+   interactive element meets the 44px gloved-operation minimum and
+   focus rings are widened for at-a-distance visibility. Compact
+   restores base control sizes for back-office desktop use on the
+   same views. Only App components are targeted — no raw elements.
+   ========================================================= */
+.shopfloor-view .app-btn {
+  min-height: var(--control-height-touch);
+  min-width: var(--control-height-touch);
+}
+
+.shopfloor-view .app-row-actions__btn {
+  min-width: var(--control-height-touch);
+  min-height: var(--control-height-touch);
+  font-size: 15px;
+}
+
+.shopfloor-view .app-input,
+.shopfloor-view .app-select {
+  min-height: var(--control-height-touch);
+}
+
+.shopfloor-view .app-filter-bar__clear {
+  min-height: var(--control-height-touch);
+  min-width: var(--control-height-touch);
+}
+
+.shopfloor-view .app-checkbox {
+  min-height: var(--control-height-touch);
+}
+
+.shopfloor-view .app-checkbox__box {
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+}
+
+.shopfloor-view .app-table__td {
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+/* Wider focus ring so keyboard focus stays visible at a distance. */
+.shopfloor-view :focus-visible {
+  outline-width: 3px;
+}
+
+/* Compact density: same views, base control sizes for desktop use. */
+.shopfloor-view--compact .app-btn {
+  min-height: 0;
+  min-width: 0;
+}
+
+.shopfloor-view--compact .app-row-actions__btn {
+  min-width: 0;
+  min-height: 0;
+  font-size: 13px;
+}
+
+.shopfloor-view--compact .app-input,
+.shopfloor-view--compact .app-select,
+.shopfloor-view--compact .app-filter-bar__clear,
+.shopfloor-view--compact .app-checkbox {
+  min-height: 0;
+}
+
+.shopfloor-view--compact .app-checkbox__box {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+
+.shopfloor-view--compact .app-table__td {
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
 }
 
 /* =========================================================

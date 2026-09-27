@@ -35,7 +35,7 @@ All primitives are namespaced with the `App` prefix.
 | `AppModal`         | Centered modal with header/body/footer slots            |
 | `AppConfirmDialog` | Pre-styled destructive / warning / info confirmation    |
 | `AppToastHost`     | Toast stack; mount once in `App.vue`                    |
-| `AppBadge`         | Status chip (semantic variants)                         |
+| `AppBadge`         | Status chip (semantic variants; optional `icon` + `dot` so signals never rely on color alone) |
 | `AppCard`          | Content block with optional header/footer               |
 | `AppPageHeader`    | Standard page header with breadcrumbs and actions slot  |
 | `AppBreadcrumbs`   | Breadcrumb trail                                        |

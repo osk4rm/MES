@@ -1,7 +1,8 @@
 <template>
-  <div data-testid="lots-page">
+  <div data-testid="lots-page" :class="viewClass">
     <AppPageHeader :title="$t('lots.title')" :subtitle="$t('lots.subtitle')" icon="pi pi-box">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" @click="table.fetch">{{ $t('common.refresh') }}</AppButton>
         <AppButton variant="primary" icon="pi pi-plus" @click="openCreate">{{ $t('lots.create') }}</AppButton>
       </template>
@@ -54,7 +55,7 @@
         <code>{{ item.code }}</code>
       </template>
       <template #cell-status="{ value }">
-        <AppBadge :variant="statusVariant(value)" dot>
+        <AppBadge :variant="statusVariant(value)" :icon="statusIcon(value)" dot>
           {{ statusLabel(value) }}
         </AppBadge>
       </template>
@@ -131,27 +132,25 @@
       </div>
       <div v-else>
         <nav class="tabs">
-          <button
-            type="button"
-            :class="['tab', detailTab === 'details' && 'tab--active']"
+          <AppButton
+            :variant="detailTab === 'details' ? 'primary' : 'ghost'"
             @click="setDetailTab('details')"
           >
             {{ $t('lots.tabs.details') }}
-          </button>
-          <button
-            type="button"
-            :class="['tab', detailTab === 'genealogy' && 'tab--active']"
+          </AppButton>
+          <AppButton
+            :variant="detailTab === 'genealogy' ? 'primary' : 'ghost'"
             @click="setDetailTab('genealogy')"
           >
             {{ $t('lots.tabs.genealogy') }}
-          </button>
+          </AppButton>
         </nav>
 
         <div v-if="detailTab === 'details'" class="tab-body">
           <div class="detail-grid">
             <div class="detail-item">
               <span class="detail-item__label">{{ $t('common.status') }}</span>
-              <AppBadge :variant="statusVariant(detailLot.status)" dot>
+              <AppBadge :variant="statusVariant(detailLot.status)" :icon="statusIcon(detailLot.status)" dot>
                 {{ statusLabel(detailLot.status) }}
               </AppBadge>
             </div>
@@ -315,9 +314,14 @@ import {
 } from '../../services/lotGenealogyService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
+import { lotStatusMeta, ShopfloorDensity, useShopfloorDensity, type StatusSignalMeta } from '../../composables/useShopfloorDisplay';
 
 const { t, tm } = useI18n();
 const toast = useToastStore();
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 const route = useRoute();
 const router = useRouter();
 
@@ -348,15 +352,12 @@ function statusLabel(v: number): string {
   return map?.[String(v)] ?? String(v);
 }
 
-function statusVariant(v: number): 'success' | 'warning' | 'danger' | 'idle' | 'info' {
-  switch (v) {
-    case LotStatus.Available: return 'success';
-    case LotStatus.OnHold: return 'warning';
-    case LotStatus.Consumed: return 'info';
-    case LotStatus.Scrapped: return 'danger';
-    case LotStatus.Expired: return 'idle';
-    default: return 'idle';
-  }
+function statusVariant(v: number): StatusSignalMeta['variant'] {
+  return lotStatusMeta(v).variant;
+}
+
+function statusIcon(v: number): string {
+  return lotStatusMeta(v).icon;
 }
 
 const statusOptions = computed(() => ([LotStatus.Available, LotStatus.OnHold, LotStatus.Consumed, LotStatus.Scrapped, LotStatus.Expired] as LotStatus[])
@@ -727,27 +728,27 @@ onMounted(() => { void table.fetch(); void initFromQuery(); });
 
 <style scoped>
 .scan-card { margin-bottom: var(--space-3); padding: var(--space-3); }
-.scan-row { display: flex; gap: var(--space-2); align-items: center; }
-.scan-row > :first-child { flex: 1; }
+.scan-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.scan-row > :first-child { flex: 1; min-width: 220px; }
 .scan-error { color: var(--color-danger, #b91c1c); margin: var(--space-2) 0 0; }
 .scan-hit { color: var(--color-success, #065f46); margin: var(--space-2) 0 0; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
 .loading { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-6); }
-.tabs { display: flex; border-bottom: 1px solid var(--color-border, #e5e7eb); margin-bottom: var(--space-3); }
-.tab { background: none; border: none; padding: 10px 16px; cursor: pointer; font: inherit; color: var(--color-text-muted, #6b7280); border-bottom: 2px solid transparent; }
-.tab--active { color: var(--color-primary, #2563eb); border-bottom-color: var(--color-primary, #2563eb); }
+.tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); border-bottom: 1px solid var(--color-border, #e5e7eb); margin-bottom: var(--space-3); padding-bottom: var(--space-2); }
 .tab-body { padding-top: var(--space-2); }
 .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); }
 .detail-item { display: flex; flex-direction: column; gap: var(--space-1); }
 .detail-item--full { grid-column: 1 / -1; }
 .detail-item__label { font-size: var(--font-size-sm); color: var(--color-text-muted); }
-.genealogy-toolbar { display: flex; gap: var(--space-3); align-items: flex-end; margin-bottom: var(--space-3); }
+.genealogy-toolbar { display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap; margin-bottom: var(--space-3); }
 .genealogy-toolbar > :first-child { width: 160px; }
 .genealogy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 .genealogy-pane h4 { margin: 0 0 var(--space-2); }
 .truncation-notice { margin: 0 0 var(--space-2); }
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
+  .form-grid { grid-template-columns: 1fr; }
   .genealogy-grid { grid-template-columns: 1fr; }
+  .scan-row > :last-child { flex: 1 1 100%; }
 }
 </style>

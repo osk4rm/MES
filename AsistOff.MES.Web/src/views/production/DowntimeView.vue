@@ -1,7 +1,8 @@
 <template>
-  <div>
+  <div :class="viewClass">
     <AppPageHeader :title="$t('downtime.title')" :subtitle="$t('downtime.subtitle')" icon="pi pi-pause-circle">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" @click="table.fetch">{{ $t('common.refresh') }}</AppButton>
         <AppButton variant="primary" icon="pi pi-plus" @click="openStart">{{ $t('downtime.start') }}</AppButton>
       </template>
@@ -56,7 +57,7 @@
         {{ value === null || value === undefined ? '—' : formatDuration(Number(value)) }}
       </template>
       <template #cell-status="{ value }">
-        <AppBadge :variant="Number(value) === DowntimeEventStatus.Open ? 'warning' : 'idle'" dot>
+        <AppBadge :variant="statusVariant(Number(value))" :icon="statusIcon(Number(value))" dot>
           {{ statusLabel(Number(value)) }}
         </AppBadge>
       </template>
@@ -180,11 +181,16 @@ import {
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { reasonCodeService, type ReasonCodeResponse } from '../../services/reasonCodeService';
 import { productionOrderService, ProductionOrderStatus, type ProductionOrderResponse } from '../../services/productionOrderService';
+import { downtimeStatusMeta, ShopfloorDensity, useShopfloorDensity, type StatusSignalMeta } from '../../composables/useShopfloorDisplay';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const { t } = useI18n();
 const toast = useToastStore();
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 
 interface Filters {
   machineId?: string;
@@ -246,6 +252,12 @@ function reasonName(id: string): string {
 }
 function statusLabel(v: number): string {
   return v === DowntimeEventStatus.Open ? t('downtime.status.open') : t('downtime.status.closed');
+}
+function statusVariant(v: number): StatusSignalMeta['variant'] {
+  return downtimeStatusMeta(v).variant;
+}
+function statusIcon(v: number): string {
+  return downtimeStatusMeta(v).icon;
 }
 function formatDate(d: string): string {
   return new Date(d).toLocaleString();
@@ -462,4 +474,7 @@ onMounted(async () => {
 <style scoped>
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+@media (max-width: 1100px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
 </style>

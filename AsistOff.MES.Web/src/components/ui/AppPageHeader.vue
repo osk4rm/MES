@@ -34,6 +34,7 @@ defineProps<{
   padding-bottom: var(--space-4);
   margin-bottom: var(--space-5);
   border-bottom: 1px solid var(--color-divider);
+  flex-wrap: wrap;
 }
 
 .app-page-header__left { min-width: 0; }
@@ -55,5 +56,5 @@ defineProps<{
   margin-top: var(--space-1);
 }
 
-.app-page-header__actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+.app-page-header__actions { display: flex; gap: var(--space-2); flex-shrink: 0; flex-wrap: wrap; }
 </style>

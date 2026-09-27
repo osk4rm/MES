@@ -1,7 +1,8 @@
 <template>
-  <div v-if="order" class="order-detail" data-testid="order-detail">
+  <div v-if="order" class="order-detail" :class="viewClass" data-testid="order-detail">
     <AppPageHeader :title="order.code" :subtitle="$t('productionOrders.detail.subtitle')" icon="pi pi-list">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-arrow-left" @click="$router.push({ name: 'production-orders' })">
           {{ $t('common.back') }}
         </AppButton>
@@ -48,7 +49,7 @@
       <div class="summary-grid">
         <div class="summary-item">
           <span class="summary-item__label">{{ $t('common.status') }}</span>
-          <AppBadge :variant="statusVariant(order.status)" dot>
+          <AppBadge :variant="statusVariant(order.status)" :icon="statusIcon(order.status)" dot>
             {{ statusLabel(order.status) }}
           </AppBadge>
         </div>
@@ -122,7 +123,7 @@
         @retry="loadMovements"
       >
         <template #cell-movementType="{ value }">
-          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" dot>
+          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" :icon="value === 'PW' ? 'pi pi-plus' : 'pi pi-minus'" dot>
             {{ value }}
           </AppBadge>
         </template>
@@ -334,7 +335,7 @@
         @retry="retryConfirmationMovements"
       >
         <template #cell-movementType="{ value }">
-          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" dot>
+          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" :icon="value === 'PW' ? 'pi pi-plus' : 'pi pi-minus'" dot>
             {{ value }}
           </AppBadge>
         </template>
@@ -408,12 +409,17 @@ import {
   type ConsumedLotFormRow
 } from '../../services/confirmationLots';
 import { useFormErrors } from '../../composables/useFormErrors';
+import { productionOrderStatusMeta, ShopfloorDensity, useShopfloorDensity, type StatusSignalMeta } from '../../composables/useShopfloorDisplay';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const route = useRoute();
 const { t } = useI18n();
 const toast = useToastStore();
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 
 const orderId = route.params.id as string;
 const order = ref<ProductionOrderResponse | null>(null);
@@ -438,15 +444,12 @@ const progressPercent = computed(() => {
   return Math.min(100, Math.round((produced / order.value.plannedQuantity) * 100));
 });
 
-function statusVariant(v: number): 'info' | 'primary' | 'success' | 'warning' | 'idle' {
-  switch (v) {
-    case ProductionOrderStatus.Planned: return 'info';
-    case ProductionOrderStatus.Released: return 'success';
-    case ProductionOrderStatus.InProgress: return 'warning';
-    case ProductionOrderStatus.Completed: return 'primary';
-    case ProductionOrderStatus.Closed: return 'idle';
-    default: return 'info';
-  }
+function statusVariant(v: number): StatusSignalMeta['variant'] {
+  return productionOrderStatusMeta(v).variant;
+}
+
+function statusIcon(v: number): string {
+  return productionOrderStatusMeta(v).icon;
 }
 
 interface Filters { productionOrderId?: string }
@@ -961,5 +964,11 @@ onMounted(() => {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-6);
+}
+@media (max-width: 1100px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .consumed-row { grid-template-columns: 1fr; align-items: stretch; }
+  .consumed-row__remove { justify-self: start; }
+  .section-header { flex-wrap: wrap; }
 }
 </style>
