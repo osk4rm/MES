@@ -99,8 +99,9 @@ creates no Traefik route for the bare form (requests 404).
     | `CORS_ALLOWED_ORIGIN` | same public origin; Production refuses to boot without it |
     | `AllowedHosts` | public API host name(s), semicolon-separated (e.g. `mes.twojadomena.pl`); set as the `AllowedHosts` environment variable in Coolify. The shipped default allows only loopback hosts (`localhost;127.0.0.1;[::1]`, fail-closed) and any wildcard outside Development fails fast at startup, so set this on the server or every request gets `400` |
     | `TRUSTED_PROXY_NETWORK` | compose-network CIDR (e.g. `172.18.0.0/16`) so the API honors `X-Forwarded-Proto`/`X-Forwarded-For` from the web nginx; required for HSTS (`Strict-Transport-Security`) to reach browsers behind the TLS-terminating proxy. Empty (default) is default-deny: no HSTS is emitted and throttling uses the raw TCP source |
-   | `BOOT_APPLY_MIGRATIONS` | default `true`: api applies EF Core migrations on boot (single-server path) |
-   | `BOOT_RUN_SEEDERS` | default `false`; seeders never run in Production via this path |
+    | `BOOT_APPLY_MIGRATIONS` | default `true`: api applies EF Core migrations on boot (single-server path) |
+| `BOOT_RUN_SEEDERS` | default `false`; seeders never run in Production via this path |
+| `ATTACHMENTS_ROOT_PATH` | absolute blob root inside api/api-prod (default `/app/App_Data/attachments`), backed by the durable `attachments_data` volume — see “Attachment blob durability” below |
 
 6. In **Domains** (or the FQDN field of the `web` service) set the domain with
    the internal port **`8080`** (explicit — see 2A why “Port missing” breaks):
@@ -111,8 +112,40 @@ creates no Traefik route for the bare form (requests 404).
 Coolify builds and starts four containers:
 - `postgres` (data in volume `postgres_data`),
 - `seq` (logs in `seq_data`; no public domain needed),
-- `api` (EF Core migrations apply automatically on boot),
+- `api` (EF Core migrations apply automatically on boot; attachment blobs in
+  volume `attachments_data`),
 - `web` (nginx: SPA + proxy `/api`, `/health`, `/swagger` → `api:8080`).
+
+### Attachment blob durability
+
+Attachment binaries (certificates, photos, control-chart exports backing
+Genealogy evidence and the audit trail) live on disk under
+`Attachments:LocalStorage:RootPath`, while their metadata rows (with
+`StorageKey`) live in Postgres. A relative `RootPath` (the default
+`App_Data/attachments`) resolves against the host content root (`/app` in the
+image), never against the process working directory; an absolute path passes
+through unchanged.
+
+In compose both `api` and `api-prod` mount the named volume
+`attachments_data` at `${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}`
+and export the same variable as `Attachments__LocalStorage__RootPath`, so the
+configured root and the mount stay in sync and blobs survive `docker compose
+down` (volumes are kept), container recreates, and redeploys. The image seeds
+`/app/App_Data/attachments` owned by the non-root `app` user, so a fresh
+volume is writable without running as root. The resolved absolute blob root
+is logged at startup (`Attachment blob storage root: ...`) — check it after
+deploy to verify the mount. Set `ATTACHMENTS_ROOT_PATH` to an absolute path
+to store blobs elsewhere (the mount follows the variable).
+
+Durability proof after a deploy or a compose change:
+
+```bash
+# upload a file, remember its download URL (GET /api/attachments/{id}/download)
+curl -o before.bin <download-url> && sha256sum before.bin
+docker compose down && docker compose up -d
+curl -o after.bin <download-url> && sha256sum after.bin
+# the two hashes must match; `docker volume ls` still shows attachments_data
+```
 
 ### Updates
 
