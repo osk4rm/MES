@@ -30,6 +30,11 @@ COPY AsistOff.MES.Production.Infrastructure/AsistOff.MES.Production.Infrastructu
 RUN dotnet restore AsistOff.MES.Gateway/AsistOff.MES.Gateway.csproj
 
 # Copy all source and publish
+# Issue #364: appsettings.Development.json never reaches the runtime image —
+# .dockerignore excludes it from the build context AND the Gateway csproj sets
+# CopyToPublishDirectory=Never so publish omits it. Local dev still reads the
+# file from the source tree; the dev seed password itself is empty by default
+# and provided via Seed__Tenants__0__AdminPassword instead.
 COPY . .
 RUN dotnet publish AsistOff.MES.Gateway/AsistOff.MES.Gateway.csproj \
     -c Release \
