@@ -17,7 +17,7 @@
         <PackageReference Include="Serilog.Sinks.Seq" Version="9.1.0"/>
         <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1"/>
         <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0"/>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2"/>
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -27,6 +27,17 @@
       <ProjectReference Include="..\AsistOff.MES.Production.Api\AsistOff.MES.Production.Api.csproj" />
       <ProjectReference Include="..\AsistOff.MES.Shared.Infrastructure\AsistOff.MES.Shared.Infrastructure.csproj" />
       <ProjectReference Include="..\AsistOff.MES.Users.Api\AsistOff.MES.Users.Api.csproj" />
+    </ItemGroup>
+
+    <!-- Issue #358: the Development settings carry local-only seed defaults and
+         must never ship inside the published image (dotnet publish copies them
+         by default). Local dev still reads the file from the source tree; only
+         the publish output excludes it. The dev seed password itself is empty
+         by default and provided via Seed__Tenants__0__AdminPassword instead. -->
+    <ItemGroup>
+      <Content Update="appsettings.Development.json">
+        <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+      </Content>
     </ItemGroup>
 
 </Project>

@@ -53,6 +53,14 @@ try
         builder.Configuration["auth:IssuerSigningKey"],
         builder.Environment.IsProduction());
 
+    // Host-header validation (issue #369): the default appsettings.json pins
+    // AllowedHosts to loopback hosts (fail-closed); only the Development override
+    // opts into the '*' wildcard. A wildcard outside Development never boots,
+    // so a forged Host header cannot poison cached links or reset URLs.
+    HostFilteringGuard.Validate(
+        builder.Configuration["AllowedHosts"],
+        builder.Environment.IsDevelopment());
+
     // Pull all logging configuration from appsettings (Serilog section). Sinks,
     // minimum levels, enrichers, and Seq URL are all declarative — no code
     // changes are required to add another sink or change verbosity per env.
@@ -82,15 +90,31 @@ try
     // asiki): TLS terminates at the Coolify proxy (Traefik) and the web
     // nginx forwards X-Forwarded-* headers, so the API sees the original
     // https scheme and client IP (auth cookies, Origin checks, Swagger).
-    // Known proxies/networks are cleared because the only ingress is the
-    // trusted compose network behind the proxy — never expose the api
-    // container directly to the internet.
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.KnownIPNetworks.Clear();
-        options.KnownProxies.Clear();
-    });
+    // Issue #323 (abuse-protection hardening): forwarded headers are only
+    // honored from explicitly trusted proxies/networks bound from the
+    // TrustedProxies section (default-deny when empty). The Forwarded Headers
+    // middleware runs first in the pipeline (app.UseForwardedHeaders below)
+    // and rewrites Connection.RemoteIpAddress to the real client IP only for
+    // trusted peers; AbuseProtectionPolicy then partitions by RemoteIpAddress
+    // alone and never reads X-Forwarded-For directly, so spoofed headers on
+    // untrusted connections cannot escape the throttle. Behind the shipped
+    // nginx (proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for) set
+    // e.g. TrustedProxies__KnownNetworks__0=172.18.0.0/16 (docker network) or
+    // TrustedProxies__KnownProxies__0=<web-container-ip>; see
+    // TrustedProxyOptions docs and docker-compose.yml notes. Never expose the
+    // api container directly to the internet while trusting private ranges.
+    builder.Services.Configure<TrustedProxyOptions>(builder.Configuration.GetSection(TrustedProxyOptions.SectionName));
+    // Eager, explicit wiring (issue #323 fix): snapshot the allowlist once at
+    // startup and apply it directly. The previous lazy
+    // AddOptions<ForwardedHeadersOptions>().Configure<IOptions<TrustedProxyOptions>>
+    // indirection did not deterministically clear the framework defaults in
+    // every host (CI: untrusted X-Forwarded-For still moved the throttle
+    // partition, so the rotating-header test got 401 instead of 429).
+    // Default-deny is now applied explicitly; per-host test overrides pin
+    // ForwardedHeadersOptions directly in MesWebApplicationFactory.
+    var trustedSnapshot = ForwardedHeadersSetup.Snapshot(builder.Configuration);
+    builder.Services.Configure<ForwardedHeadersOptions>(
+        options => ForwardedHeadersSetup.Apply(options, trustedSnapshot));
 
     // OpenTelemetry traces/metrics (issue #252): OTLP export when an endpoint
     // is configured, Prometheus exposition when enabled, no-op otherwise.
@@ -98,7 +122,12 @@ try
 
     builder.Services.AddAbuseProtection(builder.Configuration);
 
-    var allowedOrigins = builder.Configuration.GetSection("cors:allowedOrigins").Get<string[]>() ?? [];
+    var configuredOrigins = builder.Configuration.GetSection("cors:allowedOrigins").Get<string[]>() ?? [];
+    // Production fail-fast lives in DevCorsPolicy.EnsureConfigured so it is
+    // unit-testable without booting the host: an empty list outside
+    // Development throws; in Development it falls through to the
+    // loopback-only fallback below.
+    var allowedOrigins = DevCorsPolicy.EnsureConfigured(configuredOrigins, builder.Environment.IsDevelopment());
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("DefaultPolicy", policy =>
@@ -116,15 +145,19 @@ try
             }
             else if (builder.Environment.IsDevelopment())
             {
-                // Dev fallback without configured origins: mirror the above
-                // but reflect any origin. SetIsOriginAllowed (instead of
-                // AllowAnyOrigin) is required — ASP.NET Core refuses
+                // Dev fallback without configured origins (issue #369): accept
+                // only loopback origins (localhost / 127.0.0.1 / ::1, any
+                // port) with credentials. The previous
+                // SetIsOriginAllowed(_ => true) reflected an arbitrary origin
+                // — a dev API run would serve auth cookies to any site the
+                // operator visited. SetIsOriginAllowed (instead of
+                // AllowAnyOrigin) is still required — ASP.NET Core refuses
                 // AllowAnyOrigin combined with AllowCredentials.
-                // NOTE: reflecting any origin together with AllowCredentials
-                // is dev-only. Production requires explicit cors:allowedOrigins
-                // (see the branch above); never enable this wildcard with
-                // credentials outside Development.
-                policy.SetIsOriginAllowed(_ => true)
+                // NOTE: loopback-only is dev-only. Production requires
+                // explicit cors:allowedOrigins (EnsureConfigured throws above);
+                // never allow arbitrary origins with credentials outside
+                // Development.
+                policy.SetIsOriginAllowed(DevCorsPolicy.IsLoopbackOrigin)
                     .AllowAnyMethod()
                     .AllowAnyHeader()
                     .AllowCredentials()
@@ -138,9 +171,11 @@ try
         });
     });
 
+    // Issue #329: pass the discovered modules so every IModule.Policies
+    // entry is registered as an MVC authorization policy in AddAuth.
     builder.Services
         .AddPresentation()
-        .AddInfrastructure(builder.Configuration, assemblies, builder.Environment);
+        .AddInfrastructure(builder.Configuration, assemblies, builder.Environment, modules);
 
     builder.Services.AddMultitenancy(builder.Configuration);
 
@@ -280,9 +315,6 @@ try
     app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
-    // Prometheus scrape endpoint (issue #252): mapped only when
-    // Observability:PrometheusEnabled is true; otherwise GET /metrics is 404.
-    app.UseMesObservability();
     // Health probes for container orchestrators (issue #249). All three are
     // anonymous infrastructure endpoints with no tenant context: orchestrators
     // call them with no user or tenant. AllowAnonymous makes the opt-out
@@ -308,6 +340,13 @@ try
     app.MapHealthChecks(HealthProbes.LivePath, liveOptions).AllowAnonymous().DisableRateLimiting();
     app.MapHealthChecks(HealthProbes.ReadyPath, readyOptions).AllowAnonymous().DisableRateLimiting();
     app.MapHealthChecks(HealthProbes.AliasPath, readyOptions).AllowAnonymous().DisableRateLimiting();
+    // Prometheus scrape endpoint (issue #252): an anonymous infrastructure
+    // endpoint scraped without credentials, like the health probes above.
+    // Mapped with the other endpoints (not as middleware behind
+    // UseAuthorization) so the AllowAnonymous() opt-out from the global
+    // fallback policy (issue #351) actually applies. Mapped only when
+    // Observability:PrometheusEnabled is true; otherwise GET /metrics is 404.
+    app.MapMesObservability();
     app.MapControllers();
 
     app.Run();

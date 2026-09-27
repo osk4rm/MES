@@ -1,5 +1,8 @@
+using AsistOff.MES.Gateway.Protection;
 using AsistOff.MES.Integration.Tests.Outbox;
+using AsistOff.MES.Integration.Tests.TestData;
 using AsistOff.MES.Multitenancy.Context;
+using AsistOff.MES.Multitenancy.Seeding;
 using AsistOff.MES.Production.Application.Telemetry;
 using AsistOff.MES.Shared.Infrastructure.Interceptors;
 using AsistOff.MES.Shared.Infrastructure.Outbox;
@@ -25,10 +28,16 @@ namespace AsistOff.MES.Integration.Tests.Infrastructure;
 /// never make endpoint assertions flaky, and the abuse-protection throttle
 /// budgets are raised so the shared suite can never trip the limiter
 /// (isolated 429 tests opt back into tiny budgets via configureProtection).
+/// Trusted-proxy overrides (issue #323) run after the production
+/// <c>TrustedProxies</c> binding so tests can opt a host into honoring
+/// <c>X-Forwarded-For</c> via the real Forwarded Headers middleware
+/// (default-deny otherwise).
 /// </summary>
 public sealed class MesWebApplicationFactory(
     string connectionString,
-    Action<AbuseProtectionOptions>? configureProtection = null) : WebApplicationFactory<Program>
+    Action<AbuseProtectionOptions>? configureProtection = null,
+    Action<TrustedProxyOptions>? configureTrustedProxies = null,
+    Action<IServiceCollection>? configureTestServices = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -52,6 +61,29 @@ public sealed class MesWebApplicationFactory(
             // Runs after the production Telemetry section binding, so the
             // poller stays off for the whole integration run.
             services.Configure<TelemetryOptions>(options => options.SimulatorEnabled = false);
+
+            // Issue #358: appsettings.Development.json ships with an empty dev
+            // seed AdminPassword (fail-closed), so the seeder would provision
+            // no admin. The suite authenticates as the seeded dev admin, so
+            // every test host sets the seed password explicitly in code —
+            // proving the supported override path
+            // (Seed__Tenants__0__AdminPassword / user secrets) instead of
+            // depending on a hardcoded credential in a shipped settings file.
+            // Runs after the Gateway's Seed section binding, so it wins.
+            services.Configure<DevTenantSeedOptions>(options =>
+            {
+                options.Enabled = true;
+                options.Tenants =
+                [
+                    new DevTenantSeed
+                    {
+                        Name = IntegrationTestData.TenantName,
+                        DisplayName = "Dev Tenant",
+                        ContactEmail = IntegrationTestData.AdminEmail,
+                        AdminPassword = IntegrationTestData.AdminPassword,
+                    },
+                ];
+            });
 
             // Same for the OPC UA poller: LastSeenAtUtc must only change via
             // explicit test actions, otherwise connection-status assertions
@@ -78,6 +110,14 @@ public sealed class MesWebApplicationFactory(
             // observe 3 calls instead of 2).
             services.TryAddTransient<INotificationHandler<FlakyOutboxEvent>, FlakyOutboxHandler>();
 
+            // Test-only TCP-source control (issue #323): lets abuse-protection
+            // tests set Connection.RemoteIpAddress per request via the
+            // X-Test-Remote-Ip header (removed before production middleware).
+            // Production never registers this filter. Runs before
+            // UseForwardedHeaders so trusted-proxy tests can simulate a proxy
+            // peer (RemoteIp = proxy) plus X-Forwarded-For (client).
+            services.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, TestRemoteIpStartupFilter>();
+
             // Abuse protection: the shared suite performs hundreds of sign-in
             // and tenant-create calls from a single TestServer IP, which would
             // trip the production budgets (100 sign-ins / 60 creates per
@@ -99,6 +139,27 @@ public sealed class MesWebApplicationFactory(
             {
                 services.Configure(configureProtection);
             }
+
+            // Trusted-proxy pinning (issue #323 fix): apply the effective
+            // allowlist directly to ForwardedHeadersOptions so every test host
+            // deterministically honors exactly its intended trust through the
+            // real Forwarded Headers middleware — default-deny when the test
+            // passes no override, the explicit proxy/network otherwise.
+            // Registered after the Gateway wiring so it wins for this host
+            // only. Production binds TrustedProxies at startup (see
+            // Program.cs); these pins only keep the test hosts hermetic.
+            var trustedSnapshot = new TrustedProxyOptions();
+            configureTrustedProxies?.Invoke(trustedSnapshot);
+            if (configureTrustedProxies is not null)
+            {
+                services.Configure(configureTrustedProxies);
+            }
+
+            ForwardedHeadersSetup.Pin(services, trustedSnapshot);
+
+            // Per-test overrides (e.g. a tiny attachment quota or a stub
+            // malware scanner): runs last so it wins for this host only.
+            configureTestServices?.Invoke(services);
         });
     }
 

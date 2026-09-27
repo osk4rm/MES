@@ -1,3 +1,5 @@
+using AsistOff.MES.Configuration.Domain.Entities;
+using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Production.Application.Features.RecipeVersions.Release;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
@@ -13,15 +15,19 @@ public class ReleaseRecipeVersionRequestHandlerTests
 {
     private readonly Mock<IRecipeVersionsRepository> _versions = new();
     private readonly Mock<IRecipesRepository> _recipes = new();
+    private readonly Mock<IProductsRepository> _products = new();
+    private readonly Mock<IWarehousesRepository> _warehouses = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
 
     public ReleaseRecipeVersionRequestHandlerTests()
     {
         _clock.SetupGet(c => c.UtcNow).Returns(DateTime.UtcNow);
+        _warehouses.Setup(w => w.BrowseAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<Warehouse>());
     }
 
     private ReleaseRecipeVersionRequestHandler CreateSut() =>
-        new(_versions.Object, _recipes.Object, _clock.Object);
+        new(_versions.Object, _recipes.Object, _products.Object, _warehouses.Object, _clock.Object);
 
     [Fact]
     public async Task Throws_NotFoundException_when_version_missing()

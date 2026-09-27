@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'subtle';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'subtle' | 'link';
 type Size = 'sm' | 'md' | 'lg';
 
 const props = withDefaults(defineProps<{
@@ -115,6 +115,31 @@ function onClick(ev: MouseEvent) {
   border-color: var(--color-danger);
 }
 .app-btn--danger:not(:disabled):hover { background: #9a1c14; border-color: #9a1c14; }
+
+/* Link variant (F-09): design-system treatment for auth side-panel
+   affordances and other text-only navigation actions. Transparent
+   background, primary color, underline on hover, visible focus ring —
+   never a raw <button class="auth-page__link">. */
+.app-btn--link {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-primary);
+  min-height: var(--control-height-touch);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+}
+.app-btn--link:not(:disabled):hover {
+  background: transparent;
+  text-decoration: underline;
+}
+.app-btn--link:not(:disabled):active {
+  background: transparent;
+  color: var(--color-primary-active);
+}
+.app-btn--link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
 
 .app-btn__icon { font-size: 0.95em; }
 

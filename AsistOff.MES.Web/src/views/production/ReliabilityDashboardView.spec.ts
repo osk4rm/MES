@@ -307,6 +307,27 @@ describe('ReliabilityDashboardView', () => {
     expect(wrapper.text()).not.toContain('reliabilityDashboard.cards.mtbf');
   });
 
+  it('shares the AppDataState precedence: error with retry beats content, and retry recovers', async () => {
+    seedDeepLink();
+    snapshotMock.mockRejectedValueOnce({
+      response: { status: 500, data: { title: 'Server blew up' } },
+      message: 'Request failed with status code 500'
+    });
+
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Server blew up');
+
+    const retry = wrapper.findAll('button').find((b) => b.text().includes('common.retry'));
+    expect(retry).toBeDefined();
+    await retry?.trigger('click');
+    await flushPromises();
+
+    expect(snapshotMock).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).not.toContain('Server blew up');
+  });
+
   it('loads trend and fleet panels alongside the snapshot over the shared window', async () => {
     seedDeepLink();
 

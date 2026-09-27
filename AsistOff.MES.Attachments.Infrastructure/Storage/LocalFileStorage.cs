@@ -1,4 +1,5 @@
 using AsistOff.MES.Shared.Abstractions.Storage;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace AsistOff.MES.Attachments.Infrastructure.Storage;
@@ -8,10 +9,17 @@ namespace AsistOff.MES.Attachments.Infrastructure.Storage;
 /// sharded into two-level directories based on the generated id to avoid very
 /// large flat folders. Returned storage key is the POSIX relative path under
 /// the root (e.g. <c>ab/cd/abcd...-originalName.pdf</c>).
+/// A relative root is resolved against the host content root (issue #373) so
+/// the blob location never depends on the process working directory.
 /// </summary>
-internal sealed class LocalFileStorage(IOptions<LocalFileStorageOptions> options) : IFileStorage
+internal sealed class LocalFileStorage : IFileStorage
 {
-    private readonly string _rootPath = Path.GetFullPath(options.Value.RootPath);
+    private readonly string _rootPath;
+
+    public LocalFileStorage(IOptions<LocalFileStorageOptions> options, IHostEnvironment hostEnvironment)
+    {
+        _rootPath = LocalFileStorageOptions.ResolveRootPath(options.Value.RootPath, hostEnvironment.ContentRootPath);
+    }
 
     public async Task<string> SaveAsync(Stream content, string contentType, string originalFileName, CancellationToken cancellationToken = default)
     {

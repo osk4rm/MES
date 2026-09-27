@@ -66,4 +66,27 @@ public class GlobalExceptionHandlerTraceIdTests
         payload.RootElement.TryGetProperty("concurrencyToken", out var token).Should().BeTrue();
         token.GetString().Should().Be("42");
     }
+
+    [Fact]
+    public async Task TryHandle_GanttConflict_ExposesConflictingSegmentIds()
+    {
+        // Arrange — issue #305: a leveling 409 must list the blocking segments.
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        var handler = new GlobalExceptionHandler(NullLogger<GlobalExceptionHandler>.Instance);
+        var blocking = new[] { Guid.NewGuid(), Guid.NewGuid() };
+
+        // Act
+        var handled = await handler.TryHandleAsync(
+            context, new GanttScheduleConflictException(blocking), default);
+
+        // Assert
+        handled.Should().BeTrue();
+        context.Response.StatusCode.Should().Be(409);
+
+        context.Response.Body.Seek(0, SeekOrigin.Begin);
+        var payload = await JsonDocument.ParseAsync(context.Response.Body);
+        payload.RootElement.TryGetProperty("conflictingSegmentIds", out var ids).Should().BeTrue();
+        ids.EnumerateArray().Select(e => e.GetGuid()).Should().BeEquivalentTo(blocking);
+    }
 }

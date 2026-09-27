@@ -1,7 +1,8 @@
 <template>
-  <div>
+  <div :class="viewClass">
     <AppPageHeader :title="$t('kanban.title')" :subtitle="$t('kanban.subtitle')" icon="pi pi-th-large">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" :loading="refreshing" @click="refreshAll">
           {{ $t('common.refresh') }}
         </AppButton>
@@ -21,7 +22,10 @@
           />
         </template>
       </AppFormField>
-      <div v-if="loopsLoading" class="loading"><AppSpinner /></div>
+      <div v-if="loopsError" class="loop-error">
+        <AppErrorState :message="loopsError" :loading="loopsLoading" compact @retry="loadLoops" />
+      </div>
+      <div v-else-if="loopsLoading" class="loading"><AppSpinner /></div>
       <AppEmptyState
         v-else-if="loopsLoaded && loops.length === 0"
         icon="pi pi-th-large"
@@ -55,20 +59,22 @@
             :items="col.items"
             :columns="cardColumns"
             :loading="col.loading"
+            :error="col.error"
             row-key="id"
             :empty-label="$t('kanban.columnEmpty')"
+            @retry="() => onColumnRetry(col)"
           >
             <template #cell-cardNumber="{ item }">
               <code>{{ item.cardNumber }}</code>
             </template>
             <template #cell-product>
-              {{ selectedLoop.productId }}
+              {{ productLabel }}
             </template>
             <template #cell-workCenter>
-              {{ selectedLoop.consumingMachineId }}
+              {{ workCenterLabel }}
             </template>
             <template #cell-warehouse>
-              {{ selectedLoop.supplyingWarehouseId }}
+              {{ warehouseLabel }}
             </template>
             <template #cell-cardQuantity>
               {{ formatQuantity(selectedLoop.cardQuantity) }}
@@ -131,17 +137,28 @@ import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppSpinner from '../../components/ui/AppSpinner.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import {
   KanbanCardStatus,
   kanbanService,
   type KanbanCardResponse,
   type KanbanLoopResponse
 } from '../../services/kanbanService';
+import { productService } from '../../services/productService';
+import { machineService } from '../../services/machineService';
+import { warehouseService } from '../../services/warehouseService';
+import { ShopfloorDensity, useShopfloorDensity } from '../../composables/useShopfloorDisplay';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const { t, tm } = useI18n();
 const toast = useToastStore();
+// F-14: Kanban joins the shared density affordance so touch targets match
+// the other shopfloor-adjacent views (44 px minimum by default).
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 const route = useRoute();
 const router = useRouter();
 
@@ -152,6 +169,7 @@ interface BoardColumn {
   status: KanbanCardStatus;
   items: KanbanCardResponse[];
   loading: boolean;
+  error: string | null;
   page: number;
   pageSize: number;
   totalCount: number;
@@ -160,7 +178,7 @@ interface BoardColumn {
 }
 
 function createColumn(status: KanbanCardStatus): BoardColumn {
-  return { status, items: [], loading: false, page: 1, pageSize: BOARD_PAGE_SIZE, totalCount: 0, totalPages: 0, actingId: null };
+  return { status, items: [], loading: false, error: null, page: 1, pageSize: BOARD_PAGE_SIZE, totalCount: 0, totalPages: 0, actingId: null };
 }
 
 const board = ref<BoardColumn[]>([
@@ -172,15 +190,50 @@ const board = ref<BoardColumn[]>([
 const loops = ref<KanbanLoopResponse[]>([]);
 const loopsLoading = ref(false);
 const loopsLoaded = ref(false);
+const loopsError = ref<string | null>(null);
 const refreshing = ref(false);
 const selectedLoopId = ref<string | null>(null);
 
 const selectedLoop = computed(() => loops.value.find((l) => l.id === selectedLoopId.value) ?? null);
 const loopMissing = computed(() => loopsLoaded.value && selectedLoopId.value !== null && selectedLoop.value === null);
 
+// Human-readable card labels (F-03): the loop carries raw foreign-key ids,
+// so product / Work Center / warehouse names resolve via the configuration
+// lookups. A failed lookup keeps the neutral dash — a raw GUID is never
+// rendered in a card cell.
+const UNRESOLVED_LABEL = '—';
+const productLabel = ref(UNRESOLVED_LABEL);
+const workCenterLabel = ref(UNRESOLVED_LABEL);
+const warehouseLabel = ref(UNRESOLVED_LABEL);
+
+async function loadLookupLabels(): Promise<void> {
+  const loop = selectedLoop.value;
+  productLabel.value = UNRESOLVED_LABEL;
+  workCenterLabel.value = UNRESOLVED_LABEL;
+  warehouseLabel.value = UNRESOLVED_LABEL;
+  if (!loop) return;
+  const [product, machine, warehouse] = await Promise.allSettled([
+    productService.get(loop.productId),
+    machineService.get(loop.consumingMachineId),
+    warehouseService.get(loop.supplyingWarehouseId)
+  ]);
+  // Stale-response guard: the operator may have switched loops mid-fetch.
+  if (selectedLoop.value?.id !== loop.id) return;
+  if (product.status === 'fulfilled') {
+    productLabel.value = `${product.value.code} — ${product.value.name}`;
+  }
+  if (machine.status === 'fulfilled') {
+    workCenterLabel.value = `${machine.value.code} — ${machine.value.name}`;
+  }
+  if (warehouse.status === 'fulfilled') {
+    warehouseLabel.value = warehouse.value.name;
+  }
+}
+
 const anyColumnLoading = computed(() => board.value.some((c) => c.loading));
+const anyColumnError = computed(() => board.value.some((c) => c.error !== null));
 const boardEmpty = computed(
-  () => selectedLoop.value !== null && !anyColumnLoading.value && board.value.every((c) => c.totalCount === 0)
+  () => selectedLoop.value !== null && !anyColumnLoading.value && !anyColumnError.value && board.value.every((c) => c.totalCount === 0)
 );
 
 const loopOptions = computed(() => loops.value.map((l) => ({
@@ -237,6 +290,7 @@ async function loadColumn(col: BoardColumn): Promise<void> {
     return;
   }
   col.loading = true;
+  col.error = null;
   try {
     const page = await kanbanService.browseCards(loopId, col.status, {
       pageNumber: col.page,
@@ -249,7 +303,7 @@ async function loadColumn(col: BoardColumn): Promise<void> {
     col.items = [];
     col.totalCount = 0;
     col.totalPages = 0;
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    col.error = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     col.loading = false;
   }
@@ -261,6 +315,7 @@ async function loadBoard(): Promise<void> {
 
 async function loadLoops(): Promise<void> {
   loopsLoading.value = true;
+  loopsError.value = null;
   try {
     const page = await kanbanService.browseLoops({ pageNumber: 1, pageSize: LOOP_PAGE_SIZE });
     loops.value = page.items;
@@ -275,7 +330,7 @@ async function loadLoops(): Promise<void> {
   } catch (err) {
     loops.value = [];
     loopsLoaded.value = true;
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    loopsError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     loopsLoading.value = false;
   }
@@ -298,6 +353,7 @@ async function selectLoop(id: string | null, sync: boolean): Promise<void> {
   }
   if (sync) syncLoopQuery();
   await loadBoard();
+  await loadLookupLabels();
 }
 
 function onLoopChange(v: string | number | null): void {
@@ -312,6 +368,10 @@ function onPageChange(col: BoardColumn, page: number): void {
 function onPageSizeChange(col: BoardColumn, size: number): void {
   col.pageSize = size;
   col.page = 1;
+  void loadColumn(col);
+}
+
+function onColumnRetry(col: BoardColumn): void {
   void loadColumn(col);
 }
 
@@ -385,6 +445,7 @@ onMounted(async () => {
   selectedLoopId.value = readLoopIdFromQuery();
   await loadLoops();
   await loadBoard();
+  await loadLookupLabels();
 });
 </script>
 

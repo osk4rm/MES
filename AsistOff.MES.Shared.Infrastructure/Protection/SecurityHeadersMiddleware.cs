@@ -32,6 +32,16 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next)
         }
 
         // HSTS is only meaningful (and only emitted) over TLS.
+        // Issue #369: this check runs after UseForwardedHeaders (see
+        // Program.cs pipeline order), so behind the TLS-terminating proxy
+        // (Coolify/Traefik -> web nginx -> api over plain HTTP) a request
+        // carrying X-Forwarded-Proto: https from a *trusted* proxy already
+        // has Scheme rewritten to https here and receives HSTS. A missing or
+        // misconfigured TrustedProxies entry fails closed: forwarded headers
+        // are ignored (default-deny), Scheme stays http, and no HSTS is
+        // emitted — configure TrustedProxies so browsers behind the proxy
+        // still get the header. Plain-HTTP health probes and local runs
+        // intentionally carry no HSTS.
         if (context.Request.IsHttps)
         {
             context.Response.Headers["Strict-Transport-Security"] = StrictTransportSecurityValue;

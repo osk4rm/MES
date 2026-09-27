@@ -291,17 +291,30 @@ docker compose -f docker-compose.yml -f docker-compose.swarm.yml up -d --build s
 docker compose -f docker-compose.yml -f docker-compose.swarm.yml logs -f swarm
 ```
 
-- Obraz: .NET 10 SDK, Node 20, PowerShell 7, git, gh, opencode, Playwright
-  (chromium) — implementer/reviewer/e2e mają wszystko, czego potrzebują.
-- Auth: `GH_TOKEN` (gh + `git push`) oraz zmontowane z hosta `~/.config/opencode`
-  i `~/.local/share/opencode` (config i auth opencode).
-- Docker socket jest zamontowany, żeby `dotnet test` (Testcontainers) działał.
+- Obraz: .NET 10 SDK (pinned by digest, model jak w #271), Node 20, PowerShell 7,
+  git, gh, opencode, Playwright (chromium) — implementer/reviewer/e2e mają
+  wszystko, czego potrzebują. Kontener działa jako non-root `swarm`
+  (UID 10000, `docker exec` raportuje niezerowe UID), bez `privileged`,
+  z `no-new-privileges` i zdjętymi capabilities (issue #357).
+- Auth: `GH_TOKEN` (gh + `git push`) i `OPENCODE_API_KEY` (opencode.ai/auth)
+  przekazywane env-em z `.env` — ten sam model env-passed dla obu tokenów.
+  Hostowe katalogi `~/.config/opencode` / `~/.local/share/opencode` NIE są
+  już montowane (kompromitacja kontenera nie oddaje hostowych credentiali
+  AI); stan opencode żyje w scoped named volume `swarm_opencode_share`.
+- Docker socket jest zamontowany w formie least-privilege (Testcontainers):
+  użytkownik `swarm` należy do grupy docker o GID hosta (`DOCKER_GID`,
+  Linux: `getent group docker`, default 999). Bez roota, bez proxy —
+  proxy socketu to opcja na przyszłość.
 - e2e gada z `postgres` z compose przez `postgres__connectionString`
   (nadpisywane env-em), więc dev seed (`admin@dev.local` / `Passw0rd!`) działa.
 - **Kontener klonuje repo z GitHuba**, więc najpierw wypchnij zmiany w
   `scripts/`, `.opencode/` i `docs/` — inaczej kontener widzi stary `master`.
 - Zmienne: `SWARM_REPO_URL`, `SWARM_REPO_BRANCH`, `SWARM_AUTOSTART_DISPATCHER`,
-  `DASHBOARD_PORT` (patrz `.env.example`).
+  `DASHBOARD_PORT`, `DOCKER_GID` (patrz `.env.example`).
+- Migracja z kontenera root (pre-#357): stary wolumen `swarm_work` należy
+  do roota i nie jest zapisywalny — odtwórz go
+  (`docker volume rm asistoff-mes_swarm_work`); entrypoint zgłosi to jawnym
+  błędem zamiast cichego failu.
 
 ## 9. Guardrails
 

@@ -47,24 +47,21 @@ public static class AbuseProtectionPolicy
     }
 
     /// <summary>
-    /// Resolves the per-client partition key: the left-most
-    /// <c>X-Forwarded-For</c> entry when present (standard deployment behind a
-    /// reverse proxy), otherwise the connection remote address, otherwise a
-    /// constant fallback. Deployments directly exposed to the internet should
-    /// strip/spoof-proof <c>X-Forwarded-For</c> at the edge, otherwise a
-    /// caller can rotate the header to escape the throttle.
+    /// Resolves the per-client partition key from the TCP source address
+    /// (<c>Connection.RemoteIpAddress</c>) only. Forwarded headers
+    /// (<c>X-Forwarded-For</c>) are deliberately never read here: any caller
+    /// could rotate the header value and escape the throttle entirely. Behind
+    /// a reverse proxy the ASP.NET Core Forwarded Headers middleware (wired in
+    /// <c>Program.cs</c> with config-bound <see cref="TrustedProxyOptions"/>,
+    /// default deny) already rewrote <c>RemoteIpAddress</c> to the real client
+    /// IP when — and only when — the immediate peer is an explicitly trusted
+    /// proxy/network, so reading <c>RemoteIpAddress</c> honors the nginx
+    /// <c>proxy_set_header X-Forwarded-For</c> deployment without trusting
+    /// spoofable input on direct connections. Falls back to
+    /// <c>"unknown"</c> when the transport exposes no address.
     /// </summary>
     public static string ResolveClientIp(HttpContext context)
     {
-        if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwarded))
-        {
-            var first = forwarded.ToString().Split(',').Select(part => part.Trim()).FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(first))
-            {
-                return first;
-            }
-        }
-
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 

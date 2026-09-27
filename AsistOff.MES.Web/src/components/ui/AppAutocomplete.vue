@@ -8,6 +8,7 @@
         :placeholder="placeholder"
         :disabled="disabled"
         :required="required"
+        :aria-invalid="invalid"
         autocomplete="off"
         class="app-input__field"
         @input="onInput"
@@ -70,6 +71,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string | null): void;
   (e: 'search', query: string): void;
+  (e: 'blur', ev: FocusEvent): void;
 }>();
 
 const open = ref(false);
@@ -104,7 +106,8 @@ function onInput(ev: Event) {
   emit('search', query.value);
 }
 
-function onBlur() {
+function onBlur(ev: FocusEvent) {
+  emit('blur', ev);
   setTimeout(() => {
     open.value = false;
     query.value = '';

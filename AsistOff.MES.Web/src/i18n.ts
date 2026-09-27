@@ -34,13 +34,30 @@ const pl = {
     signedIn: 'Zalogowany',
     signOut: 'Wyloguj',
     notifications: 'Powiadomienia',
+    dismiss: 'Odrzuć powiadomienie',
+    breadcrumb: 'Ścieżka nawigacji',
+    datetimeLocalHint: 'Czas lokalny.',
+    datetimeUtcNote: 'Zapisywany jako UTC.',
     pagination: {
       showing: 'Pokazano {from}–{to} z {total}',
-      pageSize: 'Wierszy:'
+      pageSize: 'Wierszy:',
+      firstPage: 'Pierwsza strona',
+      previousPage: 'Poprzednia strona',
+      nextPage: 'Następna strona',
+      lastPage: 'Ostatnia strona'
+    }
+  },
+  shopfloor: {
+    density: {
+      label: 'Gęstość',
+      comfortable: 'Dotykowa',
+      compact: 'Zwarta',
+      toggleHint: 'Przełącz gęstość dotykową / zwartą (min. 44 px w trybie dotykowym)'
     }
   },
   nav: {
     dashboard: 'Pulpit',
+    main: 'Nawigacja główna',
     production: 'Produkcja',
     productionOrders: 'Zlecenia produkcyjne',
     productionAndon: 'Andon',
@@ -53,7 +70,10 @@ const pl = {
     productionTelemetryDashboard: 'Panel telemetrii',
     productionOpcUaConnections: 'Połączenia OPC UA',
     productionKanban: 'Kanban',
+    operatorPanel: 'Panel operatora',
     schedule: 'Harmonogram',
+    gantt: 'Wykres Gantta',
+    dispatchBoard: 'Tablica dyspozytorska',
     reports: 'Raporty',
     oeeDashboard: 'Panel OEE',
     reliabilityDashboard: 'Panel niezawodności',
@@ -74,6 +94,10 @@ const pl = {
     settings: 'Ustawienia',
     roles: 'Role'
   },
+  sidenav: {
+    expand: 'Rozwiń pasek boczny',
+    collapse: 'Zwiń pasek boczny'
+  },
   auth: {
     signInTitle: 'Logowanie do AsistOff MES',
     signInSubtitle: 'Wpisz dane aby kontynuować',
@@ -93,16 +117,25 @@ const pl = {
     goToRegister: 'Utwórz organizację',
     passwordsMismatch: 'Hasła nie są identyczne',
     registerSuccess: 'Organizacja utworzona. Zaloguj się.',
-    registerError: 'Nie udało się utworzyć organizacji'
+    registerError: 'Nie udało się utworzyć organizacji',
+    loginSideKicker: 'AsistOff MES',
+    loginSideTitle: 'Sterowanie produkcją klasy enterprise.',
+    loginSideText: 'Zlecenia, receptury, operatorzy, magazyny — jeden wyodrębniony obszar roboczy tenanta.',
+    registerSideKicker: 'Wiele organizacji',
+    registerSideTitle: 'Wyodrębniony obszar roboczy dla Twojej organizacji.',
+    registerSideText: 'Każdy tenant otrzymuje dedykowany, ściśle odizolowany zbiór danych z własnym kontem administratora.'
   },
   dashboard: {
     title: 'Pulpit',
     subtitle: 'Monitoring kluczowych wskaźników produkcji',
-    placeholderNote: 'Wskaźniki są symulowane — zostaną podłączone do backendu po udostępnieniu endpointów metryk.',
+    placeholderNote: 'Liczniki pochodzą z bieżących danych tenanta — pełne metryki OEE pojawią się po udostępnieniu endpointów metryk.',
     activeOrders: 'Aktywne zlecenia',
-    oee: 'OEE',
-    operatorsOnline: 'Operatorzy on-line',
-    warehouses: 'Magazyny'
+    machines: 'Stanowiska',
+    operators: 'Operatorzy',
+    warehouses: 'Magazyny',
+    live: 'Na żywo',
+    emptyTitle: 'Brak danych do wyświetlenia',
+    emptyHint: 'Ten tenant nie ma jeszcze zleceń, stanowisk, operatorów ani magazynów.'
   },
   products: {
     title: 'Produkty',
@@ -307,6 +340,72 @@ const pl = {
     primaryProductPlaceholder: 'Wybierz produkt…',
     filters: { code: 'Kod zawiera…', name: 'Nazwa zawiera…' },
     versionStatus: { draft: 'Szkic', released: 'Wydana', obsolete: 'Wycofana' },
+    releasedVersion: 'Wydana v{version}',
+    noReleasedVersion: 'Brak wydanej wersji',
+    releasedColumn: 'Wydana wersja',
+    checklist: {
+      title: 'Checklista wydania',
+      description: 'Wydanie wersji v{version}. Serwer ponownie sprawdzi reguły.',
+      release: 'Wydaj wersję',
+      blockedHint: 'Wydanie zablokowane — reguły oznaczone na czerwono muszą zostać spełnione.',
+      serverNote: 'Serwer odrzuci wydanie (400), jeśli reguła blokująca zostanie naruszona.',
+      serverRejected: 'Serwer odrzucił wydanie',
+      states: { pass: 'Spełnione', warn: 'Ostrzeżenie', fail: 'Zablokowane' },
+      rules: {
+        operations: 'Operacje (min. 1)',
+        outputs: 'Zdefiniowane wyniki',
+        products: 'Aktywne produkty BOM',
+        warehouses: 'Ustawione magazyny',
+        validity: 'Spójne daty ważności',
+        dependencies: 'Acykliczne zależności'
+      },
+      msg: {
+        operationsPass: 'Zdefiniowano {count} operacji.',
+        operationsFail: 'Wersja nie zawiera żadnych operacji.',
+        outputsPass: 'Zdefiniowano {count} wyników.',
+        outputsWarn: 'Brak zdefiniowanych wyników — wersja nie wytwarza niczego śledzalnego.',
+        productsPass: 'Wszystkie produkty BOM i wyników są aktywne.',
+        productsFail: 'Nieaktywne produkty: {detail}.',
+        productsWarn: 'Nie można zweryfikować {count} produktu(-ów) — poza załadowaną listą.',
+        warehousesPass: 'Magazyny są ustawione.',
+        warehousesWarn: '{unset} pozycji bez magazynu, {unknown} nieznanych.',
+        validityPass: 'Daty ważności są spójne.',
+        validityFail: 'Data „od” jest późniejsza niż data „do”.',
+        dependenciesPass: 'Zależności są acykliczne.',
+        dependenciesFailSelf: 'Operacja {code} zależy od samej siebie.',
+        dependenciesFailUnknown: 'Operacja {code} odwołuje się do poprzednika spoza wersji.',
+        dependenciesFailCycle: 'Graf zależności zawiera cykl.'
+      }
+    },
+    compare: {
+      title: 'Porównanie wersji',
+      description: 'Różnice operacji, BOM, zasobów i czasów między dwiema wersjami.',
+      base: 'Wersja bazowa',
+      target: 'Wersja porównywana',
+      selectHint: 'Wybierz dwie różne wersje, aby zobaczyć różnice.',
+      added: 'Dodane operacje',
+      removed: 'Usunięte operacje',
+      changed: 'Zmienione operacje',
+      unchanged: 'Bez zmian',
+      noChanges: 'Wersje są identyczne.',
+      before: 'Baza',
+      after: 'Cel',
+      sections: { fields: 'Pola', bom: 'BOM', outputs: 'Wyniki', resources: 'Zasoby', dependencies: 'Zależności' },
+      fields: {
+        name: 'Nazwa',
+        sortIndex: 'Kolejność',
+        operationType: 'Typ',
+        setupTimeMinutes: 'Setup (min)',
+        runTimePerUnitSeconds: 'Czas/szt (s)',
+        runTimePerBatchMinutes: 'Czas/partia (min)',
+        teardownTimeMinutes: 'Zakończenie (min)',
+        queueTimeMinutes: 'Oczekiwanie (min)',
+        isOptional: 'Opcjonalna',
+        allowParallelExecution: 'Równoległa',
+        expectedQuantity: 'Oczekiwana ilość',
+        dependencies: 'Poprzednicy'
+      }
+    },
     dependencyType: {
       finishToStart: 'Zakończ → Rozpocznij',
       startToStart: 'Rozpocznij → Rozpocznij',
@@ -462,7 +561,7 @@ const pl = {
     nextDueAt: 'Następny termin',
     dueState: 'Termin',
     states: { overdue: 'Zaległy', dueSoon: 'Wkrótce termin', scheduled: 'Zaplanowany', noSchedule: 'Bez terminu' },
-    filters: { machine: 'Stanowisko', overdueOnly: 'Tylko zaległe' },
+    filters: { machine: 'Stanowisko', overdueOnly: 'Tylko zaległe', status: 'Status' },
     evaluateDue: 'Oceń zaległości',
     raiseNow: 'Utwórz zlecenie',
     raisedCount: 'Utworzono zleceń: {n}'
@@ -484,7 +583,8 @@ const pl = {
     notes: 'Uwagi',
     filters: {
       machine: 'Stanowisko',
-      category: 'Kategoria'
+      category: 'Kategoria',
+      status: 'Status'
     },
     categories: {
       1: 'Przestój',
@@ -537,6 +637,10 @@ const pl = {
     selectRoleHint: 'Wybierz rolę…',
     assign: 'Przypisz',
     userIdPlaceholder: 'Wklej ID użytkownika…',
+    userLookupLabel: 'Użytkownik',
+    userLookupHint: 'Zacznij pisać e-mail lub ID — podpowiedzi pochodzą ze znanych członków.',
+    matrixFilter: 'Filtruj macierz…',
+    matrixFilterLabel: 'Filtr macierzy',
     unassign: 'Usuń z roli',
     emptyMembers: 'Rola nie ma jeszcze członków.',
     emptyRoles: 'Brak ról — utwórz pierwszą.'
@@ -613,7 +717,7 @@ const pl = {
     order: 'Zlecenie (opcjonalnie)',
     selectOrder: 'Wybierz zlecenie…',
     status: { open: 'Otwarty', closed: 'Zamknięty' },
-    filters: { machine: 'Stanowisko', reason: 'Przyczyna' }
+    filters: { machine: 'Stanowisko', reason: 'Przyczyna', status: 'Status', from: 'Od', to: 'Do' }
   },
   telemetry: {
     title: 'Telemetria',
@@ -812,7 +916,8 @@ const pl = {
     noMachineHint: 'Wybierz stanowisko robocze, aby zobaczyć wskaźniki OEE.',
     notFound: 'Nie znaleziono stanowiska lub brak dostępu',
     notFoundHint: 'Stanowisko może należeć do innej organizacji — wybierz inne stanowisko.',
-    invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko, okno i idealny czas cyklu'
+    invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko, okno i idealny czas cyklu',
+    invalidWindow: 'Nieprawidłowe okno — data końcowa musi być późniejsza niż początkowa'
   },
   reliabilityDashboard: {
     title: 'Panel niezawodności',
@@ -865,10 +970,11 @@ const pl = {
     noMachineHint: 'Wybierz stanowisko robocze, aby zobaczyć MTBF i MTTR.',
     notFound: 'Nie znaleziono stanowiska lub brak dostępu',
     notFoundHint: 'Stanowisko może należeć do innej organizacji — wybierz inne stanowisko.',
-    invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko i okno (maks. 93 dni)'
+    invalidInput: 'Nieprawidłowe dane wejściowe — sprawdź stanowisko i okno (maks. 93 dni)',
+    invalidWindow: 'Nieprawidłowe okno — data końcowa musi być późniejsza niż początkowa (maks. 93 dni)'
   },
   scheduleDispatch: {
-    title: 'Harmonogram',
+    title: 'Tablica dyspozytorska',
     subtitle: 'Tablica dyspozytorska — zaległe zlecenia i obsada zmian',
     from: 'Okno od',
     to: 'Okno do',
@@ -887,6 +993,51 @@ const pl = {
     noDueDate: 'Brak terminu',
     invalidWindow: 'Nieprawidłowe okno dat — data początkowa nie może być późniejsza niż końcowa (maks. 31 dni)'
   },
+  scheduleGantt: {
+    title: 'Harmonogram',
+    subtitle: 'Plan czasowy operacji na stanowiskach — przeciągnij pasek, aby przeplanować',
+    from: 'Okno od',
+    to: 'Okno do',
+    apply: 'Zastosuj',
+    bars: '{count} op.',
+    unassignedLane: 'Bez przypisanego stanowiska',
+    overdue: 'Zaległe',
+    noCoverage: 'Bez obsady zmian',
+    empty: 'Brak pasków w wybranym oknie — wydaj zlecenia z operacjami na stanowiska',
+    hint: 'Przeciągnij pasek, aby zmienić termin; pociągnij prawą krawędź, aby zmienić czas trwania.',
+    keyboardHint: 'Klawiatura: Tab wybiera pasek, ←/→ przesuwa o dzień (Shift: o tydzień), Enter zatwierdza, Esc anuluje.',
+    moved: 'Przeplanowano operację',
+    movedNoCoverage: 'Zapisano, ale nowe okno nie ma obsady zmian.',
+    conflict: 'Konflikt zasobów albo nieaktualne dane — pasek wrócił na poprzedni slot. Odśwież i spróbuj ponownie.',
+    moveTargetMissing: 'Nie znaleziono zlecenia ani stanowiska — odśwież i spróbuj ponownie.',
+    invalidWindow: 'Nieprawidłowe okno dat — data początkowa nie może być późniejsza niż końcowa (maks. 31 dni)'
+  },
+  operatorPanel: {
+    title: 'Panel operatora',
+    subtitle: 'Kolejka bieżącej zmiany — odbierz kolejne zadanie, potwierdź ilości i zgłoś problemy',
+    operatorCode: 'Kod operatora',
+    operatorCodePlaceholder: 'Wpisz kod operatora…',
+    operatorCodeHint: 'Możesz zeskanować identyfikator — czytnik zatwierdza kod klawiszem Enter.',
+    load: 'Wczytaj kolejkę',
+    enterCode: 'Wpisz kod operatora, aby wczytać kolejkę bieżącej zmiany.',
+    shiftTitle: 'Zmiana',
+    shiftCode: 'Kod zmiany',
+    shiftName: 'Nazwa zmiany',
+    shiftWindow: 'Okno zmiany (UTC)',
+    overnight: 'Zmiana nocna',
+    offShift: 'Brak przypisania do zmiany w tej chwili — kolejka jest pusta.',
+    openSignals: 'Otwarte sygnały: {n}',
+    queueTitle: 'Kolejka zmiany',
+    queueEmpty: 'Brak zleceń Wydanych / W realizacji w tej zmianie.',
+    nextUp: 'Następne',
+    claim: 'Odbierz i rozpocznij',
+    priority: 'Priorytet {n}',
+    product: 'Produkt: {code}',
+    remaining: 'Pozostało {remaining} z {planned}',
+    workCenter: 'Stanowisko: {name}',
+    reportScrap: 'Zgłoś brak',
+    reportDowntime: 'Rozpocznij przestój'
+  },
   scrap: {
     title: 'Braki',
     subtitle: 'Ewidencja braków ze stanowisk z kodami przyczyn',
@@ -902,18 +1053,35 @@ const pl = {
     selectOrder: 'Wybierz zlecenie…',
     filters: {
       machine: 'Maszyna',
-      reasonCode: 'Kod przyczyny'
+      reasonCode: 'Kod przyczyny',
+      from: 'Od',
+      to: 'Do'
     }
   },
   scanBy: { 1: 'EAN', 2: 'Kod' },
+  settings: {
+    indexHint: 'Wybierz sekcję ustawień, aby kontynuować.'
+  },
   stubs: {
     title: 'Moduł w przygotowaniu',
     description: 'Ten obszar zostanie udostępniony po implementacji odpowiednich endpointów na backendzie.'
   },
+  notFound: {
+    title: 'Nie znaleziono strony',
+    description: 'Ten adres nie pasuje do żadnego widoku. Sprawdź adres lub wróć na pulpit — nawigacja została zachowana.',
+    backToDashboard: 'Wróć na pulpit'
+  },
   validation: {
     required: 'Pole jest wymagane',
     tooShort: 'Wartość jest za krótka',
-    invalidEmail: 'Nieprawidłowy adres e-mail'
+    tooLong: 'Wartość jest za długa (maks. {max} znaków)',
+    invalidEmail: 'Nieprawidłowy adres e-mail',
+    invalidNumber: 'Podaj prawidłową liczbę',
+    mustBePositive: 'Wartość musi być większa od zera',
+    mustBeNonNegative: 'Wartość nie może być ujemna',
+    outOfRange: 'Wartość musi być z zakresu {min}–{max}',
+    invalidDate: 'Podaj prawidłową datę',
+    formHasErrors: 'Formularz zawiera błędy — popraw wyróżnione pola i spróbuj ponownie'
   },
   errors: {
     generic: 'Wystąpił nieoczekiwany błąd',
@@ -968,13 +1136,30 @@ const en: typeof pl = {
     signedIn: 'Signed in',
     signOut: 'Sign out',
     notifications: 'Notifications',
+    dismiss: 'Dismiss notification',
+    breadcrumb: 'Breadcrumb',
+    datetimeLocalHint: 'Local time.',
+    datetimeUtcNote: 'Stored as UTC.',
     pagination: {
       showing: 'Showing {from}–{to} of {total}',
-      pageSize: 'Rows:'
+      pageSize: 'Rows:',
+      firstPage: 'First page',
+      previousPage: 'Previous page',
+      nextPage: 'Next page',
+      lastPage: 'Last page'
+    }
+  },
+  shopfloor: {
+    density: {
+      label: 'Density',
+      comfortable: 'Touch',
+      compact: 'Compact',
+      toggleHint: 'Toggle touch / compact density (44 px minimum in touch mode)'
     }
   },
   nav: {
     dashboard: 'Dashboard',
+    main: 'Main navigation',
     production: 'Production',
     productionOrders: 'Production orders',
     productionAndon: 'Andon',
@@ -987,7 +1172,10 @@ const en: typeof pl = {
     productionTelemetryDashboard: 'Telemetry dashboard',
     productionOpcUaConnections: 'OPC UA connections',
     productionKanban: 'Kanban',
+    operatorPanel: 'Operator panel',
     schedule: 'Schedule',
+    gantt: 'Gantt chart',
+    dispatchBoard: 'Dispatch board',
     reports: 'Reports',
     oeeDashboard: 'OEE dashboard',
     reliabilityDashboard: 'Reliability dashboard',
@@ -1008,6 +1196,10 @@ const en: typeof pl = {
     settings: 'Settings',
     roles: 'Roles'
   },
+  sidenav: {
+    expand: 'Expand sidebar',
+    collapse: 'Collapse sidebar'
+  },
   auth: {
     signInTitle: 'Sign in to AsistOff MES',
     signInSubtitle: 'Enter your credentials to continue',
@@ -1027,16 +1219,25 @@ const en: typeof pl = {
     goToRegister: 'Create an organization',
     passwordsMismatch: 'Passwords do not match',
     registerSuccess: 'Organization created. Please sign in.',
-    registerError: 'Organization creation failed'
+    registerError: 'Organization creation failed',
+    loginSideKicker: 'AsistOff MES',
+    loginSideTitle: 'Enterprise-grade shop-floor control.',
+    loginSideText: 'Orders, recipes, operators, warehouses — one tenant-isolated workspace.',
+    registerSideKicker: 'Multi-tenant',
+    registerSideTitle: 'Isolated workspace for your organization.',
+    registerSideText: 'Every tenant gets a dedicated, strictly-isolated dataset with its own admin account.'
   },
   dashboard: {
     title: 'Dashboard',
     subtitle: 'Top-level production KPIs',
-    placeholderNote: 'Metrics below are placeholders — they will be wired up once metric endpoints are available.',
+    placeholderNote: 'Counters read live tenant data — full OEE metrics will arrive once metric endpoints are available.',
     activeOrders: 'Active orders',
-    oee: 'OEE',
-    operatorsOnline: 'Operators online',
-    warehouses: 'Warehouses'
+    machines: 'Work centers',
+    operators: 'Operators',
+    warehouses: 'Warehouses',
+    live: 'Live',
+    emptyTitle: 'No data to show',
+    emptyHint: 'This tenant has no orders, work centers, operators or warehouses yet.'
   },
   products: {
     title: 'Products',
@@ -1241,6 +1442,72 @@ const en: typeof pl = {
     primaryProductPlaceholder: 'Select product…',
     filters: { code: 'Code contains…', name: 'Name contains…' },
     versionStatus: { draft: 'Draft', released: 'Released', obsolete: 'Obsolete' },
+    releasedVersion: 'Released v{version}',
+    noReleasedVersion: 'No released version',
+    releasedColumn: 'Released version',
+    checklist: {
+      title: 'Release checklist',
+      description: 'Releasing version v{version}. The server rechecks the rules.',
+      release: 'Release version',
+      blockedHint: 'Release is blocked — rules marked red must pass first.',
+      serverNote: 'The server rejects the release (400) when a blocking rule is violated.',
+      serverRejected: 'The server rejected the release',
+      states: { pass: 'Pass', warn: 'Warning', fail: 'Blocked' },
+      rules: {
+        operations: 'Operations (min. 1)',
+        outputs: 'Outputs defined',
+        products: 'Active BOM products',
+        warehouses: 'Warehouses set',
+        validity: 'Coherent validity dates',
+        dependencies: 'Acyclic dependencies'
+      },
+      msg: {
+        operationsPass: '{count} operation(s) defined.',
+        operationsFail: 'The version has no operations.',
+        outputsPass: '{count} output(s) defined.',
+        outputsWarn: 'No outputs defined — the version produces nothing trackable.',
+        productsPass: 'All BOM and output products are active.',
+        productsFail: 'Inactive products: {detail}.',
+        productsWarn: '{count} product(s) cannot be verified — outside the loaded lookup.',
+        warehousesPass: 'Warehouses are set.',
+        warehousesWarn: '{unset} item(s) without a warehouse, {unknown} unknown.',
+        validityPass: 'Validity dates are coherent.',
+        validityFail: 'ValidFrom is later than ValidTo.',
+        dependenciesPass: 'Dependencies are acyclic.',
+        dependenciesFailSelf: 'Operation {code} depends on itself.',
+        dependenciesFailUnknown: 'Operation {code} references a predecessor outside this version.',
+        dependenciesFailCycle: 'The dependency graph contains a cycle.'
+      }
+    },
+    compare: {
+      title: 'Version compare',
+      description: 'Operation, BOM, resource and timing deltas between two versions.',
+      base: 'Base version',
+      target: 'Target version',
+      selectHint: 'Select two different versions to see the deltas.',
+      added: 'Added operations',
+      removed: 'Removed operations',
+      changed: 'Changed operations',
+      unchanged: 'Unchanged',
+      noChanges: 'The versions are identical.',
+      before: 'Base',
+      after: 'Target',
+      sections: { fields: 'Fields', bom: 'BOM', outputs: 'Outputs', resources: 'Resources', dependencies: 'Dependencies' },
+      fields: {
+        name: 'Name',
+        sortIndex: 'Order',
+        operationType: 'Type',
+        setupTimeMinutes: 'Setup (min)',
+        runTimePerUnitSeconds: 'Run/unit (s)',
+        runTimePerBatchMinutes: 'Run/batch (min)',
+        teardownTimeMinutes: 'Teardown (min)',
+        queueTimeMinutes: 'Queue (min)',
+        isOptional: 'Optional',
+        allowParallelExecution: 'Parallel',
+        expectedQuantity: 'Expected qty',
+        dependencies: 'Predecessors'
+      }
+    },
     dependencyType: {
       finishToStart: 'Finish → Start',
       startToStart: 'Start → Start',
@@ -1396,7 +1663,7 @@ const en: typeof pl = {
     nextDueAt: 'Next due',
     dueState: 'Due state',
     states: { overdue: 'Overdue', dueSoon: 'Due soon', scheduled: 'Scheduled', noSchedule: 'No schedule' },
-    filters: { machine: 'Work center', overdueOnly: 'Overdue only' },
+    filters: { machine: 'Work center', overdueOnly: 'Overdue only', status: 'Status' },
     evaluateDue: 'Evaluate due',
     raiseNow: 'Raise order',
     raisedCount: 'Orders raised: {n}'
@@ -1418,7 +1685,8 @@ const en: typeof pl = {
     notes: 'Notes',
     filters: {
       machine: 'Work center',
-      category: 'Category'
+      category: 'Category',
+      status: 'Status'
     },
     categories: {
       1: 'Downtime',
@@ -1472,6 +1740,10 @@ const en: typeof pl = {
     selectRoleHint: 'Select a role…',
     assign: 'Assign',
     userIdPlaceholder: 'Paste a user ID…',
+    userLookupLabel: 'User',
+    userLookupHint: 'Start typing an e-mail or ID — suggestions come from known members.',
+    matrixFilter: 'Filter matrix…',
+    matrixFilterLabel: 'Matrix filter',
     unassign: 'Remove from role',
     emptyMembers: 'This role has no members yet.',
     emptyRoles: 'No roles — create the first one.'
@@ -1548,7 +1820,7 @@ const en: typeof pl = {
     order: 'Order (optional)',
     selectOrder: 'Select an order…',
     status: { open: 'Open', closed: 'Closed' },
-    filters: { machine: 'Work center', reason: 'Reason' }
+    filters: { machine: 'Work center', reason: 'Reason', status: 'Status', from: 'From', to: 'To' }
   },
   telemetry: {
     title: 'Telemetry',
@@ -1747,7 +2019,8 @@ const en: typeof pl = {
     noMachineHint: 'Pick a work center to see its OEE factors.',
     notFound: 'Work center not found or access denied',
     notFoundHint: 'The work center may belong to another organization — pick a different one.',
-    invalidInput: 'Invalid input — check the work center, window and ideal cycle time'
+    invalidInput: 'Invalid input — check the work center, window and ideal cycle time',
+    invalidWindow: 'Invalid window — the end must be later than the start'
   },
   reliabilityDashboard: {
     title: 'Reliability dashboard',
@@ -1800,10 +2073,11 @@ const en: typeof pl = {
     noMachineHint: 'Pick a work center to see its MTBF and MTTR.',
     notFound: 'Work center not found or access denied',
     notFoundHint: 'The work center may belong to another organization — pick a different one.',
-    invalidInput: 'Invalid input — check the work center and window (93 days max)'
+    invalidInput: 'Invalid input — check the work center and window (93 days max)',
+    invalidWindow: 'Invalid window — the end must be later than the start (93 days max)'
   },
   scheduleDispatch: {
-    title: 'Schedule',
+    title: 'Dispatch board',
     subtitle: 'Dispatch board — overdue orders and shift staffing',
     from: 'Window from',
     to: 'Window to',
@@ -1822,6 +2096,51 @@ const en: typeof pl = {
     noDueDate: 'No due date',
     invalidWindow: 'Invalid date window — the start date must not be after the end date (31 days max)'
   },
+  scheduleGantt: {
+    title: 'Schedule',
+    subtitle: 'Time-phased operation plan per work center — drag a bar to reschedule',
+    from: 'Window from',
+    to: 'Window to',
+    apply: 'Apply',
+    bars: '{count} ops',
+    unassignedLane: 'No assigned work center',
+    overdue: 'Overdue',
+    noCoverage: 'No shift coverage',
+    empty: 'No bars in the selected window — release orders with work-center operations',
+    hint: 'Drag a bar to move it; pull the right edge to change its duration.',
+    keyboardHint: 'Keyboard: Tab focuses a bar, ←/→ nudges by a day (Shift: by a week), Enter commits, Esc cancels.',
+    moved: 'Operation rescheduled',
+    movedNoCoverage: 'Saved, but the new window has no shift coverage.',
+    conflict: 'Resource conflict or stale data — the bar snapped back. Refresh and try again.',
+    moveTargetMissing: 'Order or work center not found — refresh and try again.',
+    invalidWindow: 'Invalid date window — the start date must not be after the end date (31 days max)'
+  },
+  operatorPanel: {
+    title: 'Operator panel',
+    subtitle: 'Current-shift queue — claim the next-up task, confirm quantities and flag issues',
+    operatorCode: 'Operator code',
+    operatorCodePlaceholder: 'Enter operator code…',
+    operatorCodeHint: 'You can scan the badge — the wedge confirms the code with Enter.',
+    load: 'Load queue',
+    enterCode: 'Enter an operator code to load the current-shift queue.',
+    shiftTitle: 'Shift',
+    shiftCode: 'Shift code',
+    shiftName: 'Shift name',
+    shiftWindow: 'Shift window (UTC)',
+    overnight: 'Overnight shift',
+    offShift: 'No shift assignment covers right now — the queue is empty.',
+    openSignals: 'Open signals: {n}',
+    queueTitle: 'Shift queue',
+    queueEmpty: 'No Released or InProgress orders overlap this shift.',
+    nextUp: 'Next up',
+    claim: 'Claim & start',
+    priority: 'Priority {n}',
+    product: 'Product: {code}',
+    remaining: 'Remaining {remaining} of {planned}',
+    workCenter: 'Work Center: {name}',
+    reportScrap: 'Report scrap',
+    reportDowntime: 'Start downtime'
+  },
   scrap: {
     title: 'Scrap',
     subtitle: 'Work-center scrap records with reason codes',
@@ -1837,18 +2156,35 @@ const en: typeof pl = {
     selectOrder: 'Select an order…',
     filters: {
       machine: 'Machine',
-      reasonCode: 'Reason code'
+      reasonCode: 'Reason code',
+      from: 'From',
+      to: 'To'
     }
   },
   scanBy: { 1: 'EAN', 2: 'Code' },
+  settings: {
+    indexHint: 'Choose a settings section to continue.'
+  },
   stubs: {
-    title: 'Module coming soon',
-    description: 'This area will be enabled once the corresponding backend endpoints ship.'
+    title: 'Module in preparation',
+    description: 'This area will be available once the matching backend endpoints are implemented.'
+  },
+  notFound: {
+    title: 'Page not found',
+    description: 'This address does not match any view. Check the URL or go back to the dashboard — your navigation state is kept.',
+    backToDashboard: 'Back to dashboard'
   },
   validation: {
     required: 'Field is required',
     tooShort: 'Value is too short',
-    invalidEmail: 'Invalid email address'
+    tooLong: 'Value is too long (max {max} characters)',
+    invalidEmail: 'Invalid email address',
+    invalidNumber: 'Enter a valid number',
+    mustBePositive: 'Value must be greater than zero',
+    mustBeNonNegative: 'Value must not be negative',
+    outOfRange: 'Value must be between {min} and {max}',
+    invalidDate: 'Enter a valid date',
+    formHasErrors: 'The form has errors — fix the highlighted fields and try again'
   },
   errors: {
     generic: 'An unexpected error occurred',

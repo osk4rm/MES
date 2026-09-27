@@ -8,7 +8,7 @@
       <slot :id="inputId" :invalid="!!error" />
     </div>
     <div v-if="error || hint" class="app-field__message">
-      <span v-if="error" class="app-field__error">{{ error }}</span>
+      <span v-if="error" class="app-field__error" role="alert">{{ error }}</span>
       <span v-else-if="hint" class="app-field__hint">{{ hint }}</span>
     </div>
   </div>

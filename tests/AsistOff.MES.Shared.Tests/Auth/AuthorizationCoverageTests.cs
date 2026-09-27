@@ -73,6 +73,7 @@ public class AuthorizationCoverageTests
     {
         // Arrange & Act — the only IAllowAnonymousRequest types in the five modules
         // are the sign-in bootstrap, the refresh-token rotation bootstrap (#236),
+        // the CSRF token issuance bootstrap (#376, carries no authority by itself),
         // the tenant provisioning bootstrap and the single-tenant lookup; all
         // writes are pre-authentication by definition (refresh presents only the
         // opaque token because the access token already expired; tenant binding
@@ -88,6 +89,7 @@ public class AuthorizationCoverageTests
         anonymous.Should().BeEquivalentTo(
             "AsistOff.MES.Users.Application.Features.Authentication.SignIn.SignInRequest",
             "AsistOff.MES.Users.Application.Features.Authentication.Refresh.RefreshTokenRequest",
+            "AsistOff.MES.Users.Application.Features.Authentication.Csrf.GetCsrfTokenRequest",
             "AsistOff.MES.Multitenancy.Requests.Commands.Create.CreateTenantCommand",
             "AsistOff.MES.Multitenancy.Requests.Queries.GetTenantQuery");
     }
@@ -134,12 +136,16 @@ public class AuthorizationCoverageTests
     [Fact]
     public void AttachmentWrites_RequireAttachmentsWrite()
     {
-        // Arrange & Act — upload and delete carry attachments.write.
+        // Arrange & Act — upload and delete carry attachments.write; list and
+        // download (issue #315) carry attachments.read instead, so they are
+        // excluded here and covered by AttachmentReads_RequireAttachmentsRead.
         var violations = typeof(ListAttachmentsRequest).Assembly
             .GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false }
                 && typeof(IBaseRequest).IsAssignableFrom(t))
             .Where(t => !AuthorizationAllowlist.IsAllowed(t))
+            .Where(t => t.Name.Contains("Upload", StringComparison.Ordinal)
+                || t.Name.Contains("Delete", StringComparison.Ordinal))
             .Select(t => (Type: t,
                 Permissions: t.GetCustomAttributes(typeof(RequirePermissionAttribute), inherit: true)
                     .Cast<RequirePermissionAttribute>()
@@ -151,6 +157,31 @@ public class AuthorizationCoverageTests
 
         // Assert
         violations.Should().BeEmpty("every Attachments write must require attachments.write");
+    }
+
+    [Fact]
+    public void AttachmentReads_RequireAttachmentsRead()
+    {
+        // Arrange & Act — issue #315: list and download require
+        // attachments.read (plus the owner-module scope permission enforced in
+        // the handler via AttachmentScopePolicy).
+        var violations = typeof(ListAttachmentsRequest).Assembly
+            .GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false }
+                && typeof(IBaseRequest).IsAssignableFrom(t))
+            .Where(t => t.Name.Contains("List", StringComparison.Ordinal)
+                || t.Name.Contains("Download", StringComparison.Ordinal))
+            .Select(t => (Type: t,
+                Permissions: t.GetCustomAttributes(typeof(RequirePermissionAttribute), inherit: true)
+                    .Cast<RequirePermissionAttribute>()
+                    .Select(a => a.Permission)
+                    .ToList()))
+            .Where(x => !x.Permissions.Contains(RbacDefaults.AttachmentsRead, StringComparer.Ordinal))
+            .Select(x => x.Type.FullName)
+            .ToList();
+
+        // Assert
+        violations.Should().BeEmpty("every Attachments read must require attachments.read");
     }
 
     private static bool HasRequirePermission(Type requestType) =>

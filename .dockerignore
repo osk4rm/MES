@@ -26,3 +26,9 @@ AsistOff.MES.Web
 docker-compose.override.yml
 docker-compose.swarm.yml
 compose.override.yml
+# Issue #364: keep the Development settings (dev seed defaults) out of the
+# build context so no shipped layer can contain a seed credential. The Gateway
+# csproj additionally sets CopyToPublishDirectory=Never for the same file, so
+# dotnet publish omits it from the runtime image; local dev still reads it
+# from the source tree.
+**/appsettings.Development.json

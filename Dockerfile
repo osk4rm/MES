@@ -30,6 +30,11 @@ COPY AsistOff.MES.Production.Infrastructure/AsistOff.MES.Production.Infrastructu
 RUN dotnet restore AsistOff.MES.Gateway/AsistOff.MES.Gateway.csproj
 
 # Copy all source and publish
+# Issue #364: appsettings.Development.json never reaches the runtime image —
+# .dockerignore excludes it from the build context AND the Gateway csproj sets
+# CopyToPublishDirectory=Never so publish omits it. Local dev still reads the
+# file from the source tree; the dev seed password itself is empty by default
+# and provided via Seed__Tenants__0__AdminPassword instead.
 COPY . .
 RUN dotnet publish AsistOff.MES.Gateway/AsistOff.MES.Gateway.csproj \
     -c Release \
@@ -46,6 +51,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build --chown=app:app /app/publish .
+
+# Attachment blobs (issue #373): seed the default blob root owned by the
+# non-root `app` user. Docker copies this ownership into a fresh
+# attachments_data named volume on first mount, so the app can write blobs
+# without ever running as root. Runs while still root, before USER app.
+RUN mkdir -p /app/App_Data/attachments && chown -R app:app /app/App_Data
 
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080

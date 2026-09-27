@@ -46,15 +46,15 @@
           <AppButton type="submit" variant="primary" size="lg" block :loading="loading">
             {{ $t('auth.register') }}
           </AppButton>
-          <button type="button" class="auth-page__link" @click="goLogin">{{ $t('auth.backToLogin') }}</button>
+          <AppButton variant="link" @click="goLogin">{{ $t('auth.backToLogin') }}</AppButton>
         </form>
       </div>
 
       <aside class="auth-page__side" aria-hidden="true">
         <div class="auth-page__side-inner">
-          <div class="auth-page__side-kicker">Multi-tenant</div>
-          <h2 class="auth-page__side-title">Isolated workspace for your organization.</h2>
-          <p class="auth-page__side-text">Every tenant gets a dedicated, strictly-isolated dataset with its own admin account.</p>
+          <div class="auth-page__side-kicker">{{ $t('auth.registerSideKicker') }}</div>
+          <h2 class="auth-page__side-title">{{ $t('auth.registerSideTitle') }}</h2>
+          <p class="auth-page__side-text">{{ $t('auth.registerSideText') }}</p>
         </div>
       </aside>
     </div>
@@ -130,9 +130,7 @@ function goLogin() { router.push({ path: '/login', query: route.query }); }
 .auth-page__title { font-size: var(--font-size-2xl); }
 .auth-page__subtitle { color: var(--color-text-muted); margin-bottom: var(--space-3); }
 .auth-page__form { display: flex; flex-direction: column; gap: var(--space-3); max-width: 440px; }
-.auth-page__link { color: var(--color-primary); font-size: var(--font-size-sm); text-align: center; padding: var(--space-2); }
-.auth-page__link:hover { text-decoration: underline; }
-.auth-page__side { background: linear-gradient(135deg, #1e3a5f 0%, #0f1f30 100%); color: var(--color-text-inverse); display: flex; align-items: center; justify-content: center; padding: var(--space-12); }
+.auth-page__side { background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-text) 100%); color: var(--color-text-inverse); display: flex; align-items: center; justify-content: center; padding: var(--space-12); }
 .auth-page__side-inner { max-width: 380px; }
 .auth-page__side-kicker { font-size: var(--font-size-xs); letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.55); margin-bottom: var(--space-4); }
 .auth-page__side-title { font-size: var(--font-size-3xl); line-height: 1.15; color: #fff; margin-bottom: var(--space-3); }

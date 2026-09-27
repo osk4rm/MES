@@ -119,6 +119,7 @@ public sealed class WriteAuthorizationEndpointTests(MesApplicationFixture fixtur
     {
         // Arrange — sign-in is the documented anonymous bootstrap write.
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         // Act
         var response = await client.PostAsJsonAsync(SignInUrl, new
@@ -135,6 +136,7 @@ public sealed class WriteAuthorizationEndpointTests(MesApplicationFixture fixtur
     private async Task<string> SignInAsync(string email, string password)
     {
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var response = await client.PostAsJsonAsync(SignInUrl, new { email, password });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);

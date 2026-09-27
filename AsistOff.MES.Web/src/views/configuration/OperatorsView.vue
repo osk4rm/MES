@@ -24,9 +24,11 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-ratePerHour="{ value }">{{ formatRate(value) }}</template>
       <template #cell-actions="{ item }">
@@ -55,12 +57,12 @@
           <template #default="{ id }"><AppInput :id="id" v-model="rosterDate" type="date" @update:modelValue="onRosterDate" /></template>
         </AppFormField>
       </div>
-      <form class="roster-form" @submit.prevent="onAssign">
-        <AppFormField :label="$t('operators.roster.operator')" required>
-          <template #default="{ id }"><AppSelect :id="id" v-model="assignOperatorId" :options="rosterOperatorOptions" :empty-label="$t('operators.roster.selectOperator')" allow-empty /></template>
+      <form ref="rosterFormRef" class="roster-form" novalidate @submit.prevent="onAssign">
+        <AppFormField :label="$t('operators.roster.operator')" required :error="rosterErrors.fieldError('operator')">
+          <template #default="{ id, invalid }"><AppSelect :id="id" v-model="assignOperatorId" :options="rosterOperatorOptions" :empty-label="$t('operators.roster.selectOperator')" allow-empty :invalid="invalid" @blur="rosterErrors.touch('operator')" /></template>
         </AppFormField>
-        <AppFormField :label="$t('operators.roster.shift')" required>
-          <template #default="{ id }"><AppSelect :id="id" v-model="assignShiftId" :options="rosterShiftOptions" :empty-label="$t('operators.roster.selectShift')" allow-empty /></template>
+        <AppFormField :label="$t('operators.roster.shift')" required :error="rosterErrors.fieldError('shift')">
+          <template #default="{ id, invalid }"><AppSelect :id="id" v-model="assignShiftId" :options="rosterShiftOptions" :empty-label="$t('operators.roster.selectShift')" allow-empty :invalid="invalid" @blur="rosterErrors.touch('shift')" /></template>
         </AppFormField>
         <AppFormField :label="$t('operators.roster.notes')">
           <template #default="{ id }"><AppInput :id="id" v-model="assignNotes" :placeholder="$t('operators.roster.notes')" clearable /></template>
@@ -69,37 +71,45 @@
           <AppButton type="submit" variant="primary" icon="pi pi-plus" :loading="assigning" :disabled="!assignOperatorId || !assignShiftId">{{ $t('operators.roster.assign') }}</AppButton>
         </div>
       </form>
-      <AppEmptyState v-if="!rosterLoading && rosterItems.length === 0" icon="pi pi-calendar" :title="$t('operators.roster.empty')" />
-      <AppTable
-        v-else
-        :items="rosterItems"
-        :columns="rosterColumns"
+      <AppDataState
         :loading="rosterLoading"
+        :error="rosterError"
+        :empty="rosterItems.length === 0"
+        :empty-title="$t('operators.roster.empty')"
+        empty-icon="pi pi-calendar"
+        compact
+        @retry="loadRoster"
       >
-        <template #cell-operator="{ item }">{{ item.operatorName || item.operatorIdentifier || item.operatorId }}</template>
-        <template #cell-shift="{ item }">{{ item.shiftName || item.shiftCode || item.shiftId }}</template>
-        <template #cell-actions="{ item }">
-          <AppRowActions
-            :actions="[{ key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger', disabled: removingRosterId === item.id }]"
-            @action="(k) => onRosterAction(k, item)"
-          />
-        </template>
-      </AppTable>
+        <AppTable
+          :items="rosterItems"
+          :columns="rosterColumns"
+          :loading="rosterLoading"
+        >
+          <template #cell-operator="{ item }">{{ item.operatorName || item.operatorIdentifier || item.operatorId }}</template>
+          <template #cell-shift="{ item }">{{ item.shiftName || item.shiftCode || item.shiftId }}</template>
+          <template #cell-actions="{ item }">
+            <AppRowActions
+              :actions="[{ key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger', disabled: removingRosterId === item.id }]"
+              @action="(k) => onRosterAction(k, item)"
+            />
+          </template>
+        </AppTable>
+      </AppDataState>
     </AppCard>
 
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('operators.create')" @close="closeModal">
-      <form id="op-form" class="form-grid" @submit.prevent="onSave">
-        <AppFormField :label="$t('operators.identifier')" required>
-          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.identifier" required :invalid="invalid" /></template>
+      <form id="op-form" ref="formRef" class="form-grid" novalidate @submit.prevent="onSave">
+        <AppFormField :label="$t('operators.identifier')" required :error="formErrors.fieldError('identifier')">
+          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.identifier" required :invalid="invalid" @blur="formErrors.touch('identifier')" /></template>
         </AppFormField>
-        <AppFormField :label="$t('operators.ratePerHour')" required>
-          <template #default="{ id }"><AppNumberInput :id="id" v-model="form.ratePerHour" step="0.01" :min="0" /></template>
+        <AppFormField :label="$t('operators.ratePerHour')" required :error="formErrors.fieldError('ratePerHour')">
+          <template #default="{ id, invalid }"><AppNumberInput :id="id" v-model="form.ratePerHour" step="0.01" :min="0" :invalid="invalid" @blur="formErrors.touch('ratePerHour')" /></template>
         </AppFormField>
-        <AppFormField :label="$t('operators.firstName')" required>
-          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.firstName" required :invalid="invalid" /></template>
+        <AppFormField :label="$t('operators.firstName')" required :error="formErrors.fieldError('firstName')">
+          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.firstName" required :invalid="invalid" @blur="formErrors.touch('firstName')" /></template>
         </AppFormField>
-        <AppFormField :label="$t('operators.lastName')" required>
-          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.lastName" required :invalid="invalid" /></template>
+        <AppFormField :label="$t('operators.lastName')" required :error="formErrors.fieldError('lastName')">
+          <template #default="{ id, invalid }"><AppInput :id="id" v-model="form.lastName" required :invalid="invalid" @blur="formErrors.touch('lastName')" /></template>
         </AppFormField>
         <AppFormField :label="$t('operators.department')" class="form-grid__full">
           <template #default="{ id }"><AppSelect :id="id" v-model="form.departmentId" :options="departmentOptions" allow-empty /></template>
@@ -138,8 +148,9 @@ import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import AppCard from '../../components/ui/AppCard.vue';
-import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
+import { useFormErrors } from '../../composables/useFormErrors';
 import { operatorService, EMPTY_USER_ID, type OperatorResponse } from '../../services/operatorService';
 import { departmentService, type DepartmentResponse } from '../../services/departmentService';
 import { shiftService, type ShiftResponse } from '../../services/shiftService';
@@ -208,12 +219,27 @@ const editing = ref<OperatorResponse | null>(null);
 const saving = ref(false);
 const form = reactive({
   identifier: '', firstName: '', lastName: '',
-  ratePerHour: 0 as number, departmentId: null as string | null
+  ratePerHour: 0 as number | null, departmentId: null as string | null
 });
+const formRef = ref<HTMLFormElement | null>(null);
+const formErrors = useFormErrors();
+
+function collectErrors(): Record<string, string | null> {
+  const rate = form.ratePerHour;
+  return {
+    identifier: form.identifier.trim() ? null : t('validation.required'),
+    firstName: form.firstName.trim() ? null : t('validation.required'),
+    lastName: form.lastName.trim() ? null : t('validation.required'),
+    ratePerHour: rate === null || Number.isNaN(rate)
+      ? t('validation.required')
+      : rate < 0 ? t('validation.mustBeNonNegative') : null
+  };
+}
 
 function openCreate() {
   editing.value = null;
   Object.assign(form, { identifier: '', firstName: '', lastName: '', ratePerHour: 0, departmentId: null });
+  formErrors.reset();
   modalOpen.value = true;
 }
 function openEdit(item: OperatorResponse) {
@@ -223,11 +249,17 @@ function openEdit(item: OperatorResponse) {
     ratePerHour: item.ratePerHour,
     departmentId: departments.value.find(d => d.name === item.department)?.id ?? null
   });
+  formErrors.reset();
   modalOpen.value = true;
 }
 function closeModal() { if (saving.value) return; modalOpen.value = false; editing.value = null; }
 
 async function onSave() {
+  if (!formErrors.submitWith(collectErrors())) {
+    toast.error(t('validation.formHasErrors'));
+    formErrors.focusFirstInvalidIn(formRef.value);
+    return;
+  }
   saving.value = true;
   try {
     const payload = {
@@ -248,7 +280,12 @@ async function onSave() {
     await table.fetch();
     modalOpen.value = false; editing.value = null;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    if (formErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      formErrors.focusFirstInvalidIn(formRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
   } finally { saving.value = false; }
 }
 
@@ -282,6 +319,7 @@ function todayIso(): string {
 const rosterDate = ref<string>(todayIso());
 const rosterItems = ref<OperatorShiftAssignmentResponse[]>([]);
 const rosterLoading = ref(false);
+const rosterError = ref<string | null>(null);
 const rosterOperators = ref<OperatorResponse[]>([]);
 const rosterShifts = ref<ShiftResponse[]>([]);
 const assignOperatorId = ref<string | null>(null);
@@ -289,6 +327,8 @@ const assignShiftId = ref<string | null>(null);
 const assignNotes = ref('');
 const assigning = ref(false);
 const removingRosterId = ref<string | null>(null);
+const rosterFormRef = ref<HTMLFormElement | null>(null);
+const rosterErrors = useFormErrors({ aliases: { operatorId: 'operator', shiftId: 'shift' } });
 
 const rosterColumns = computed(() => [
   { key: 'operator', label: t('operators.roster.operator') },
@@ -318,11 +358,12 @@ async function loadRosterLookups() {
 async function loadRoster() {
   if (!rosterDate.value) { rosterItems.value = []; return; }
   rosterLoading.value = true;
+  rosterError.value = null;
   try {
     const res = await operatorShiftAssignmentService.browse({ date: rosterDate.value, pageNumber: 1, pageSize: 100 });
     rosterItems.value = res.items;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    rosterError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally { rosterLoading.value = false; }
 }
 function onRosterDate(v: string | number | null | undefined) {
@@ -330,20 +371,36 @@ function onRosterDate(v: string | number | null | undefined) {
   void loadRoster();
 }
 async function onAssign() {
-  if (!assignOperatorId.value || !assignShiftId.value || !rosterDate.value) return;
+  const valid = rosterErrors.submitWith({
+    operator: assignOperatorId.value ? null : t('validation.required'),
+    shift: assignShiftId.value ? null : t('validation.required')
+  });
+  if (!valid || !rosterDate.value) {
+    if (!valid) {
+      toast.error(t('validation.formHasErrors'));
+      rosterErrors.focusFirstInvalidIn(rosterFormRef.value);
+    }
+    return;
+  }
   assigning.value = true;
   try {
     await operatorShiftAssignmentService.create({
-      operatorId: assignOperatorId.value,
-      shiftId: assignShiftId.value,
+      operatorId: assignOperatorId.value as string,
+      shiftId: assignShiftId.value as string,
       date: rosterDate.value,
       notes: assignNotes.value || null
     });
     toast.success(t('operators.roster.assignedToast'));
     assignNotes.value = '';
+    rosterErrors.reset();
     await loadRoster();
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    if (rosterErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      rosterErrors.focusFirstInvalidIn(rosterFormRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
   } finally { assigning.value = false; }
 }
 function onRosterAction(key: string, item: OperatorShiftAssignmentResponse) {

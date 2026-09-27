@@ -10,11 +10,11 @@
       </label>
     </div>
     <div class="app-pagination__controls">
-      <button class="app-pagination__btn" :disabled="currentPage <= 1" @click="go(1)" aria-label="First page"><i class="pi pi-angle-double-left"></i></button>
-      <button class="app-pagination__btn" :disabled="currentPage <= 1" @click="go(currentPage - 1)" aria-label="Previous page"><i class="pi pi-angle-left"></i></button>
+      <button class="app-pagination__btn" :disabled="currentPage <= 1" @click="go(1)" :aria-label="$t('common.pagination.firstPage')"><i class="pi pi-angle-double-left"></i></button>
+      <button class="app-pagination__btn" :disabled="currentPage <= 1" @click="go(currentPage - 1)" :aria-label="$t('common.pagination.previousPage')"><i class="pi pi-angle-left"></i></button>
       <span class="app-pagination__current">{{ currentPage }} / {{ totalPages }}</span>
-      <button class="app-pagination__btn" :disabled="currentPage >= totalPages" @click="go(currentPage + 1)" aria-label="Next page"><i class="pi pi-angle-right"></i></button>
-      <button class="app-pagination__btn" :disabled="currentPage >= totalPages" @click="go(totalPages)" aria-label="Last page"><i class="pi pi-angle-double-right"></i></button>
+      <button class="app-pagination__btn" :disabled="currentPage >= totalPages" @click="go(currentPage + 1)" :aria-label="$t('common.pagination.nextPage')"><i class="pi pi-angle-right"></i></button>
+      <button class="app-pagination__btn" :disabled="currentPage >= totalPages" @click="go(totalPages)" :aria-label="$t('common.pagination.lastPage')"><i class="pi pi-angle-double-right"></i></button>
     </div>
   </div>
 </template>

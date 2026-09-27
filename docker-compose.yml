@@ -45,6 +45,21 @@ services:
     image: datalust/seq:2024.3@sha256:a9d266df8cbbfd3735e85d39f5fda7cd3d7cbbb2b653b6d39403597da16a17b1
     environment:
       ACCEPT_EULA: "Y"
+      # Seq authentication (issue #377): the first-run admin password comes
+      # only from the environment — never baked into the image, never a repo
+      # default. The `:?` interpolation fails fast at `docker compose config`
+      # time when SEQ_ADMIN_PASSWORD is unset (generate it with
+      # `cp .env.example .env && sh scripts/generate-env.sh`). Setting any
+      # admin password enables Seq authentication for the UI.
+      SEQ_FIRSTRUN_ADMINPASSWORD: "${SEQ_ADMIN_PASSWORD:?SEQ_ADMIN_PASSWORD is required - copy .env.example to .env and run sh scripts/generate-env.sh}"
+      # Reject anonymous log ingestion as well: the api/api-prod containers
+      # authenticate their Serilog sink with the ingestion API key
+      # (SEQ_INGESTION_API_KEY, created once in Seq Settings > API Keys).
+      # NOTE: SEQ_FIRSTRUN_* only applies when the seq_data volume is
+      # initialized. Stacks that already ran unauthenticated must either
+      # enable authentication in the Seq UI (Settings > Users) or recreate
+      # the volume (`docker compose down -v seq_data` loses stored logs).
+      SEQ_FIRSTRUN_REQUIREAUTHENTICATIONFORHTTPINGESTION: "True"
     volumes:
       - seq_data:/data
     restart: unless-stopped
@@ -79,6 +94,33 @@ services:
       # over the docker network. Configuration array elements are addressable
       # via __<index>__ — index 1 is the "Seq" sink in appsettings.json.
       Serilog__WriteTo__1__Args__serverUrl: "http://seq:80"
+      # Seq ingestion API key (issue #377): created once in the Seq UI
+      # (Settings > API Keys, Ingest permission) and passed only through the
+      # environment — never committed. Empty (default) keeps the api bootable
+      # before the key exists; Seq rejects the anonymous posts (fail-closed)
+      # while console logging is unaffected. Set SEQ_INGESTION_API_KEY in .env
+      # and restart the api to resume shipping logs to Seq.
+      Serilog__WriteTo__1__Args__apiKey: "${SEQ_INGESTION_API_KEY:-}"
+      # Trusted-proxy config for correct client IPs behind nginx (issue #323):
+      # the web container proxies /api/* with X-Forwarded-For, so the api must
+      # trust the docker network for ForwardedHeadersMiddleware to rewrite
+      # RemoteIpAddress (which the abuse-protection throttle partitions by).
+      # Empty (default) is default-deny: XFF is ignored and throttling uses the
+      # raw TCP source (fail-closed, correct behind no proxy). To honor nginx
+      # XFF, set TRUSTED_PROXY_NETWORK to the compose network CIDR, e.g.
+      # TRUSTED_PROXY_NETWORK=172.18.0.0/16 in .env. Never expose the api
+      # container directly to the internet while trusting private ranges.
+      TrustedProxies__KnownNetworks__0: "${TRUSTED_PROXY_NETWORK:-}"
+      # Attachment blobs (issue #373): absolute blob root inside the container.
+      # The attachments_data volume is mounted at the same path below, so
+      # uploaded binaries survive container recreates. An absolute override
+      # passes through LocalFileStorage unchanged; a relative value resolves
+      # against the content root (/app in the image).
+      Attachments__LocalStorage__RootPath: "${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}"
+    volumes:
+      # Durable attachment blobs (issue #373): survives `docker compose down`
+      # (volumes are kept) and container recreates/redeploys.
+      - attachments_data:${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}
     depends_on:
       postgres:
         condition: service_healthy
@@ -171,6 +213,20 @@ services:
       Boot__ApplyMigrations: "false"
       Boot__RunSeeders: "false"
       Serilog__WriteTo__1__Args__serverUrl: "http://seq:80"
+      # Seq ingestion API key (issue #377), same bootstrap as the api service
+      # above: env-only, empty until the operator provisions the key in the
+      # Seq UI and restarts.
+      Serilog__WriteTo__1__Args__apiKey: "${SEQ_INGESTION_API_KEY:-}"
+      # Trusted-proxy config, same as the api service above (issue #323):
+      # set TRUSTED_PROXY_NETWORK to the compose network CIDR so nginx
+      # X-Forwarded-For is honored; empty keeps default-deny (fail-closed).
+      TrustedProxies__KnownNetworks__0: "${TRUSTED_PROXY_NETWORK:-}"
+      # Attachment blobs (issue #373): same durable root as the api service —
+      # the attachments_data volume is mounted at this path, so strict plant
+      # rollouts keep proof-of-quality files across redeploys.
+      Attachments__LocalStorage__RootPath: "${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}"
+    volumes:
+      - attachments_data:${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}
     depends_on:
       postgres:
         condition: service_healthy
@@ -225,3 +281,8 @@ volumes:
   postgres_data:
   pg_backups:
   seq_data:
+  # Attachment binaries (certificates, photos, control-chart exports backing
+  # Genealogy evidence and the audit trail, issue #373). Mounted into api and
+  # api-prod at ${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}; survives
+  # container recreates and redeploys. Metadata rows stay in Postgres.
+  attachments_data:

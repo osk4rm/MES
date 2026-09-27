@@ -354,7 +354,7 @@ Business rules:
 - New versions are drafts.
 - Clone creates a new draft from a source version, copying operations, dependencies, BOM items, outputs and resource requirements with new IDs.
 - Only a draft can be released.
-- A version must contain at least one operation before release.
+- A version must contain at least one operation before release. Release also runs a preflight (`RecipeReleasePreflight`, issue #388): fail-state rules — coherent validity dates, acyclic/in-version dependencies, active BOM/output products, known warehouses — return 400; warn-state rules — outputs defined, warehouses set — show in the checklist dialog but do not block.
 - Releasing a version demotes any previous released sibling version to obsolete.
 - Release updates `Recipe.CurrentVersionId`.
 - Non-draft versions should be treated as immutable by business logic and UI.
@@ -570,12 +570,14 @@ Business rules:
 
 - Attachments are tenant-scoped.
 - Binary content is stored through `IFileStorage`; the database stores metadata and `StorageKey`.
-- Upload request size limit is 100 MB.
+- Edge request size limit is 11 MiB (10 MiB app cap + 1 MiB multipart margin; nginx `client_max_body_size 12m`).
+- Per-tenant storage quota (`Attachments:Upload:MaxTotalBytesPerTenant`, default 500 MiB) enforced in the upload handler (HTTP 409); deleting frees quota.
+- Malware-scan hook (`IAttachmentMalwareScanner`): default implementation rejects EICAR probes, allows with a logged warning when no `MalwareScannerEndpoint` is configured, and fails closed when a configured endpoint is unreachable.
 - `OwnerType` + `OwnerId` make the module reusable for recipes and future entities.
 
 Known limitations:
 
-- No virus scanning.
+- No real AV engine / virus signature database (ClamAV sidecar is a separate ops task; plug it behind `IAttachmentMalwareScanner`).
 - No attachment versioning.
 - No deletion audit trail beyond standard logs.
 

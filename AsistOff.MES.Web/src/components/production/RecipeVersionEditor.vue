@@ -6,7 +6,7 @@
         <span :class="['pill', statusPillClass]">{{ $t(`recipes.versionStatus.${statusKey}`) }}</span>
       </div>
       <div class="rv-editor__actions">
-        <AppButton v-if="isDraft" variant="primary" icon="pi pi-check" :loading="releasing" @click="releaseVersion">
+        <AppButton v-if="isDraft" variant="primary" icon="pi pi-check" :loading="releasing" @click="openChecklist">
           {{ $t('recipes.detail.release') }}
         </AppButton>
         <AppButton v-if="isDraft" variant="danger" icon="pi pi-trash" :disabled="!canDeleteVersion" @click="onDeleteVersion">
@@ -262,6 +262,31 @@
       </section>
     </div>
 
+    <!-- Release checklist dialog (issue #388 R-7) -->
+    <AppModal :open="checklistOpen" :title="$t('recipes.checklist.title')" size="lg" @close="closeChecklist">
+      <p class="muted">{{ $t('recipes.checklist.description', { version: version.versionNumber }) }}</p>
+      <ul class="checklist">
+        <li v-for="check in checklist" :key="check.rule" :class="['check', `check--${check.state}`]">
+          <AppBadge :variant="checkVariant(check.state)" :icon="checkIcon(check.state)">
+            {{ $t(`recipes.checklist.states.${check.state}`) }}
+          </AppBadge>
+          <span class="check__body">
+            <strong>{{ $t(`recipes.checklist.rules.${check.rule}`) }}</strong>
+            <span class="muted">{{ $t(check.messageKey, check.params) }}</span>
+          </span>
+        </li>
+      </ul>
+      <p v-if="hasBlocking" class="checklist__hint" role="alert">{{ $t('recipes.checklist.blockedHint') }}</p>
+      <p class="muted small">{{ $t('recipes.checklist.serverNote') }}</p>
+      <p v-if="releaseError" class="rv-editor__error rv-editor__error--in-dialog" role="alert">{{ releaseError }}</p>
+      <template #footer>
+        <AppButton variant="ghost" :disabled="releasing" @click="closeChecklist">{{ $t('common.cancel') }}</AppButton>
+        <AppButton variant="primary" icon="pi pi-check" :loading="releasing" :disabled="hasBlocking" @click="confirmRelease">
+          {{ $t('recipes.checklist.release') }}
+        </AppButton>
+      </template>
+    </AppModal>
+
     <!-- Add / Edit operation modal -->
     <AppModal :open="opModalOpen" :title="editingOperation ? $t('common.edit') : $t('recipes.detail.addOperation')" @close="opModalOpen = false">
       <form id="op-form" class="form-grid" @submit.prevent="saveOperation">
@@ -298,6 +323,7 @@
 import { computed, reactive, ref, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppButton from '../ui/AppButton.vue';
+import AppBadge from '../ui/AppBadge.vue';
 import AppInput from '../ui/AppInput.vue';
 import AppModal from '../ui/AppModal.vue';
 import AppFormField from '../ui/AppFormField.vue';
@@ -317,6 +343,12 @@ import {
 } from '../../services/recipeVersionService';
 import { RecipeVersionStatus } from '../../services/recipeService';
 import { productService, type ProductResponse } from '../../services/productService';
+import { warehouseService, type WarehouseResponse } from '../../services/warehouseService';
+import {
+  evaluateReleaseChecklist,
+  hasBlockingCheck,
+  type ReleaseCheckState
+} from '../../services/releaseChecklist';
 import { skillService, type SkillResponse } from '../../services/skillService';
 import { operationTemplateService, type OperationTemplateResponse } from '../../services/operationTemplateService';
 import { useToastStore } from '../../stores/toastStore';
@@ -341,6 +373,7 @@ const releaseError = ref<string | null>(null);
 const products = ref<ProductResponse[]>([]);
 const skills = ref<SkillResponse[]>([]);
 const operationTemplates = ref<OperationTemplateResponse[]>([]);
+const warehouses = ref<WarehouseResponse[]>([]);
 
 const productOptions = computed<AutocompleteOption[]>(() =>
   products.value.map(p => ({ value: p.id, label: `${p.code} — ${p.name}` })));
@@ -358,14 +391,16 @@ function productLabel(id: string): string {
 
 async function loadLookups() {
   try {
-    const [prods, skls, tpls] = await Promise.all([
+    const [prods, skls, tpls, whs] = await Promise.all([
       productService.browse({ pageNumber: 1, pageSize: 100 }),
       skillService.browse({ pageNumber: 1, pageSize: 100 }),
-      operationTemplateService.browse({ pageNumber: 1, pageSize: 200, isActive: true })
+      operationTemplateService.browse({ pageNumber: 1, pageSize: 200, isActive: true }),
+      warehouseService.browse({ pageNumber: 1, pageSize: 100 })
     ]);
     products.value = prods.items;
     skills.value = skls.items;
     operationTemplates.value = tpls.items;
+    warehouses.value = whs.items;
   } catch (err) {
     toast.error(extractErrorMessage(err, t('errors.loadFailed')));
   }
@@ -532,17 +567,48 @@ async function deleteOperation() {
   }
 }
 
-// release
-async function releaseVersion() {
+// release checklist (issue #388 R-7): dialog first, server recheck on confirm.
+const checklistOpen = ref(false);
+const checklist = computed(() =>
+  evaluateReleaseChecklist(
+    props.version,
+    products.value,
+    new Set(warehouses.value.map(w => w.id))
+  )
+);
+const hasBlocking = computed(() => hasBlockingCheck(checklist.value));
+
+function checkVariant(state: ReleaseCheckState): 'success' | 'warning' | 'danger' {
+  if (state === 'pass') return 'success';
+  if (state === 'warn') return 'warning';
+  return 'danger';
+}
+function checkIcon(state: ReleaseCheckState): string {
+  if (state === 'pass') return 'pi pi-check';
+  if (state === 'warn') return 'pi pi-exclamation-triangle';
+  return 'pi pi-times-circle';
+}
+
+function openChecklist() {
+  releaseError.value = null;
+  checklistOpen.value = true;
+}
+function closeChecklist() {
+  if (releasing.value) return;
+  checklistOpen.value = false;
+}
+
+async function confirmRelease() {
   releasing.value = true;
   releaseError.value = null;
   try {
     await recipeVersionService.release(props.version.id);
     toast.success(t('recipes.detail.releasedToast'));
+    checklistOpen.value = false;
     emit('refresh');
   } catch (err) {
     const message = extractErrorMessage(err, t('errors.saveFailed'));
-    releaseError.value = message;
+    releaseError.value = `${t('recipes.checklist.serverRejected')}: ${message}`;
     toast.error(message);
   } finally {
     releasing.value = false;
@@ -801,6 +867,7 @@ async function removeResource(id: string) {
 .rv-editor__title h2 { margin: 0; font-size: 1.25rem; }
 .rv-editor__actions { display: flex; gap: var(--space-2); }
 .rv-editor__error { margin: 0; padding: var(--space-2) var(--space-4); color: var(--color-danger, #b91c1c); background: color-mix(in srgb, var(--color-danger, #b91c1c) 8%, transparent); border-bottom: 1px solid var(--color-border, #e5e7eb); font-size: 0.9rem; }
+.rv-editor__error--in-dialog { border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-md, 6px); margin-top: var(--space-3); }
 .rv-editor__layout { display: grid; grid-template-columns: 260px 1fr; min-height: 500px; }
 .rv-editor__sidebar { border-right: 1px solid var(--color-border, #e5e7eb); padding: var(--space-3); }
 .rv-editor__sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }
@@ -876,6 +943,12 @@ async function removeResource(id: string) {
 .pill--muted { background: #e5e7eb; color: #374151; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+.checklist { list-style: none; padding: 0; margin: var(--space-3) 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.check { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-md, 6px); }
+.check--fail { border-color: var(--color-danger, #b91c1c); }
+.check--warn { border-color: var(--color-warning, #d97706); }
+.check__body { display: flex; flex-direction: column; gap: 2px; }
+.checklist__hint { color: var(--color-danger, #b91c1c); font-weight: 600; }
 @media (max-width: 900px) {
   .rv-editor__layout { grid-template-columns: 1fr; }
   .rv-editor__sidebar { border-right: 0; border-bottom: 1px solid var(--color-border); }

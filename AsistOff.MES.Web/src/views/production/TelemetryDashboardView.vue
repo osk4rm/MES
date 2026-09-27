@@ -26,14 +26,15 @@
       />
     </AppFilterBar>
 
-    <AppSpinner v-if="loading && cards.length === 0" />
-    <AppEmptyState
-      v-else-if="cards.length === 0"
-      :title="$t('telemetryDashboard.noTags')"
-      :description="$t('telemetryDashboard.noTagsHint')"
-    />
-
-    <div v-else class="telemetry-grid">
+    <AppDataState
+      :loading="loading"
+      :error="loadError"
+      :empty="cards.length === 0"
+      :empty-title="$t('telemetryDashboard.noTags')"
+      :empty-description="$t('telemetryDashboard.noTagsHint')"
+      @retry="refreshAll"
+    >
+      <div class="telemetry-grid">
       <AppCard
         v-for="card in cards"
         :key="card.tag.tagId"
@@ -74,7 +75,8 @@
           {{ $t('telemetryDashboard.noTrend') }}
         </div>
       </AppCard>
-    </div>
+      </div>
+    </AppDataState>
   </div>
 </template>
 
@@ -87,8 +89,7 @@ import AppSelect, { type SelectOption } from '../../components/ui/AppSelect.vue'
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppCard from '../../components/ui/AppCard.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
-import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import {
   telemetryTagService,
   telemetryReadingService,
@@ -117,6 +118,7 @@ const statusTags = ref<TelemetryTagStatusEntry[]>([]);
 const trends = ref<Map<string, TelemetryReadingResponse[]>>(new Map());
 const simulatorEnabled = ref<boolean | null>(null);
 const loading = ref(false);
+const loadError = ref<string | null>(null);
 const exporting = ref(false);
 const autoRefresh = ref(true);
 const machineFilter = ref<string | number | null>(null);
@@ -199,6 +201,7 @@ function clearFilters(): void {
 
 async function refreshAll(): Promise<void> {
   loading.value = true;
+  loadError.value = null;
   try {
     const status = await telemetryTagService.getStatus();
     simulatorEnabled.value = status.simulatorEnabled;
@@ -215,7 +218,7 @@ async function refreshAll(): Promise<void> {
     );
     trends.value = new Map(entries);
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    loadError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     loading.value = false;
   }

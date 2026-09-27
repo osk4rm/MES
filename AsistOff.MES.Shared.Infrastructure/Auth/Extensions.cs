@@ -2,6 +2,7 @@
 using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Modules;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -21,12 +22,27 @@ public static class Extensions
 
         if (options.AuthenticationDisabled)
         {
-            if (hostEnvironment?.IsProduction() == true)
+            // Bypass semantics (issue #332, security audit 2026-09-26, Medium):
+            // auth:AuthenticationDisabled is an explicit local-development
+            // escape hatch only. When active, DisabledAuthenticationPolicyEvaluator
+            // unconditionally succeeds every authorization check, so all
+            // RequirePermission-guarded writes pass with no credential and no
+            // tenant attribution, contradicting the default-deny posture.
+            // Fail closed everywhere except Development: Staging/Test/Production
+            // (or an unknown host environment) refuse to boot instead of serving
+            // unauthenticated traffic. Development boots and emits an
+            // unmistakable warning via AuthenticationDisabledWarningService.
+            if (hostEnvironment?.IsDevelopment() != true)
             {
-                throw new InvalidOperationException("Authentication cannot be disabled in a Production environment.");
+                var environmentName = hostEnvironment?.EnvironmentName ?? "<unknown>";
+                throw new InvalidOperationException(
+                    $"auth:AuthenticationDisabled=true is only allowed in the Development environment " +
+                    $"(current: '{environmentName}'). Refusing to start with authentication disabled outside " +
+                    "local development. Unset auth:AuthenticationDisabled to enforce JWT + RBAC.");
             }
 
             services.AddSingleton<IPolicyEvaluator, DisabledAuthenticationPolicyEvaluator>();
+            services.AddHostedService<AuthenticationDisabledWarningService>();
         }
 
         var tokenValidationParameters = new TokenValidationParameters
@@ -143,13 +159,40 @@ public static class Extensions
         services.AddSingleton(options);
         services.AddSingleton(tokenValidationParameters);
 
-        var policies = modules?.SelectMany(x => x.Policies) ?? [];
+        // Module permission policies (issue #329): every IModule.Policies entry is
+        // registered as an MVC authorization policy requiring the matching
+        // "permissions" claim value. Deduplicated by name (last-wins is
+        // equivalent here since every registration uses the same
+        // RequireClaim shape) because AuthorizationOptions.AddPolicy throws on
+        // duplicate names and two modules may declare the same policy.
+        // Null modules, null Policies collections and blank names register
+        // nothing and throw nothing, preserving the default-deny pipeline.
+        var policies = (modules ?? [])
+            .SelectMany(x => x.Policies ?? [])
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
         services.AddAuthorization(authorization =>
         {
             foreach (var policy in policies)
             {
                 authorization.AddPolicy(policy, x => x.RequireClaim("permissions", policy));
             }
+
+            // Global fallback authorization policy (issue #351, security audit
+            // 2026-09-26, Low): endpoints without explicit auth metadata fail
+            // closed with 401. Every API controller inherits [Authorize] from
+            // ApiController, but any controller that does not derive from it
+            // (today: ErrorsController at /error) would otherwise be
+            // anonymously reachable by default. The HTTP edge must mirror the
+            // application-layer default-deny (AuthorizationBehavior): only
+            // endpoints carrying [AllowAnonymous] (sign-in/refresh, tenant
+            // self-registration + lookup, health probes, the Prometheus
+            // /metrics scrape endpoint, /error) stay reachable without
+            // authentication.
+            authorization.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
         });
 
         return services;

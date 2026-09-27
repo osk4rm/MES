@@ -28,9 +28,11 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-code="{ item }">
         <code>{{ item.code }}</code>
@@ -64,25 +66,25 @@
     />
 
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('reasonCodes.create')" @close="closeModal">
-      <form id="reason-code-form" class="form-grid" @submit.prevent="onSave">
-        <AppFormField :label="$t('reasonCodes.code')" required>
+      <form id="reason-code-form" ref="formRef" class="form-grid" novalidate @submit.prevent="onSave">
+        <AppFormField :label="$t('reasonCodes.code')" required :error="formErrors.fieldError('code')">
           <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="form.code" required :invalid="invalid" />
+            <AppInput :id="id" v-model="form.code" required :invalid="invalid" @blur="formErrors.touch('code')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('reasonCodes.name')" required>
+        <AppFormField :label="$t('reasonCodes.name')" required :error="formErrors.fieldError('name')">
           <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="form.name" required :invalid="invalid" />
+            <AppInput :id="id" v-model="form.name" required :invalid="invalid" @blur="formErrors.touch('name')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('reasonCodes.category')" required>
-          <template #default="{ id }">
-            <AppSelect :id="id" v-model="form.category" :options="categoryOptions" />
+        <AppFormField :label="$t('reasonCodes.category')" required :error="formErrors.fieldError('category')">
+          <template #default="{ id, invalid }">
+            <AppSelect :id="id" v-model="form.category" :options="categoryOptions" :invalid="invalid" @blur="formErrors.touch('category')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('reasonCodes.sortIndex')">
-          <template #default="{ id }">
-            <AppNumberInput :id="id" v-model="form.sortIndex" />
+        <AppFormField :label="$t('reasonCodes.sortIndex')" :error="formErrors.fieldError('sortIndex')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.sortIndex" :invalid="invalid" @blur="formErrors.touch('sortIndex')" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('reasonCodes.description')" class="form-grid__full">
@@ -130,6 +132,7 @@ import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
+import { useFormErrors } from '../../composables/useFormErrors';
 import {
   reasonCodeService,
   ReasonCodeCategory,
@@ -210,10 +213,22 @@ const form = reactive({
   isActive: true,
   sortIndex: 0 as number | null
 });
+const formRef = ref<HTMLFormElement | null>(null);
+const formErrors = useFormErrors();
+
+function collectErrors(): Record<string, string | null> {
+  return {
+    code: form.code.trim() ? null : t('validation.required'),
+    name: form.name.trim() ? null : t('validation.required'),
+    category: form.category === null || form.category === undefined ? t('validation.required') : null,
+    sortIndex: form.sortIndex !== null && Number.isNaN(form.sortIndex) ? t('validation.invalidNumber') : null
+  };
+}
 
 function openCreate() {
   editing.value = null;
   Object.assign(form, { code: '', name: '', description: '', category: ReasonCodeCategory.Downtime, isActive: true, sortIndex: 0 });
+  formErrors.reset();
   modalOpen.value = true;
 }
 function openEdit(item: ReasonCodeResponse) {
@@ -226,11 +241,17 @@ function openEdit(item: ReasonCodeResponse) {
     isActive: item.isActive,
     sortIndex: item.sortIndex
   });
+  formErrors.reset();
   modalOpen.value = true;
 }
 function closeModal() { if (saving.value) return; modalOpen.value = false; editing.value = null; }
 
 async function onSave() {
+  if (!formErrors.submitWith(collectErrors())) {
+    toast.error(t('validation.formHasErrors'));
+    formErrors.focusFirstInvalidIn(formRef.value);
+    return;
+  }
   saving.value = true;
   try {
     const payload = {
@@ -251,7 +272,12 @@ async function onSave() {
     await table.fetch();
     modalOpen.value = false; editing.value = null;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    if (formErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      formErrors.focusFirstInvalidIn(formRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
   } finally { saving.value = false; }
 }
 

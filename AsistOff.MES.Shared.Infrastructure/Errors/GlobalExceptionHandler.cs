@@ -20,9 +20,20 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         var problemDetails = CreateProblemDetails(exception, httpContext);
 
         httpContext.Response.StatusCode = problemDetails.Status ?? (int)HttpStatusCode.InternalServerError;
-        httpContext.Response.ContentType = "application/problem+json";
 
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
+        // Serialize with the runtime type: the static type here is
+        // ProblemDetails, so serializing as ProblemDetails would drop the
+        // ValidationProblemDetails.Errors dictionary and callers would never
+        // see which field failed (e.g. sort whitelist rejections must name
+        // the field, issue #311). The content type is passed explicitly
+        // because WriteAsJsonAsync defaults to application/json and would
+        // otherwise overwrite the problem+json envelope type.
+        await httpContext.Response.WriteAsJsonAsync(
+            problemDetails,
+            problemDetails.GetType(),
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken: cancellationToken);
 
         return true;
     }
@@ -43,6 +54,15 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
                 Status = (int)HttpStatusCode.Conflict,
                 Detail = concurrencyEx.Message,
                 Extensions = { ["concurrencyToken"] = concurrencyEx.CurrentToken }
+            },
+            // Derived before its base: GanttScheduleConflictException extends
+            // ConflictException, so this arm must precede the plain 409 arm.
+            GanttScheduleConflictException ganttEx => new ProblemDetails
+            {
+                Title = "Conflict",
+                Status = (int)HttpStatusCode.Conflict,
+                Detail = ganttEx.Message,
+                Extensions = { ["conflictingSegmentIds"] = ganttEx.ConflictingSegmentIds }
             },
             ConflictException conflictEx => new ProblemDetails
             {

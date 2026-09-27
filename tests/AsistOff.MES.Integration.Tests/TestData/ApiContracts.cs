@@ -692,6 +692,61 @@ public sealed record GanttScheduleDto(
     string To,
     IReadOnlyCollection<GanttMachineGroupDto> Groups);
 
+/// <summary>Shape of the moved segment returned by <c>PUT /api/schedule/gantt/segments/{id}</c>.</summary>
+public sealed record GanttRescheduleDto(
+    Guid Id,
+    Guid ProductionOrderId,
+    Guid OperationNodeId,
+    Guid MachineId,
+    DateTime PlannedStart,
+    DateTime PlannedEnd,
+    bool ShiftCoverageWarning,
+    IReadOnlyList<Guid> ConflictingSegmentIds);
+
+/// <summary>Shape of the shift context returned by <c>/api/schedule/operator-queue</c>. Date is ISO 8601 <c>yyyy-MM-dd</c>.</summary>
+public sealed record OperatorShiftContextDto(
+    Guid ShiftId,
+    string ShiftCode,
+    string ShiftName,
+    string Date,
+    DateTime WindowStartUtc,
+    DateTime WindowEndUtc,
+    bool IsOvernight);
+
+/// <summary>Shape of one queued order row returned by <c>/api/schedule/operator-queue</c>.</summary>
+public sealed record OperatorShiftQueuedOrderDto(
+    Guid Id,
+    string Code,
+    Guid ProductId,
+    string? ProductCode,
+    decimal PlannedQuantity,
+    decimal ProducedQuantity,
+    decimal ScrappedQuantity,
+    decimal RemainingQuantity,
+    Guid? MachineId,
+    string? MachineCode,
+    string? MachineName,
+    int Priority,
+    DateTime? DueDate,
+    short Status);
+
+/// <summary>Shape of one open Andon signal returned by <c>/api/schedule/operator-queue</c>.</summary>
+public sealed record OperatorShiftQueueSignalDto(
+    Guid Id,
+    Guid MachineId,
+    string? MachineCode,
+    short Category,
+    string Severity,
+    DateTime RaisedAt);
+
+/// <summary>Shape of the operator shift queue returned by <c>/api/schedule/operator-queue</c>.</summary>
+public sealed record OperatorShiftQueueDto(
+    string OperatorCode,
+    Guid OperatorId,
+    OperatorShiftContextDto? Shift,
+    IReadOnlyCollection<OperatorShiftQueuedOrderDto> Orders,
+    IReadOnlyCollection<OperatorShiftQueueSignalDto> ActiveSignals);
+
 /// <summary>Shape of a tenant permission as returned by <c>/api/permissions</c>.</summary>
 public sealed record PermissionDto(
     Guid Id,

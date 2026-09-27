@@ -3,15 +3,18 @@
     <i v-if="prefixIcon" :class="['app-input__icon app-input__icon--prefix', prefixIcon]" aria-hidden="true"></i>
     <input
       :id="id"
+      ref="inputRef"
       :type="type"
       :value="modelValue"
       :placeholder="placeholder"
       :disabled="disabled"
       :readonly="readonly"
       :required="required"
+      :aria-invalid="invalid"
       :autocomplete="autocomplete"
       :inputmode="inputmode"
       :name="name"
+      :list="list"
       class="app-input__field"
       @input="onInput"
       @change="onChange"
@@ -23,7 +26,7 @@
       v-if="clearable && modelValue"
       type="button"
       class="app-input__clear"
-      aria-label="Clear"
+      :aria-label="$t('common.clear')"
       @click="onClear"
     >
       <i class="pi pi-times"></i>
@@ -33,6 +36,8 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from 'vue';
+
 const props = withDefaults(defineProps<{
   id?: string;
   modelValue: string | number | null | undefined;
@@ -48,6 +53,10 @@ const props = withDefaults(defineProps<{
   autocomplete?: string;
   inputmode?: 'none' | 'text' | 'decimal' | 'numeric' | 'tel' | 'search' | 'email' | 'url';
   name?: string;
+  /** Datalist element id for native autocomplete suggestions (e.g. user lookup). */
+  list?: string;
+  /** Focus the inner input on mount (e.g. scan-wedge badge-on fields). */
+  autofocus?: boolean;
 }>(), {
   type: 'text',
   disabled: false,
@@ -76,6 +85,20 @@ function onChange(ev: Event) {
 function onClear() {
   emit('update:modelValue', '');
 }
+
+const inputRef = ref<HTMLInputElement | null>(null);
+
+// F-20: badge-on/scan fields autofocus so a scan wedge can type
+// immediately; Enter-terminated wedge input arrives via the `enter` event.
+onMounted(() => {
+  if (props.autofocus) inputRef.value?.focus();
+});
+
+function focus(): void {
+  inputRef.value?.focus();
+}
+
+defineExpose({ focus });
 </script>
 
 <style scoped>

@@ -76,10 +76,13 @@ public sealed class MesApplicationFixture : IAsyncLifetime
     /// body), so the access JWT is read back from the <c>mes_access</c>
     /// <c>Set-Cookie</c> header and presented as a header — proving the
     /// header transport keeps working during the cookie transition.
+    /// The sign-in write passes the CSRF gate (issue #376) via an issuance
+    /// ticket attached first.
     /// </summary>
     public async Task<HttpClient> CreateAuthenticatedClientAsync(string email, string password)
     {
         var client = _factory.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var response = await client.PostAsJsonAsync(
             "/api/auth/sign-in", new { email, password });
 

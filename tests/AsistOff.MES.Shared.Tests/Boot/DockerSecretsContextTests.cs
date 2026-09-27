@@ -67,9 +67,24 @@ public sealed class DockerSecretsContextTests
     }
 
     [Theory]
+    [InlineData("AsistOff.MES.Gateway/appsettings.Development.json")]
+    [InlineData("appsettings.Development.json")]
+    public void ApiContext_DevelopmentSettings_AreExcluded(string contextPath)
+    {
+        // Arrange — merge union with origin/master (issue #364): dev seed
+        // defaults must never enter the build context.
+        var dockerignore = ReadRepoFile(".dockerignore");
+
+        // Act + Assert
+        IsExcluded(dockerignore, contextPath).Should().BeTrue(
+            $"development settings '{contextPath}' must never enter the API build context");
+    }
+
+    [Theory]
     [InlineData("Dockerfile")]
     [InlineData("AsistOff.MES.Gateway/AsistOff.MES.Gateway.csproj")]
     [InlineData("docker-compose.yml")]
+    [InlineData("AsistOff.MES.Gateway/appsettings.json")]
     public void ApiContext_RealSources_StayIncluded(string contextPath)
     {
         // Arrange — over-ignoring would break the image build, so the base

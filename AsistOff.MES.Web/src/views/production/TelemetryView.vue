@@ -37,9 +37,11 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-machineId="{ value }">
         {{ machineName(String(value)) }}
@@ -123,11 +125,11 @@
 
     <AppModal :open="readingsOpen" :title="readingsTitle" @close="closeReadings">
       <form id="telemetry-reading-form" class="form-grid" @submit.prevent="onReadingSubmit">
-        <AppFormField :label="$t('telemetry.readAt')" required>
-          <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="readingForm.readAt" type="datetime-local" required :invalid="invalid" />
-          </template>
-        </AppFormField>
+        <AppDateTimeField
+          v-model="readingForm.readAt"
+          :label="$t('telemetry.readAt')"
+          required
+        />
         <AppFormField :label="$t('telemetry.value')" required>
           <template #default="{ id, invalid }">
             <AppInput v-if="readingIsText" :id="id" v-model="readingForm.textValue" required :invalid="invalid" />
@@ -145,15 +147,22 @@
           {{ $t('telemetry.submitReading') }}
         </AppButton>
       </div>
-      <AppSpinner v-if="readingsLoading" />
-      <AppEmptyState v-else-if="readings.length === 0" :title="$t('telemetry.noReadings')" />
-      <ul v-else class="readings-list">
+      <AppDataState
+        :loading="readingsLoading"
+        :error="readingsError"
+        :empty="readings.length === 0"
+        :empty-title="$t('telemetry.noReadings')"
+        compact
+        @retry="fetchReadings"
+      >
+        <ul class="readings-list">
         <li v-for="r in readings" :key="r.id" class="readings-list__row">
           <span class="readings-list__value">{{ readingValue(r) }}</span>
           <span class="readings-list__time">{{ formatDate(r.readAt) }}</span>
           <AppBadge :variant="qualityVariant(r.quality)" dot>{{ qualityLabel(r.quality) }}</AppBadge>
         </li>
-      </ul>
+        </ul>
+      </AppDataState>
       <template #footer>
         <AppButton variant="ghost" @click="closeReadings">{{ $t('common.close') }}</AppButton>
       </template>
@@ -182,6 +191,7 @@ import AppTable from '../../components/ui/AppTable.vue';
 import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
@@ -189,8 +199,7 @@ import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
-import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import {
   telemetryTagService,
@@ -265,7 +274,7 @@ async function refreshAll(): Promise<void> {
 }
 
 function goDashboard(): void {
-  void router.push('/production/telemetry-dashboard');
+  void router.push('/reports/telemetry');
 }
 const machineOptions = computed<SelectOption[]>(() =>
   machines.value.map(m => ({ value: m.id, label: `${m.code} — ${m.name}` })));
@@ -467,6 +476,7 @@ const readingsOpen = ref(false);
 const readingsTag = ref<MachineTelemetryTagResponse | null>(null);
 const readings = ref<TelemetryReadingResponse[]>([]);
 const readingsLoading = ref(false);
+const readingsError = ref<string | null>(null);
 const submitting = ref(false);
 const readingsTitle = computed(() => readingsTag.value
   ? `${t('telemetry.readings')}: ${readingsTag.value.displayName}`
@@ -492,10 +502,12 @@ function closeReadings(): void {
   readingsOpen.value = false;
   readingsTag.value = null;
   readings.value = [];
+  readingsError.value = null;
 }
 async function fetchReadings(): Promise<void> {
   if (!readingsTag.value) return;
   readingsLoading.value = true;
+  readingsError.value = null;
   try {
     const page = await telemetryReadingService.browse({
       tagId: readingsTag.value.id,
@@ -504,7 +516,7 @@ async function fetchReadings(): Promise<void> {
     });
     readings.value = page.items;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    readingsError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     readingsLoading.value = false;
   }

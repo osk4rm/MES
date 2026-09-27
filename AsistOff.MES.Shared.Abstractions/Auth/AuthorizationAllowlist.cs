@@ -24,8 +24,9 @@ namespace AsistOff.MES.Shared.Abstractions.Auth;
 /// dispatch / traceability / telemetry-export queries expose no mutation and stay
 /// available to the read-only <c>user</c> role. The OPC UA connection test performs
 /// shape-only validation with no persistence or network I/O, so it is a read.</item>
-/// <item>Attachments reads (any authenticated tenant user): list and download expose
-/// no mutation and stay available to the read-only <c>user</c> role.</item>
+/// <item>Attachments reads (permission-gated, issue #315): list and download
+/// require <c>attachments.read</c> plus the owner-module scope permission, so
+/// they are NOT allowlisted.</item>
 /// </list>
 ///
 /// Gateway owns no MediatR requests (only the errors controller), so it needs no
@@ -61,12 +62,20 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Users.Application.Features.Authentication.Refresh.RefreshTokenRequest",
             "AsistOff.MES.Users.Application.Features.Authentication.SignOut.SignOutRequest",
 
+            // Users — anonymous CSRF issuance (issue #376): the token carries no
+            // authority by itself and touches no tenant rows; it only becomes
+            // meaningful when echoed back alongside the session cookies on an
+            // auth write. Anonymous by design — no tenant context exists before sign-in.
+            "AsistOff.MES.Users.Application.Features.Authentication.Csrf.GetCsrfTokenRequest",
+
             // Multitenancy — anonymous bootstrap: tenant provisioning creates the tenant
             // and its admin user. Pre-authentication by definition; no tenant data accessed.
             "AsistOff.MES.Multitenancy.Requests.Commands.Create.CreateTenantCommand",
 
             // Multitenancy — anonymous read: single-tenant lookup on the public
-            // provisioning surface. Returns only the requested tenant's public record.
+            // provisioning/health surface. Returns only the minimal public
+            // projection (AnonymousTenantResponse: id, name, isActive) — no
+            // contact e-mail, display name, settings or secrets are exposed.
             "AsistOff.MES.Multitenancy.Requests.Queries.GetTenantQuery",
 
             // Configuration reads — any authenticated tenant user (including the
@@ -150,6 +159,7 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Production.Application.Features.Reliability.Trend.GetReliabilityTrendRequest",
             "AsistOff.MES.Production.Application.Features.Schedule.GetDispatchBoardRequest",
             "AsistOff.MES.Production.Application.Features.Schedule.GetGanttScheduleRequest",
+            "AsistOff.MES.Production.Application.Features.Schedule.GetOperatorShiftQueueRequest",
             "AsistOff.MES.Production.Application.Features.ScrapEvents.Browse.BrowseScrapEventsRequest",
             "AsistOff.MES.Production.Application.Features.ScrapEvents.Get.GetScrapEventRequest",
             "AsistOff.MES.Production.Application.Features.ShiftHandovers.GetShiftHandoverContextRequest",
@@ -164,11 +174,6 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Production.Application.Features.TelemetryReadings.Export.ExportTelemetryReadingsRequest",
             "AsistOff.MES.Production.Application.Features.TelemetryReadings.Get.GetTelemetryReadingRequest",
             "AsistOff.MES.Production.Application.Features.TelemetryReadings.Trend.BrowseTelemetryTrendRequest",
-
-            // Attachments reads — any authenticated tenant user (including the
-            // read-only user role). List and download perform no mutation.
-            "AsistOff.MES.Attachments.Application.Features.Download.DownloadAttachmentRequest",
-            "AsistOff.MES.Attachments.Application.Features.List.ListAttachmentsRequest",
         };
 
     public static bool IsAllowed(Type? requestType) =>

@@ -2,7 +2,9 @@ using AsistOff.MES.Attachments.Application.Features.Common;
 using AsistOff.MES.Attachments.Application.Features.List;
 using AsistOff.MES.Attachments.Domain.Entities;
 using AsistOff.MES.Attachments.Domain.Repositories;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
+using AsistOff.MES.Users.Core.Rbac;
 using FluentAssertions;
 using Moq;
 
@@ -12,15 +14,18 @@ public class ListAttachmentsRequestHandlerTests
 {
     private readonly Mock<IAttachmentsRepository> _repository = new();
     private readonly Mock<IAttachmentOwnerVerifier> _owners = new();
+    private readonly Mock<ICurrentPermissionsAccessor> _permissions = new();
     private readonly Guid _ownerId = Guid.NewGuid();
 
     public ListAttachmentsRequestHandlerTests()
     {
         _owners.Setup(o => o.ExistsAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
+        _permissions.SetupGet(p => p.Permissions)
+            .Returns(new[] { RbacDefaults.AttachmentsRead, RbacDefaults.ProductionRead, RbacDefaults.ConfigurationRead, RbacDefaults.UsersRead });
     }
 
-    private ListAttachmentsRequestHandler CreateSut() => new(_repository.Object, _owners.Object);
+    private ListAttachmentsRequestHandler CreateSut() => new(_repository.Object, _owners.Object, _permissions.Object);
 
     [Fact]
     public async Task Handle_UnknownOwner_ThrowsNotFoundExceptionWithoutQuerying()

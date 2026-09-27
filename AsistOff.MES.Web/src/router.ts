@@ -7,18 +7,19 @@ import { abortPendingRequests } from './services/http';
 import { Permissions } from './models/authModels';
 import i18n from './i18n';
 import type { RouteRecordRaw } from 'vue-router';
+import { deepestTitleKey, documentTitleForTitleKey } from './navigationMap';
 
 const AppShell = () => import('./components/layout/AppShell.vue');
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/dashboard' },
-  { path: '/login', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
-  { path: '/register', name: 'register', component: () => import('./views/RegisterView.vue'), meta: { public: true } },
+  { path: '/login', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true, titleKey: 'auth.signInTitle' } },
+  { path: '/register', name: 'register', component: () => import('./views/RegisterView.vue'), meta: { public: true, titleKey: 'auth.signUpTitle' } },
   {
     path: '/',
     component: AppShell,
     children: [
-      { path: 'dashboard', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
+      { path: 'dashboard', name: 'dashboard', component: () => import('./views/DashboardView.vue'), meta: { titleKey: 'nav.dashboard', icon: 'pi pi-chart-pie' } },
       { path: 'production', redirect: '/production/orders' },
       { path: 'production/orders', name: 'production-orders', component: () => import('./views/production/ProductionOrdersView.vue'), meta: { titleKey: 'nav.productionOrders', icon: 'pi pi-list' } },
       { path: 'production/orders/:id', name: 'production-order-detail', component: () => import('./views/production/ProductionOrderDetailView.vue'), meta: { titleKey: 'nav.productionOrders', icon: 'pi pi-list' } },
@@ -29,14 +30,19 @@ const routes: RouteRecordRaw[] = [
       { path: 'production/spc-characteristics', name: 'spc-characteristics', component: () => import('./views/production/SpcCharacteristicsView.vue'), meta: { titleKey: 'nav.spcCharacteristics', icon: 'pi pi-chart-line' } },
       { path: 'production/downtime', name: 'production-downtime', component: () => import('./views/production/DowntimeView.vue'), meta: { titleKey: 'nav.productionDowntime', icon: 'pi pi-pause-circle' } },
       { path: 'production/lots', name: 'production-lots', component: () => import('./views/production/LotsView.vue'), meta: { titleKey: 'nav.productionLots', icon: 'pi pi-box' } },
+      { path: 'production/operator-panel', name: 'operator-panel', component: () => import('./views/production/OperatorPanelView.vue'), meta: { titleKey: 'nav.operatorPanel', icon: 'pi pi-tablet' } },
       { path: 'production/telemetry', name: 'production-telemetry', component: () => import('./views/production/TelemetryView.vue'), meta: { titleKey: 'nav.productionTelemetry', icon: 'pi pi-wave-pulse' } },
       { path: 'production/opcua-connections', name: 'production-opcua-connections', component: () => import('./views/production/OpcUaConnectionsView.vue'), meta: { titleKey: 'nav.productionOpcUaConnections', icon: 'pi pi-link' } },
-      { path: 'production/telemetry-dashboard', name: 'production-telemetry-dashboard', component: () => import('./views/production/TelemetryDashboardView.vue'), meta: { titleKey: 'nav.productionTelemetryDashboard', icon: 'pi pi-chart-line' } },
+      { path: 'production/telemetry-dashboard', redirect: '/reports/telemetry' },
       { path: 'production/kanban', name: 'production-kanban', component: () => import('./views/production/KanbanBoardView.vue'), meta: { titleKey: 'nav.productionKanban', icon: 'pi pi-th-large' } },
-      { path: 'schedule', name: 'schedule', component: () => import('./views/production/ScheduleDispatchView.vue'), meta: { titleKey: 'nav.schedule', icon: 'pi pi-calendar' } },
+      { path: 'schedule', name: 'schedule', component: () => import('./views/production/ScheduleGanttView.vue'), meta: { titleKey: 'nav.gantt', icon: 'pi pi-calendar' } },
+      { path: 'schedule/dispatch', name: 'schedule-dispatch', component: () => import('./views/production/ScheduleDispatchView.vue'), meta: { titleKey: 'nav.dispatchBoard', icon: 'pi pi-truck' } },
       { path: 'reports', redirect: '/reports/oee' },
       { path: 'reports/oee', name: 'reports-oee', component: () => import('./views/production/OeeDashboardView.vue'), meta: { titleKey: 'nav.oeeDashboard', icon: 'pi pi-chart-bar' } },
       { path: 'reports/reliability', name: 'reports-reliability', component: () => import('./views/production/ReliabilityDashboardView.vue'), meta: { titleKey: 'nav.reliabilityDashboard', icon: 'pi pi-wrench' } },
+      // Reports placement (issue #382, F-16): every dashboard lives under
+      // Reports; the old /production/telemetry-dashboard path redirects here.
+      { path: 'reports/telemetry', name: 'production-telemetry-dashboard', component: () => import('./views/production/TelemetryDashboardView.vue'), meta: { titleKey: 'nav.productionTelemetryDashboard', icon: 'pi pi-chart-line' } },
       { path: 'settings', name: 'settings', component: () => import('./views/ComingSoonView.vue'), meta: { titleKey: 'nav.settings', icon: 'pi pi-cog' } },
       // RBAC management (issue #273): every roles/permissions endpoint
       // requires tenant.admin on the backend, so the route carries the same
@@ -49,24 +55,27 @@ const routes: RouteRecordRaw[] = [
         path: 'configuration',
         redirect: '/configuration/products',
         children: [
-          { path: 'products', name: 'products', component: () => import('./views/configuration/ProductsView.vue') },
-          { path: 'product-groups', name: 'product-groups', component: () => import('./views/configuration/ProductGroupsView.vue') },
-          { path: 'measure-units', name: 'measure-units', component: () => import('./views/configuration/MeasureUnitsView.vue') },
-          { path: 'warehouses', name: 'warehouses', component: () => import('./views/configuration/WarehousesView.vue') },
-          { path: 'departments', name: 'departments', component: () => import('./views/configuration/DepartmentsView.vue') },
-          { path: 'machines', name: 'machines', component: () => import('./views/configuration/MachinesView.vue') },
-          { path: 'operators', name: 'operators', component: () => import('./views/configuration/OperatorsView.vue') },
-          { path: 'skills', name: 'skills', component: () => import('./views/configuration/SkillsView.vue') },
-          { path: 'shifts', name: 'shifts', component: () => import('./views/configuration/ShiftsView.vue') },
-          { path: 'reason-codes', name: 'reason-codes', component: () => import('./views/configuration/ReasonCodesView.vue') },
-          { path: 'operation-templates', name: 'operation-templates', component: () => import('./views/configuration/OperationTemplatesView.vue') },
-          { path: 'maintenance', name: 'maintenance', component: () => import('./views/configuration/MaintenanceView.vue') },
-          { path: 'maintenance-plans', name: 'maintenance-plans', component: () => import('./views/configuration/MaintenancePlansView.vue') }
+          { path: 'products', name: 'products', component: () => import('./views/configuration/ProductsView.vue'), meta: { titleKey: 'nav.products', icon: 'pi pi-box' } },
+          { path: 'product-groups', name: 'product-groups', component: () => import('./views/configuration/ProductGroupsView.vue'), meta: { titleKey: 'nav.productGroups', icon: 'pi pi-tags' } },
+          { path: 'measure-units', name: 'measure-units', component: () => import('./views/configuration/MeasureUnitsView.vue'), meta: { titleKey: 'nav.measureUnits', icon: 'pi pi-percentage' } },
+          { path: 'warehouses', name: 'warehouses', component: () => import('./views/configuration/WarehousesView.vue'), meta: { titleKey: 'nav.warehouses', icon: 'pi pi-building' } },
+          { path: 'departments', name: 'departments', component: () => import('./views/configuration/DepartmentsView.vue'), meta: { titleKey: 'nav.departments', icon: 'pi pi-sitemap' } },
+          { path: 'machines', name: 'machines', component: () => import('./views/configuration/MachinesView.vue'), meta: { titleKey: 'nav.machines', icon: 'pi pi-cog' } },
+          { path: 'operators', name: 'operators', component: () => import('./views/configuration/OperatorsView.vue'), meta: { titleKey: 'nav.operators', icon: 'pi pi-id-card' } },
+          { path: 'skills', name: 'skills', component: () => import('./views/configuration/SkillsView.vue'), meta: { titleKey: 'nav.skills', icon: 'pi pi-star' } },
+          { path: 'shifts', name: 'shifts', component: () => import('./views/configuration/ShiftsView.vue'), meta: { titleKey: 'nav.shifts', icon: 'pi pi-clock' } },
+          { path: 'reason-codes', name: 'reason-codes', component: () => import('./views/configuration/ReasonCodesView.vue'), meta: { titleKey: 'nav.reasonCodes', icon: 'pi pi-exclamation-circle' } },
+          { path: 'operation-templates', name: 'operation-templates', component: () => import('./views/configuration/OperationTemplatesView.vue'), meta: { titleKey: 'nav.operationTemplates', icon: 'pi pi-copy' } },
+          { path: 'maintenance', name: 'maintenance', component: () => import('./views/configuration/MaintenanceView.vue'), meta: { titleKey: 'nav.maintenance', icon: 'pi pi-wrench' } },
+          { path: 'maintenance-plans', name: 'maintenance-plans', component: () => import('./views/configuration/MaintenancePlansView.vue'), meta: { titleKey: 'nav.maintenancePlans', icon: 'pi pi-calendar-clock' } }
         ]
-      }
+      },
+      // Guarded not-found (issue #314): unknown routes render inside the
+      // AppShell with a way back instead of silently bouncing to the
+      // dashboard. Auth/permission guards above still apply first.
+      { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('./views/NotFoundView.vue'), meta: { titleKey: 'notFound.title', icon: 'pi pi-exclamation-circle' } }
     ]
-  },
-  { path: '/:pathMatch(.*)*', redirect: '/dashboard' }
+  }
 ];
 
 const router = createRouter({
@@ -126,6 +135,18 @@ router.beforeEach(async (to) => {
     return { name: 'dashboard' };
   }
   return true;
+});
+
+// Document titles (issue #337): every route carries meta.titleKey, so the
+// tab title follows navigation in the active locale. The AppShell watcher
+// re-applies it on locale switch using the same helper.
+router.afterEach((to) => {
+  try {
+    document.title = documentTitleForTitleKey(
+      (key: string) => i18n.global.t(key) as string,
+      deepestTitleKey(to.matched)
+    );
+  } catch { /* ignore - document is unavailable in some test hosts */ }
 });
 
 export default router;

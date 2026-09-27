@@ -353,4 +353,30 @@ describe('OeeDashboardView', () => {
     expect(wrapper.findAll('table.app-table')).toHaveLength(0);
     expect(wrapper.text()).not.toContain('87.5%');
   });
+
+  it('shares the AppDataState precedence: error with retry beats content, and retry recovers', async () => {
+    seedDeepLink();
+    const serverError = (): unknown => ({
+      response: { status: 500, data: { title: 'Server blew up' } },
+      message: 'Request failed with status code 500'
+    });
+    snapshotMock.mockRejectedValueOnce(serverError());
+    trendMock.mockRejectedValueOnce(serverError());
+    lossesMock.mockRejectedValueOnce(serverError());
+
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Server blew up');
+    expect(wrapper.findAll('table.app-table')).toHaveLength(0);
+
+    const retry = wrapper.findAll('button').find((b) => b.text().includes('common.retry'));
+    expect(retry).toBeDefined();
+    await retry?.trigger('click');
+    await flushPromises();
+
+    expect(snapshotMock).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain('87.5%');
+    expect(wrapper.text()).not.toContain('Server blew up');
+  });
 });

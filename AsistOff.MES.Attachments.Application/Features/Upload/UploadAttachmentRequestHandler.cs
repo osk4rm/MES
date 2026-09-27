@@ -3,6 +3,7 @@ using AsistOff.MES.Attachments.Application.Features.Responses;
 using AsistOff.MES.Attachments.Domain.Entities;
 using AsistOff.MES.Attachments.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
+using AsistOff.MES.Shared.Abstractions.Auth;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
 using AsistOff.MES.Shared.Abstractions.Providers;
 using AsistOff.MES.Shared.Abstractions.Storage;
@@ -17,8 +18,10 @@ internal sealed class UploadAttachmentRequestHandler(
     IGuidProvider guidProvider,
     IDateTimeProvider dateTimeProvider,
     ITenantContext tenantContext,
+    ICurrentUserAccessor currentUserAccessor,
     IOptions<AttachmentUploadOptions> uploadOptions,
-    IAttachmentOwnerVerifier ownerVerifier)
+    IAttachmentOwnerVerifier ownerVerifier,
+    IAttachmentMalwareScanner malwareScanner)
     : IRequestHandler<UploadAttachmentRequest, AttachmentResponse>
 {
     public async Task<AttachmentResponse> Handle(UploadAttachmentRequest request, CancellationToken cancellationToken)
@@ -49,6 +52,22 @@ internal sealed class UploadAttachmentRequestHandler(
         if (!await ownerVerifier.ExistsAsync(request.OwnerType, request.OwnerId, cancellationToken))
             throw new NotFoundException("Owner", request.OwnerId);
 
+        // Per-tenant quota: reject before scanning or persisting so one tenant
+        // can never fill the disk. The total comes from the tenant-filtered
+        // Attachment set (global ISaasy filter), so usage never leaks across
+        // tenants. Deleting an attachment lowers the sum and frees quota.
+        var usedBytes = await repository.GetTotalSizeBytesAsync(cancellationToken);
+        if (usedBytes + content.Length > options.MaxTotalBytesPerTenant)
+            throw new ConflictException(
+                $"Tenant attachment quota exceeded: storing this file ({content.Length} bytes) would exceed the quota of {options.MaxTotalBytesPerTenant} bytes (currently using {usedBytes} bytes). Delete unused attachments and retry.");
+
+        // Malware hook: every accepted file is scanned before anything is
+        // persisted; an infected verdict (or a fail-closed scanner outage)
+        // rejects the upload and stores nothing.
+        var verdict = await malwareScanner.ScanAsync(content, request.FileName, normalizedContentType, cancellationToken);
+        if (verdict == AttachmentScanVerdict.Infected)
+            throw new ValidationException("file", "Attachment rejected: malware scan reported the file as infected.");
+
         var safeFileName = AttachmentFileNameSanitizer.Sanitize(request.FileName);
 
         using var stream = new MemoryStream(content.ToArray());
@@ -65,6 +84,7 @@ internal sealed class UploadAttachmentRequestHandler(
             SizeBytes = content.Length,
             StorageKey = storageKey,
             Description = request.Description,
+            UploadedByUserId = currentUserAccessor.UserId,
             CreatedAt = dateTimeProvider.UtcNow
         };
 

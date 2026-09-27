@@ -59,13 +59,13 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Container + runtime hardening | — | Ops | done | #271 | non-root USER, pinned digests, limits, generated secrets (PR #275) |
 | Committed Playwright smoke suite | — | Web, CI | done | #272 | login→orders→confirm→lots on scripts/e2e harness (PR #276) |
 | Frontend resilience bundle | — | Web | done | #273 | axios timeout/retry/abort, error state + retry, guards, boundary (PR #278) |
-| Frontend UX review | — | Web | gap | — | holistic usability pass over every view (navigation/IA, forms, empty/loading/error states, i18n, shopfloor ergonomics); produce a prioritised findings list, then fix |
-| MES feature verification (recipes + Production Order flow) | BOM / Receptura, Production Order | Production, Web | gap | — | hands-on verification that features are usable and flexible enough; recipes (versions, routing, BOM, skills) and the Production Order lifecycle are known-weak UX and need rework — capture concrete friction, then redesign |
-| MES benchmark vs top-tier systems (recipes + Production Order) | BOM / Receptura, Production Order | Production, Web | gap | — | compare our recipe + order flow against leading MES (Siemens Opcenter, SAP ME/DMC, Rockwell FactoryTalk, Critical Manufacturing, AVEVA MES); produce a concrete gap list and prioritised improvements |
-| Operator panel (dedicated shopfloor view) | Operator | Web | gap | — | operator-facing panel to claim and handle assigned tasks: current-shift work, confirmations, scrap/downtime, Andon, next-up queue — minimal chrome, touch-friendly |
+| Frontend UX review | — | Web | done | #314, #380, #382, #383, #389, #392 | audit + prioritised findings (`docs/ux-review/findings.md`); 3 fix slices + nav/state follow-ups (PRs #318, #381, #384, #385, #390, #393) |
+| MES feature verification (recipes + Production Order flow) | BOM / Receptura, Production Order | Production, Web | done | #319, #386, #388 | friction list + rework proposal; order-ready recipes V1 with release checklist + version compare (PRs #322, #387, #391) |
+| MES benchmark vs top-tier systems (recipes + Production Order) | BOM / Receptura, Production Order | Production, Web | done | #320 | `docs/benchmark-recipes-orders.md` vs Opcenter / SAP ME / FactoryTalk / Critical / AVEVA (PR #321) |
+| Operator panel (dedicated shopfloor view) | Operator | Web | done | #335, #336 | shift-queue read-model + API and touch-friendly `OperatorPanelView` (PRs #338, #342) |
 | Demo data seed script | — | Ops | done | — | `scripts/seed/seed-demo-data.ps1` — one-off API-driven seed of a running stack (master data, recipes/routing/BOM, orders, lots, confirmations, losses, SPC, kanban, telemetry, maintenance) |
-| End-user manual (whole application) | — | Docs | gap | — | user-facing manual covering every module and workflow (getting started, master data, recipes/routing, production orders, shopfloor, analytics, admin); delivered as Markdown under `docs/manual/` |
-| Technical specification | — | Docs | gap | — | end-to-end specification of the system: architecture, module boundaries, domain model, API surface, multitenancy, auth/RBAC, deployment; Markdown document |
+| End-user manual (whole application) | — | Docs | done | #343, #345, #359 | 23-topic manual under `docs/manual/` (PRs #344, #347, #362) |
+| Technical specification | — | Docs | done | #346, #352 | end-to-end spec under `docs/spec/` (PRs #349, #356) |
 
 ## Configuration (master data)
 
@@ -89,7 +89,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Capability | Glossary | Module | Status | Work item | Notes |
 |---|---|---|---|---|---|
 | Recipes | BOM / Receptura | Production | done | — | `Recipe` |
-| Recipe versions + release | — | Production | done | — | `RecipeVersion`; release flow |
+| Recipe versions + release | — | Production | done | #388 | `RecipeVersion`; release flow + preflight checklist & version compare (PR #391) |
 | Operations / routing | Operation / Routing | Production | done | — | `OperationNode`, `OperationDependency` |
 | Operation templates | — | Production | done | — | `OperationTemplate` |
 | Operation outputs | — | Production | done | — | `OperationOutput` |
@@ -112,7 +112,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Atomic confirmation fan-out | Confirmation | Production | done | #265 | single transaction across confirmation + movements + edges + order (PRs #286, #287) |
 | Read-path performance (paging, no-tracking, batch fetch) | Shift | Production | done | #274 | server-side DispatchBoard filtering/Take, AsNoTracking, MaxPageSize caps (PRs #277, #279) |
 | Shift handover logbook | Shift | Production | done | #292, #293 | depends on Work-center calendar / shifts + Operator confirmations (RW / PW); context API + persisted entries with notes (PRs #294, #302) |
-| Gantt scheduler (Harmonogram) | Operation / Routing | Production | gap | — | depends on Operations / routing + Work-center calendar / shifts + Production Order; time-phased Gantt of operations across Work Centers (drag/resize/level); takes over the "Harmonogram" name — the current day/shift dispatch board stays but must be renamed |
+| Gantt scheduler (Harmonogram) | Operation / Routing | Production | done | #304, #305, #306 | depends on Operations / routing + Work-center calendar / shifts + Production Order; Gantt read-model + reschedule/leveling API + Harmonogram view; day/shift dispatch board renamed (PRs #310, #312, #317) |
 
 ## Analytics / integration
 
@@ -130,33 +130,34 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 
 ## Security hardening
 
-Gaps from the 2026-09-26 security audit. No GitHub issues exist for these yet;
-`mes-analyst` can promote them. Severity is recorded in `Notes`; `Critical`/`High`
-should be addressed before the `Medium`/`Low` items.
+Rows from the 2026-09-26 security audit. Every row now has a GitHub issue;
+all but three are merged. Severity is recorded in `Notes`. #307 (workflow
+isolation) and #363 (SHA pinning) are `ai:blocked` hence `proposed`; #308
+(build secrets) has open PR #309 hence `in-progress`.
 
 | Capability | Glossary | Module | Status | Work item | Notes |
 |---|---|---|---|---|---|
-| Agent CI/CD workflow isolation | — | CI/CD | gap | — | **Critical**; `ai-swarm.yml` uses `pull_request_target` + checks out `refs/pull/N/{merge,head}` then runs the PR-controlled local action `./.github/actions/setup-opencode` (and npm/dotnet on PR code) with `SWARM_PAT`/`OPENCODE_API_KEY`/`GITHUB_TOKEN` in scope — pwn-request / secret exfiltration |
-| Build-context secret exclusion | — | Ops | gap | — | **High**; `Dockerfile` `COPY . .` + `.dockerignore` missing `.env` bakes `POSTGRES_PASSWORD` / `auth:IssuerSigningKey` into image layers and BuildKit cache |
-| Sort-field whitelist enforcement (dynamic LINQ) | — | Shared | gap | — | **High**; `QueryableExtensions.Sort` passes the unvalidated `sort` field to `System.Linq.Dynamic.Core` `OrderBy(string)`; `SortableValidator` is a closed generic over `ISortable` and never runs for concrete browse requests — expression injection (info disclosure / DoS) |
-| Attachment object-level authorization | — | Attachments | gap | — | **High**; download/list/delete enforce tenant scope only; any authenticated tenant user can read/delete any attachment and `attachments.read` is never enforced |
-| Rate-limit client-IP hardening | — | Gateway | gap | — | **High**; throttle partitions on the raw left-most `X-Forwarded-For`, spoofable to defeat the only anti-credential-stuffing control; use `Connection.RemoteIpAddress` after trusted-proxy config |
-| Anonymous tenant lookup minimization | — | Multitenancy | gap | — | **Medium**; `GET /api/tenants/{id}` returns `ContactEmail` + `Settings` to anonymous callers, contradicting the minimal-public-projection contract |
-| Module authorization policy wiring | — | Shared | gap | — | **Medium**; `AddAuth` is called without the module list so module `Policies` register nothing and are dead code |
-| Authentication-disable guard scope | — | Shared, Auth | gap | — | **Medium**; `auth:AuthenticationDisabled` registers an evaluator that succeeds for all authz checks in any non-Production env |
-| SPA security headers + CSP | — | Web | gap | — | **Medium**; nginx emits no CSP / `X-Frame-Options` / nosniff / `Referrer-Policy`; backend headers cover `/api` only |
-| Attachment upload limits + quota + malware scan | — | Attachments | gap | — | **Medium**; 100 MB request buffered vs 10 MiB app cap, no per-tenant quota/rate limit and no AV scanning |
-| Dev seed credential out of shipped image | — | Ops | gap | — | **Medium**; hardcoded `Passw0rd!` in `appsettings.Development.json` ships in the published image and the compose override runs Development |
-| Swarm container privilege + socket | — | Ops | gap | — | **Medium**; swarm runs as root with the host Docker socket and host opencode auth dirs bind-mounted |
-| GitHub Actions SHA pinning | — | CI/CD | gap | — | **Medium**; third-party actions pinned to mutable major tags, not commit SHAs |
-| Host header / HSTS / dev CORS hardening | — | Gateway | gap | — | **Medium**; `AllowedHosts: "*"`, HSTS only when the request already arrives HTTPS, Development reflects any origin with credentials |
-| Attachment upload attribution | — | Attachments | gap | — | **Low**; `UploadedByUserId` is never populated, relying on generic `CreatedBy` |
-| Sensitive read projections | — | Production | gap | — | **Low**; full audit-event `Payload` JSON and raw OPC UA `LastError` visible to the read-only role |
-| Attachment storage durability | — | Ops, Attachments | gap | — | **Low**; storage root resolves against process CWD and no persistent volume is mounted in compose |
-| `.env` ignore coverage | — | Ops | gap | — | **Low**; `.gitignore` pattern `*.env` misses `.env.local` / `.env.production` |
-| Global fallback authorization policy | — | Shared | gap | — | **Low**; no fallback policy, so non-`ApiController` controllers (`ErrorsController`) are anonymous by default |
-| Frontend CSRF token + error-text sink | — | Web | gap | — | **Low**; no CSRF token on cookie writes; server error text rendered in toasts (safe today, XSS sink if `v-html` is added) |
-| Seq authentication | — | Ops | gap | — | **Low**; Seq runs unauthenticated and is host-exposed in dev |
-| Legacy dependency modernization | — | Shared, Users, Multitenancy | gap | — | **Low**; EOL `Microsoft.AspNetCore.*` 2.3.9 runtime packages and stale `Swashbuckle.AspNetCore` 6.6.2 |
+| Agent CI/CD workflow isolation | — | CI/CD | proposed | #307 | **Critical**; `ai-swarm.yml` uses `pull_request_target` + runs PR-controlled setup action with secrets in scope |
+| Build-context secret exclusion | — | Ops | in-progress | #308 | **High**; `COPY . .` risks baking `.env` / signing key into image layers (PR #309) |
+| Sort-field whitelist enforcement (dynamic LINQ) | — | Shared | done | #311 | **High**; whitelist enforced on browse `sort` fields (PR #313) |
+| Attachment object-level authorization | — | Attachments | done | #315 | **High**; `attachments.read` + owner-module scope enforced on download/list/delete (PR #316) |
+| Rate-limit client-IP hardening | — | Gateway | done | #323 | **High**; trusted-proxy `RemoteIpAddress` instead of raw left-most XFF (PR #326) |
+| Anonymous tenant lookup minimization | — | Multitenancy | done | #324 | **Medium**; minimal public projection, no ContactEmail/Settings (PR #327) |
+| Module authorization policy wiring | — | Shared | done | #329 | **Medium**; `AddAuth` registers module `Policies` (PR #330) |
+| Authentication-disable guard scope | — | Shared, Auth | done | #332 | **Medium**; bypass narrowed to explicit Development use, fail-closed elsewhere (PR #334) |
+| SPA security headers + CSP | — | Web | done | #340 | **Medium**; nginx CSP / DENY / nosniff / Referrer-Policy (PR #341) |
+| Attachment upload limits + quota + malware scan | — | Attachments | done | #348 | **Medium**; edge size limit, per-tenant quota, scan hook (PR #350) |
+| Dev seed credential out of shipped image | — | Ops | done | #358, #364 | **Medium**; no hardcoded credential in published image (PRs #361, #368) |
+| Swarm container privilege + socket | — | Ops | done | #357 | **Medium**; non-root swarm, no host socket/auth mounts (PR #360) |
+| GitHub Actions SHA pinning | — | CI/CD | proposed | #363 | **Medium**; pin third-party actions to commit SHAs |
+| Host header / HSTS / dev CORS hardening | — | Gateway | done | #369 | **Medium**; host validation, always-on HSTS, locked-down dev CORS (PR #371) |
+| Attachment upload attribution | — | Attachments | done | #354 | **Low**; `UploadedByUserId` from current user (PR #355) |
+| Sensitive read projections | — | Production | done | #372 | **Low**; audit `Payload` + OPC UA `LastError` redacted for read-only role (PR #374) |
+| Attachment storage durability | — | Ops, Attachments | done | #373 | **Low**; content-root-relative path on durable volume (PR #375) |
+| `.env` ignore coverage | — | Ops | done | #365 | **Low**; `.env.local` / `.env.production` / `.env.*.local` ignored (PR #367) |
+| Global fallback authorization policy | — | Shared | done | #351 | **Low**; `RequireAuthenticatedUser` fallback (PR #353) |
+| Frontend CSRF token + error-text sink | — | Web | done | #376 | **Low**; double-submit CSRF on cookie writes, text-only toasts (PR #379) |
+| Seq authentication | — | Ops | done | #377 | **Low**; Seq authenticated, dev bound to localhost (PR #378) |
+| Legacy dependency modernization | — | Shared, Users, Multitenancy | done | #366 | **Low**; EOL AspNetCore 2.x shims + Swashbuckle 6.x replaced (PR #370) |
 
-_Last reconciled: 2026-09-26 — no `gap`, `proposed` or `in-progress` rows remain. #291 (material reservations, PR #295), #292/#293 (handover logbook, PRs #294, #302), #272/#276 (Playwright smoke suite, PR #276) and preventive maintenance (#297–#299, PRs #300/#301/#303) all merged to `done`. New `gap`: Gantt scheduler ("Harmonogram"), and the current day/shift dispatch board must be renamed so it no longer owns that label. #88/#89 are fixes with no capability rows. Security audit (2026-09-26) added a "Security hardening" section with 22 `gap` rows — 1 Critical, 4 High, 9 Medium, 8 Low — no GitHub issues yet._
+_Last reconciled: 2026-09-27 — all pre-existing `gap` rows closed out: Gantt/Harmonogram (#304–#306, PRs #310/#312/#317), operator panel (#335/#336), end-user manual (#343/#345/#359), tech spec (#346/#352), UX review (#314/#380/#382/#383/#389/#392), recipe verification + order-ready V1 (#319/#386/#388) and benchmark (#320) are `done`. Security audit rows: 19 `done`; #308 `in-progress` (open PR #309); #307 + #363 `proposed` (`ai:blocked`)._

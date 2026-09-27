@@ -47,17 +47,17 @@
             {{ $t('auth.signIn') }}
           </AppButton>
 
-          <button type="button" class="auth-page__link" @click="goRegister">
+          <AppButton variant="link" @click="goRegister">
             {{ $t('auth.goToRegister') }}
-          </button>
+          </AppButton>
         </form>
       </div>
 
       <aside class="auth-page__side" aria-hidden="true">
         <div class="auth-page__side-inner">
-          <div class="auth-page__side-kicker">AsistOff MES</div>
-          <h2 class="auth-page__side-title">Enterprise-grade shop-floor control.</h2>
-          <p class="auth-page__side-text">Orders, recipes, operators, warehouses — one tenant-isolated workspace.</p>
+          <div class="auth-page__side-kicker">{{ $t('auth.loginSideKicker') }}</div>
+          <h2 class="auth-page__side-title">{{ $t('auth.loginSideTitle') }}</h2>
+          <p class="auth-page__side-text">{{ $t('auth.loginSideText') }}</p>
         </div>
       </aside>
     </div>
@@ -172,16 +172,10 @@ function goRegister() {
   max-width: 380px;
 }
 
-.auth-page__link {
-  color: var(--color-primary);
-  font-size: var(--font-size-sm);
-  text-align: center;
-  padding: var(--space-2);
-}
-.auth-page__link:hover { text-decoration: underline; }
-
 .auth-page__side {
-  background: linear-gradient(135deg, #1e3a5f 0%, #0f1f30 100%);
+  /* F-09: token gradient (no bare hex) — public routes intentionally render
+     outside the authenticated shell, so no page header is used here. */
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-text) 100%);
   color: var(--color-text-inverse);
   display: flex;
   align-items: center;

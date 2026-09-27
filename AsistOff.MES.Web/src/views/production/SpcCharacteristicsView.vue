@@ -33,9 +33,11 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-code="{ item }">
         <code>{{ item.code }}</code>
@@ -70,30 +72,30 @@
     />
 
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('spcCharacteristics.create')" @close="closeModal">
-      <form id="spc-characteristic-form" class="form-grid" @submit.prevent="onSave">
-        <AppFormField :label="$t('spcCharacteristics.code')" required>
+      <form id="spc-characteristic-form" ref="formRef" class="form-grid" novalidate @submit.prevent="onSave">
+        <AppFormField :label="$t('spcCharacteristics.code')" required :error="formErrors.fieldError('code')">
           <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="form.code" required :invalid="invalid" :disabled="editing !== null" />
+            <AppInput :id="id" v-model="form.code" required :invalid="invalid" :disabled="editing !== null" @blur="formErrors.touch('code')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('spcCharacteristics.name')" required>
+        <AppFormField :label="$t('spcCharacteristics.name')" required :error="formErrors.fieldError('name')">
           <template #default="{ id, invalid }">
-            <AppInput :id="id" v-model="form.name" required :invalid="invalid" />
+            <AppInput :id="id" v-model="form.name" required :invalid="invalid" @blur="formErrors.touch('name')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('spcCharacteristics.chartType')" required>
-          <template #default="{ id }">
-            <AppSelect :id="id" v-model="form.chartType" :options="chartTypeOptions" />
+        <AppFormField :label="$t('spcCharacteristics.chartType')" required :error="formErrors.fieldError('chartType')">
+          <template #default="{ id, invalid }">
+            <AppSelect :id="id" v-model="form.chartType" :options="chartTypeOptions" :invalid="invalid" @blur="formErrors.touch('chartType')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('spcCharacteristics.sampleSize')" required>
-          <template #default="{ id }">
-            <AppNumberInput :id="id" v-model="form.sampleSize" :min="1" />
+        <AppFormField :label="$t('spcCharacteristics.sampleSize')" required :error="formErrors.fieldError('sampleSize')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.sampleSize" :min="1" :invalid="invalid" @blur="formErrors.touch('sampleSize')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('spcCharacteristics.nominalValue')">
-          <template #default="{ id }">
-            <AppNumberInput :id="id" v-model="form.nominalValue" :step="'any'" />
+        <AppFormField :label="$t('spcCharacteristics.nominalValue')" :error="formErrors.fieldError('nominalValue')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.nominalValue" :step="'any'" :invalid="invalid" @blur="formErrors.touch('nominalValue')" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('spcCharacteristics.unit')">
@@ -101,24 +103,24 @@
             <AppInput :id="id" v-model="form.unit" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('spcCharacteristics.lowerSpecLimit')">
-          <template #default="{ id }">
-            <AppNumberInput :id="id" v-model="form.lowerSpecLimit" :step="'any'" />
+        <AppFormField :label="$t('spcCharacteristics.lowerSpecLimit')" :error="formErrors.fieldError('lowerSpecLimit')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.lowerSpecLimit" :step="'any'" :invalid="invalid" @blur="formErrors.touch('lowerSpecLimit')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('spcCharacteristics.upperSpecLimit')">
-          <template #default="{ id }">
-            <AppNumberInput :id="id" v-model="form.upperSpecLimit" :step="'any'" />
+        <AppFormField :label="$t('spcCharacteristics.upperSpecLimit')" :error="formErrors.fieldError('upperSpecLimit')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.upperSpecLimit" :step="'any'" :invalid="invalid" @blur="formErrors.touch('upperSpecLimit')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('spcCharacteristics.lowerControlLimit')">
-          <template #default="{ id }">
-            <AppNumberInput :id="id" v-model="form.lowerControlLimit" :step="'any'" />
+        <AppFormField :label="$t('spcCharacteristics.lowerControlLimit')" :error="formErrors.fieldError('lowerControlLimit')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.lowerControlLimit" :step="'any'" :invalid="invalid" @blur="formErrors.touch('lowerControlLimit')" />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('spcCharacteristics.upperControlLimit')">
-          <template #default="{ id }">
-            <AppNumberInput :id="id" v-model="form.upperControlLimit" :step="'any'" />
+        <AppFormField :label="$t('spcCharacteristics.upperControlLimit')" :error="formErrors.fieldError('upperControlLimit')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.upperControlLimit" :step="'any'" :invalid="invalid" @blur="formErrors.touch('upperControlLimit')" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('spcCharacteristics.product')">
@@ -157,16 +159,16 @@
 
     <AppModal :open="measurementsOpen" :title="measurementsTitle" @close="closeMeasurements">
       <AppFilterBar @clear="clearMeasurementsRange">
-        <AppFormField :label="$t('spcMeasurements.from')">
-          <template #default="{ id }">
-            <AppInput :id="id" v-model="measurementsFrom" type="datetime-local" @change="onMeasurementsRangeChange" />
-          </template>
-        </AppFormField>
-        <AppFormField :label="$t('spcMeasurements.to')">
-          <template #default="{ id }">
-            <AppInput :id="id" v-model="measurementsTo" type="datetime-local" @change="onMeasurementsRangeChange" />
-          </template>
-        </AppFormField>
+        <AppDateTimeField
+          v-model="measurementsFrom"
+          :label="$t('spcMeasurements.from')"
+          @change="onMeasurementsRangeChange"
+        />
+        <AppDateTimeField
+          v-model="measurementsTo"
+          :label="$t('spcMeasurements.to')"
+          @change="onMeasurementsRangeChange"
+        />
         <template #actions>
           <AppButton variant="primary" size="sm" :loading="measurementsLoading" @click="applyMeasurementsRange">
             {{ $t('spcMeasurements.apply') }}
@@ -174,12 +176,19 @@
         </template>
       </AppFilterBar>
 
-      <AppSpinner v-if="measurementsLoading && !measurementsLoaded" />
+      <AppLoadingState v-if="measurementsLoading && !measurementsLoaded" />
       <AppEmptyState
         v-else-if="measurementsNotFound"
         icon="pi pi-exclamation-circle"
         :title="$t('spcMeasurements.notFound')"
         :description="$t('spcMeasurements.notFoundHint')"
+      />
+      <AppErrorState
+        v-else-if="measurementsError"
+        :message="measurementsError"
+        :loading="measurementsLoading"
+        compact
+        @retry="fetchMeasurements"
       />
       <AppEmptyState
         v-else-if="measurementsLoaded && measurementsEmpty"
@@ -203,7 +212,9 @@
           :items="logItems"
           :columns="measurementColumns"
           :loading="measurementsLoading"
+          :error="measurementsError"
           :empty-label="$t('spcMeasurements.noMeasurements')"
+          @retry="fetchMeasurements"
         >
           <template #cell-measuredAt="{ value }">{{ formatDateTime(String(value)) }}</template>
           <template #cell-status="{ item }">
@@ -231,6 +242,7 @@ import AppTable from '../../components/ui/AppTable.vue';
 import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';
@@ -238,10 +250,12 @@ import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
+import AppLoadingState from '../../components/ui/AppLoadingState.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import SpcControlChart from '../../components/production/SpcControlChart.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
+import { useFormErrors } from '../../composables/useFormErrors';
 import {
   spcCharacteristicService,
   SpcChartType,
@@ -365,6 +379,30 @@ const form = reactive({
   isActive: true
 });
 
+const formRef = ref<HTMLFormElement | null>(null);
+const formErrors = useFormErrors();
+
+function numberError(value: number | null): string | null {
+  return value !== null && Number.isNaN(value) ? t('validation.invalidNumber') : null;
+}
+
+function collectErrors(): Record<string, string | null> {
+  const sample = form.sampleSize;
+  return {
+    code: form.code.trim() ? null : t('validation.required'),
+    name: form.name.trim() ? null : t('validation.required'),
+    chartType: form.chartType === null || form.chartType === undefined ? t('validation.required') : null,
+    sampleSize: sample === null || Number.isNaN(sample)
+      ? t('validation.required')
+      : sample < 1 ? t('validation.mustBePositive') : null,
+    nominalValue: numberError(form.nominalValue),
+    lowerSpecLimit: numberError(form.lowerSpecLimit),
+    upperSpecLimit: numberError(form.upperSpecLimit),
+    lowerControlLimit: numberError(form.lowerControlLimit),
+    upperControlLimit: numberError(form.upperControlLimit)
+  };
+}
+
 function openCreate() {
   editing.value = null;
   Object.assign(form, {
@@ -374,6 +412,7 @@ function openCreate() {
     lowerControlLimit: null, upperControlLimit: null,
     sampleSize: 5, unit: '', isActive: true
   });
+  formErrors.reset();
   modalOpen.value = true;
 }
 function openEdit(item: SpcCharacteristicResponse) {
@@ -394,11 +433,17 @@ function openEdit(item: SpcCharacteristicResponse) {
     unit: item.unit ?? '',
     isActive: item.isActive
   });
+  formErrors.reset();
   modalOpen.value = true;
 }
 function closeModal() { if (saving.value) return; modalOpen.value = false; editing.value = null; }
 
 async function onSave() {
+  if (!formErrors.submitWith(collectErrors())) {
+    toast.error(t('validation.formHasErrors'));
+    formErrors.focusFirstInvalidIn(formRef.value);
+    return;
+  }
   saving.value = true;
   try {
     const limits = {
@@ -426,7 +471,12 @@ async function onSave() {
     await table.fetch();
     modalOpen.value = false; editing.value = null;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    if (formErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      formErrors.focusFirstInvalidIn(formRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
   } finally { saving.value = false; }
 }
 
@@ -459,6 +509,7 @@ const measurementsItem = ref<SpcCharacteristicResponse | null>(null);
 const measurementsLoading = ref(false);
 const measurementsLoaded = ref(false);
 const measurementsNotFound = ref(false);
+const measurementsError = ref<string | null>(null);
 const measurementsFrom = ref('');
 const measurementsTo = ref('');
 const logItems = ref<SpcMeasurementResponse[]>([]);
@@ -548,6 +599,7 @@ function closeMeasurements(): void {
   chart.value = null;
   measurementsLoaded.value = false;
   measurementsNotFound.value = false;
+  measurementsError.value = null;
   measurementsLoading.value = false;
 }
 
@@ -581,6 +633,7 @@ async function fetchMeasurements(): Promise<void> {
   const request = ++measurementsRequest;
   measurementsLoading.value = true;
   measurementsNotFound.value = false;
+  measurementsError.value = null;
   try {
     const id = measurementsItem.value.id;
     const range = measurementsRange();
@@ -600,7 +653,7 @@ async function fetchMeasurements(): Promise<void> {
       measurementsNotFound.value = true;
       measurementsLoaded.value = false;
     } else {
-      toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+      measurementsError.value = extractErrorMessage(err, t('errors.loadFailed'));
     }
   } finally {
     if (request === measurementsRequest) measurementsLoading.value = false;

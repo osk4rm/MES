@@ -1,7 +1,8 @@
 <template>
-  <div v-if="order" class="order-detail" data-testid="order-detail">
+  <div v-if="order" class="order-detail" :class="viewClass" data-testid="order-detail">
     <AppPageHeader :title="order.code" :subtitle="$t('productionOrders.detail.subtitle')" icon="pi pi-list">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-arrow-left" @click="$router.push({ name: 'production-orders' })">
           {{ $t('common.back') }}
         </AppButton>
@@ -48,7 +49,7 @@
       <div class="summary-grid">
         <div class="summary-item">
           <span class="summary-item__label">{{ $t('common.status') }}</span>
-          <AppBadge :variant="statusVariant(order.status)" dot>
+          <AppBadge :variant="statusVariant(order.status)" :icon="statusIcon(order.status)" dot>
             {{ statusLabel(order.status) }}
           </AppBadge>
         </div>
@@ -118,9 +119,11 @@
         :items="movements"
         :columns="movementColumns"
         :loading="movementsLoading"
+        :error="movementsError"
+        @retry="loadMovements"
       >
         <template #cell-movementType="{ value }">
-          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" dot>
+          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" :icon="value === 'PW' ? 'pi pi-plus' : 'pi pi-minus'" dot>
             {{ value }}
           </AppBadge>
         </template>
@@ -136,7 +139,7 @@
       </AppTable>
 
       <AppEmptyState
-        v-if="!movementsLoading && movements.length === 0"
+        v-if="!movementsLoading && !movementsError && movements.length === 0"
         icon="pi pi-list"
         :title="$t('movements.empty')"
       />
@@ -149,10 +152,12 @@
         :items="table.items.value"
         :columns="columns"
         :loading="table.loading.value"
+        :error="table.error.value"
         :sort-key="table.sortKey.value"
         :sort-direction="table.sortDirection.value"
         data-testid="confirmations-table"
         @sort-change="table.setSort"
+        @retry="table.retry"
       >
         <template #cell-reportedAt="{ value }">
           {{ formatDateTime(value) }}
@@ -187,23 +192,38 @@
       />
 
       <AppEmptyState
-        v-if="!table.loading.value && table.items.value.length === 0"
+        v-if="!table.loading.value && !table.error.value && table.items.value.length === 0"
         icon="pi pi-check-square"
         :title="$t('productionConfirmations.empty')"
       />
     </section>
 
     <AppModal :open="modalOpen" :title="$t('productionConfirmations.report')" data-testid="confirmation-modal" @close="closeModal">
-      <form id="confirmation-form" class="form-grid" data-testid="confirmation-form" @submit.prevent="onSave">
-        <AppFormField :label="$t('productionConfirmations.machine')" required>
-          <template #default="{ id }">
+      <form id="confirmation-form" ref="confirmationFormRef" class="form-grid" data-testid="confirmation-form" novalidate @submit.prevent="onSave">
+        <!-- Canonical confirmation field order (F-19): Work Center →
+            quantity → reason → notes → timestamp. Confirmations carry no
+            reason field; operator/lots extras follow the canonical block. -->
+        <AppFormField :label="$t('productionConfirmations.machine')" required :error="confirmationErrors.fieldError('machineId')">
+          <template #default="{ id, invalid }">
             <AppSelect
               :id="id"
               v-model="form.machineId"
               :options="machineOptions"
               :placeholder="$t('productionConfirmations.selectMachine')"
+              :invalid="invalid"
               data-testid="confirmation-machine-select"
+              @blur="confirmationErrors.touch('machineId')"
             />
+          </template>
+        </AppFormField>
+        <AppFormField :label="$t('productionConfirmations.goodQuantity')" required :error="confirmationErrors.fieldError('goodQuantity')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.goodQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-good-qty" @blur="confirmationErrors.touch('goodQuantity')" />
+          </template>
+        </AppFormField>
+        <AppFormField :label="$t('productionConfirmations.scrapQuantity')" required :error="confirmationErrors.fieldError('scrapQuantity')">
+          <template #default="{ id, invalid }">
+            <AppNumberInput :id="id" v-model="form.scrapQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-scrap-qty" @blur="confirmationErrors.touch('scrapQuantity')" />
           </template>
         </AppFormField>
         <AppFormField :label="$t('productionConfirmations.operator')">
@@ -216,27 +236,19 @@
             />
           </template>
         </AppFormField>
-        <AppFormField :label="$t('productionConfirmations.reportedAt')" required>
-          <template #default="{ id }">
-            <AppInput :id="id" v-model="form.reportedAt" type="datetime-local" />
-          </template>
-        </AppFormField>
-        <div />
-        <AppFormField :label="$t('productionConfirmations.goodQuantity')" required>
-          <template #default="{ id, invalid }">
-            <AppNumberInput :id="id" v-model="form.goodQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-good-qty" />
-          </template>
-        </AppFormField>
-        <AppFormField :label="$t('productionConfirmations.scrapQuantity')" required>
-          <template #default="{ id, invalid }">
-            <AppNumberInput :id="id" v-model="form.scrapQuantity" :min="0" :step="1" :invalid="invalid" data-testid="confirmation-scrap-qty" />
-          </template>
-        </AppFormField>
         <AppFormField :label="$t('productionConfirmations.notes')" class="form-grid__full">
           <template #default="{ id }">
             <AppTextarea :id="id" v-model="form.notes" :rows="2" />
           </template>
         </AppFormField>
+        <AppDateTimeField
+          v-model="form.reportedAt"
+          :label="$t('productionConfirmations.reportedAt')"
+          required
+          :error="confirmationErrors.fieldError('reportedAt')"
+          class="form-grid__full"
+          @blur="confirmationErrors.touch('reportedAt')"
+        />
         <AppFormField
           :label="`${$t('productionConfirmations.producedLot')} (${$t('common.optional')})`"
           class="form-grid__full"
@@ -324,9 +336,11 @@
         :items="confirmationMovements"
         :columns="movementColumns"
         :loading="confirmationMovementsLoading"
+        :error="confirmationMovementsError"
+        @retry="retryConfirmationMovements"
       >
         <template #cell-movementType="{ value }">
-          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" dot>
+          <AppBadge :variant="value === 'PW' ? 'success' : 'info'" :icon="value === 'PW' ? 'pi pi-plus' : 'pi pi-minus'" dot>
             {{ value }}
           </AppBadge>
         </template>
@@ -341,7 +355,7 @@
         </template>
       </AppTable>
       <AppEmptyState
-        v-if="!confirmationMovementsLoading && confirmationMovements.length === 0"
+        v-if="!confirmationMovementsLoading && !confirmationMovementsError && confirmationMovements.length === 0"
         icon="pi pi-list"
         :title="$t('movements.empty')"
       />
@@ -350,8 +364,9 @@
       </template>
     </AppModal>
   </div>
-  <div v-else-if="loading" class="loading"><i class="pi pi-spin pi-spinner" /> {{ $t('common.loading') }}</div>
-  <div v-else class="loading">{{ $t('common.notFound') }}</div>
+  <AppLoadingState v-else-if="loading" />
+  <AppErrorState v-else-if="orderError" :message="orderError" :loading="loading" @retry="reloadAll" />
+  <AppEmptyState v-else icon="pi pi-exclamation-circle" :title="$t('common.notFound')" />
 </template>
 
 <script setup lang="ts">
@@ -364,15 +379,17 @@ import AppTable from '../../components/ui/AppTable.vue';
 import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
-import AppInput from '../../components/ui/AppInput.vue';
 import AppNumberInput from '../../components/ui/AppNumberInput.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppSelect from '../../components/ui/AppSelect.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppLoadingState from '../../components/ui/AppLoadingState.vue';
+import AppErrorState from '../../components/ui/AppErrorState.vue';
 import { useCrudPage } from '../../composables/useCrudPage';
 import {
   productionOrderService,
@@ -396,16 +413,23 @@ import {
   validateProducedLot,
   type ConsumedLotFormRow
 } from '../../services/confirmationLots';
+import { useFormErrors } from '../../composables/useFormErrors';
+import { productionOrderStatusMeta, ShopfloorDensity, useShopfloorDensity, type StatusSignalMeta } from '../../composables/useShopfloorDisplay';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const route = useRoute();
 const { t } = useI18n();
 const toast = useToastStore();
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 
 const orderId = route.params.id as string;
 const order = ref<ProductionOrderResponse | null>(null);
 const loading = ref(false);
+const orderError = ref<string | null>(null);
 const releasing = ref(false);
 
 const canReport = computed(() =>
@@ -425,15 +449,12 @@ const progressPercent = computed(() => {
   return Math.min(100, Math.round((produced / order.value.plannedQuantity) * 100));
 });
 
-function statusVariant(v: number): 'info' | 'primary' | 'success' | 'warning' | 'idle' {
-  switch (v) {
-    case ProductionOrderStatus.Planned: return 'info';
-    case ProductionOrderStatus.Released: return 'success';
-    case ProductionOrderStatus.InProgress: return 'warning';
-    case ProductionOrderStatus.Completed: return 'primary';
-    case ProductionOrderStatus.Closed: return 'idle';
-    default: return 'info';
-  }
+function statusVariant(v: number): StatusSignalMeta['variant'] {
+  return productionOrderStatusMeta(v).variant;
+}
+
+function statusIcon(v: number): string {
+  return productionOrderStatusMeta(v).icon;
 }
 
 interface Filters { productionOrderId?: string }
@@ -518,10 +539,11 @@ function warehouseLabel(id: string | null | undefined): string {
 
 async function loadOrder(): Promise<void> {
   loading.value = true;
+  orderError.value = null;
   try {
     order.value = await productionOrderService.get(orderId);
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    orderError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     loading.value = false;
   }
@@ -586,12 +608,19 @@ function removeConsumedRow(idx: number): void {
   form.consumedLots.splice(idx, 1);
 }
 
+const confirmationFormRef = ref<HTMLFormElement | null>(null);
+const confirmationErrors = useFormErrors();
+
 const producedLotError = computed((): string | null => {
+  // Touched-vs-submit behavior: the lots editor only complains after the
+  // operator attempts to save, never on a freshly opened dialog.
+  if (!confirmationErrors.submitted.value) return null;
   const code = validateProducedLot(form.producedLotId, form.consumedLots.length);
   return code ? t('productionConfirmations.producedLotRequired') : null;
 });
 
 function consumedRowError(idx: number): string | null {
+  if (!confirmationErrors.submitted.value) return null;
   const row = form.consumedLots[idx];
   if (!row) return null;
   const code = validateConsumedLotRow(row, form.producedLotId);
@@ -612,6 +641,7 @@ function openReport(): void {
     producedLotId: null,
     consumedLots: []
   });
+  confirmationErrors.reset();
   modalOpen.value = true;
 }
 
@@ -620,34 +650,48 @@ function closeModal(): void {
   modalOpen.value = false;
 }
 
-async function onSave(): Promise<void> {
-  if (!order.value) return;
-  if (!form.machineId || !form.reportedAt) {
-    toast.error(t('validation.required'));
-    return;
-  }
+function collectConfirmationErrors(): Record<string, string | null> {
   const good = form.goodQuantity ?? 0;
   const scrap = form.scrapQuantity ?? 0;
-  if (good <= 0 && scrap <= 0) {
-    toast.error(t('productionConfirmations.positiveQuantityRequired'));
-    return;
-  }
-  if (producedLotError.value) {
-    toast.error(producedLotError.value);
-    return;
-  }
+  const quantitiesValid = good > 0 || scrap > 0;
+  return {
+    machineId: form.machineId ? null : t('validation.required'),
+    reportedAt: !form.reportedAt
+      ? t('validation.required')
+      : Number.isNaN(new Date(form.reportedAt).getTime()) ? t('validation.invalidDate') : null,
+    goodQuantity: quantitiesValid ? null : t('productionConfirmations.positiveQuantityRequired'),
+    scrapQuantity: quantitiesValid ? null : t('productionConfirmations.positiveQuantityRequired')
+  };
+}
+
+function hasLotErrors(): boolean {
+  if (producedLotError.value) return true;
   for (let i = 0; i < form.consumedLots.length; i++) {
-    const rowError = consumedRowError(i);
-    if (rowError) {
-      toast.error(rowError);
-      return;
-    }
+    if (consumedRowError(i)) return true;
   }
+  return false;
+}
+
+async function onSave(): Promise<void> {
+  if (!order.value) return;
+  // Mark submitted first so the gated lot errors render, then validate.
+  confirmationErrors.markSubmitted();
+  const fieldsValid = confirmationErrors.setErrors(collectConfirmationErrors());
+  if (!fieldsValid || hasLotErrors()) {
+    toast.error(t('validation.formHasErrors'));
+    confirmationErrors.focusFirstInvalidIn(confirmationFormRef.value);
+    return;
+  }
+  // Type-narrowing guard: submit-time validation already reported per-field errors above.
+  const machineId = form.machineId;
+  if (!machineId) return;
+  const good = form.goodQuantity ?? 0;
+  const scrap = form.scrapQuantity ?? 0;
   saving.value = true;
   try {
     await productionConfirmationService.create({
       productionOrderId: order.value.id,
-      machineId: form.machineId,
+      machineId,
       reportedByOperatorId: form.operatorId,
       reportedAt: new Date(form.reportedAt).toISOString(),
       goodQuantity: good,
@@ -661,7 +705,12 @@ async function onSave(): Promise<void> {
     // First confirmation moves the order to InProgress — refresh header, list and movements in place.
     await Promise.all([loadOrder(), table.fetch(), loadMovements()]);
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    if (confirmationErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      confirmationErrors.focusFirstInvalidIn(confirmationFormRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
   } finally {
     saving.value = false;
   }
@@ -676,6 +725,7 @@ const deleteMessage = computed(() => confirmTarget.value
 
 const movements = ref<MovementPreviewLine[]>([]);
 const movementsLoading = ref(false);
+const movementsError = ref<string | null>(null);
 const movementColumns = computed(() => [
   { key: 'movementType', label: t('movements.type'), width: '90px' },
   { key: 'productId', label: t('movements.product') },
@@ -685,10 +735,11 @@ const movementColumns = computed(() => [
 
 async function loadMovements(): Promise<void> {
   movementsLoading.value = true;
+  movementsError.value = null;
   try {
     movements.value = await productionOrderService.getMovements(orderId);
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    movementsError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     movementsLoading.value = false;
   }
@@ -697,18 +748,27 @@ async function loadMovements(): Promise<void> {
 const movementsModalOpen = ref(false);
 const confirmationMovements = ref<MovementPreviewLine[]>([]);
 const confirmationMovementsLoading = ref(false);
+const confirmationMovementsError = ref<string | null>(null);
+const confirmationMovementsItem = ref<ProductionConfirmationResponse | null>(null);
 
 async function openConfirmationMovements(item: ProductionConfirmationResponse): Promise<void> {
   movementsModalOpen.value = true;
+  confirmationMovementsItem.value = item;
   confirmationMovements.value = [];
+  confirmationMovementsError.value = null;
   confirmationMovementsLoading.value = true;
   try {
     confirmationMovements.value = await productionConfirmationService.getMovements(item.id);
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
-    movementsModalOpen.value = false;
+    confirmationMovementsError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     confirmationMovementsLoading.value = false;
+  }
+}
+
+function retryConfirmationMovements(): void {
+  if (confirmationMovementsItem.value) {
+    void openConfirmationMovements(confirmationMovementsItem.value);
   }
 }
 
@@ -806,11 +866,12 @@ async function confirmLifecycle(): Promise<void> {
   }
 }
 
+async function reloadAll(): Promise<void> {
+  await Promise.all([loadOrder(), loadLookups(), table.fetch(), loadMovements()]);
+}
+
 onMounted(() => {
-  void loadOrder();
-  void loadLookups();
-  void table.fetch();
-  void loadMovements();
+  void reloadAll();
 });
 </script>
 
@@ -908,5 +969,11 @@ onMounted(() => {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-6);
+}
+@media (max-width: 1100px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .consumed-row { grid-template-columns: 1fr; align-items: stretch; }
+  .consumed-row__remove { justify-self: start; }
+  .section-header { flex-wrap: wrap; }
 }
 </style>

@@ -21,12 +21,12 @@
           />
         </template>
       </AppFormField>
-      <AppFormField :label="$t('oeeDashboard.from')">
+      <AppFormField :label="$t('oeeDashboard.from')" :error="windowError">
         <template #default="{ id }">
           <AppInput :id="id" v-model="fromInput" type="datetime-local" @change="onWindowChange" />
         </template>
       </AppFormField>
-      <AppFormField :label="$t('oeeDashboard.to')">
+      <AppFormField :label="$t('oeeDashboard.to')" :error="windowError">
         <template #default="{ id }">
           <AppInput :id="id" v-model="toInput" type="datetime-local" @change="onWindowChange" />
         </template>
@@ -48,26 +48,22 @@
       </template>
     </AppFilterBar>
 
-    <AppSpinner v-if="loading && !loadedOnce" />
-    <AppEmptyState
-      v-else-if="!machineId"
-      icon="pi pi-chart-bar"
-      :title="$t('oeeDashboard.noMachine')"
-      :description="$t('oeeDashboard.noMachineHint')"
-    />
-    <AppEmptyState
-      v-else-if="notFound"
-      icon="pi pi-exclamation-circle"
-      :title="$t('oeeDashboard.notFound')"
-      :description="$t('oeeDashboard.notFoundHint')"
-    />
-    <template v-else-if="snapshot">
-      <AppEmptyState
-        v-if="nullFactors"
-        icon="pi pi-info-circle"
-        :title="$t('oeeDashboard.nullFactorsTitle')"
-        :description="$t('oeeDashboard.nullFactorsHint')"
-      />
+    <AppDataState
+      :loading="loading"
+      :error="loadError"
+      :empty="snapshot === null"
+      :empty-icon="emptyIcon"
+      :empty-title="emptyTitle"
+      :empty-description="emptyDescription"
+      @retry="refresh"
+    >
+      <template v-if="snapshot">
+        <AppEmptyState
+          v-if="nullFactors"
+          icon="pi pi-info-circle"
+          :title="$t('oeeDashboard.nullFactorsTitle')"
+          :description="$t('oeeDashboard.nullFactorsHint')"
+        />
 
       <div class="oee-cards">
         <AppCard v-for="card in factorCards" :key="card.key" class="oee-card">
@@ -137,7 +133,8 @@
           </AppTable>
         </AppCard>
       </div>
-    </template>
+      </template>
+    </AppDataState>
   </div>
 </template>
 
@@ -155,7 +152,7 @@ import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppCard from '../../components/ui/AppCard.vue';
 import AppTable from '../../components/ui/AppTable.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
 import {
   OeeBucket,
@@ -198,8 +195,22 @@ const snapshot = ref<OeeSnapshot | null>(null);
 const trend = ref<OeeTrend | null>(null);
 const losses = ref<OeeLosses | null>(null);
 const loading = ref(false);
-const loadedOnce = ref(false);
 const notFound = ref(false);
+const loadError = ref<string | null>(null);
+// F-18: invalid-window feedback renders inline on the from/to fields via
+// AppFormField in addition to the toast, so the offending fields are marked.
+const windowError = ref<string | null>(null);
+
+// Shared region precedence (F-12: error > loading > empty > content): before
+// a Work Center is picked the region reads empty; a cross-tenant or deleted
+// Work Center keeps the not-found feedback.
+const emptyIcon = computed(() => !machineId.value || !notFound.value ? 'pi pi-chart-bar' : 'pi pi-exclamation-circle');
+const emptyTitle = computed(() => !machineId.value || !notFound.value
+  ? t('oeeDashboard.noMachine')
+  : t('oeeDashboard.notFound'));
+const emptyDescription = computed(() => !machineId.value || !notFound.value
+  ? t('oeeDashboard.noMachineHint')
+  : t('oeeDashboard.notFoundHint'));
 
 const nullFactors = computed(() => hasNullFactors(snapshot.value));
 const trendBuckets = computed<OeeSnapshot[]>(() => trend.value?.buckets ?? []);
@@ -340,9 +351,11 @@ function readValidatedQuery(): ValidatedQuery | null {
   const to = parseDatetimeLocal(toInput.value);
   const ideal = idealInput.value;
   if (!id || !from || !to || from >= to || ideal === null || !Number.isFinite(ideal) || ideal <= 0) {
+    windowError.value = t('oeeDashboard.invalidWindow');
     toast.error(t('oeeDashboard.invalidInput'));
     return null;
   }
+  windowError.value = null;
   const fromUtc = from.toISOString();
   const toUtc = to.toISOString();
   return {
@@ -386,6 +399,7 @@ function syncQuery(q: ValidatedQuery): void {
 async function loadPanels(q: ValidatedQuery): Promise<void> {
   loading.value = true;
   notFound.value = false;
+  loadError.value = null;
   try {
     const [s, tr, lo] = await Promise.all([
       oeeService.getSnapshot(q.snapshot),
@@ -395,7 +409,6 @@ async function loadPanels(q: ValidatedQuery): Promise<void> {
     snapshot.value = s;
     trend.value = tr;
     losses.value = lo;
-    loadedOnce.value = true;
   } catch (err) {
     if (isNotFoundError(err)) {
       // Cross-tenant or deleted Work Center: the API hides foreign rows
@@ -405,7 +418,7 @@ async function loadPanels(q: ValidatedQuery): Promise<void> {
       trend.value = null;
       losses.value = null;
     } else {
-      toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+      loadError.value = extractErrorMessage(err, t('errors.loadFailed'));
     }
   } finally {
     loading.value = false;
@@ -424,7 +437,7 @@ function clearPanels(): void {
   trend.value = null;
   losses.value = null;
   notFound.value = false;
-  loadedOnce.value = false;
+  loadError.value = null;
 }
 
 function onMachineChange(v: string | number | null): void {
@@ -458,6 +471,7 @@ function clearFilters(): void {
   toInput.value = window.to;
   idealInput.value = DEFAULT_IDEAL;
   bucket.value = OeeBucket.Day;
+  windowError.value = null;
   if (machineId.value) void refresh();
 }
 

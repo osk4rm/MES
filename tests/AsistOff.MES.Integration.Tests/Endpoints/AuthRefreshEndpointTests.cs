@@ -33,6 +33,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     public async Task SignIn_SetsAuthCookies_WithHardenedFlags()
     {
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         var response = await client.PostAsJsonAsync(SignInUrl, new
         {
@@ -69,6 +70,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         // itself is anonymous (no bearer), modelling an expired access token.
         var (_, tokens) = await SignInAsync();
         using var anonymous = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(anonymous);
 
         // Act — rotate once via the body token (still accepted during transition).
         var refresh = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokens.RefreshToken });
@@ -95,6 +97,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         // Arrange — refresh is anonymous by design so sessions survive access expiry.
         var (_, tokens) = await SignInAsync();
         using var anonymous = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(anonymous);
 
         // Act
         var response = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokens.RefreshToken });
@@ -109,6 +112,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         // Arrange
         var (_, tokens) = await SignInAsync();
         using var anonymous = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(anonymous);
         var first = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokens.RefreshToken });
         first.EnsureSuccessStatusCode();
 
@@ -126,6 +130,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         // opaque values: the rotated ancestor and its live successor.
         var (_, tokens) = await SignInAsync();
         using var anonymous = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(anonymous);
         var first = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokens.RefreshToken });
         first.EnsureSuccessStatusCode();
         var successor = AuthCookieHelper.GetRefreshToken(first);
@@ -152,6 +157,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
 
         // Act — refresh with the revoked token.
         using var anonymous = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(anonymous);
         var refresh = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = tokens.RefreshToken });
 
         // Assert
@@ -163,6 +169,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
     {
         // Arrange
         using var anonymous = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(anonymous);
 
         // Act
         var response = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken = "unknown-opaque-token" });
@@ -247,6 +254,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         tenantA.Should().NotBe(tenantB);
 
         using var attacker = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(attacker);
         attacker.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", tokensB.AccessToken);
 
@@ -263,6 +271,7 @@ public sealed class AuthRefreshEndpointTests(MesApplicationFixture fixture) : In
         string? email = null, string? password = null)
     {
         var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var response = await client.PostAsJsonAsync(SignInUrl, new
         {
             email = email ?? IntegrationTestData.AdminEmail,

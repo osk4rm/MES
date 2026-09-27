@@ -1,18 +1,34 @@
 <template>
-  <div>
+  <div :class="viewClass">
     <AppPageHeader :title="$t('andon.title')" :subtitle="$t('andon.subtitle')" icon="pi pi-bell">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" @click="refreshAll">{{ $t('common.refresh') }}</AppButton>
         <AppButton variant="primary" icon="pi pi-plus" @click="openRaise">{{ $t('andon.raise') }}</AppButton>
       </template>
     </AppPageHeader>
 
     <AppCard :title="$t('andon.board')">
-      <div v-if="boardLoading" class="board-loading">
-        <AppSpinner />
+      <div class="board-legend">
+        <AppBadge variant="danger" icon="pi pi-exclamation-triangle" dot>
+          {{ statusLabel(AndonSignalStatus.Active) }}
+        </AppBadge>
+        <AppBadge variant="warning" icon="pi pi-eye" dot>
+          {{ statusLabel(AndonSignalStatus.Acknowledged) }}
+        </AppBadge>
+        <AppBadge variant="success" icon="pi pi-check-circle" dot>
+          {{ statusLabel(AndonSignalStatus.Resolved) }}
+        </AppBadge>
       </div>
-      <AppEmptyState v-else-if="boardSignals.length === 0" :title="$t('andon.boardEmpty')" />
-      <div v-else class="board">
+      <AppDataState
+        :loading="boardLoading"
+        :error="boardError"
+        :empty="boardSignals.length === 0"
+        :empty-title="$t('andon.boardEmpty')"
+        compact
+        @retry="fetchBoard"
+      >
+        <div class="board">
         <div
           v-for="signal in boardSignals"
           :key="signal.id"
@@ -20,8 +36,11 @@
           :class="`board-card--${statusKey(signal.status)}`"
         >
           <div class="board-card__header">
-            <strong>{{ machineLabel(signal.machineId) }}</strong>
-            <AppBadge :variant="statusVariant(signal.status)" dot>
+            <span class="board-card__machine">
+              <i :class="['board-card__severity', statusIcon(signal.status)]" aria-hidden="true"></i>
+              <strong>{{ machineLabel(signal.machineId) }}</strong>
+            </span>
+            <AppBadge :variant="statusVariant(signal.status)" :icon="statusIcon(signal.status)" dot>
               {{ statusLabel(signal.status) }}
             </AppBadge>
           </div>
@@ -31,48 +50,66 @@
           <div class="board-card__actions">
             <AppButton
               v-if="signal.status === AndonSignalStatus.Active"
-              size="sm"
+              :size="boardActionSize"
               variant="secondary"
               @click="onAcknowledge(signal)"
             >
               {{ $t('andon.acknowledge') }}
             </AppButton>
-            <AppButton size="sm" variant="primary" @click="onResolve(signal)">
+            <AppButton :size="boardActionSize" variant="primary" @click="onResolve(signal)">
               {{ $t('andon.resolve') }}
             </AppButton>
           </div>
         </div>
-      </div>
+        </div>
+      </AppDataState>
     </AppCard>
 
     <AppFilterBar @clear="clearFilters">
-      <AppSelect
-        v-model="machineFilter"
-        :options="machineFilterOptions"
-        allow-empty
-        @change="onMachineChange"
-      />
-      <AppSelect
-        v-model="categoryFilter"
-        :options="categoryFilterOptions"
-        allow-empty
-        @change="onCategoryChange"
-      />
-      <AppSelect
-        v-model="statusFilter"
-        :options="statusFilterOptions"
-        allow-empty
-        @change="onStatusChange"
-      />
+      <AppFormField :label="$t('andon.filters.machine')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="machineFilter"
+            :options="machineFilterOptions"
+            allow-empty
+            @change="onMachineChange"
+          />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('andon.filters.category')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="categoryFilter"
+            :options="categoryFilterOptions"
+            allow-empty
+            @change="onCategoryChange"
+          />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('andon.filters.status')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="statusFilter"
+            :options="statusFilterOptions"
+            allow-empty
+            @change="onStatusChange"
+          />
+        </template>
+      </AppFormField>
     </AppFilterBar>
 
     <AppTable
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-machineId="{ value }">
         {{ machineLabel(String(value)) }}
@@ -80,11 +117,11 @@
       <template #cell-category="{ value }">
         {{ categoryLabel(Number(value)) }}
       </template>
-      <template #cell-status="{ value }">
-        <AppBadge :variant="statusVariant(Number(value))" dot>
-          {{ statusLabel(Number(value)) }}
-        </AppBadge>
-      </template>
+        <template #cell-status="{ value }">
+          <AppBadge :variant="statusVariant(Number(value))" :icon="statusIcon(Number(value))" dot>
+            {{ statusLabel(Number(value)) }}
+          </AppBadge>
+        </template>
       <template #cell-raisedAt="{ value }">
         {{ formatDateTime(String(value)) }}
       </template>
@@ -105,11 +142,12 @@
     <AppModal :open="modalOpen" :title="modalTitle" @close="closeModal">
       <form id="andon-form" class="form-grid" @submit.prevent="onSave">
         <template v-if="resolving">
-          <AppFormField :label="$t('andon.resolvedAt')" required class="form-grid__full">
-            <template #default="{ id }">
-              <AppInput :id="id" v-model="form.resolvedAt" type="datetime-local" required />
-            </template>
-          </AppFormField>
+          <AppDateTimeField
+            v-model="form.resolvedAt"
+            :label="$t('andon.resolvedAt')"
+            required
+            class="form-grid__full"
+          />
         </template>
         <template v-else>
           <AppFormField v-if="!editing" :label="$t('andon.machine')" required class="form-grid__full">
@@ -122,11 +160,12 @@
             <AppSelect :id="id" v-model="form.category" :options="categoryOptions" />
           </template>
         </AppFormField>
-        <AppFormField v-if="!editing" :label="$t('andon.raisedAt')" required>
-          <template #default="{ id }">
-            <AppInput :id="id" v-model="form.raisedAt" type="datetime-local" required />
-          </template>
-        </AppFormField>
+        <AppDateTimeField
+          v-if="!editing"
+          v-model="form.raisedAt"
+          :label="$t('andon.raisedAt')"
+          required
+        />
         <AppFormField :label="$t('andon.notes')" class="form-grid__full">
           <template #default="{ id }">
             <AppTextarea :id="id" v-model="form.notes" :rows="3" />
@@ -157,16 +196,15 @@ import { useI18n } from 'vue-i18n';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppCard from '../../components/ui/AppCard.vue';
 import AppFilterBar from '../../components/ui/AppFilterBar.vue';
-import AppInput from '../../components/ui/AppInput.vue';
 import AppSelect from '../../components/ui/AppSelect.vue';
 import AppTable from '../../components/ui/AppTable.vue';
 import AppPagination from '../../components/ui/AppPagination.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import AppFormField from '../../components/ui/AppFormField.vue';
+import AppDateTimeField from '../../components/ui/AppDateTimeField.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
-import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import AppTextarea from '../../components/ui/AppTextarea.vue';
 import AppRowActions from '../../components/ui/AppRowActions.vue';
 import AppConfirmDialog from '../../components/ui/AppConfirmDialog.vue';
@@ -180,9 +218,20 @@ import {
 import { machineService, type MachineResponse } from '../../services/machineService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
+import { andonSeverityMeta, ShopfloorDensity, useShopfloorDensity, type StatusSignalMeta } from '../../composables/useShopfloorDisplay';
 
 const { t, tm } = useI18n();
 const toast = useToastStore();
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
+
+// F-11: board Ack/Resolve actions meet the 44 px gloved-operation minimum
+// under comfortable density (the shopfloor-view scope enforces it); sm is
+// kept for compact density only.
+const boardActionSize = computed((): 'sm' | 'md' =>
+  density.value === ShopfloorDensity.Compact ? 'sm' : 'md');
 
 interface Filters {
   machineId?: string;
@@ -219,10 +268,12 @@ function statusKey(v: number): string {
   return 'active';
 }
 
-function statusVariant(v: number): 'danger' | 'warning' | 'success' {
-  if (v === AndonSignalStatus.Acknowledged) return 'warning';
-  if (v === AndonSignalStatus.Resolved) return 'success';
-  return 'danger';
+function statusVariant(v: number): StatusSignalMeta['variant'] {
+  return andonSeverityMeta(v).variant;
+}
+
+function statusIcon(v: number): string {
+  return andonSeverityMeta(v).icon;
 }
 
 function formatDateTime(v: string): string {
@@ -288,9 +339,11 @@ function clearFilters() {
 
 const boardSignals = ref<AndonSignalResponse[]>([]);
 const boardLoading = ref(false);
+const boardError = ref<string | null>(null);
 
 async function fetchBoard() {
   boardLoading.value = true;
+  boardError.value = null;
   try {
     const [active, acknowledged] = await Promise.all([
       andonSignalService.browse({ status: AndonSignalStatus.Active, pageSize: 50 }),
@@ -299,7 +352,7 @@ async function fetchBoard() {
     boardSignals.value = [...active.items, ...acknowledged.items]
       .sort((a, b) => +new Date(b.raisedAt) - +new Date(a.raisedAt));
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    boardError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     boardLoading.value = false;
   }
@@ -485,8 +538,14 @@ onMounted(async () => {
 }
 .board {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--space-3);
+}
+.board-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 .board-card {
   border: 1px solid var(--color-border);
@@ -506,11 +565,31 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  flex-wrap: wrap;
 }
-.board-card__category { font-weight: 600; }
+.board-card__machine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-lg);
+  min-width: 0;
+}
+.board-card__severity {
+  font-size: 22px;
+  flex: none;
+}
+.board-card--active .board-card__severity { color: var(--color-danger); }
+.board-card--acknowledged .board-card__severity { color: var(--color-warning); }
+.board-card--resolved .board-card__severity { color: var(--color-success); }
+.board-card__category { font-weight: 600; font-size: var(--font-size-md); }
 .board-card__time { font-size: var(--font-size-sm); opacity: 0.8; }
 .board-card__notes { font-size: var(--font-size-sm); }
-.board-card__actions { display: flex; gap: var(--space-2); }
+.board-card__actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.board-card__actions > * { flex: 1 1 140px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .form-grid__full { grid-column: 1 / -1; }
+@media (max-width: 1100px) {
+  .board { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+}
 </style>

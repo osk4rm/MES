@@ -92,7 +92,10 @@ public sealed class CorrelationIdEndpointTests(MesApplicationFixture fixture) : 
     {
         // Arrange - anonymous sign-in with bad credentials -> 401 from the
         // global exception handler; no header sent so one is generated.
+        // A valid CSRF ticket is attached so the request reaches the handler
+        // past the 403 gate.
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         // Act
         var response = await client.PostAsJsonAsync("/api/auth/sign-in", new

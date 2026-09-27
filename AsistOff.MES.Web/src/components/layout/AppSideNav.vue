@@ -10,11 +10,16 @@
       </div>
     </div>
 
-    <nav class="app-sidenav__nav" aria-label="Main">
+    <nav class="app-sidenav__nav" :aria-label="$t('nav.main')">
       <ul>
-        <li v-for="item in items" :key="item.label" class="app-sidenav__group">
+        <li v-for="item in visibleItems" :key="item.label" class="app-sidenav__group">
           <template v-if="!item.children">
-            <router-link :to="item.route!" class="app-sidenav__link" :title="collapsed ? $t(item.label) : undefined">
+            <router-link
+              :to="item.route!"
+              :class="['app-sidenav__link', { 'app-sidenav__link--active': isActive(item.route!) }]"
+              :aria-current="isActive(item.route!) ? 'page' : undefined"
+              :title="collapsed ? $t(item.label) : undefined"
+            >
               <i :class="['app-sidenav__icon', item.icon]" aria-hidden="true"></i>
               <span v-if="!collapsed" class="app-sidenav__label">{{ $t(item.label) }}</span>
             </router-link>
@@ -22,8 +27,9 @@
           <template v-else>
             <button
               type="button"
-              :class="['app-sidenav__link', 'app-sidenav__link--group', { 'app-sidenav__link--open': isOpen(item.label) }]"
+              :class="['app-sidenav__link', 'app-sidenav__link--group', { 'app-sidenav__link--open': isOpen(item.label), 'app-sidenav__link--active': isGroupActive(item) }]"
               :title="collapsed ? $t(item.label) : undefined"
+              :aria-expanded="!collapsed && isOpen(item.label)"
               @click="toggle(item.label)"
             >
               <i :class="['app-sidenav__icon', item.icon]" aria-hidden="true"></i>
@@ -32,7 +38,11 @@
             </button>
             <ul v-if="!collapsed && isOpen(item.label)" class="app-sidenav__subnav">
               <li v-for="sub in item.children" :key="sub.label">
-                <router-link :to="sub.route!" class="app-sidenav__link app-sidenav__link--sub">
+                <router-link
+                  :to="sub.route!"
+                  :class="['app-sidenav__link', 'app-sidenav__link--sub', { 'app-sidenav__link--active': isActive(sub.route!) }]"
+                  :aria-current="isActive(sub.route!) ? 'page' : undefined"
+                >
                   <i :class="['app-sidenav__icon app-sidenav__icon--sub', sub.icon]" aria-hidden="true"></i>
                   <span class="app-sidenav__label">{{ $t(sub.label) }}</span>
                 </router-link>
@@ -43,22 +53,67 @@
       </ul>
     </nav>
 
-    <button type="button" class="app-sidenav__toggle" @click="emit('update:collapsed', !collapsed)" :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+    <button type="button" class="app-sidenav__toggle" @click="emit('update:collapsed', !collapsed)" :aria-label="$t(collapsed ? 'sidenav.expand' : 'sidenav.collapse')">
       <i :class="['pi', collapsed ? 'pi-angle-double-right' : 'pi-angle-double-left']"></i>
     </button>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import type { NavItem } from '../../sitemap';
+import { isNavGroupActive, isNavRouteActive } from '../../utils/navigation';
+import { hasRoutePermission } from '../../router';
+import { useAuthStore } from '../../stores/authStore';
 
 const props = defineProps<{ items: NavItem[]; collapsed: boolean }>();
 const emit = defineEmits<{ (e: 'update:collapsed', value: boolean): void }>();
 
 const route = useRoute();
+const router = useRouter();
+const auth = useAuthStore();
 const manualOpen = ref<Record<string, boolean>>({});
+
+// Permission-gated leaves (e.g. Settings → Roles with tenant.admin) stay
+// hidden for users who may not open them (F-02): the router guard remains
+// the defence for direct navigation, the sidebar simply stops promising a
+// dead end. A group with no visible child is hidden as well.
+function isRouteVisible(itemRoute: string | undefined): boolean {
+  if (!itemRoute) return true;
+  try {
+    return hasRoutePermission(router.resolve(itemRoute), auth.permissions);
+  } catch {
+    return true;
+  }
+}
+
+const visibleItems = computed<NavItem[]>(() => {
+  const result: NavItem[] = [];
+  for (const item of props.items) {
+    if (!isRouteVisible(item.route)) continue;
+    if (item.children !== undefined && item.children.length > 0) {
+      const children = item.children.filter((child) => isRouteVisible(child.route));
+      if (children.length === 0) continue;
+      result.push({ ...item, children });
+    } else {
+      result.push(item);
+    }
+  }
+  return result;
+});
+
+// Active state is segment-aware (issue #314): detail pages highlight their
+// browse parent.
+const currentPath = computed(() => route.path);
+
+function isActive(itemRoute: string): boolean {
+  return isNavRouteActive(currentPath.value, itemRoute);
+}
+
+function isGroupActive(group: NavItem): boolean {
+  return isNavGroupActive(currentPath.value, group);
+}
 
 function toggle(label: string) {
   manualOpen.value = { ...manualOpen.value, [label]: !isOpen(label) };
@@ -66,16 +121,9 @@ function toggle(label: string) {
 
 function isOpen(label: string) {
   if (label in manualOpen.value) return manualOpen.value[label];
-  return groupMatchesRoute(label);
+  const item = visibleItems.value.find(i => i.label === label);
+  return item ? isNavGroupActive(currentPath.value, item) : false;
 }
-
-function groupMatchesRoute(label: string) {
-  const item = props.items.find(i => i.label === label);
-  if (!item?.children) return false;
-  return item.children.some(c => c.route && route.path.startsWith(c.route));
-}
-
-void computed;
 </script>
 
 <style scoped>
@@ -149,7 +197,8 @@ void computed;
 .app-sidenav--collapsed .app-sidenav__link { justify-content: center; padding: var(--space-2); }
 
 .app-sidenav__link:hover { background: var(--color-surface-sunken); color: var(--color-text); text-decoration: none; }
-.app-sidenav__link.router-link-active { background: var(--color-primary-soft); color: var(--color-primary); }
+.app-sidenav__link.router-link-active,
+.app-sidenav__link--active { background: var(--color-primary-soft); color: var(--color-primary); }
 
 .app-sidenav__icon { width: 16px; font-size: 14px; flex-shrink: 0; text-align: center; }
 .app-sidenav__icon--sub { font-size: 12px; }

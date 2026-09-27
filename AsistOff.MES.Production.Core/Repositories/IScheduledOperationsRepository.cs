@@ -16,6 +16,15 @@ public interface IScheduledOperationsRepository
     Task<IReadOnlyCollection<ScheduledOperation>> ListForOrdersAsync(
         IReadOnlyCollection<Guid> productionOrderIds, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns every override pinned to the given Work Center. Required by the
+    /// Gantt reschedule leveling check (issue #305): the overlap scan stays
+    /// bounded to one lane instead of reading the whole override table. Runs
+    /// under the tenant global query filter with no change tracking.
+    /// </summary>
+    Task<IReadOnlyCollection<ScheduledOperation>> ListForMachineAsync(
+        Guid machineId, CancellationToken cancellationToken = default);
+
     Task<ScheduledOperation> AddAsync(ScheduledOperation entity, CancellationToken cancellationToken = default);
     Task UpdateAsync(ScheduledOperation entity, CancellationToken cancellationToken = default);
 }

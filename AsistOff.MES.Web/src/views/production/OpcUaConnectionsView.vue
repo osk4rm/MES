@@ -20,20 +20,20 @@
       />
     </AppFilterBar>
 
-    <AppSpinner v-if="loading && connections.length === 0" />
-    <AppEmptyState
-      v-else-if="connections.length === 0"
-      :title="$t('opcUaConnections.noConnections')"
-      :description="$t('opcUaConnections.noConnectionsHint')"
-    />
-
-    <AppTable
-      v-else
-      :items="connections"
-      :columns="columns"
+    <AppDataState
       :loading="loading"
-      row-key="connectionId"
+      :error="loadError"
+      :empty="connections.length === 0"
+      :empty-title="$t('opcUaConnections.noConnections')"
+      :empty-description="$t('opcUaConnections.noConnectionsHint')"
+      @retry="refresh"
     >
+      <AppTable
+        :items="connections"
+        :columns="columns"
+        :loading="loading"
+        row-key="connectionId"
+      >
       <template #cell-endpointUrl="{ item }">
         <span :class="['conn-endpoint', rowState(item) === 'stale' ? 'conn-endpoint--stale' : '']">
           {{ item.endpointUrl }}
@@ -56,23 +56,27 @@
         {{ lastSeenLabel(item) }}
       </template>
       <template #cell-lastError="{ value }">
+        <!-- Issue #372: null covers both "no error" and "redacted for
+             read-only callers" — both render as the empty marker, so raw
+             provider error text never reaches an unprivileged screen. -->
         <span class="conn-error">{{ value ?? '—' }}</span>
       </template>
       <template #cell-tags="{ item }">
         {{ $t('opcUaConnections.tagsLine', { reporting: item.reportingTags, total: item.totalTags }) }}
       </template>
-      <template #cell-actions="{ item }">
-        <AppButton
-          variant="secondary"
-          size="sm"
-          icon="pi pi-bolt"
-          :loading="testingId === item.connectionId"
-          @click="onTest(item)"
-        >
-          {{ $t('opcUaConnections.test') }}
-        </AppButton>
-      </template>
-    </AppTable>
+        <template #cell-actions="{ item }">
+          <AppButton
+            variant="secondary"
+            size="sm"
+            icon="pi pi-bolt"
+            :loading="testingId === item.connectionId"
+            @click="onTest(item)"
+          >
+            {{ $t('opcUaConnections.test') }}
+          </AppButton>
+        </template>
+      </AppTable>
+    </AppDataState>
   </div>
 </template>
 
@@ -86,8 +90,7 @@ import AppSelect, { type SelectOption } from '../../components/ui/AppSelect.vue'
 import AppTable from '../../components/ui/AppTable.vue';
 import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
-import AppEmptyState from '../../components/ui/AppEmptyState.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import {
   opcUaConnectionService,
   type OpcUaConnectionStatusEntry
@@ -105,6 +108,7 @@ const machines = ref<MachineResponse[]>([]);
 const connections = ref<OpcUaConnectionStatusEntry[]>([]);
 const summary = ref({ liveCount: 0, staleCount: 0, disabledCount: 0 });
 const loading = ref(false);
+const loadError = ref<string | null>(null);
 const testingId = ref<string | null>(null);
 
 const columns = computed(() => [
@@ -187,6 +191,7 @@ function clearFilters(): void {
 
 async function refresh(): Promise<void> {
   loading.value = true;
+  loadError.value = null;
   try {
     const status = await opcUaConnectionService.getStatus(machineIdFilter.value);
     connections.value = status.connections;
@@ -196,7 +201,7 @@ async function refresh(): Promise<void> {
       disabledCount: status.disabledCount
     };
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    loadError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     loading.value = false;
   }

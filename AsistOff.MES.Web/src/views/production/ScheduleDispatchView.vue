@@ -1,7 +1,8 @@
 <template>
-  <div data-testid="dispatch-board">
-    <AppPageHeader :title="$t('scheduleDispatch.title')" :subtitle="$t('scheduleDispatch.subtitle')" icon="pi pi-calendar">
+  <div data-testid="dispatch-board" :class="viewClass">
+    <AppPageHeader :title="$t('scheduleDispatch.title')" :subtitle="$t('scheduleDispatch.subtitle')" icon="pi pi-truck">
       <template #actions>
+        <AppButton variant="ghost" @click="toggleDensity">{{ $t('shopfloor.density.label') }}: {{ densityLabel }}</AppButton>
         <AppButton variant="secondary" icon="pi pi-refresh" :loading="loading" @click="refresh">
           {{ $t('common.refresh') }}
         </AppButton>
@@ -26,10 +27,16 @@
       </template>
     </AppFilterBar>
 
-    <AppSpinner v-if="loading && !loadedOnce" />
-
-    <template v-else-if="board">
-      <div class="dispatch-days">
+    <AppDataState
+      :loading="loading"
+      :error="loadError"
+      :empty="board === null"
+      empty-icon="pi pi-truck"
+      :empty-title="$t('scheduleDispatch.ordersEmpty')"
+      @retry="refresh"
+    >
+      <template v-if="board">
+        <div class="dispatch-days">
         <AppCard v-for="day in board.days" :key="day.date" class="dispatch-day">
           <template #header>
             <div class="dispatch-day__header">
@@ -44,7 +51,7 @@
           />
           <ul v-else class="dispatch-shifts">
             <li v-for="shift in day.shifts" :key="shift.shiftId" class="dispatch-shift">
-              <AppBadge :variant="shift.isOvernight ? 'info' : 'primary'" dot>
+              <AppBadge :variant="shift.isOvernight ? 'info' : 'primary'" icon="pi pi-clock" dot>
                 {{ shift.code }}
               </AppBadge>
               <span class="dispatch-shift__name">{{ shift.name }}</span>
@@ -52,7 +59,7 @@
               <span class="dispatch-shift__headcount">{{
                 $t('scheduleDispatch.headcount', { count: shift.headcount })
               }}</span>
-              <AppBadge v-if="shift.isUncovered" variant="warning" dot>
+              <AppBadge v-if="shift.isUncovered" variant="warning" icon="pi pi-user" dot>
                 {{ $t('scheduleDispatch.uncovered') }}
               </AppBadge>
             </li>
@@ -68,10 +75,12 @@
           :items="orderRows"
           :columns="orderColumns"
           :loading="loading"
+          :error="loadError"
           row-key="id"
           :empty-label="$t('scheduleDispatch.ordersEmpty')"
           data-testid="dispatch-orders-table"
           @row-click="openOrder"
+          @retry="refresh"
         >
           <template #cell-code="{ item }">
             <code>{{ item.code }}</code>
@@ -80,19 +89,20 @@
             {{ formatDueDate(item.dueDate) }}
           </template>
           <template #cell-overdue="{ item }">
-            <AppBadge v-if="isDispatchRowOverdue(item)" variant="danger" dot>
+            <AppBadge v-if="isDispatchRowOverdue(item)" variant="danger" icon="pi pi-exclamation-triangle" dot>
               {{ $t('scheduleDispatch.overdue') }}
             </AppBadge>
-            <span v-else class="dispatch-ontime">{{ $t('scheduleDispatch.onTime') }}</span>
+            <AppBadge v-else variant="neutral" icon="pi pi-check" dot>{{ $t('scheduleDispatch.onTime') }}</AppBadge>
           </template>
           <template #cell-status="{ item }">
-            <AppBadge :variant="statusVariant(item.status)" dot>
+            <AppBadge :variant="statusVariant(item.status)" :icon="statusIcon(item.status)" dot>
               {{ statusLabel(item.status) }}
             </AppBadge>
           </template>
         </AppTable>
       </AppCard>
-    </template>
+      </template>
+    </AppDataState>
   </div>
 </template>
 
@@ -108,7 +118,7 @@ import AppButton from '../../components/ui/AppButton.vue';
 import AppBadge from '../../components/ui/AppBadge.vue';
 import AppCard from '../../components/ui/AppCard.vue';
 import AppTable from '../../components/ui/AppTable.vue';
-import AppSpinner from '../../components/ui/AppSpinner.vue';
+import AppDataState from '../../components/ui/AppDataState.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
 import {
   currentWeekWindow,
@@ -120,11 +130,16 @@ import {
   type GetDispatchBoardQuery
 } from '../../services/scheduleService';
 import { ProductionOrderStatus } from '../../services/productionOrderService';
+import { productionOrderStatusMeta, ShopfloorDensity, useShopfloorDensity, type StatusSignalMeta } from '../../composables/useShopfloorDisplay';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
 const { t } = useI18n();
 const toast = useToastStore();
+const { density, viewClass, toggleDensity } = useShopfloorDensity();
+const densityLabel = computed(() => t(density.value === ShopfloorDensity.Compact
+  ? 'shopfloor.density.compact'
+  : 'shopfloor.density.comfortable'));
 const route = useRoute();
 const router = useRouter();
 
@@ -133,7 +148,7 @@ const toInput = ref('');
 
 const board = ref<DispatchBoard | null>(null);
 const loading = ref(false);
-const loadedOnce = ref(false);
+const loadError = ref<string | null>(null);
 
 // Rows render in the backend ordering contract (overdue first, then due
 // date ascending with nulls last, then priority, then code) — the board
@@ -160,14 +175,12 @@ function statusLabel(v: number): string {
   }
 }
 
-function statusVariant(v: number): 'info' | 'primary' | 'success' | 'warning' | 'idle' {
-  switch (v) {
-    case ProductionOrderStatus.Released: return 'success';
-    case ProductionOrderStatus.InProgress: return 'warning';
-    case ProductionOrderStatus.Completed: return 'primary';
-    case ProductionOrderStatus.Closed: return 'idle';
-    default: return 'info';
-  }
+function statusVariant(v: number): StatusSignalMeta['variant'] {
+  return productionOrderStatusMeta(v).variant;
+}
+
+function statusIcon(v: number): string {
+  return productionOrderStatusMeta(v).icon;
 }
 
 function formatDay(date: string): string {
@@ -218,11 +231,11 @@ function syncQuery(q: GetDispatchBoardQuery): void {
 
 async function loadBoard(q: GetDispatchBoardQuery): Promise<void> {
   loading.value = true;
+  loadError.value = null;
   try {
     board.value = await scheduleService.getDispatch(q);
-    loadedOnce.value = true;
   } catch (err) {
-    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+    loadError.value = extractErrorMessage(err, t('errors.loadFailed'));
   } finally {
     loading.value = false;
   }
@@ -336,8 +349,12 @@ onMounted(() => {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
 }
-.dispatch-ontime {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+@media (max-width: 1100px) {
+  .dispatch-days {
+    grid-template-columns: 1fr;
+  }
+  .dispatch-shift {
+    padding: var(--space-2) 0;
+  }
 }
 </style>

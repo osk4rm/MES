@@ -8,18 +8,28 @@
     </AppPageHeader>
 
     <AppFilterBar @clear="clearFilters">
-      <AppSelect
-        v-model="machineFilter"
-        :options="machineFilterOptions"
-        allow-empty
-        @change="onMachineChange"
-      />
-      <AppSelect
-        v-model="activeFilter"
-        :options="activeFilterOptions"
-        allow-empty
-        @change="onActiveChange"
-      />
+      <AppFormField :label="$t('maintenancePlans.filters.machine')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="machineFilter"
+            :options="machineFilterOptions"
+            allow-empty
+            @change="onMachineChange"
+          />
+        </template>
+      </AppFormField>
+      <AppFormField :label="$t('maintenancePlans.filters.status')">
+        <template #default="{ id }">
+          <AppSelect
+            :id="id"
+            v-model="activeFilter"
+            :options="activeFilterOptions"
+            allow-empty
+            @change="onActiveChange"
+          />
+        </template>
+      </AppFormField>
       <AppCheckbox v-model="overdueOnly" :label="$t('maintenancePlans.filters.overdueOnly')" @update:model-value="onOverdueChange" />
     </AppFilterBar>
 
@@ -27,9 +37,11 @@
       :items="table.items.value"
       :columns="columns"
       :loading="table.loading.value"
+      :error="table.error.value"
       :sort-key="table.sortKey.value"
       :sort-direction="table.sortDirection.value"
       @sort-change="table.setSort"
+      @retry="table.retry"
     >
       <template #cell-machineId="{ item }">
         {{ machineLabel(item) }}
@@ -69,6 +81,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppPageHeader from '../../components/ui/AppPageHeader.vue';
 import AppFilterBar from '../../components/ui/AppFilterBar.vue';
+import AppFormField from '../../components/ui/AppFormField.vue';
 import AppSelect, { type SelectOption } from '../../components/ui/AppSelect.vue';
 import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import AppTable from '../../components/ui/AppTable.vue';

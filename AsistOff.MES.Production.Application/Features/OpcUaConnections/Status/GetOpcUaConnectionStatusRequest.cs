@@ -10,6 +10,9 @@ namespace AsistOff.MES.Production.Application.Features.OpcUaConnections.Status;
 /// counts tags with a reading inside their own 2x threshold, and
 /// <c>StaleTags</c> is the remainder (including tags that never reported).
 /// A never-polled connection (<c>LastSeenAtUtc</c> null) is stale, never live.
+/// <c>LastError</c> carries the raw provider message only for callers holding
+/// <c>production.write</c>; read-only callers receive <c>null</c> (issue #372)
+/// while liveness and counts stay visible to everyone.
 /// </summary>
 public record OpcUaConnectionStatusEntry(
     Guid ConnectionId,

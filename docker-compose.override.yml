@@ -16,14 +16,25 @@ services:
   seq:
     ports:
       # Seq serves both the web UI and the ingestion API on a single HTTP
-      # port (80 inside the container).
-      - "${SEQ_PORT:-5341}:80"
+      # port (80 inside the container). Bound to localhost only (issue #377):
+      # anyone able to reach this port can read full application logs, so the
+      # dev browser stays convenient without exposing Seq to the LAN.
+      - "127.0.0.1:${SEQ_PORT:-5341}:80"
 
   api:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Boot__ApplyMigrations: "true"
       Boot__RunSeeders: "true"
+      # Dev tenant admin password (issue #358): appsettings.Development.json
+      # ships with an empty AdminPassword (fail-closed, no known-default
+      # credential), so the dev seeder only provisions the tenant admin when
+      # this explicit value is present. Set it once in .env
+      # (DEV_SEED_ADMIN_PASSWORD, see .env.example) or inline per boot:
+      #   DEV_SEED_ADMIN_PASSWORD='S0mething-Strong!' docker compose up
+      # Empty (default) keeps the stack bootable but seeds no admin — the boot
+      # log carries a "Skipping dev tenant seed" warning in that case.
+      Seed__Tenants__0__AdminPassword: "${DEV_SEED_ADMIN_PASSWORD:-}"
     ports:
       - "8080:8080"
 
