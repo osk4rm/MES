@@ -3,6 +3,9 @@
     <AppSideNav v-model:collapsed="collapsed" :items="sitemap" />
     <AppTopBar :user="authStore.user" @sign-out="onSignOut" />
     <main class="app-shell__main">
+      <div class="app-shell__crumbs">
+        <AppBreadcrumbs :items="crumbs" />
+      </div>
       <AppErrorBoundary>
         <router-view />
       </AppErrorBoundary>
@@ -11,17 +14,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import AppSideNav from './AppSideNav.vue';
 import AppTopBar from './AppTopBar.vue';
+import AppBreadcrumbs, { type Crumb } from '../ui/AppBreadcrumbs.vue';
 import AppErrorBoundary from '../ui/AppErrorBoundary.vue';
 import { sitemap } from '../../sitemap';
+import { findActiveNavTrail } from '../../utils/navigation';
+import { deepestTitleKey, documentTitleForTitleKey } from '../../navigationMap';
 import { useAuthStore } from '../../stores/authStore';
 import { signOut } from '../../services/authService';
 
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
+const { t, locale } = useI18n();
+
+// Central breadcrumb trail (issue #337): derived from the sitemap for the
+// current path, so every shell view — including detail pages, which resolve
+// to their browse parent, and the not-found view — shows a trail consistent
+// with the published navigation map without per-view wiring.
+const crumbs = computed<Crumb[]>(() => {
+  const trail = findActiveNavTrail(sitemap, route.path);
+  if (trail.length === 0) return [{ label: t('notFound.title') }];
+  return trail.map((item, idx): Crumb => {
+    if (idx < trail.length - 1 && item.route) return { label: t(item.label), to: item.route };
+    return { label: t(item.label) };
+  });
+});
+
+// Re-apply the document title when the locale changes (issue #337): the
+// router afterEach only fires on navigation, so a PL↔EN switch on a
+// stationary page would otherwise leave a stale tab title.
+function applyDocumentTitle(): void {
+  try {
+    document.title = documentTitleForTitleKey((key: string) => t(key), deepestTitleKey(route.matched));
+  } catch { /* ignore - document is unavailable in some test hosts */ }
+}
+
+watch(() => route.fullPath, applyDocumentTitle, { immediate: true });
+watch(locale, applyDocumentTitle);
 
 const collapsed = ref<boolean>(loadCollapsed());
 
@@ -61,5 +95,9 @@ async function onSignOut() {
   grid-area: main;
   overflow: auto;
   padding: var(--space-6);
+}
+
+.app-shell__crumbs {
+  margin-bottom: var(--space-3);
 }
 </style>
