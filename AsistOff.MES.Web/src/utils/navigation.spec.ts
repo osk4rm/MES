@@ -113,8 +113,14 @@ describe('findActiveNavTrail', () => {
     expect(trail.map((i) => i.label)).toEqual(['nav.reports', 'nav.productionTelemetryDashboard']);
   });
 
-  it('resolves no trail for the retired telemetry-dashboard path (router redirects it)', () => {
-    expect(findActiveNavTrail(items, '/production/telemetry-dashboard')).toEqual([]);
+  it('resolves the retired telemetry-dashboard path to the Production group only (the router redirects it to Reports)', () => {
+    const trail = findActiveNavTrail(items, '/production/telemetry-dashboard');
+
+    // Segment-aware prefix: the /production overview still matches, but no
+    // leaf does (no cross-match with /production/telemetry) — the router
+    // redirect to /reports/telemetry (covered in navigationMap.spec.ts)
+    // fires before breadcrumbs ever render this path.
+    expect(trail.map((i) => i.label)).toEqual(['nav.production']);
   });
 
   it('resolves the settings overview stub to its group', () => {

@@ -72,6 +72,11 @@ describe('AppSideNav', () => {
 
     const wrapper = await mountNav();
 
+    // The Settings group starts collapsed on /dashboard (only the active
+    // group auto-opens), so expand it like a user would before asserting
+    // the permission-gated leaf is reachable.
+    await wrapper.find('button.app-sidenav__link--group').trigger('click');
+
     expect(wrapper.text()).toContain('nav.roles');
     expect(wrapper.find('[href="/settings/roles"]').exists()).toBe(true);
   });
