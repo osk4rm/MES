@@ -56,22 +56,45 @@ On boot the Gateway:
    `Seed:Tenants` in `appsettings.Development.json`. The seeder is **idempotent** — it skips
    any tenant whose `Name` already exists — and uses the exact same `CreateTenantCommand`
    pipeline as public registration, so the tenant-admin user is also created through the
-   regular `TenantCreatedEvent` listener.
+   regular `TenantCreatedEvent` listener. The seeder is **fail-closed**: entries with an
+   empty `AdminPassword` are skipped with a warning, so no known-default credential is
+   ever provisioned.
 
-Default development credentials (from `AsistOff.MES.Gateway/appsettings.Development.json`):
+Default development tenant (seeded only when an explicit password is configured):
 
 | Field     | Value              |
 |-----------|--------------------|
 | Tenant    | `dev`              |
 | Email     | `admin@dev.local`  |
-| Password  | `Passw0rd!`        |
+| Password  | from `DEV_SEED_ADMIN_PASSWORD` (see below) |
 
-Sign in with:
+`appsettings.Development.json` ships with an **empty** `Seed:Tenants[0].AdminPassword` and is
+excluded from `dotnet publish` output, so the published image contains no dev credential.
+Configure the local password explicitly — pick one of:
+
+```bash
+# Option A (docker compose): one-time env password, read by
+# docker-compose.override.yml as Seed__Tenants__0__AdminPassword
+DEV_SEED_ADMIN_PASSWORD='S0mething-Strong!' docker compose up --build
+
+# ...or persist it in .env (never committed; see .env.example)
+echo "DEV_SEED_ADMIN_PASSWORD=S0mething-Strong!" >> .env
+
+# Option B (dotnet run): environment variable or user secrets
+Seed__Tenants__0__AdminPassword='S0mething-Strong!' dotnet run --project AsistOff.MES.Gateway
+dotnet user-secrets set "Seed:Tenants:0:AdminPassword" "S0mething-Strong!" --project AsistOff.MES.Gateway
+```
+
+With no explicit password, Development boot logs
+`Skipping dev tenant seed with incomplete configuration` and provisions no admin.
+Without a seeded admin, self-register a tenant at `POST /api/tenants` instead.
+
+Sign in with (using the password you configured above):
 
 ```bash
 curl -X POST http://localhost:5080/api/auth/sign-in \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@dev.local","password":"Passw0rd!"}'
+  -d '{"email":"admin@dev.local","password":"<your DEV_SEED_ADMIN_PASSWORD>"}'
 ```
 
 Then use the returned `AccessToken` as a bearer token, or log in through the Vue SPA.
@@ -79,13 +102,13 @@ Then use the returned `AccessToken` as a bearer token, or log in through the Vue
 ### Adding more dev tenants
 
 Append entries to the `Seed:Tenants` array in `appsettings.Development.json`, or override via
-environment variables, e.g.:
+environment variables, e.g. (use a strong unique password — never reuse a documented one):
 
 ```bash
 Seed__Tenants__1__Name=qa
 Seed__Tenants__1__DisplayName=QA Tenant
 Seed__Tenants__1__ContactEmail=admin@qa.local
-Seed__Tenants__1__AdminPassword=Passw0rd!
+Seed__Tenants__1__AdminPassword='<a-strong-unique-password>'
 ```
 
 ### Self-service tenant registration (public)
