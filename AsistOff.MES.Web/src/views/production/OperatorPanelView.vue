@@ -485,7 +485,10 @@ async function resolveOperatorId(code: string): Promise<void> {
   resolvedOperatorId.value = null;
   try {
     const page = await operatorService.browse({ identifier: code, pageSize: 5 });
-    const match = page.items.find((o) => o.identifier === code) ?? page.items[0];
+    // Fail safe to null: only an exact identifier match resolves. Falling
+    // back to the first page item would attribute confirmations, scrap and
+    // downtime to the wrong operator.
+    const match = page.items.find((o) => o.identifier === code);
     resolvedOperatorId.value = match ? match.id : null;
   } catch {
     resolvedOperatorId.value = null;

@@ -409,6 +409,41 @@ describe('OperatorPanelView', () => {
     expect(toast.toasts.some((t) => t.variant === 'success')).toBe(true);
   });
 
+  it('never attributes a confirmation to the wrong operator without an exact identifier match', async () => {
+    // Review follow-up on PR #342: resolveOperatorId used to fall back to
+    // page.items[0], silently attributing writes to whoever the server
+    // returned first. It now fails safe to null (unattributed) instead.
+    operatorBrowseMock.mockResolvedValue(
+      page([
+        {
+          id: 'operator-other',
+          identifier: 'OP-OTHER',
+          firstName: 'Mallory',
+          lastName: 'Other',
+          ratePerHour: 0
+        }
+      ])
+    );
+    const wrapper = mountPanel();
+    await flushPromises();
+    await loadQueueFor(wrapper);
+
+    await findButtonIn(wrapper, 'queue-nextup', 'operatorPanel.claim')?.trigger('click');
+    await flushPromises();
+
+    const form = wrapper.find('#panel-confirm-form');
+    expect(form.exists()).toBe(true);
+    await form.findAll('input[type="number"]')[0]?.setValue('5');
+    await form.trigger('submit');
+    await flushPromises();
+    await flushPromises();
+
+    expect(confirmCreateMock).toHaveBeenCalledTimes(1);
+    expect(confirmCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ productionOrderId: 'order-1', reportedByOperatorId: null })
+    );
+  });
+
   it('confirm on an InProgress order persists another Confirmation for that order', async () => {
     const wrapper = mountPanel();
     await flushPromises();
