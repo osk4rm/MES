@@ -1,11 +1,13 @@
-# AsistOff MES — End-User Manual (Slices 1–2 of 3)
+# AsistOff MES — End-User Manual
 
 Slice 1 covers getting started, master data, and recipes engineering.
-Slice 2 (this slice) covers production execution: orders, dispatch,
+Slice 2 covers production execution: orders, dispatch,
 confirmations, scrap and Downtime, lots and genealogy, the Gantt
-Harmonogram, shift handover and the Operator panel. Slice 3
-(analytics, integration, administration and operations) follows
-separately.
+Harmonogram, shift handover and the Operator panel. Slice 3 (this
+slice) covers analytics, integration, and administration and
+operations: OEE, SPC, Andon, reliability, OPC UA telemetry,
+Kanban, maintenance, tenants and access, attachments and audit,
+health and observability, deploy and backup.
 
 ## How to use this manual
 
@@ -62,6 +64,46 @@ the permission it needs, and its error cases.
 - [Operator panel (shift queue)](14-operator-panel.md) — operator
   shift queue with claim/confirm/scrap/downtime/Andon actions.
 
+### Analytics
+
+- [OEE dashboard](15-oee-dashboard.md) — Quality, Availability and
+  Performance factors, trend buckets, loss Pareto.
+- [SPC](16-spc-quality.md) — characteristic dictionary,
+  append-only measurements, control chart with Western Electric
+  rules 1–4.
+- [Andon signals](17-andon.md) — abnormal-condition signals,
+  Active → Acknowledged → Resolved lifecycle, board work.
+- [Reliability](18-reliability.md) — MTBF/MTTR snapshot, trend
+  and fleet comparison.
+
+### Integration
+
+- [OPC UA telemetry](19-opcua-telemetry.md) — tag dictionary,
+  readings log with CSV export, stale dashboard and simulator,
+  connection registry with polling and shape-test.
+- [Kanban pull](20-kanban.md) — loops, card registry, pull
+  transitions with the WIP limit, board UI.
+- [CMMS and preventive maintenance](21-cmms-maintenance.md) —
+  corrective work orders with board UI, preventive plans with
+  time/meter schedules, due state, evaluation auto-raise and
+  manual raise.
+
+### Administration and operations
+
+- [Tenants, users and roles](22-admin-tenants-users-roles.md) —
+  tenant signup with minimal projection, users and auth with JWT,
+  BFF httpOnly cookies and refresh rotation, roles and
+  permissions, back-office roles UI.
+- [Attachments and audit trail](23-attachments-audit.md) —
+  attachments with upload validation and safe download, actor
+  plus append-only audit history.
+- [Health, correlation and observability](24-observability-health.md) —
+  health live/ready probes, correlation ID end-to-end,
+  OpenTelemetry metrics plus traces.
+- [Deploy, backup and operations](25-deploy-backup-ops.md) —
+  production deploy plus backup safety, container and runtime
+  hardening notes, demo data seed script usage.
+
 ## Conventions used in every chapter
 
 - **Route** is the frontend path (for example `/configuration/products`).
@@ -71,7 +113,7 @@ the permission it needs, and its error cases.
   create, edit and delete states its required permission.
 - **Tenant isolation:** every company works inside its own Tenant. Data
   created by one tenant is invisible to every other tenant. There is no
-  cross-tenant sharing in this slice.
+  cross-tenant sharing in this manual.
 - **Error codes** use the shared contract: `401` not signed in,
   `403` signed in but missing the required permission, `400` validation
   failure or route/body ID mismatch, `404` unknown ID, `409` uniqueness
