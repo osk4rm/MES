@@ -14,6 +14,19 @@ public class ScheduleController(ISender sender) : ApiController
         [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
         => Ok(await sender.Send(new GetDispatchBoardRequest(from, to), cancellationToken));
 
+    /// <summary>
+    /// Operator shift queue: the roster assignment covering now for
+    /// <c>operatorCode</c>, Released/InProgress orders overlapping that shift
+    /// window ordered next-up (priority, then due date), and the open Andon
+    /// signals for the queued Work Centers. <c>take</c> caps the queue and is
+    /// clamped to 200 rows. An operator with no covering assignment gets an
+    /// empty queue with operator context; an unknown code yields 404.
+    /// </summary>
+    [HttpGet("operator-queue")]
+    public async Task<ActionResult<OperatorShiftQueueResponse>> GetOperatorQueueAsync(
+        [FromQuery] string? operatorCode, [FromQuery] int? take, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new GetOperatorShiftQueueRequest(operatorCode ?? string.Empty, take), cancellationToken));
+
     /// <summary>Time-phased Gantt schedule: computed operation segments grouped per Work Center, with manual overrides overlaid.</summary>
     [HttpGet("gantt")]
     public async Task<ActionResult<GanttScheduleResponse>> GetGanttAsync(
