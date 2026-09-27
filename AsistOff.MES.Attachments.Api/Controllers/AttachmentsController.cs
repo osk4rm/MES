@@ -27,8 +27,14 @@ public class AttachmentsController(ISender sender, IOptions<AttachmentUploadOpti
     }
 
     /// <summary>Uploads a file as an attachment for the given owner.</summary>
+    /// <remarks>
+    /// The edge limit (app cap + multipart margin, 11 MiB by default) makes
+    /// Kestrel reject oversized payloads before the handler buffers anything;
+    /// the handler then re-enforces the app cap, quota and malware scan.
+    /// </remarks>
     [HttpPost]
-    [RequestSizeLimit(100_000_000)]
+    [RequestSizeLimit(AttachmentUploadOptions.EdgeRequestSizeLimitBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = AttachmentUploadOptions.EdgeRequestSizeLimitBytes)]
     public async Task<ActionResult<AttachmentResponse>> UploadAsync(
         [FromForm] string ownerType,
         [FromForm] Guid ownerId,
@@ -38,6 +44,12 @@ public class AttachmentsController(ISender sender, IOptions<AttachmentUploadOpti
     {
         if (file == null || file.Length == 0)
             return BadRequest("File is required.");
+
+        // Fast-path: the declared length already exceeds the app cap, so fail
+        // without opening the stream. Kestrel's RequestSizeLimit above is the
+        // first line of defence for lying lengths / chunked bodies.
+        if (file.Length > uploadOptions.Value.MaxFileSizeBytes)
+            return BadRequest($"Attachment exceeds the maximum size of {uploadOptions.Value.MaxFileSizeBytes} bytes.");
 
         await using var stream = file.OpenReadStream();
         var request = new UploadAttachmentRequest(

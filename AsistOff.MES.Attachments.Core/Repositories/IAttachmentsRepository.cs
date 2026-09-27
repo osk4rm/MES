@@ -8,4 +8,11 @@ public interface IAttachmentsRepository
     Task<IReadOnlyCollection<Attachment>> ListForOwnerAsync(string ownerType, Guid ownerId, CancellationToken cancellationToken = default);
     Task<Attachment> AddAsync(Attachment attachment, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Summed <c>SizeBytes</c> of the current tenant's attachments. Resolved
+    /// through the global <c>ISaasy</c> query filter, so cross-tenant usage can
+    /// never leak into the total. Used to enforce the per-tenant quota.
+    /// </summary>
+    Task<long> GetTotalSizeBytesAsync(CancellationToken cancellationToken = default);
 }

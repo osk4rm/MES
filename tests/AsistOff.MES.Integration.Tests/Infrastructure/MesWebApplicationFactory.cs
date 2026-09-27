@@ -34,7 +34,8 @@ namespace AsistOff.MES.Integration.Tests.Infrastructure;
 public sealed class MesWebApplicationFactory(
     string connectionString,
     Action<AbuseProtectionOptions>? configureProtection = null,
-    Action<TrustedProxyOptions>? configureTrustedProxies = null) : WebApplicationFactory<Program>
+    Action<TrustedProxyOptions>? configureTrustedProxies = null,
+    Action<IServiceCollection>? configureTestServices = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -130,6 +131,10 @@ public sealed class MesWebApplicationFactory(
             }
 
             ForwardedHeadersSetup.Pin(services, trustedSnapshot);
+
+            // Per-test overrides (e.g. a tiny attachment quota or a stub
+            // malware scanner): runs last so it wins for this host only.
+            configureTestServices?.Invoke(services);
         });
     }
 

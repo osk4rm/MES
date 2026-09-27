@@ -36,6 +36,13 @@ public static class DependencyInjection
         });
         services.AddSingleton<IFileStorage, LocalFileStorage>();
 
+        // Malware-scan hook (issue #348): default implementation allows with a
+        // logged warning when no scanner endpoint is configured and fails
+        // closed when a configured endpoint is unreachable. Replace
+        // IAttachmentMalwareScanner with a native AV client to plug a real
+        // engine (e.g. a ClamAV sidecar) behind the same hook.
+        services.AddTransient<IAttachmentMalwareScanner, DefaultAttachmentMalwareScanner>();
+
         return services;
     }
 }
