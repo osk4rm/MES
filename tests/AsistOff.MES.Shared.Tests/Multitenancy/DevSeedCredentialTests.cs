@@ -4,12 +4,13 @@ using FluentAssertions;
 namespace AsistOff.MES.Shared.Tests.Multitenancy;
 
 /// <summary>
-/// Shipped-image proof for the dev seed credential (issue #358). The
+/// Shipped-image proof for the dev seed credential (issues #358, #364). The
 /// Development settings file must carry no hardcoded admin password (empty
 /// default so the seeder skips fail-closed), the Gateway project must exclude
-/// it from publish output, and the local compose flow must supply the
-/// password explicitly via <c>DEV_SEED_ADMIN_PASSWORD</c> instead of a
-/// checked-in default.
+/// it from publish output, the Docker build context must exclude it via
+/// <c>.dockerignore</c> so no shipped layer contains it, and the local compose
+/// flow must supply the password explicitly via
+/// <c>DEV_SEED_ADMIN_PASSWORD</c> instead of a checked-in default.
 /// </summary>
 public sealed class DevSeedCredentialTests
 {
@@ -75,6 +76,43 @@ public sealed class DevSeedCredentialTests
         // Assert
         env.Should().Contain("DEV_SEED_ADMIN_PASSWORD=");
         env.Should().NotContain("Passw0rd!");
+    }
+
+    [Fact]
+    public void Dockerignore_ExcludesDevelopmentSettingsFromBuildContext()
+    {
+        // Arrange — issue #364: the Development settings file must never enter
+        // the Docker build context, so no shipped layer can contain it.
+        var dockerignore = ReadRepoFile(".dockerignore");
+
+        // Assert — an explicit exclusion pattern covers the Gateway file, and
+        // the ignore file itself carries no credential.
+        dockerignore.Should().Contain("appsettings.Development.json");
+        dockerignore.Should().NotContain("Passw0rd!");
+    }
+
+    [Fact]
+    public void Dockerfile_RuntimeStageShipsOnlyPublishOutput()
+    {
+        // Arrange — issue #364: the runtime stage must copy only the publish
+        // output (which already omits the Development settings via the csproj
+        // CopyToPublishDirectory=Never rule); no build instruction may copy
+        // the Development settings file into the image directly.
+        var dockerfile = ReadRepoFile("Dockerfile");
+
+        // Assert — runtime copies the publish directory.
+        dockerfile.Should().Contain("COPY --from=build");
+        dockerfile.Should().Contain("/app/publish");
+        dockerfile.Should().NotContain("Passw0rd!");
+
+        // No non-comment instruction references the Development settings file
+        // as a copy source (explanatory comments mentioning it are allowed).
+        var offending = dockerfile
+            .Split('\n')
+            .Where(line =>
+                !line.TrimStart().StartsWith('#') &&
+                line.Contains("appsettings.Development.json", StringComparison.Ordinal));
+        offending.Should().BeEmpty("Dockerfile must not COPY the Development settings into any image layer");
     }
 
     /// <summary>
