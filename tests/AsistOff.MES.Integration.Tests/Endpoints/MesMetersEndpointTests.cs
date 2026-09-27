@@ -402,6 +402,7 @@ public sealed class MesMetersEndpointTests(MesApplicationFixture fixture) : Inte
         MesWebApplicationFactory factory, string email, string password)
     {
         var client = factory.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         using var signIn = await client.PostAsJsonAsync(
             "/api/auth/sign-in", new { email, password });
         signIn.EnsureSuccessStatusCode();

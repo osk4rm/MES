@@ -118,6 +118,7 @@ public sealed class AttachmentUploadLimitsEndpointTests(MesApplicationFixture fi
     private static async Task<HttpClient> SignInAsync(MesWebApplicationFactory factory, string email, string password)
     {
         var client = factory.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var response = await client.PostAsJsonAsync("/api/auth/sign-in", new { email, password });
         response.EnsureSuccessStatusCode();
 

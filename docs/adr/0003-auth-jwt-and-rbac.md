@@ -88,7 +88,13 @@ by `AuthOptionsValidator` at startup and by the JWT bearer pipeline at runtime:
 * **Transport.** Sessions travel over httpOnly `Secure` `SameSite=Lax` cookies
   (`mes_access` / `mes_refresh`); the sign-in/refresh response bodies carry no
   usable token strings. The `Authorization: Bearer` header keeps working during
-  transition.
+  transition. Cookie-writing auth endpoints (`POST /api/auth/sign-in`,
+  `/refresh`, `/sign-out`) additionally require a double-submit CSRF token
+  (issue #376): `GET /api/auth/csrf` issues a 24h HMAC-signed value into the
+  readable `mes_csrf` cookie plus the response body, and each write must echo
+  it in `X-CSRF-Token` (or the `csrfToken` JSON field) with a 403 on
+  missing/mismatch — SameSite=Lax and the same-host Origin check remain as
+  baseline layers, and Origin-less non-browser callers pass with a valid token.
 
 ## Consequences
 

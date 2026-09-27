@@ -76,6 +76,7 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
         var oldRefresh = CookieValue(cookies, AuthCookieHelper.RefreshCookieName);
         using var anonymous = AuthCookieHelper.CreateCookieClient(
             Fixture, AuthCookieHelper.BuildCookieHeader(accessToken: null, refreshToken: oldRefresh));
+        await AuthCookieHelper.AttachCsrfAsync(anonymous);
 
         // Act
         var refresh = await anonymous.PostAsJsonAsync(RefreshUrl, new { });
@@ -104,11 +105,14 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
         // another port) pass the Origin check on cookie writes.
         var cookies = await SignInCookiesAsync();
         using var client = Fixture.CreateClient();
+        using var csrfClient = Fixture.CreateClient();
+        var csrf = await AuthCookieHelper.GetCsrfAsync(csrfClient);
         using var request = new HttpRequestMessage(HttpMethod.Post, RefreshUrl)
         {
             Content = JsonContent.Create(new { })
         };
-        request.Headers.Add("Cookie", cookies);
+        request.Headers.Add("Cookie", $"{cookies}; {csrf.CookiePair}");
+        request.Headers.Add(AuthCookieHelper.CsrfHeaderName, csrf.Token);
         request.Headers.Add("Origin", "http://localhost");
 
         // Act
@@ -126,12 +130,14 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
         var refreshToken = CookieValue(cookies, AuthCookieHelper.RefreshCookieName);
         using var anonymous = AuthCookieHelper.CreateCookieClient(
             Fixture, AuthCookieHelper.BuildCookieHeader(accessToken: null, refreshToken: refreshToken));
+        await AuthCookieHelper.AttachCsrfAsync(anonymous);
         var first = await anonymous.PostAsJsonAsync(RefreshUrl, new { });
         first.EnsureSuccessStatusCode();
 
         // Act — replay the consumed refresh cookie.
         using var replay = AuthCookieHelper.CreateCookieClient(
             Fixture, AuthCookieHelper.BuildCookieHeader(accessToken: null, refreshToken: refreshToken));
+        await AuthCookieHelper.AttachCsrfAsync(replay);
         var reuse = await replay.PostAsJsonAsync(RefreshUrl, new { });
 
         // Assert — the used token is invalidated.
@@ -141,8 +147,10 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
     [Fact]
     public async Task Refresh_WithEmptyBodyAndNoCookie_Returns401()
     {
-        // Arrange — anonymous client, no cookies and no body token.
+        // Arrange — anonymous client, no session cookies but a valid CSRF
+        // ticket, so the request reaches the handler past the 403 gate.
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         // Act — empty body with no refresh cookie: absent token, not a 400.
         var refresh = await client.PostAsJsonAsync(RefreshUrl, new { });
@@ -154,8 +162,10 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
     [Fact]
     public async Task Refresh_WithExplicitBlankToken_Returns400()
     {
-        // Arrange — anonymous client, no cookies, explicitly blank body token.
+        // Arrange — anonymous client with a valid CSRF ticket but no session
+        // cookies, and an explicitly blank body token.
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         // Act
         var refresh = await client.PostAsJsonAsync(RefreshUrl, new { refreshToken = "" });
@@ -171,6 +181,7 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
         var cookies = await SignInCookiesAsync();
         var refreshToken = CookieValue(cookies, AuthCookieHelper.RefreshCookieName);
         using var client = AuthCookieHelper.CreateCookieClient(Fixture, cookies);
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         // Act — sign out with an empty body; the refresh cookie selects the token.
         var signOut = await client.PostAsJsonAsync(SignOutUrl, new { });
@@ -186,6 +197,7 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
         // Act — the revoked refresh cookie no longer rotates.
         using var anonymous = AuthCookieHelper.CreateCookieClient(
             Fixture, AuthCookieHelper.BuildCookieHeader(accessToken: null, refreshToken: refreshToken));
+        await AuthCookieHelper.AttachCsrfAsync(anonymous);
         var refresh = await anonymous.PostAsJsonAsync(RefreshUrl, new { refreshToken });
 
         // Assert
@@ -211,6 +223,7 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
         using var attacker = AuthCookieHelper.CreateCookieClient(Fixture,
             AuthCookieHelper.BuildCookieHeader(
                 CookieValue(cookiesB, AuthCookieHelper.AccessCookieName), refreshA));
+        await AuthCookieHelper.AttachCsrfAsync(attacker);
 
         // Act
         var refresh = await attacker.PostAsJsonAsync(RefreshUrl, new { });
@@ -224,7 +237,11 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
     public async Task SignIn_WithCrossOriginHeader_Returns403()
     {
         // Arrange — CSRF probe: Origin host differs from the request host.
+        // A valid CSRF ticket is attached so the 403 provably comes from the
+        // Origin guard, not the token gate.
         using var client = Fixture.CreateClient();
+        using var csrfClient = Fixture.CreateClient();
+        var csrf = await AuthCookieHelper.GetCsrfAsync(csrfClient);
         using var request = new HttpRequestMessage(HttpMethod.Post, SignInUrl)
         {
             Content = JsonContent.Create(new
@@ -233,6 +250,8 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
                 password = IntegrationTestData.AdminPassword
             })
         };
+        request.Headers.Add("Cookie", csrf.CookiePair);
+        request.Headers.Add(AuthCookieHelper.CsrfHeaderName, csrf.Token);
         request.Headers.Add("Origin", "https://evil.example");
 
         // Act
@@ -246,6 +265,7 @@ public sealed class AuthCookiesEndpointTests(MesApplicationFixture fixture) : In
     private async Task<string> SignInCookiesAsync(string? email = null, string? password = null)
     {
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var response = await client.PostAsJsonAsync(SignInUrl, new
         {
             email = email ?? IntegrationTestData.AdminEmail,

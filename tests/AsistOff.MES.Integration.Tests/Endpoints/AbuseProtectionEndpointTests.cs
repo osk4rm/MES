@@ -112,6 +112,7 @@ public sealed class AbuseProtectionEndpointTests(MesApplicationFixture fixture) 
         // X-Forwarded-For must still throttle as a single client.
         using var factory = CreateThrottledFactory();
         using var client = factory.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var tcpSource = UniqueTestIp();
 
         // Act - two attempts consume the budget (invalid credentials -> 401,
@@ -138,6 +139,7 @@ public sealed class AbuseProtectionEndpointTests(MesApplicationFixture fixture) 
         // forwarded headers at all): each gets its own budget.
         using var factory = CreateThrottledFactory();
         using var client = factory.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var throttledIp = UniqueTestIp();
         var otherIp = UniqueTestIp();
 
@@ -169,6 +171,7 @@ public sealed class AbuseProtectionEndpointTests(MesApplicationFixture fixture) 
         const string proxyIp = "172.18.0.5";
         using var factory = CreateThrottledFactory(trusted => trusted.KnownProxies = [proxyIp]);
         using var client = factory.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var clientA = $"203.0.113.{Random.Shared.Next(10, 200)}";
         var clientB = $"203.0.113.{Random.Shared.Next(201, 250)}";
 
@@ -202,6 +205,7 @@ public sealed class AbuseProtectionEndpointTests(MesApplicationFixture fixture) 
             protection.SignIn.WindowSeconds = 60;
         });
         using var client = factory.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         // Act
         var response = await PostSignInAsync(

@@ -108,6 +108,7 @@ public sealed class ObservabilityEndpointTests(MesApplicationFixture fixture) : 
         {
             await using var factory = new MesWebApplicationFactory(Fixture.PostgresConnectionString);
             using var client = factory.CreateClient();
+            await AuthCookieHelper.AttachCsrfAsync(client);
 
             // Sign in on the isolated host (same seeded database) and present
             // the session as a Bearer header, mirroring MesApplicationFixture.

@@ -73,6 +73,7 @@ public class AuthorizationCoverageTests
     {
         // Arrange & Act — the only IAllowAnonymousRequest types in the five modules
         // are the sign-in bootstrap, the refresh-token rotation bootstrap (#236),
+        // the CSRF token issuance bootstrap (#376, carries no authority by itself),
         // the tenant provisioning bootstrap and the single-tenant lookup; all
         // writes are pre-authentication by definition (refresh presents only the
         // opaque token because the access token already expired; tenant binding
@@ -88,6 +89,7 @@ public class AuthorizationCoverageTests
         anonymous.Should().BeEquivalentTo(
             "AsistOff.MES.Users.Application.Features.Authentication.SignIn.SignInRequest",
             "AsistOff.MES.Users.Application.Features.Authentication.Refresh.RefreshTokenRequest",
+            "AsistOff.MES.Users.Application.Features.Authentication.Csrf.GetCsrfTokenRequest",
             "AsistOff.MES.Multitenancy.Requests.Commands.Create.CreateTenantCommand",
             "AsistOff.MES.Multitenancy.Requests.Queries.GetTenantQuery");
     }

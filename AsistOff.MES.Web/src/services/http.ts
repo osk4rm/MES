@@ -55,6 +55,77 @@ const http = axios.create({
 
 export const loginPath = '/login';
 const authApiPrefix = '/api/auth/';
+const csrfIssueUrl = '/api/auth/csrf';
+
+/** Header echoing the double-submit CSRF token on auth writes (issue #376). */
+export const CSRF_HEADER = 'X-CSRF-Token';
+
+/** Auth writes behind the CSRF gate: sign-in, refresh and sign-out. */
+const csrfProtectedPaths = ['/api/auth/sign-in', '/api/auth/refresh', '/api/auth/sign-out'];
+
+/**
+ * Double-submit CSRF token cache (issue #376): `GET /api/auth/csrf` plants
+ * the signed token in the readable `mes_csrf` cookie and returns the same
+ * value in the body; auth writes echo it in `X-CSRF-Token`. Kept in memory
+ * only — like the session marker it never reaches web storage. Mutable so
+ * Vitest can seed it without network I/O.
+ */
+let cachedCsrfToken: string | null = null;
+let csrfInflight: Promise<string> | null = null;
+
+export function getCsrfToken(): string | null {
+  return cachedCsrfToken;
+}
+
+/** Test seam (and manual override): replaces the cached issuance token. */
+export function setCsrfToken(token: string | null): void {
+  cachedCsrfToken = token;
+  if (token === null) csrfInflight = null;
+}
+
+interface CsrfIssueResponse {
+  csrfToken: string;
+}
+
+/**
+ * Returns the cached token, fetching it once from the issuance endpoint
+ * when absent. Concurrent callers share the single in-flight GET. Rejects
+ * when issuance fails so the auth write surfaces the real cause instead of
+ * a follow-up 403.
+ */
+export async function ensureCsrfToken(): Promise<string> {
+  if (cachedCsrfToken) return cachedCsrfToken;
+  if (!csrfInflight) {
+    csrfInflight = http
+      .get<CsrfIssueResponse>(csrfIssueUrl)
+      .then(({ data }) => {
+        const token = data?.csrfToken;
+        if (typeof token !== 'string' || token.length === 0) {
+          throw new Error('CSRF issuance returned no token');
+        }
+        cachedCsrfToken = token;
+        return token;
+      })
+      .finally(() => {
+        csrfInflight = null;
+      });
+  }
+  return csrfInflight;
+}
+
+/**
+ * True for the POST auth writes behind the CSRF gate. The issuance GET
+ * itself is excluded (it mints the token), as are non-POST methods, so the
+ * request interceptor below never recurses into issuance.
+ */
+export function isAuthWriteEndpoint(url: string | undefined, method: string | undefined): boolean {
+  return (
+    typeof url === 'string' &&
+    typeof method === 'string' &&
+    method.toLowerCase() === 'post' &&
+    csrfProtectedPaths.some((path) => url.includes(path))
+  );
+}
 
 export function ensureCorrelationId(
   headers: { get?: (name: string) => unknown; set?: (name: string, value: string) => void; [key: string]: unknown },
@@ -106,8 +177,20 @@ export function buildLoginRedirectUrl(pathname: string, search: string): string 
   return `${loginPath}?redirect=${encodeURIComponent(`${pathname}${search}`)}`;
 }
 
-http.interceptors.request.use((config) => {
+http.interceptors.request.use(async (config) => {
   ensureCorrelationId(config.headers);
+  if (isAuthWriteEndpoint(config.url, config.method)) {
+    const token = await ensureCsrfToken();
+    const headers = config.headers as unknown as {
+      set?: (name: string, value: string) => void;
+      [key: string]: unknown;
+    };
+    if (typeof headers.set === 'function') {
+      headers.set(CSRF_HEADER, token);
+    } else {
+      headers[CSRF_HEADER] = token;
+    }
+  }
   return config;
 });
 

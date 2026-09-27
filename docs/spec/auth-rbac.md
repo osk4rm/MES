@@ -44,6 +44,18 @@ against `UsersRepository.GetForAuthenticationAsync`, then mints the session:
   hash (`RefreshToken`: `TokenHash`, `ExpiresAtUtc`, `FamilyId`), revokes the
   presented token on each rotation, and revokes the whole family on reuse
   (leak replay returns 401).
+- **CSRF:** `GET /api/auth/csrf` (anonymous) issues a double-submit token —
+  a 24h HMAC-signed value (`CsrfTokens`, keyed by `auth:IssuerSigningKey`)
+  planted in the readable `mes_csrf` cookie (`Secure`, `SameSite=Lax`,
+  `Path=/`) and returned in the body. `POST /api/auth/sign-in`,
+  `POST /api/auth/refresh` and `POST /api/auth/sign-out` accept the write
+  only when the echoed `X-CSRF-Token` header (or the `csrfToken` JSON field
+  for non-browser clients) equals the cookie value and the signature is
+  live; otherwise 403 and the handler never runs, so a rejected refresh
+  rotates nothing and a rejected sign-out clears nothing. SameSite=Lax and
+  the same-host Origin check stay as baseline layers underneath. Requests
+  without an `Origin` header (non-browser clients, same-origin form posts)
+  keep working as long as they present a valid token.
 
 JWT hardening (enforced by `AuthOptionsValidator` at startup and the bearer
 pipeline at runtime): the signing key (`auth:IssuerSigningKey`) must decode

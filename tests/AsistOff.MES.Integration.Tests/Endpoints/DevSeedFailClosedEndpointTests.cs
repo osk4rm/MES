@@ -46,6 +46,7 @@ public sealed class DevSeedFailClosedEndpointTests(MesApplicationFixture fixture
 
         // Act — the seeded admin signs in through the real pipeline.
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var response = await client.PostAsJsonAsync("/api/auth/sign-in", new
         {
             email = IntegrationTestData.AdminEmail,
@@ -87,6 +88,7 @@ public sealed class DevSeedFailClosedEndpointTests(MesApplicationFixture fixture
         // Act — boot the host (migrations + seeder skip), then try to use
         // the never-provisioned admin.
         using var client = factory.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MultitenancyDbContext>();
         var tenantExists = await db.Tenants.AsNoTracking().AnyAsync(t => t.Name == seedName);

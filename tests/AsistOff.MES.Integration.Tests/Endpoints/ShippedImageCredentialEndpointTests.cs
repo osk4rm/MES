@@ -54,6 +54,7 @@ public sealed class ShippedImageCredentialEndpointTests(MesApplicationFixture fi
         // code (MesWebApplicationFactory), mirroring the documented
         // Seed__Tenants__0__AdminPassword override path.
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         // Act — the seeded admin signs in through the real pipeline.
         var response = await client.PostAsJsonAsync("/api/auth/sign-in", new

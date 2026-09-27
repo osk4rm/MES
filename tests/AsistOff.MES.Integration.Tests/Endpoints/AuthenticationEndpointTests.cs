@@ -20,6 +20,7 @@ public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) :
     public async Task SignIn_WithValidCredentials_SetsAuthCookies()
     {
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         var response = await client.PostAsJsonAsync(BaseUrl, new
         {
@@ -39,6 +40,7 @@ public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) :
     public async Task SignIn_WithWrongPassword_Returns401WithoutCookies()
     {
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         var response = await client.PostAsJsonAsync(BaseUrl, new
         {
@@ -54,6 +56,7 @@ public sealed class AuthenticationEndpointTests(MesApplicationFixture fixture) :
     public async Task SignIn_WithUnknownEmail_Returns401()
     {
         using var client = Fixture.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
 
         var response = await client.PostAsJsonAsync(BaseUrl, new
         {

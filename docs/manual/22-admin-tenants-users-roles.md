@@ -36,9 +36,10 @@ the transition.
 
 | Action | API | Notes |
 |--------|-----|-------|
-| Sign in | `POST /api/auth/sign-in` (anonymous) | E-mail plus password; per-IP rate-limited; sets both cookies and returns an empty token body plus user claims |
-| Refresh | `POST /api/auth/refresh` (anonymous) | Token from the body when supplied, otherwise from the refresh cookie; rotates the single-use opaque token |
-| Sign out | `POST /api/auth/sign-out` (authenticated, `204`) | Revokes the supplied token, otherwise all active tokens; clears both cookies |
+| CSRF token | `GET /api/auth/csrf` (anonymous) | Issues the double-submit token into the readable `mes_csrf` cookie plus the body; fetch it before signing in |
+| Sign in | `POST /api/auth/sign-in` (anonymous) | E-mail plus password; per-IP rate-limited; sets both cookies and returns an empty token body plus user claims; requires the echoed `X-CSRF-Token` header (or `csrfToken` field) |
+| Refresh | `POST /api/auth/refresh` (anonymous) | Token from the body when supplied, otherwise from the refresh cookie; rotates the single-use opaque token; requires the CSRF echo, else `403` and nothing rotates |
+| Sign out | `POST /api/auth/sign-out` (authenticated, `204`) | Revokes the supplied token, otherwise all active tokens; clears both cookies; requires the CSRF echo, else `403` and nothing is cleared |
 
 Security behavior worth knowing:
 
@@ -49,6 +50,10 @@ Security behavior worth knowing:
   revoked and the replay returns `401`.
 - Cookie writes additionally require a same-host Origin
   (next to `SameSite=Lax`); cross-origin writes return `403`.
+- Auth writes require the CSRF echo described above; missing or
+  mismatched tokens return `403`. Automation without an `Origin`
+  header (scripts, PLC gateways) keeps working — fetch the token
+  from `GET /api/auth/csrf` first and send it back.
 
 ## Roles and permissions
 
@@ -103,6 +108,7 @@ rows.
 | Missing or invalid tenant on a tenant request | `401` |
 | Signed in without the required permission (writes, role management) | `403` |
 | Cross-origin cookie write | `403` |
+| Missing or mismatched CSRF token on an auth write | `403`, nothing rotated or cleared |
 | Signup or role validation failure | `400` with the field named |
 | Route/body ID mismatch | `400` |
 | Unknown role or user id | `404` |

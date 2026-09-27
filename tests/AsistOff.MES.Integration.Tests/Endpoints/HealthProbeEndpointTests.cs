@@ -77,6 +77,7 @@ public sealed class HealthProbeEndpointTests(MesApplicationFixture fixture) : In
             protection.SignIn.WindowSeconds = 60;
         });
         using var client = factory.CreateClient();
+        await AuthCookieHelper.AttachCsrfAsync(client);
         var burstIp = $"10.{Guid.NewGuid().ToByteArray()[0]}.{Guid.NewGuid().ToByteArray()[0]}.7";
 
         for (var i = 0; i < 2; i++)
