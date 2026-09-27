@@ -503,9 +503,9 @@ async function refresh(): Promise<void> {
 async function loadLookups(): Promise<void> {
   try {
     const [m, scrapReasons, downtimeReasons] = await Promise.all([
-      machineService.browse({ pageNumber: 1, pageSize: 200 }),
-      reasonCodeService.browse({ category: ReasonCodeCategory.Scrap, isActive: true, pageNumber: 1, pageSize: 200 }),
-      reasonCodeService.browse({ category: ReasonCodeCategory.Downtime, isActive: true, pageNumber: 1, pageSize: 200 })
+      machineService.browse({ pageNumber: 1, pageSize: 100 }),
+      reasonCodeService.browse({ category: ReasonCodeCategory.Scrap, isActive: true, pageNumber: 1, pageSize: 100 }),
+      reasonCodeService.browse({ category: ReasonCodeCategory.Downtime, isActive: true, pageNumber: 1, pageSize: 100 })
     ]);
     machines.value = m.items;
     reasonCodes.value = [...scrapReasons.items, ...downtimeReasons.items];
