@@ -31,6 +31,77 @@ public sealed class ManualDocsTests
             "Could not locate docs/manual from " + AppContext.BaseDirectory);
     }
 
+    /// <summary>
+    /// Slice 2/3 (issue #345) must ship exactly these eight execution
+    /// chapters and the README index must link every one of them, so a
+    /// dropped chapter fails the build instead of going unnoticed.
+    /// </summary>
+    public static readonly string[] ExecutionChapters =
+    [
+        "07-production-orders.md",
+        "08-dispatch-board.md",
+        "09-confirmations.md",
+        "10-scrap-downtime.md",
+        "11-lots-genealogy.md",
+        "12-gantt-schedule.md",
+        "13-shift-handover.md",
+        "14-operator-panel.md",
+    ];
+
+    [Fact]
+    public void Execution_chapters_exist_and_are_linked_from_readme()
+    {
+        var manual = ManualDirectory();
+        var readme = File.ReadAllText(Path.Combine(manual, "README.md"));
+
+        var missingFiles = ExecutionChapters
+            .Where(page => !File.Exists(Path.Combine(manual, page)))
+            .ToList();
+        var unlinked = ExecutionChapters
+            .Where(page => !readme.Contains(page, StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(missingFiles.Count == 0,
+            "Missing execution chapters: " + string.Join(", ", missingFiles));
+        Assert.True(unlinked.Count == 0,
+            "Execution chapters not linked from README.md: " + string.Join(", ", unlinked));
+    }
+
+    /// <summary>
+    /// Every execution chapter must state who may call it (signed-in
+    /// read vs. write permission) and must carry an error table anchored
+    /// on the shared 401 contract, so permission/validation/error
+    /// coverage cannot silently rot (issue #345, AC3).
+    /// </summary>
+    [Fact]
+    public void Execution_chapters_document_access_and_error_cases()
+    {
+        var manual = ManualDirectory();
+        var incomplete = new List<string>();
+
+        foreach (var page in ExecutionChapters)
+        {
+            var path = Path.Combine(manual, page);
+            if (!File.Exists(path))
+            {
+                incomplete.Add($"{page}: file missing");
+                continue;
+            }
+
+            var content = File.ReadAllText(path);
+            var hasAccess = content.Contains("signed-in", StringComparison.OrdinalIgnoreCase)
+                || content.Contains("signed in", StringComparison.OrdinalIgnoreCase);
+            var hasErrors = content.Contains("401", StringComparison.Ordinal)
+                && content.Contains("Error cases", StringComparison.Ordinal);
+
+            if (!hasAccess || !hasErrors)
+                incomplete.Add($"{page}: access={hasAccess}, errors={hasErrors}");
+        }
+
+        Assert.True(incomplete.Count == 0,
+            "Chapters missing access or error documentation: " + string.Join("; ", incomplete));
+    }
+
     [Fact]
     public void Readme_links_resolve_to_existing_pages()
     {
