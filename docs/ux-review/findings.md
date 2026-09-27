@@ -53,7 +53,7 @@ re-walks on the seeded stack per finding repro steps).
 | 13 | `/production/operator-panel` (`operator-panel`) | `views/production/OperatorPanelView.vue` | visited | visited |
 | 14 | `/production/telemetry` (`production-telemetry`) | `views/production/TelemetryView.vue` | visited | visited |
 | 15 | `/production/opcua-connections` (`production-opcua-connections`) | `views/production/OpcUaConnectionsView.vue` | visited | visited |
-| 16 | `/production/telemetry-dashboard` (`production-telemetry-dashboard`) | `views/production/TelemetryDashboardView.vue` | visited | visited |
+| 16 | `/reports/telemetry` (`production-telemetry-dashboard`, canonical; the retired `/production/telemetry-dashboard` path redirects here since slice 2/3, issue #382 F-16) | `views/production/TelemetryDashboardView.vue` | visited | visited |
 | 17 | `/production/kanban` (`production-kanban`) | `views/production/KanbanBoardView.vue` | visited | visited |
 | 18 | `/schedule` (`schedule`, Gantt) | `views/production/ScheduleGanttView.vue` | visited | visited |
 | 19 | `/schedule/dispatch` (`schedule-dispatch`) | `views/production/ScheduleDispatchView.vue` | visited | visited |
@@ -250,7 +250,7 @@ typed as `typeof pl` so structural EN-parity is compiler-enforced.
   at touch height; keep `sm` for compact density only.
 
 ### F-12 — Telemetry/OEE/reliability dashboards each invent their own state regions
-- Routes: `/production/telemetry-dashboard` (good: `AppDataState`),
+- Routes: `/reports/telemetry` (canonical; retired `/production/telemetry-dashboard` redirects here) (good: `AppDataState`),
   `/reports/oee`, `/reports/reliability` (custom `AppErrorState` + `AppSpinner`
   + several `AppEmptyState`s), `/schedule` (custom `AppSpinner` + empties, **no
   error state at all** — a failed Gantt fetch leaves the previous lane
@@ -315,9 +315,13 @@ typed as `typeof pl` so structural EN-parity is compiler-enforced.
 - Routes: `/reports/oee`, `/reports/reliability` vs
   `/production/telemetry-dashboard`. Dimension: navigation/IA. Severity:
   **minor**.
-- Observation: two "dashboard" concepts live in different nav groups
+- Observation: two "dashboard" concepts lived in different nav groups
   (Reports vs Production) with near-identical page shapes (filter → compute →
-  cards → trend). New users hunting "the dashboards" check one group and miss
+  cards → trend). **Resolved by slice (2/3, issue #382): the telemetry
+  dashboard moved under Reports (`/reports/telemetry`, sitemap
+  `nav.productionTelemetryDashboard` as a Reports child, retired
+  `/production/telemetry-dashboard` redirects) — every dashboard now shares
+  one group.** New users hunting "the dashboards" check one group and miss
   the other. The `/schedule` regroup precedent (issue #337) shows the
   preferred fix shape.
 - Repro: ask a first-time user (or follow the repro: sidenav → Reports →
@@ -523,3 +527,35 @@ canon); F-20 (operator scan-wedge badge-on).
   visit log in both locales, spot-check ≥3 findings on the seeded local stack
   (suggested: F-03 Kanban GUID, F-04 recipe chips, F-13 Gantt offline), run
   the Web production build.
+
+## Addendum — issue #389 re-verification (slice 1/3, navigation + list states)
+
+Slices (2/3) (#384) and (3/3) (#385) landed after this audit, so issue #389
+re-walked the slice-1 scope (navigation/IA drift + empty/loading/error states
+on Products, Production Orders, Dispatch board, Lots, Andon, OEE dashboard).
+Result: **no new drift; no production-code change required.**
+
+- **Navigation/IA:** sidebar entries, `router.ts` records and `src/sitemap.ts`
+  nav keys are in sync (guarded by `sitemap.spec.ts` + `navigationMap.spec.ts`:
+  every sitemap route resolves, every titled route has a nav entry, detail
+  pages highlight their browse parent, unknown routes render the guarded
+  `not-found` view inside `AppShell`). Every shell view renders
+  `AppPageHeader` (public auth views exempt by design). Post-login redirect
+  consistency is guarded by `router.spec.ts` (`?redirect=` round-trip).
+- **Empty/loading/error:** all six in-scope views are standardised —
+  Products and Production Orders via `AppTable` (`:loading`/`:error` +
+  `@retry="table.retry"`, error row wins over loader/empty); Lots via
+  `AppTable` + `AppLoadingState`/`AppErrorState` + retry on the genealogy
+  region; Dispatch board and OEE dashboard via `AppDataState`
+  (error > loading > empty > content) + retry; Andon via `AppDataState` on
+  the board plus the `useCrudPage` table binding on the history list. All
+  failures toast through `toastStore` + `extractErrorMessage`, honouring
+  `ProblemDetails` in both locales.
+- **i18n:** no hardcoded user-visible strings in the six views (brand
+  literals only, same accepted exception as the audit); every `nav.*` key
+  resolves in PL and EN (`en: typeof pl` enforces structural parity).
+- **Tests:** `AsistOff.MES.Web/src/views/ux-slice1-389.spec.ts` re-proves the
+  slice-1 contract in one place — shared-state loading/empty/error branches
+  with retry, per-view wiring of the six views, and PL/EN nav-key resolution.
+  No backend unit or endpoint integration tests apply (frontend-only change,
+  no API or handler touched; existing backend suites must stay green).
