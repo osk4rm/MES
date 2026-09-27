@@ -31,6 +31,16 @@ public sealed class TrustedProxyOptions
     public string[] KnownNetworks { get; set; } = [];
 
     /// <summary>
+    /// True when at least one proxy or network parsed successfully.
+    /// False (the default) means default-deny: the Forwarded Headers
+    /// middleware must stay disabled so spoofed <c>X-Forwarded-For</c> can
+    /// never move the abuse-protection throttle partition (issue #323,
+    /// CI: rotating header still escaped with an enabled-but-empty allowlist).
+    /// Malformed entries never count: a typo fails closed, not open.
+    /// </summary>
+    public bool HasTrustedProxies => GetKnownProxies().Length > 0 || GetKnownNetworks().Length > 0;
+
+    /// <summary>
     /// Parses <see cref="KnownProxies"/>, skipping blank or malformed entries
     /// silently so a typo can never crash boot or open the throttle to
     /// spoofing.

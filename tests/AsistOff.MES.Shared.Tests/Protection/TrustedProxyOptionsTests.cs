@@ -136,4 +136,48 @@ public class TrustedProxyOptionsTests
         options.GetKnownProxies().Should().BeEmpty();
         options.GetKnownNetworks().Should().BeEmpty();
     }
+
+    [Fact]
+    public void HasTrustedProxies_EmptyDefault_IsFalse()
+    {
+        // Arrange + Act
+        var options = new TrustedProxyOptions();
+
+        // Assert - default-deny: ForwardedHeadersSetup.Apply must disable
+        // processing entirely (ForwardedHeaders.None) for this case.
+        options.HasTrustedProxies.Should().BeFalse();
+    }
+
+    [Fact]
+    public void HasTrustedProxies_ValidProxy_IsTrue()
+    {
+        // Arrange + Act
+        var options = new TrustedProxyOptions { KnownProxies = ["172.18.0.5"] };
+
+        // Assert
+        options.HasTrustedProxies.Should().BeTrue();
+    }
+
+    [Fact]
+    public void HasTrustedProxies_ValidNetwork_IsTrue()
+    {
+        // Arrange + Act
+        var options = new TrustedProxyOptions { KnownNetworks = ["172.18.0.0/16"] };
+
+        // Assert
+        options.HasTrustedProxies.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("not-an-ip")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void HasTrustedProxies_MalformedEntriesOnly_IsFalse(string entry)
+    {
+        // Arrange + Act - a typo must fail closed, never open the throttle.
+        var options = new TrustedProxyOptions { KnownProxies = [entry], KnownNetworks = [entry] };
+
+        // Assert
+        options.HasTrustedProxies.Should().BeFalse();
+    }
 }

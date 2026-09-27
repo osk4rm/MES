@@ -34,16 +34,30 @@ public static class ForwardedHeadersSetup
 
     /// <summary>
     /// Clears the framework defaults, then trusts exactly the parsed
-    /// proxies/networks. Empty <paramref name="trusted"/> keeps default-deny.
+    /// proxies/networks. Empty <paramref name="trusted"/> keeps default-deny
+    /// by disabling forwarded-headers processing entirely
+    /// (<c>ForwardedHeaders.None</c>): the middleware then never rewrites
+    /// <c>RemoteIpAddress</c>, so spoofed <c>X-Forwarded-For</c> cannot move
+    /// the throttle partition even if a host would otherwise honor an
+    /// enabled-but-empty allowlist (issue #323, CI: rotating header got 401
+    /// instead of 429). A non-empty allowlist enables
+    /// <c>XForwardedFor | XForwardedProto</c> with exactly those entries.
     /// </summary>
     public static void Apply(ForwardedHeadersOptions options, TrustedProxyOptions trusted)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(trusted);
 
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
         options.KnownProxies.Clear();
         options.KnownIPNetworks.Clear();
+
+        if (!trusted.HasTrustedProxies)
+        {
+            options.ForwardedHeaders = ForwardedHeaders.None;
+            return;
+        }
+
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
 
         foreach (var proxy in trusted.GetKnownProxies())
         {
