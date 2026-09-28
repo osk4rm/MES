@@ -30,7 +30,12 @@ write operation and no permission beyond authentication.
    positive run time per unit across the recipe versions of the
    confirmed Production Orders in the window.
 3. For an explicit ideal cycle time (for example a nameplate rate),
-   use `GET /api/oee/snapshot` with `idealCycleTimeSeconds`.
+   use `GET /api/oee/snapshot` with `idealCycleTimeSeconds`. When the
+   parameter is omitted, snapshot and trend resolve it from routing
+   master data (same minimum-positive rule as the summary) and echo
+   the effective value plus its source (`caller` vs `routing`). A
+   window with no confirmations and no resolvable routing data returns
+   `400` naming `idealCycleTimeSeconds`.
 
 Null rules (a missing factor is shown as "no data", never as zero):
 
@@ -66,7 +71,7 @@ buckets and returns one snapshot per bucket:
 |-----------|----------|-------|
 | machineId | Yes | Unknown ids return `404` |
 | fromUtc / toUtc | Yes | `fromUtc` before `toUtc`; windows longer than 93 days return `400` |
-| idealCycleTimeSeconds | Yes | Explicit rate for every bucket |
+| idealCycleTimeSeconds | No | Omitted = resolve from routing master data (same rule as summary); explicit positive value wins for every bucket |
 | bucket | No | `Day` (UTC midnights) or `Week` (Monday 00:00 UTC); anything else returns `400` |
 
 Buckets without planned time carry null factors, so a weekend with
@@ -109,6 +114,8 @@ and summaries never mix tenants.
 | `fromUtc` not before `toUtc` | `400` |
 | Unknown bucket, or window over 93 days (trend) | `400` |
 | Unknown machine id | `404` |
+| No confirmations and no explicit ideal (snapshot/trend) | `400` naming `idealCycleTimeSeconds` |
+| Zero or negative ideal cycle time | `400` |
 
 ## Next steps
 

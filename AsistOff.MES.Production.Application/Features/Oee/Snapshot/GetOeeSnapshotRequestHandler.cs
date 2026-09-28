@@ -14,6 +14,8 @@ internal sealed class GetOeeSnapshotRequestHandler(
     IWorkCenterCalendarsRepository calendarsRepository,
     IDowntimeEventsRepository downtimeEventsRepository,
     IProductionConfirmationsRepository confirmationsRepository,
+    IProductionOrdersRepository ordersRepository,
+    IOperationNodesRepository operationsRepository,
     ITenantContext tenantContext)
     : IRequestHandler<GetOeeSnapshotRequest, OeeSnapshotResponse>
 {
@@ -37,7 +39,7 @@ internal sealed class GetOeeSnapshotRequestHandler(
         if ((toUtc - fromUtc).TotalDays > MaxWindowDays)
             throw new ValidationException(nameof(request.ToUtc), "Time window cannot exceed 93 days.");
 
-        if (request.IdealCycleTimeSeconds <= 0)
+        if (request.IdealCycleTimeSeconds.HasValue && request.IdealCycleTimeSeconds.Value <= 0)
             throw new ValidationException(nameof(request.IdealCycleTimeSeconds), "Ideal cycle time must be greater than zero.");
 
         // The global tenant query filter scopes the machine lookup to the
@@ -63,6 +65,30 @@ internal sealed class GetOeeSnapshotRequestHandler(
         var confirmations = await confirmationsRepository.ListForMachineInWindowAsync(
             request.MachineId, fromUtc, toUtc, cancellationToken);
 
+        // Ideal cycle time: an explicit positive value wins; otherwise resolve
+        // from the confirmed orders' operations (same minimum-positive rule as
+        // the summary endpoint). No confirmations or no resolvable routing
+        // data is a 400 naming IdealCycleTimeSeconds — never 500 or
+        // zero-division.
+        decimal effectiveIdeal;
+        string idealSource;
+        if (request.IdealCycleTimeSeconds.HasValue)
+        {
+            effectiveIdeal = request.IdealCycleTimeSeconds.Value;
+            idealSource = OeeIdealCycleTimeResolver.CallerSource;
+        }
+        else
+        {
+            var resolved = await OeeIdealCycleTimeResolver.ResolveAsync(
+                confirmations, ordersRepository, operationsRepository, cancellationToken);
+            if (!resolved.HasValue)
+                throw new ValidationException(
+                    nameof(request.IdealCycleTimeSeconds),
+                    "Ideal cycle time could not be resolved from routing master data for the window; supply idealCycleTimeSeconds.");
+            effectiveIdeal = resolved.Value;
+            idealSource = OeeIdealCycleTimeResolver.RoutingSource;
+        }
+
         // Quality uses confirmations only, so ScrapEvent rows never double count.
         var goodCount = confirmations.Sum(c => c.GoodQuantity);
         var scrapCount = confirmations.Sum(c => c.ScrapQuantity);
@@ -79,7 +105,7 @@ internal sealed class GetOeeSnapshotRequestHandler(
             availability = OeeMath.Round4(runMinutes / plannedMinutes);
 
         if (plannedMinutes > 0 && runMinutes > 0 && totalCount > 0)
-            performance = OeeMath.Round4((double)(totalCount * request.IdealCycleTimeSeconds / 60m) / runMinutes);
+            performance = OeeMath.Round4((double)(totalCount * effectiveIdeal / 60m) / runMinutes);
 
         if (plannedMinutes > 0 && totalCount > 0)
             quality = OeeMath.Round4((double)(goodCount / totalCount));
@@ -98,7 +124,7 @@ internal sealed class GetOeeSnapshotRequestHandler(
             request.MachineId,
             fromUtc,
             toUtc,
-            request.IdealCycleTimeSeconds,
+            effectiveIdeal,
             availability,
             performance,
             quality,
@@ -111,7 +137,8 @@ internal sealed class GetOeeSnapshotRequestHandler(
             downtimeMinutes,
             totalCount,
             goodCount,
-            scrapCount);
+            scrapCount,
+            idealSource);
     }
 }
 

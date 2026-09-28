@@ -141,6 +141,47 @@ describe('oeeService', () => {
     });
   });
 
+  it('getSnapshot omits an absent ideal so the backend resolves it from routing', async () => {
+    const expected = snapshot({ idealCycleTimeSource: 'routing' });
+    getMock.mockResolvedValue({ data: expected });
+
+    const result = await oeeService.getSnapshot({
+      machineId: 'machine-1',
+      fromUtc: expected.fromUtc,
+      toUtc: expected.toUtc
+    });
+
+    expect(result).toEqual(expected);
+    expect(getMock).toHaveBeenCalledWith('/api/oee/snapshot', {
+      params: {
+        machineId: 'machine-1',
+        fromUtc: expected.fromUtc,
+        toUtc: expected.toUtc
+      }
+    });
+  });
+
+  it('getTrend omits an absent ideal so the backend resolves it from routing', async () => {
+    const expected = trend({ idealCycleTimeSource: 'routing' });
+    getMock.mockResolvedValue({ data: expected });
+
+    await oeeService.getTrend({
+      machineId: 'machine-1',
+      fromUtc: expected.fromUtc,
+      toUtc: expected.toUtc,
+      bucket: 'Day'
+    });
+
+    expect(getMock).toHaveBeenCalledWith('/api/oee/trend', {
+      params: {
+        machineId: 'machine-1',
+        fromUtc: expected.fromUtc,
+        toUtc: expected.toUtc,
+        bucket: 'Day'
+      }
+    });
+  });
+
   it('getTrend forwards the bucket granularity', async () => {
     const expected = trend({ bucket: 'Week' });
     getMock.mockResolvedValue({ data: expected });

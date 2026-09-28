@@ -11,7 +11,9 @@ internal sealed class GetOeeTrendRequestHandler(
     IMachinesRepository machinesRepository,
     IWorkCenterCalendarsRepository calendarsRepository,
     IDowntimeEventsRepository downtimeEventsRepository,
-    IProductionConfirmationsRepository confirmationsRepository)
+    IProductionConfirmationsRepository confirmationsRepository,
+    IProductionOrdersRepository ordersRepository,
+    IOperationNodesRepository operationsRepository)
     : IRequestHandler<GetOeeTrendRequest, OeeTrendResponse>
 {
     private const double MaxWindowDays = 93;
@@ -33,7 +35,7 @@ internal sealed class GetOeeTrendRequestHandler(
         if ((toUtc - fromUtc).TotalDays > MaxWindowDays)
             throw new ValidationException(nameof(request.ToUtc), "Time window cannot exceed 93 days.");
 
-        if (request.IdealCycleTimeSeconds <= 0)
+        if (request.IdealCycleTimeSeconds.HasValue && request.IdealCycleTimeSeconds.Value <= 0)
             throw new ValidationException(nameof(request.IdealCycleTimeSeconds), "Ideal cycle time must be greater than zero.");
 
         if (string.IsNullOrWhiteSpace(request.Bucket)
@@ -59,11 +61,54 @@ internal sealed class GetOeeTrendRequestHandler(
         var closedDowntimes = downtimes.Where(e => e.EndedAt.HasValue).ToList();
         var buckets = BuildBuckets(bucket, fromUtc, toUtc);
 
+        // Ideal cycle time: an explicit positive value wins for the whole
+        // trend; otherwise resolve from the confirmed orders' operations for
+        // the full window (same minimum-positive rule as the summary
+        // endpoint). A null ideal with no resolvable routing data is a 400
+        // naming IdealCycleTimeSeconds — never 500 or zero-division.
+        decimal windowIdeal;
+        string windowSource;
+        if (request.IdealCycleTimeSeconds.HasValue)
+        {
+            windowIdeal = request.IdealCycleTimeSeconds.Value;
+            windowSource = OeeIdealCycleTimeResolver.CallerSource;
+        }
+        else
+        {
+            var resolved = await OeeIdealCycleTimeResolver.ResolveAsync(
+                confirmations, ordersRepository, operationsRepository, cancellationToken);
+            if (!resolved.HasValue)
+                throw new ValidationException(
+                    nameof(request.IdealCycleTimeSeconds),
+                    "Ideal cycle time could not be resolved from routing master data for the window; supply idealCycleTimeSeconds.");
+            windowIdeal = resolved.Value;
+            windowSource = OeeIdealCycleTimeResolver.RoutingSource;
+        }
+
         var entries = new List<OeeSnapshotResponse>(buckets.Count);
         for (var i = 0; i < buckets.Count; i++)
         {
             var (bucketFrom, bucketTo) = buckets[i];
             var isLast = i == buckets.Count - 1;
+
+            // Per-bucket ideal: an explicit value reuses the window ideal;
+            // otherwise resolve from the bucket's own confirmations so each
+            // entry matches the snapshot for that sub-window, falling back
+            // to the window ideal for empty buckets (performance stays null
+            // there anyway because the count is zero).
+            decimal bucketIdeal = windowIdeal;
+            if (!request.IdealCycleTimeSeconds.HasValue)
+            {
+                var inBucketForIdeal = FilterConfirmations(confirmations, bucketFrom, bucketTo, isLast);
+                if (inBucketForIdeal.Count > 0)
+                {
+                    var bucketResolved = await OeeIdealCycleTimeResolver.ResolveAsync(
+                        inBucketForIdeal, ordersRepository, operationsRepository, cancellationToken);
+                    if (bucketResolved.HasValue)
+                        bucketIdeal = bucketResolved.Value;
+                }
+            }
+
             entries.Add(BuildSnapshot(
                 request.MachineId,
                 calendar?.Entries,
@@ -72,16 +117,18 @@ internal sealed class GetOeeTrendRequestHandler(
                 bucketFrom,
                 bucketTo,
                 isLast,
-                request.IdealCycleTimeSeconds));
+                bucketIdeal,
+                windowSource));
         }
 
         return new OeeTrendResponse(
             request.MachineId,
             fromUtc,
             toUtc,
-            request.IdealCycleTimeSeconds,
+            windowIdeal,
             bucket.ToString(),
-            entries);
+            entries,
+            windowSource);
     }
 
     /// <summary>
@@ -117,6 +164,20 @@ internal sealed class GetOeeTrendRequestHandler(
         => ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
 
     /// <summary>
+    /// Half-open buckets except the trailing edge: a confirmation stamped
+    /// exactly on an interior boundary belongs to the later bucket only,
+    /// so the union of buckets equals the inclusive full-window query.
+    /// </summary>
+    private static IReadOnlyCollection<ProductionConfirmation> FilterConfirmations(
+        IReadOnlyCollection<ProductionConfirmation> confirmations,
+        DateTime bucketFrom,
+        DateTime bucketTo,
+        bool isLast)
+        => confirmations.Where(c =>
+                c.ReportedAt >= bucketFrom && (c.ReportedAt < bucketTo || (isLast && c.ReportedAt <= bucketTo)))
+            .ToList();
+
+    /// <summary>
     /// Snapshot-equivalent computation for one bucket: planned time from the
     /// calendar entries overlapped with the bucket, run time as planned time
     /// minus closed downtime overlap (open events ignored, never negative),
@@ -131,7 +192,8 @@ internal sealed class GetOeeTrendRequestHandler(
         DateTime bucketFrom,
         DateTime bucketTo,
         bool isLast,
-        decimal idealCycleTimeSeconds)
+        decimal idealCycleTimeSeconds,
+        string idealCycleTimeSource)
     {
         var plannedMinutes = OeeMath.PlannedMinutes(entries, bucketFrom, bucketTo);
 
@@ -140,11 +202,7 @@ internal sealed class GetOeeTrendRequestHandler(
 
         var runMinutes = Math.Max(0, plannedMinutes - downtimeMinutes);
 
-        // Half-open buckets except the trailing edge: a confirmation stamped
-        // exactly on an interior boundary belongs to the later bucket only,
-        // so the union of buckets equals the inclusive full-window query.
-        var inBucket = confirmations.Where(c =>
-            c.ReportedAt >= bucketFrom && (c.ReportedAt < bucketTo || (isLast && c.ReportedAt <= bucketTo)));
+        var inBucket = FilterConfirmations(confirmations, bucketFrom, bucketTo, isLast);
 
         var goodCount = inBucket.Sum(c => c.GoodQuantity);
         var scrapCount = inBucket.Sum(c => c.ScrapQuantity);
@@ -184,6 +242,7 @@ internal sealed class GetOeeTrendRequestHandler(
             downtimeMinutes,
             totalCount,
             goodCount,
-            scrapCount);
+            scrapCount,
+            idealCycleTimeSource);
     }
 }

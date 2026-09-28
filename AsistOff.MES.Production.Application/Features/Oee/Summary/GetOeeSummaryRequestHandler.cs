@@ -74,12 +74,14 @@ internal sealed class GetOeeSummaryRequestHandler(
 
         // Performance (slice 3): the ideal cycle time is the minimum positive
         // RunTimePerUnitSeconds across the recipe versions of the confirmed
-        // Production Orders in the window. All lookups run under the tenant
-        // global query filter, so cross-tenant orders and operations stay
-        // invisible and surface as a null ideal (never foreign data).
+        // Production Orders in the window (shared resolver, same rule as
+        // snapshot/trend). All lookups run under the tenant global query
+        // filter, so cross-tenant orders and operations stay invisible and
+        // surface as a null ideal (never foreign data).
         decimal? idealCycleTimeSeconds = null;
         if (totalCount > 0)
-            idealCycleTimeSeconds = await ResolveIdealCycleTimeSecondsAsync(confirmations, cancellationToken);
+            idealCycleTimeSeconds = await OeeIdealCycleTimeResolver.ResolveAsync(
+                confirmations, ordersRepository, operationsRepository, cancellationToken);
 
         // Null rules: unknown ideal, zero run time or zero total count ->
         // null Performance (never zero). Raw values above 1 (over-cycle: ideal
@@ -112,32 +114,5 @@ internal sealed class GetOeeSummaryRequestHandler(
             idealCycleTimeSeconds,
             performance,
             oee);
-    }
-
-    private async Task<decimal?> ResolveIdealCycleTimeSecondsAsync(
-        IReadOnlyCollection<ProductionConfirmation> confirmations,
-        CancellationToken cancellationToken)
-    {
-        var versionIds = new HashSet<Guid>();
-        foreach (var orderId in confirmations.Select(c => c.ProductionOrderId).Distinct())
-        {
-            var order = await ordersRepository.GetAsync(orderId, cancellationToken);
-            if (order is not null)
-                versionIds.Add(order.RecipeVersionId);
-        }
-
-        decimal? best = null;
-        foreach (var versionId in versionIds)
-        {
-            var operations = await operationsRepository.ListForVersionAsync(versionId, cancellationToken);
-            foreach (var operation in operations)
-            {
-                if (operation.RunTimePerUnitSeconds is { } seconds && seconds > 0
-                    && (best is null || seconds < best))
-                    best = seconds;
-            }
-        }
-
-        return best;
     }
 }
