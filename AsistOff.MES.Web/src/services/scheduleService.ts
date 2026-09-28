@@ -28,8 +28,11 @@ export interface DispatchDay {
 /**
  * A Released, InProgress or OnHold Production Order that is overdue, due
  * inside the window or has no due date. Mirrors `DispatchOrderRowResponse`:
- * read-time confirmation totals plus the `isOverdue` flag and the `isBlocked`
- * flag (true for held orders, which render as blocked, not schedulable).
+ * read-time confirmation totals plus the `isOverdue` flag, the `isBlocked`
+ * flag (true for held orders, which render as blocked, not schedulable)
+ * and the `noQualifiedOperator` flag (true when the order's recipe
+ * operations require at least one skill and zero rostered operators in the
+ * window hold every required skill).
  * Rows arrive in the backend ordering contract (overdue first, then due date
  * ascending with nulls last, then priority, then code) — the board renders
  * them as returned.
@@ -47,6 +50,12 @@ export interface DispatchOrderRow {
   status: number;
   isOverdue: boolean;
   isBlocked: boolean;
+  /**
+   * True when the order's recipe operations require at least one skill and
+   * zero rostered operators in the window hold every required skill
+   * (issue #397). Optional for tolerance of older payloads.
+   */
+  noQualifiedOperator?: boolean;
 }
 
 /** Shift-aware dispatch board over a caller-supplied date window. */

@@ -238,6 +238,17 @@ const pl = {
       assign: 'Przypisz',
       empty: 'Brak przypisań w tym dniu — dodaj pierwsze.',
       assignedToast: 'Przypisano operatora do zmiany'
+    },
+    skills: {
+      title: 'Kwalifikacje',
+      subtitle: 'Macierz umiejętności operatorów — wymagana przy dysponowaniu i potwierdzeniach',
+      operator: 'Operator',
+      selectOperator: 'Wybierz operatora…',
+      skill: 'Umiejętność',
+      selectSkill: 'Wybierz umiejętność…',
+      assign: 'Nadaj',
+      empty: 'Ten operator nie ma jeszcze żadnych kwalifikacji.',
+      assignedToast: 'Nadano kwalifikację operatorowi'
     }
   },
   machines: {
@@ -1355,6 +1366,17 @@ const en: typeof pl = {
       assign: 'Assign',
       empty: 'No assignments on this date — add the first one.',
       assignedToast: 'Operator assigned to shift'
+    },
+    skills: {
+      title: 'Qualifications',
+      subtitle: 'Operator skill matrix — required for dispatch and confirmations',
+      operator: 'Operator',
+      selectOperator: 'Select an operator…',
+      skill: 'Skill',
+      selectSkill: 'Select a skill…',
+      assign: 'Grant',
+      empty: 'This operator holds no qualifications yet.',
+      assignedToast: 'Qualification granted to operator'
     }
   },
   machines: {

@@ -26,7 +26,10 @@ internal sealed class CreateProductionConfirmationRequestHandler(
     IDateTimeProvider dateTimeProvider,
     ITenantContext tenantContext,
     IUnitOfWork unitOfWork,
-    IMaterialReservationsRepository reservationsRepository)
+    IMaterialReservationsRepository reservationsRepository,
+    IOperationNodesRepository operationNodesRepository,
+    ISkillsRepository skillsRepository,
+    IOperatorSkillQualificationsRepository qualificationsRepository)
     : IRequestHandler<CreateProductionConfirmationRequest, ProductionConfirmationResponse>
 {
     public async Task<ProductionConfirmationResponse> Handle(CreateProductionConfirmationRequest request, CancellationToken cancellationToken)
@@ -69,6 +72,14 @@ internal sealed class CreateProductionConfirmationRequestHandler(
 
         if (request.Notes is { Length: > 1000 })
             throw new ValidationException(nameof(request.Notes), "Notes cannot exceed 1000 characters.");
+
+        // Skill qualification gate (issue #397): the reporting operator must
+        // hold every skill the order's recipe operations require. Requirements
+        // that resolve to no skill row are legacy free text and are ignored.
+        // Runs before the transaction, so rejections write nothing.
+        if (request.ReportedByOperatorId.HasValue)
+            await EnsureOperatorQualifiedAsync(
+                order.RecipeVersionId, request.ReportedByOperatorId.Value, cancellationToken);
 
         var consumedLots = request.ConsumedLots ?? Array.Empty<ConsumedLotEntry>();
 
@@ -230,5 +241,30 @@ internal sealed class CreateProductionConfirmationRequestHandler(
         var response = BrowseProductionConfirmationsRequestHandler.Map(confirmation);
         MesMeters.RecordConfirmation(request.MachineId, tenantContext.TenantId, stopwatch.Elapsed);
         return response;
+    }
+
+    private async Task EnsureOperatorQualifiedAsync(
+        Guid recipeVersionId, Guid operatorId, CancellationToken cancellationToken)
+    {
+        var operations = await operationNodesRepository.ListForVersionsAsync(
+            [recipeVersionId], cancellationToken);
+        var candidates = OperatorSkillGating.ExtractRequiredSkillCodes(
+            operations.SelectMany(x => x.ResourceRequirements));
+        if (candidates.Count == 0)
+            return;
+
+        var knownCodes = (await skillsRepository.ListByCodesAsync(candidates, cancellationToken))
+            .Select(x => x.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var required = candidates.Where(knownCodes.Contains).ToList();
+        if (required.Count == 0)
+            return;
+
+        var held = await qualificationsRepository.ListSkillCodesForOperatorAsync(operatorId, cancellationToken);
+        var missing = OperatorSkillGating.FindMissingCodes(required, held);
+        if (missing.Count > 0)
+            throw new ValidationException(
+                nameof(CreateProductionConfirmationRequest.ReportedByOperatorId),
+                $"Operator is not qualified for required skill(s): {string.Join(", ", missing)}.");
     }
 }

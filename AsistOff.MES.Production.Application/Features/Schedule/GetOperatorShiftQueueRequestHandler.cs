@@ -1,5 +1,6 @@
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Production.Application.Features.Common;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
@@ -22,7 +23,10 @@ internal sealed class GetOperatorShiftQueueRequestHandler(
     IMachinesRepository machinesRepository,
     IProductsRepository productsRepository,
     IAndonSignalsRepository andonSignalsRepository,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    IOperationNodesRepository operationNodesRepository,
+    ISkillsRepository skillsRepository,
+    IOperatorSkillQualificationsRepository qualificationsRepository)
     : IRequestHandler<GetOperatorShiftQueueRequest, OperatorShiftQueueResponse>
 {
     internal const int MaxQueueRows = 200;
@@ -149,6 +153,28 @@ internal sealed class GetOperatorShiftQueueRequestHandler(
         var productCodes = await LoadProductCodesAsync(
             queued.Select(x => x.ProductId).Distinct().ToList(), cancellationToken);
 
+        // Skill-gap flags (issue #397): the shift crew is everyone rostered
+        // to the covering shift on its date; an order is flagged when its
+        // recipe operations require at least one skill and zero crew members
+        // hold every required skill.
+        var requiredByVersion = await OperatorSkillGating.LoadRequiredSkillsByVersionAsync(
+            operationNodesRepository, skillsRepository,
+            queued.Select(x => x.RecipeVersionId).Distinct().ToList(), cancellationToken);
+        var crewPredicate = PredicateBuilder.New<OperatorShiftAssignment>(true)
+            .And(x => x.Date == covering.Assignment.Date)
+            .And(x => x.ShiftId == covering.Shift.Id);
+        var crewIds = (await assignmentsRepository.BrowseAsync(
+                new Paginator<OperatorShiftAssignment>(crewPredicate, UnboundedPaging.Instance), cancellationToken))
+            .Where(x => x.Date == covering.Assignment.Date && x.ShiftId == covering.Shift.Id)
+            .Select(x => x.OperatorId)
+            .Distinct()
+            .ToList();
+        var heldByOperator = await qualificationsRepository.ListSkillCodesForOperatorsAsync(
+            crewIds, cancellationToken);
+        var heldSets = crewIds
+            .Select(id => heldByOperator.TryGetValue(id, out var codes) ? codes : [])
+            .ToList();
+
         var orders = queued
             .Select(order =>
             {
@@ -161,6 +187,8 @@ internal sealed class GetOperatorShiftQueueRequestHandler(
                 Guid? machineId = machineByOrder.ContainsKey(order.Id) ? machineIdValue : null;
                 machinesById.TryGetValue(machineId ?? Guid.Empty, out var machine);
                 productCodes.TryGetValue(order.ProductId, out var productCode);
+                requiredByVersion.TryGetValue(order.RecipeVersionId, out var required);
+                required ??= [];
 
                 return new OperatorShiftQueuedOrderResponse(
                     order.Id,
@@ -176,7 +204,8 @@ internal sealed class GetOperatorShiftQueueRequestHandler(
                     machine?.Name,
                     order.Priority,
                     order.DueDate,
-                    order.Status);
+                    order.Status,
+                    !OperatorSkillGating.HasQualifiedOperator(required, heldSets));
             })
             .ToList();
 

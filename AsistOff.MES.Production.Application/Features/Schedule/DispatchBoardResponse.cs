@@ -34,6 +34,9 @@ public sealed record DispatchShiftResponse(
 /// window or has no due date, with read-time confirmation totals reused from
 /// <c>ProductionOrderMappers</c>. Held orders carry <c>IsBlocked</c> so the
 /// board renders them as blocked, not schedulable (issue #398).
+/// <c>NoQualifiedOperator</c> is true when the order's recipe operations
+/// require at least one skill and zero rostered operators in the window hold
+/// every required skill (issue #397).
 /// </summary>
 public sealed record DispatchOrderRowResponse(
     Guid Id,
@@ -47,4 +50,5 @@ public sealed record DispatchOrderRowResponse(
     DateTime? DueDate,
     ProductionOrderStatus Status,
     bool IsOverdue,
-    bool IsBlocked);
+    bool IsBlocked,
+    bool NoQualifiedOperator = false);

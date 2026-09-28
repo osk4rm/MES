@@ -28,6 +28,24 @@ public class GetOperatorShiftQueueRequestHandlerTests
     private readonly Mock<IProductsRepository> _products = new();
     private readonly Mock<IAndonSignalsRepository> _andon = new();
     private readonly Mock<IDateTimeProvider> _clock = new();
+    private readonly Mock<IOperationNodesRepository> _operationNodes = new();
+    private readonly Mock<ISkillsRepository> _skills = new();
+    private readonly Mock<IOperatorSkillQualificationsRepository> _qualifications = new();
+
+    public GetOperatorShiftQueueRequestHandlerTests()
+    {
+        // Skill-gap flags (issue #397): no skill requirements and no held
+        // skills by default, so existing queue scenarios stay unflagged.
+        _operationNodes.Setup(r => r.ListForVersionsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<OperationNode>());
+        _skills.Setup(r => r.ListByCodesAsync(
+                It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Skill>());
+        _qualifications.Setup(r => r.ListSkillCodesForOperatorsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, IReadOnlyCollection<string>>());
+    }
 
     private GetOperatorShiftQueueRequestHandler CreateSut() => new(
         _operators.Object,
@@ -39,7 +57,10 @@ public class GetOperatorShiftQueueRequestHandlerTests
         _machines.Object,
         _products.Object,
         _andon.Object,
-        _clock.Object);
+        _clock.Object,
+        _operationNodes.Object,
+        _skills.Object,
+        _qualifications.Object);
 
     private static Operator MakeOperator(string identifier) => new()
     {
@@ -477,6 +498,111 @@ public class GetOperatorShiftQueueRequestHandlerTests
         _orders.Verify(
             r => r.BrowseDispatchBoardAsync(ShiftDate, ShiftDate.AddDays(1), 200, It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_OrderRequiringSkill_WithNoQualifiedCrewMember_IsFlagged()
+    {
+        // Arrange - the queue owner holds no skills and is the only crew member
+        var @operator = MakeOperator("OP-1");
+        var shift = MakeShift("AM");
+        ArrangeRoster(@operator, shift, ShiftDate, NowInShift);
+        var order = MakeOrder("PO-SKILL");
+        ArrangeQueueReads(orders: [order]);
+        ArrangeSkillGate(order.RecipeVersionId, "WELD — Welding");
+        _qualifications.Setup(r => r.ListSkillCodesForOperatorsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, IReadOnlyCollection<string>>
+            {
+                [@operator.Id] = []
+            });
+
+        // Act
+        var result = await CreateSut().Handle(new GetOperatorShiftQueueRequest("OP-1"), CancellationToken.None);
+
+        // Assert
+        result.Orders.Should().ContainSingle()
+            .Which.NoQualifiedOperator.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_OrderRequiringSkill_WithQualifiedCrewmate_IsNotFlagged()
+    {
+        // Arrange - the owner is unqualified but a crewmate on the same shift
+        // holds the skill, so the order is covered
+        var @operator = MakeOperator("OP-1");
+        var crewmate = MakeOperator("OP-2");
+        var shift = MakeShift("AM");
+        ArrangeRoster(@operator, shift, ShiftDate, NowInShift);
+        _assignments.Setup(r => r.BrowseAsync(
+                It.IsAny<Paginator<OperatorShiftAssignment>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                MakeAssignment(@operator.Id, shift.Id, ShiftDate),
+                MakeAssignment(crewmate.Id, shift.Id, ShiftDate)
+            ]);
+        var order = MakeOrder("PO-SKILL");
+        ArrangeQueueReads(orders: [order]);
+        ArrangeSkillGate(order.RecipeVersionId, "WELD — Welding");
+        _qualifications.Setup(r => r.ListSkillCodesForOperatorsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, IReadOnlyCollection<string>>
+            {
+                [@operator.Id] = [],
+                [crewmate.Id] = ["WELD"]
+            });
+
+        // Act
+        var result = await CreateSut().Handle(new GetOperatorShiftQueueRequest("OP-1"), CancellationToken.None);
+
+        // Assert
+        result.Orders.Should().ContainSingle()
+            .Which.NoQualifiedOperator.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_OrderWithoutSkillRequirement_IsNotFlagged()
+    {
+        // Arrange
+        var @operator = MakeOperator("OP-1");
+        var shift = MakeShift("AM");
+        ArrangeRoster(@operator, shift, ShiftDate, NowInShift);
+        ArrangeQueueReads(orders: [MakeOrder("PO-PLAIN")]);
+
+        // Act
+        var result = await CreateSut().Handle(new GetOperatorShiftQueueRequest("OP-1"), CancellationToken.None);
+
+        // Assert
+        result.Orders.Should().ContainSingle()
+            .Which.NoQualifiedOperator.Should().BeFalse();
+    }
+
+    private void ArrangeSkillGate(Guid recipeVersionId, string requiredCapability)
+    {
+        var operation = new OperationNode
+        {
+            Id = Guid.NewGuid(),
+            RecipeVersionId = recipeVersionId,
+            Code = "OP-10",
+            Name = "Welding",
+            ResourceRequirements = new List<ResourceRequirement>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    OperationNodeId = Guid.NewGuid(),
+                    RequiredCapability = requiredCapability
+                }
+            }
+        };
+        _operationNodes.Setup(r => r.ListForVersionsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<OperationNode> { operation });
+        _skills.Setup(r => r.ListByCodesAsync(
+                It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Skill>
+            {
+                new() { Id = Guid.NewGuid(), Code = "WELD", Name = "Welding" }
+            });
     }
 }
 

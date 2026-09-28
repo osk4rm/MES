@@ -1,5 +1,6 @@
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
+using AsistOff.MES.Production.Application.Features.Common;
 using AsistOff.MES.Production.Application.Features.ProductionOrders;
 using AsistOff.MES.Production.Domain.Entities;
 using AsistOff.MES.Production.Domain.Enums;
@@ -16,7 +17,10 @@ internal sealed class GetDispatchBoardRequestHandler(
     IProductionOrdersRepository ordersRepository,
     IProductionConfirmationsRepository confirmationsRepository,
     IShiftsRepository shiftsRepository,
-    IOperatorShiftAssignmentsRepository rosterRepository)
+    IOperatorShiftAssignmentsRepository rosterRepository,
+    IOperationNodesRepository operationNodesRepository,
+    ISkillsRepository skillsRepository,
+    IOperatorSkillQualificationsRepository qualificationsRepository)
     : IRequestHandler<GetDispatchBoardRequest, DispatchBoardResponse>
 {
     internal const int MaxWindowDays = 31;
@@ -104,11 +108,26 @@ internal sealed class GetDispatchBoardRequestHandler(
         var totals = await confirmationsRepository.GetTotalsForOrdersAsync(
             rows.Select(x => x.Order.Id).ToList(), cancellationToken);
 
+        // Skill-gap flags (issue #397): required skills per recipe version,
+        // resolved against the rostered operators' held skill codes. Orders
+        // whose operations require nothing are never flagged.
+        var requiredByVersion = await OperatorSkillGating.LoadRequiredSkillsByVersionAsync(
+            operationNodesRepository, skillsRepository,
+            rows.Select(x => x.Order.RecipeVersionId).Distinct().ToList(), cancellationToken);
+        var rosterOperatorIds = roster.Select(x => x.OperatorId).Distinct().ToList();
+        var heldByOperator = await qualificationsRepository.ListSkillCodesForOperatorsAsync(
+            rosterOperatorIds, cancellationToken);
+        var heldSets = rosterOperatorIds
+            .Select(id => heldByOperator.TryGetValue(id, out var codes) ? codes : [])
+            .ToList();
+
         var orders = rows
             .Select(x =>
             {
                 totals.TryGetValue(x.Order.Id, out var t);
                 var mapped = ProductionOrderMappers.Map(x.Order, t.ProducedQuantity, t.ScrappedQuantity, t.ConfirmationsCount);
+                requiredByVersion.TryGetValue(x.Order.RecipeVersionId, out var required);
+                required ??= [];
                 return new DispatchOrderRowResponse(
                     mapped.Id,
                     mapped.Code,
@@ -121,7 +140,8 @@ internal sealed class GetDispatchBoardRequestHandler(
                     mapped.DueDate,
                     mapped.Status,
                     x.IsOverdue,
-                    mapped.Status == ProductionOrderStatus.OnHold);
+                    mapped.Status == ProductionOrderStatus.OnHold,
+                    !OperatorSkillGating.HasQualifiedOperator(required, heldSets));
             })
             .ToList();
 

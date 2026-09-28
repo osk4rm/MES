@@ -3,6 +3,7 @@ using System;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AsistOff.MES.Shared.Infrastructure.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    partial class DefaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260928135710_AddOperatorSkillQualifications")]
+    partial class AddOperatorSkillQualifications
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1870,13 +1873,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime?>("HeldAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("HoldReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<Guid?>("MeasureUnitId")
                         .HasColumnType("uuid");
 
@@ -1909,9 +1905,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<short>("Status")
-                        .HasColumnType("smallint");
-
-                    b.Property<short?>("StatusBeforeHold")
                         .HasColumnType("smallint");
 
                     b.Property<string>("SyncId")

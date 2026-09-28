@@ -13,6 +13,7 @@ public class ConfigurationEntityConfigurator : IEntityConfigurator
         modelBuilder.Entity<Department>();
         modelBuilder.Entity<Machine>();
         modelBuilder.Entity<Skill>();
+        modelBuilder.Entity<OperatorSkillQualification>();
         modelBuilder.Entity<ReasonCode>();
         modelBuilder.Entity<MaintenanceWorkOrder>();
         modelBuilder.Entity<MaintenancePlan>();

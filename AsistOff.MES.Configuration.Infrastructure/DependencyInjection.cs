@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddScoped<IMaintenanceWorkOrdersRepository, MaintenanceWorkOrdersRepository>();
         services.AddScoped<IMaintenancePlansRepository, MaintenancePlansRepository>();
         services.AddScoped<ISkillsRepository, SkillsRepository>();
+        services.AddScoped<IOperatorSkillQualificationsRepository, OperatorSkillQualificationsRepository>();
         services.AddScoped<IReasonCodesRepository, ReasonCodesRepository>();
         services.AddScoped<IShiftsRepository, ShiftsRepository>();
         services.AddScoped<IOperatorShiftAssignmentsRepository, OperatorShiftAssignmentsRepository>();

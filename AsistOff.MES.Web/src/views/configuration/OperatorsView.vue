@@ -97,6 +97,43 @@
       </AppDataState>
     </AppCard>
 
+    <AppCard :title="$t('operators.skills.title')" :subtitle="$t('operators.skills.subtitle')" class="skills-card">
+      <form ref="qualFormRef" class="skills-form" novalidate @submit.prevent="onGrant">
+        <AppFormField :label="$t('operators.skills.operator')" required :error="qualErrors.fieldError('operator')">
+          <template #default="{ id, invalid }"><AppSelect :id="id" v-model="qualOperatorId" :options="rosterOperatorOptions" :empty-label="$t('operators.skills.selectOperator')" allow-empty :invalid="invalid" @blur="qualErrors.touch('operator')" @change="onQualOperator" /></template>
+        </AppFormField>
+        <AppFormField :label="$t('operators.skills.skill')" required :error="qualErrors.fieldError('skill')">
+          <template #default="{ id, invalid }"><AppSelect :id="id" v-model="qualSkillId" :options="skillOptions" :empty-label="$t('operators.skills.selectSkill')" allow-empty :invalid="invalid" @blur="qualErrors.touch('skill')" /></template>
+        </AppFormField>
+        <div class="skills-form__actions">
+          <AppButton type="submit" variant="primary" icon="pi pi-plus" :loading="granting" :disabled="!qualOperatorId || !qualSkillId">{{ $t('operators.skills.assign') }}</AppButton>
+        </div>
+      </form>
+      <AppDataState
+        :loading="qualLoading"
+        :error="qualError"
+        :empty="qualItems.length === 0"
+        :empty-title="$t('operators.skills.empty')"
+        empty-icon="pi pi-id-card"
+        compact
+        @retry="loadQualifications"
+      >
+        <AppTable
+          :items="qualItems"
+          :columns="qualColumns"
+          :loading="qualLoading"
+        >
+          <template #cell-skill="{ item }">{{ item.skillCode ? `${item.skillCode} — ${item.skillName ?? ''}`.trim() : item.skillId }}</template>
+          <template #cell-actions="{ item }">
+            <AppRowActions
+              :actions="[{ key: 'delete', label: $t('common.delete'), icon: 'pi-trash', variant: 'danger', disabled: removingQualId === item.id }]"
+              @action="(k) => onQualAction(k, item)"
+            />
+          </template>
+        </AppTable>
+      </AppDataState>
+    </AppCard>
+
     <AppModal :open="modalOpen" :title="editing ? $t('common.edit') : $t('operators.create')" @close="closeModal">
       <form id="op-form" ref="formRef" class="form-grid" novalidate @submit.prevent="onSave">
         <AppFormField :label="$t('operators.identifier')" required :error="formErrors.fieldError('identifier')">
@@ -154,7 +191,9 @@ import { useFormErrors } from '../../composables/useFormErrors';
 import { operatorService, EMPTY_USER_ID, type OperatorResponse } from '../../services/operatorService';
 import { departmentService, type DepartmentResponse } from '../../services/departmentService';
 import { shiftService, type ShiftResponse } from '../../services/shiftService';
+import { skillService, type SkillResponse } from '../../services/skillService';
 import { operatorShiftAssignmentService, type OperatorShiftAssignmentResponse } from '../../services/operatorShiftAssignmentService';
+import { operatorSkillService, type OperatorSkillQualificationResponse } from '../../services/operatorSkillService';
 import { useToastStore } from '../../stores/toastStore';
 import { extractErrorMessage } from '../../services/http';
 
@@ -418,10 +457,97 @@ async function removeRoster(item: OperatorShiftAssignmentResponse) {
   } finally { removingRosterId.value = null; }
 }
 
+// qualifications: operator skill matrix (issue #397)
+const skills = ref<SkillResponse[]>([]);
+const qualOperatorId = ref<string | null>(null);
+const qualSkillId = ref<string | null>(null);
+const qualItems = ref<OperatorSkillQualificationResponse[]>([]);
+const qualLoading = ref(false);
+const qualError = ref<string | null>(null);
+const granting = ref(false);
+const removingQualId = ref<string | null>(null);
+const qualFormRef = ref<HTMLFormElement | null>(null);
+const qualErrors = useFormErrors({ aliases: { operatorId: 'operator', skillId: 'skill' } });
+
+const qualColumns = computed(() => [
+  { key: 'skill', label: t('operators.skills.skill') },
+  { key: 'actions', label: t('common.actions'), width: '90px' }
+]);
+const skillOptions = computed(() =>
+  skills.value.map(s => ({ value: s.id, label: `${s.code} — ${s.name}` }))
+);
+
+async function loadSkills() {
+  try {
+    const res = await skillService.browse({ pageNumber: 1, pageSize: 100 });
+    skills.value = res.items;
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.loadFailed')));
+  }
+}
+async function loadQualifications() {
+  if (!qualOperatorId.value) { qualItems.value = []; return; }
+  qualLoading.value = true;
+  qualError.value = null;
+  try {
+    const res = await operatorSkillService.browse({ operatorId: qualOperatorId.value, pageNumber: 1, pageSize: 100 });
+    qualItems.value = res.items;
+  } catch (err) {
+    qualError.value = extractErrorMessage(err, t('errors.loadFailed'));
+  } finally { qualLoading.value = false; }
+}
+function onQualOperator() {
+  void loadQualifications();
+}
+async function onGrant() {
+  const valid = qualErrors.submitWith({
+    operator: qualOperatorId.value ? null : t('validation.required'),
+    skill: qualSkillId.value ? null : t('validation.required')
+  });
+  if (!valid) {
+    toast.error(t('validation.formHasErrors'));
+    qualErrors.focusFirstInvalidIn(qualFormRef.value);
+    return;
+  }
+  granting.value = true;
+  try {
+    await operatorSkillService.assign({
+      operatorId: qualOperatorId.value as string,
+      skillId: qualSkillId.value as string
+    });
+    toast.success(t('operators.skills.assignedToast'));
+    qualSkillId.value = null;
+    qualErrors.reset();
+    await loadQualifications();
+  } catch (err) {
+    if (qualErrors.applyServerErrors(err)) {
+      toast.error(t('validation.formHasErrors'));
+      qualErrors.focusFirstInvalidIn(qualFormRef.value);
+    } else {
+      toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+    }
+  } finally { granting.value = false; }
+}
+function onQualAction(key: string, item: OperatorSkillQualificationResponse) {
+  if (key === 'delete') void removeQual(item);
+}
+async function removeQual(item: OperatorSkillQualificationResponse) {
+  if (removingQualId.value) return;
+  removingQualId.value = item.id;
+  try {
+    await operatorSkillService.unassign(item.id);
+    toast.success(t('toasts.deleted'));
+    await loadQualifications();
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.deleteFailed')));
+  } finally { removingQualId.value = null; }
+}
+
 onMounted(async () => {
   await loadDepartments();
   await table.fetch();
   await loadRosterLookups();
+  await loadSkills();
   await loadRoster();
 });
 </script>
@@ -433,4 +559,7 @@ onMounted(async () => {
 .roster-controls { display: grid; grid-template-columns: 240px; gap: var(--space-3); margin-bottom: var(--space-3); }
 .roster-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: var(--space-3); align-items: end; margin-bottom: var(--space-4); }
 .roster-form__actions { padding-bottom: var(--space-1); }
+.skills-card { margin-top: var(--space-5); }
+.skills-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--space-3); align-items: end; margin-bottom: var(--space-4); }
+.skills-form__actions { padding-bottom: var(--space-1); }
 </style>

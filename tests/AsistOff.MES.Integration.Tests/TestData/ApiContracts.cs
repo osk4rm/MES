@@ -603,7 +603,8 @@ public sealed record DispatchOrderRowDto(
     DateTime? DueDate,
     short Status,
     bool IsOverdue,
-    bool IsBlocked = false);
+    bool IsBlocked = false,
+    bool NoQualifiedOperator = false);
 
 /// <summary>Shape of the dispatch board returned by <c>/api/schedule/dispatch</c>. Dates are ISO 8601 <c>yyyy-MM-dd</c>.</summary>
 public sealed record DispatchBoardDto(
@@ -735,7 +736,8 @@ public sealed record OperatorShiftQueuedOrderDto(
     string? MachineName,
     int Priority,
     DateTime? DueDate,
-    short Status);
+    short Status,
+    bool NoQualifiedOperator = false);
 
 /// <summary>Shape of one open Andon signal returned by <c>/api/schedule/operator-queue</c>.</summary>
 public sealed record OperatorShiftQueueSignalDto(
@@ -783,3 +785,13 @@ public sealed record RoleDetailDto(
     string? Description,
     IReadOnlyCollection<PermissionDto> Permissions,
     IReadOnlyCollection<RoleMemberDto> Members);
+
+/// <summary>Shape of an operator skill qualification as returned by <c>/api/operator-skills</c>.</summary>
+public sealed record OperatorSkillQualificationDto(
+    Guid Id,
+    Guid OperatorId,
+    string? OperatorIdentifier,
+    string? OperatorName,
+    Guid SkillId,
+    string? SkillCode,
+    string? SkillName);

@@ -275,7 +275,10 @@ public class HoldResumeProductionOrderRequestHandlerTests
             Mock.Of<IDateTimeProvider>(),
             Mock.Of<ITenantContext>(),
             Mock.Of<IUnitOfWork>(),
-            Mock.Of<IMaterialReservationsRepository>());
+            Mock.Of<IMaterialReservationsRepository>(),
+            Mock.Of<IOperationNodesRepository>(),
+            Mock.Of<ISkillsRepository>(),
+            Mock.Of<IOperatorSkillQualificationsRepository>());
 
         var act = () => sut.Handle(
             new CreateProductionConfirmationRequest(

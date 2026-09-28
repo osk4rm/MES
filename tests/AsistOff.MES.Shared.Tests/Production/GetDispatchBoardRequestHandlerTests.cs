@@ -21,9 +21,28 @@ public class GetDispatchBoardRequestHandlerTests
     private readonly Mock<IProductionConfirmationsRepository> _confirmations = new();
     private readonly Mock<IShiftsRepository> _shifts = new();
     private readonly Mock<IOperatorShiftAssignmentsRepository> _roster = new();
+    private readonly Mock<IOperationNodesRepository> _operationNodes = new();
+    private readonly Mock<ISkillsRepository> _skills = new();
+    private readonly Mock<IOperatorSkillQualificationsRepository> _qualifications = new();
 
     private GetDispatchBoardRequestHandler CreateSut() => new(
-        _orders.Object, _confirmations.Object, _shifts.Object, _roster.Object);
+        _orders.Object, _confirmations.Object, _shifts.Object, _roster.Object,
+        _operationNodes.Object, _skills.Object, _qualifications.Object);
+
+    public GetDispatchBoardRequestHandlerTests()
+    {
+        // Skill-gap flags (issue #397): no skill requirements and no held
+        // skills by default, so existing board scenarios stay unflagged.
+        _operationNodes.Setup(r => r.ListForVersionsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<OperationNode>());
+        _skills.Setup(r => r.ListByCodesAsync(
+                It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Skill>());
+        _qualifications.Setup(r => r.ListSkillCodesForOperatorsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, IReadOnlyCollection<string>>());
+    }
 
     private static ProductionOrder MakeOrder(
         string code,
@@ -407,5 +426,104 @@ public class GetDispatchBoardRequestHandlerTests
         coveredShift.IsOvernight.Should().BeTrue();
         coveredShift.Headcount.Should().Be(1);
         coveredShift.IsUncovered.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_OrderRequiringSkill_WithNoQualifiedRosterOperator_IsFlagged()
+    {
+        // Arrange
+        var order = MakeOrder("PO-SKILL");
+        var morning = MakeShift("A-MORNING");
+        var opA = Guid.NewGuid();
+        ArrangeEmpty(
+            orders: [order],
+            shifts: [morning],
+            roster: [MakeAssignment(opA, morning.Id, From)]);
+        ArrangeSkillGate(order.RecipeVersionId, "WELD — Welding");
+        _qualifications.Setup(r => r.ListSkillCodesForOperatorsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, IReadOnlyCollection<string>>());
+
+        // Act
+        var result = await CreateSut().Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
+
+        // Assert
+        result.Orders.Should().ContainSingle()
+            .Which.NoQualifiedOperator.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_OrderRequiringSkill_WithQualifiedRosterOperator_IsNotFlagged()
+    {
+        // Arrange
+        var order = MakeOrder("PO-SKILL");
+        var morning = MakeShift("A-MORNING");
+        var opA = Guid.NewGuid();
+        ArrangeEmpty(
+            orders: [order],
+            shifts: [morning],
+            roster: [MakeAssignment(opA, morning.Id, From)]);
+        ArrangeSkillGate(order.RecipeVersionId, "WELD — Welding");
+        _qualifications.Setup(r => r.ListSkillCodesForOperatorsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, IReadOnlyCollection<string>>
+            {
+                [opA] = ["WELD"]
+            });
+
+        // Act
+        var result = await CreateSut().Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
+
+        // Assert
+        result.Orders.Should().ContainSingle()
+            .Which.NoQualifiedOperator.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_OrderWithoutSkillRequirement_IsNotFlagged()
+    {
+        // Arrange
+        var order = MakeOrder("PO-PLAIN");
+        var morning = MakeShift("A-MORNING");
+        ArrangeEmpty(
+            orders: [order],
+            shifts: [morning],
+            roster: []);
+
+        // Act
+        var result = await CreateSut().Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
+
+        // Assert - no requirements and no crew: nothing required, never flagged
+        result.Orders.Should().ContainSingle()
+            .Which.NoQualifiedOperator.Should().BeFalse();
+    }
+
+    private void ArrangeSkillGate(Guid recipeVersionId, string requiredCapability)
+    {
+        var operation = new OperationNode
+        {
+            Id = Guid.NewGuid(),
+            RecipeVersionId = recipeVersionId,
+            Code = "OP-10",
+            Name = "Welding",
+            ResourceRequirements = new List<ResourceRequirement>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    OperationNodeId = Guid.NewGuid(),
+                    RequiredCapability = requiredCapability
+                }
+            }
+        };
+        _operationNodes.Setup(r => r.ListForVersionsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<OperationNode> { operation });
+        _skills.Setup(r => r.ListByCodesAsync(
+                It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Skill>
+            {
+                new() { Id = Guid.NewGuid(), Code = "WELD", Name = "Welding" }
+            });
     }
 }

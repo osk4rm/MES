@@ -61,7 +61,10 @@ public class MesMetersHandlerTests
             MockClock(),
             tenant.Object,
             uow,
-            MockReservations());
+            MockReservations(),
+            Mock.Of<IOperationNodesRepository>(),
+            Mock.Of<ISkillsRepository>(),
+            Mock.Of<IOperatorSkillQualificationsRepository>());
 
         // Act
         await handler.Handle(
