@@ -44,6 +44,12 @@ export interface DispatchOrderRow {
   dueDate: string | null;
   status: number;
   isOverdue: boolean;
+  /**
+   * True when the order's recipe operations require at least one skill and
+   * zero rostered operators in the window hold every required skill
+   * (issue #397). Optional for tolerance of older payloads.
+   */
+  noQualifiedOperator?: boolean;
 }
 
 /** Shift-aware dispatch board over a caller-supplied date window. */

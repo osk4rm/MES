@@ -33,6 +33,9 @@ public sealed class CreateProductionConfirmationReliefTests
     private readonly Mock<IUnitOfWork> _uow = new();
     private readonly Guid _tenantId = Guid.NewGuid();
     private readonly DateTime _now = new(2026, 9, 26, 10, 0, 0, DateTimeKind.Utc);
+    private readonly Mock<IOperationNodesRepository> _operationNodes = new();
+    private readonly Mock<ISkillsRepository> _skills = new();
+    private readonly Mock<IOperatorSkillQualificationsRepository> _qualifications = new();
 
     public CreateProductionConfirmationReliefTests()
     {
@@ -45,12 +48,19 @@ public sealed class CreateProductionConfirmationReliefTests
             .ReturnsAsync(new List<BomItem>());
         _reservations.Setup(r => r.ListForOrderAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<MaterialReservation>());
+        // Skill gating (issue #397): no skill requirements by default.
+        _operationNodes.Setup(r => r.ListForVersionsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<OperationNode>());
+        _skills.Setup(r => r.ListByCodesAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Skill>());
+        _qualifications.Setup(r => r.ListSkillCodesForOperatorAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<string>());
     }
 
     private CreateProductionConfirmationRequestHandler CreateSut() =>
         new(_confirmations.Object, _orders.Object, _children.Object, _movements.Object,
             _lots.Object, _edges.Object, _guids.Object, _clock.Object, _tenant.Object, _uow.Object,
-            _reservations.Object);
+            _reservations.Object, _operationNodes.Object, _skills.Object, _qualifications.Object);
 
     private ProductionOrder ReleasedOrder() => new()
     {

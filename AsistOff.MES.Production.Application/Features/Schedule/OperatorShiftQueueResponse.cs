@@ -37,6 +37,9 @@ public sealed record OperatorShiftContextResponse(
 /// Center FK, so <c>MachineId</c> is the scheduled Work Center from the manual
 /// <c>ScheduledOperation</c> override when one exists, otherwise null
 /// (unscheduled, same as the Gantt unassigned lane).
+/// <c>NoQualifiedOperator</c> is true when the order's recipe operations
+/// require at least one skill and zero operators assigned to the shift hold
+/// every required skill (issue #397).
 /// </summary>
 public sealed record OperatorShiftQueuedOrderResponse(
     Guid Id,
@@ -52,7 +55,8 @@ public sealed record OperatorShiftQueuedOrderResponse(
     string? MachineName,
     int Priority,
     DateTime? DueDate,
-    ProductionOrderStatus Status);
+    ProductionOrderStatus Status,
+    bool NoQualifiedOperator = false);
 
 /// <summary>
 /// An open (Active) Andon signal for one of the queued Work Centers. The

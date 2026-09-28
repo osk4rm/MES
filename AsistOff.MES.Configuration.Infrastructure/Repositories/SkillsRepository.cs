@@ -36,8 +36,18 @@ internal sealed class SkillsRepository(DefaultContext context) : ISkillsReposito
         return await q.AnyAsync(cancellationToken);
     }
 
-    public async Task<Skill> AddAsync(Skill skill, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<Skill>> ListByCodesAsync(
+        IReadOnlyCollection<string> codes, CancellationToken cancellationToken = default)
     {
+        if (codes.Count == 0)
+            return [];
+
+        return await context.Set<Skill>()
+            .Where(x => codes.Contains(x.Code))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<Skill> AddAsync(Skill skill, CancellationToken cancellationToken = default)    {
         context.Set<Skill>().Add(skill);
         await context.SaveChangesAsync(cancellationToken);
         return skill;

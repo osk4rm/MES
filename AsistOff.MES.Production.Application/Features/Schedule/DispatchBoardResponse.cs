@@ -32,7 +32,9 @@ public sealed record DispatchShiftResponse(
 /// <summary>
 /// A Released or InProgress order that is overdue, due inside the window or
 /// has no due date, with read-time confirmation totals reused from
-/// <c>ProductionOrderMappers</c>.
+/// <c>ProductionOrderMappers</c>. <c>NoQualifiedOperator</c> is true when the
+/// order's recipe operations require at least one skill and zero rostered
+/// operators in the window hold every required skill (issue #397).
 /// </summary>
 public sealed record DispatchOrderRowResponse(
     Guid Id,
@@ -45,4 +47,5 @@ public sealed record DispatchOrderRowResponse(
     int Priority,
     DateTime? DueDate,
     ProductionOrderStatus Status,
-    bool IsOverdue);
+    bool IsOverdue,
+    bool NoQualifiedOperator = false);

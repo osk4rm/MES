@@ -95,6 +95,8 @@ public static class AuthorizationAllowlist
             "AsistOff.MES.Configuration.Application.Features.MeasureUnits.Get.GetMeasureUnitRequest",
             "AsistOff.MES.Configuration.Application.Features.OperatorShiftAssignments.Browse.BrowseOperatorShiftAssignmentsRequest",
             "AsistOff.MES.Configuration.Application.Features.OperatorShiftAssignments.Get.GetOperatorShiftAssignmentRequest",
+            "AsistOff.MES.Configuration.Application.Features.OperatorSkills.Browse.BrowseOperatorSkillsRequest",
+            "AsistOff.MES.Configuration.Application.Features.OperatorSkills.Get.GetOperatorSkillRequest",
             "AsistOff.MES.Configuration.Application.Features.Operators.Browse.BrowseOperatorsRequest",
             "AsistOff.MES.Configuration.Application.Features.Operators.Get.GetOperatorRequest",
             "AsistOff.MES.Configuration.Application.Features.ProductGroups.Browse.BrowseProductGroupsRequest",

@@ -234,7 +234,8 @@ Business rules and semantics:
 - Operators can belong to departments and optionally link to a `User`.
 - Operator hourly rate is stored on `Operator`.
 - Skills are a dictionary; recipe `ResourceRequirement.RequiredCapability` stores a human-readable skill display string, not a skill ID.
-- Scheduling and skill enforcement are not implemented yet.
+- Operator skill qualifications (`config.OperatorSkillQualifications`, issue #397): the `(OperatorId, SkillId)` matrix gates confirmations (reporting operator must hold every skill-backed requirement of the order's recipe version; legacy free-text capabilities are ignored) and flags dispatch/shift-queue rows with zero qualified operators (`NoQualifiedOperator`).
+- Scheduling optimizer changes beyond the unqualified flag are not implemented.
 
 API endpoints:
 
@@ -242,6 +243,7 @@ API endpoints:
 - `GET/POST /api/machines`, `GET/PUT/DELETE /api/machines/{id}`
 - `GET/POST /api/operators`, `GET/PUT/DELETE /api/operators/{id}`
 - `GET/POST /api/skills`, `GET/PUT/DELETE /api/skills/{id}`
+- `GET/POST /api/operator-skills`, `GET/DELETE /api/operator-skills/{id}` (qualification matrix)
 
 Frontend routes:
 

@@ -38,6 +38,12 @@ export interface OperatorShiftQueuedOrder {
   dueDate: string | null;
   /** ProductionOrderStatus value. */
   status: number;
+  /**
+   * True when the order's recipe operations require at least one skill and
+   * zero operators assigned to the shift hold every required skill
+   * (issue #397). Optional for tolerance of older payloads.
+   */
+  noQualifiedOperator?: boolean;
 }
 
 export interface OperatorShiftQueueSignal {
