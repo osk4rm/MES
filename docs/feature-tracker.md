@@ -131,14 +131,13 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 ## Security hardening
 
 Rows from the 2026-09-26 security audit. Every row now has a GitHub issue;
-all but three are merged. Severity is recorded in `Notes`. #307 (workflow
-isolation) and #363 (SHA pinning) are `ai:blocked` hence `proposed`; #308
-(build secrets) has open PR #309 hence `in-progress`.
+all but two are merged. Severity is recorded in `Notes`. #307 (workflow
+isolation) and #363 (SHA pinning) are `ai:blocked` hence `proposed`.
 
 | Capability | Glossary | Module | Status | Work item | Notes |
 |---|---|---|---|---|---|
 | Agent CI/CD workflow isolation | — | CI/CD | proposed | #307 | **Critical**; `ai-swarm.yml` uses `pull_request_target` + runs PR-controlled setup action with secrets in scope |
-| Build-context secret exclusion | — | Ops | in-progress | #308 | **High**; `COPY . .` risks baking `.env` / signing key into image layers (PR #309) |
+| Build-context secret exclusion | — | Ops | done | #308 | **High**; `.env` / signing key excluded from image layers via root + web `.dockerignore` (PR #309) |
 | Sort-field whitelist enforcement (dynamic LINQ) | — | Shared | done | #311 | **High**; whitelist enforced on browse `sort` fields (PR #313) |
 | Attachment object-level authorization | — | Attachments | done | #315 | **High**; `attachments.read` + owner-module scope enforced on download/list/delete (PR #316) |
 | Rate-limit client-IP hardening | — | Gateway | done | #323 | **High**; trusted-proxy `RemoteIpAddress` instead of raw left-most XFF (PR #326) |
@@ -160,4 +159,4 @@ isolation) and #363 (SHA pinning) are `ai:blocked` hence `proposed`; #308
 | Seq authentication | — | Ops | done | #377 | **Low**; Seq authenticated, dev bound to localhost (PR #378) |
 | Legacy dependency modernization | — | Shared, Users, Multitenancy | done | #366 | **Low**; EOL AspNetCore 2.x shims + Swashbuckle 6.x replaced (PR #370) |
 
-_Last reconciled: 2026-09-27 — all pre-existing `gap` rows closed out: Gantt/Harmonogram (#304–#306, PRs #310/#312/#317), operator panel (#335/#336), end-user manual (#343/#345/#359), tech spec (#346/#352), UX review (#314/#380/#382/#383/#389/#392), recipe verification + order-ready V1 (#319/#386/#388) and benchmark (#320) are `done`. Security audit rows: 19 `done`; #308 `in-progress` (open PR #309); #307 + #363 `proposed` (`ai:blocked`)._
+_Last reconciled: 2026-09-28 — #308 (build-context secret exclusion, PR #309) is `done`: security audit rows now 20 `done`; #307 + #363 stay `proposed` (`ai:blocked`). No open PRs; no other status changes; no new code capabilities missing from the tracker. Previously 2026-09-27 — all pre-existing `gap` rows closed out: Gantt/Harmonogram (#304–#306, PRs #310/#312/#317), operator panel (#335/#336), end-user manual (#343/#345/#359), tech spec (#346/#352), UX review (#314/#380/#382/#383/#389/#392), recipe verification + order-ready V1 (#319/#386/#388) and benchmark (#320) are `done`._
