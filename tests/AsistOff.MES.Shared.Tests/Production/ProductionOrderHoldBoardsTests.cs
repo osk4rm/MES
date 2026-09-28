@@ -57,8 +57,23 @@ public class ProductionOrderHoldBoardsTests
         roster.Setup(r => r.BrowseAsync(
                 It.IsAny<Paginator<OperatorShiftAssignment>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
+        // Skill gating (issue #397): no requirements by default so the
+        // hold flag is exercised in isolation.
+        var operationNodes = new Mock<IOperationNodesRepository>();
+        operationNodes.Setup(r => r.ListForVersionsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<OperationNode>());
+        var skills = new Mock<ISkillsRepository>();
+        skills.Setup(r => r.ListByCodesAsync(
+                It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Skill>());
+        var qualifications = new Mock<IOperatorSkillQualificationsRepository>();
+        qualifications.Setup(r => r.ListSkillCodesForOperatorsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, IReadOnlyCollection<string>>());
         var sut = new GetDispatchBoardRequestHandler(
-            orders.Object, confirmations.Object, shifts.Object, roster.Object);
+            orders.Object, confirmations.Object, shifts.Object, roster.Object,
+            operationNodes.Object, skills.Object, qualifications.Object);
 
         var result = await sut.Handle(new GetDispatchBoardRequest(From, To), CancellationToken.None);
 
@@ -136,10 +151,25 @@ public class ProductionOrderHoldBoardsTests
             .ReturnsAsync([]);
         var clock = new Mock<IDateTimeProvider>();
         clock.SetupGet(p => p.UtcNow).Returns(NowInShift);
+        // Skill gating (issue #397): no requirements by default so the
+        // held-order exclusion is exercised in isolation.
+        var operationNodes = new Mock<IOperationNodesRepository>();
+        operationNodes.Setup(r => r.ListForVersionsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<OperationNode>());
+        var skills = new Mock<ISkillsRepository>();
+        skills.Setup(r => r.ListByCodesAsync(
+                It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Skill>());
+        var qualifications = new Mock<IOperatorSkillQualificationsRepository>();
+        qualifications.Setup(r => r.ListSkillCodesForOperatorsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, IReadOnlyCollection<string>>());
         var sut = new GetOperatorShiftQueueRequestHandler(
             operators.Object, assignments.Object, shifts.Object, orders.Object,
             confirmations.Object, scheduledOps.Object, machines.Object,
-            products.Object, andon.Object, clock.Object);
+            products.Object, andon.Object, clock.Object,
+            operationNodes.Object, skills.Object, qualifications.Object);
 
         var result = await sut.Handle(new GetOperatorShiftQueueRequest("OP-1"), CancellationToken.None);
 
