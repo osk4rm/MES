@@ -30,9 +30,10 @@ public sealed record DispatchShiftResponse(
     bool IsUncovered);
 
 /// <summary>
-/// A Released or InProgress order that is overdue, due inside the window or
-/// has no due date, with read-time confirmation totals reused from
-/// <c>ProductionOrderMappers</c>.
+/// A Released, InProgress or OnHold order that is overdue, due inside the
+/// window or has no due date, with read-time confirmation totals reused from
+/// <c>ProductionOrderMappers</c>. Held orders carry <c>IsBlocked</c> so the
+/// board renders them as blocked, not schedulable (issue #398).
 /// </summary>
 public sealed record DispatchOrderRowResponse(
     Guid Id,
@@ -45,4 +46,5 @@ public sealed record DispatchOrderRowResponse(
     int Priority,
     DateTime? DueDate,
     ProductionOrderStatus Status,
-    bool IsOverdue);
+    bool IsOverdue,
+    bool IsBlocked);

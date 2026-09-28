@@ -3,6 +3,7 @@ using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Multitenancy.Contracts.Interfaces;
 using AsistOff.MES.Production.Application.Features.ProductionOrders;
 using AsistOff.MES.Production.Domain.Entities;
+using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
@@ -55,6 +56,11 @@ internal sealed class RescheduleGanttSegmentRequestHandler(
         // The move itself does not bump the order xmin, so one token covers
         // consecutive moves until the order itself changes.
         ProductionOrderConcurrency.RequireMatchForUpdate(order, request.ConcurrencyToken);
+
+        // Held orders are blocked on the boards, not schedulable: pinning a
+        // held segment would silently plan work that cannot execute.
+        if (order.Status == ProductionOrderStatus.OnHold)
+            throw new ValidationException(nameof(request.ProductionOrderId), "The production order is on hold and cannot be rescheduled. Resume it first.");
 
         var node = await operationsRepository.GetAsync(request.OperationNodeId, cancellationToken)
             ?? throw new NotFoundException("OperationNode", request.OperationNodeId);

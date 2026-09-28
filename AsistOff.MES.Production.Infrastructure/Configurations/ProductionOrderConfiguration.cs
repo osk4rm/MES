@@ -14,6 +14,8 @@ public class ProductionOrderConfiguration : IEntityTypeConfiguration<ProductionO
 
         builder.Property(x => x.Code).IsRequired().HasMaxLength(100);
         builder.Property(x => x.Notes).HasMaxLength(2000);
+        builder.Property(x => x.HoldReason).HasMaxLength(500);
+        builder.Property(x => x.StatusBeforeHold).HasConversion<short>();
         builder.Property(x => x.SyncId).HasMaxLength(200);
         builder.Property(x => x.Status).HasConversion<short>();
         builder.Property(x => x.PlannedQuantity).HasColumnType("numeric(14,4)");

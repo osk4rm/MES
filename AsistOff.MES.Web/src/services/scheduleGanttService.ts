@@ -3,8 +3,9 @@ import http from './http';
 /**
  * One scheduled operation segment on the Gantt chart. Mirrors
  * `GanttBarResponse` from `GET /api/schedule/gantt`: which Production Order
- * and Operation runs on the Work Center, when, and whether it ends after the
- * order due date. Timestamps arrive as ISO strings.
+ * and Operation runs on the Work Center, when, whether it ends after the
+ * order due date, and whether the parent order is on hold (`isBlocked` bars
+ * render as blocked, not schedulable). Timestamps arrive as ISO strings.
  */
 export interface GanttBar {
   productionOrderId: string;
@@ -16,6 +17,7 @@ export interface GanttBar {
   plannedStart: string;
   plannedEnd: string;
   isOverdue: boolean;
+  isBlocked: boolean;
 }
 
 /**

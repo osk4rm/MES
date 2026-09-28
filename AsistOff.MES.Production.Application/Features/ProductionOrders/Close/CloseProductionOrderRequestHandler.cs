@@ -25,6 +25,9 @@ internal sealed class CloseProductionOrderRequestHandler(
 
         ProductionOrderConcurrency.RequireMatchIfPresent(order, request.ConcurrencyToken);
 
+        if (order.Status == ProductionOrderStatus.OnHold)
+            throw new ValidationException(nameof(order.Status), $"Production order '{order.Code}' is on hold and cannot be closed. Resume it first.");
+
         if (order.Status != ProductionOrderStatus.Completed)
             throw new ConflictException("Only orders in Completed status can be closed.");
 

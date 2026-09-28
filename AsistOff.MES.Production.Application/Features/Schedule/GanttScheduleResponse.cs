@@ -21,6 +21,8 @@ public sealed record GanttMachineGroupResponse(
 /// <summary>
 /// One scheduled operation segment: which order and operation runs on the
 /// Work Center, when, and whether it ends after the order due date.
+/// <c>IsBlocked</c> marks bars of orders on hold so the Gantt renders them
+/// as blocked, not schedulable (issue #398).
 /// </summary>
 public sealed record GanttBarResponse(
     Guid ProductionOrderId,
@@ -31,4 +33,5 @@ public sealed record GanttBarResponse(
     Guid? MachineId,
     DateTime PlannedStart,
     DateTime PlannedEnd,
-    bool IsOverdue);
+    bool IsOverdue,
+    bool IsBlocked);

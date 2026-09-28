@@ -27,4 +27,7 @@ public record ProductionOrderResponse(
     int ConfirmationsCount,
     DateTime? CompletedAt,
     DateTime? ClosedAt,
-    string ConcurrencyToken);
+    string ConcurrencyToken,
+    DateTime? HeldAtUtc,
+    string? HoldReason,
+    ProductionOrderStatus? StatusBeforeHold);

@@ -43,6 +43,7 @@ function bar(overrides: Partial<GanttBar> = {}): GanttBar {
     plannedStart: isoLocal(9, 22, 6),
     plannedEnd: isoLocal(9, 22, 14),
     isOverdue: false,
+    isBlocked: false,
     ...overrides
   };
 }

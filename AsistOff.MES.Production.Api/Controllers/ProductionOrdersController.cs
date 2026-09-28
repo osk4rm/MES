@@ -8,8 +8,10 @@ using AsistOff.MES.Production.Application.Features.ProductionOrders.Complete;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Create;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Delete;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Get;
+using AsistOff.MES.Production.Application.Features.ProductionOrders.Hold;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Movements;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Release;
+using AsistOff.MES.Production.Application.Features.ProductionOrders.Resume;
 using AsistOff.MES.Production.Application.Features.ProductionOrders.Update;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Infrastructure.Controllers;
@@ -88,6 +90,31 @@ public class ProductionOrdersController(ISender sender) : ApiController
     public async Task<ActionResult<ProductionOrderResponse>> CloseAsync(
         [FromRoute] Guid id, [FromQuery] string? concurrencyToken, CancellationToken cancellationToken)
         => Ok(await sender.Send(new CloseProductionOrderRequest(id, concurrencyToken), cancellationToken));
+
+    /// <summary>
+    /// Hold a Released or InProgress order. The order moves to OnHold and
+    /// records the optional <c>?holdReason=…</c> reason code / note; while
+    /// held, confirmations, complete, close and release are rejected with
+    /// 400. Accepts the same optional <c>?concurrencyToken=…</c> guard and
+    /// 409 retry contract as release.
+    /// </summary>
+    [HttpPost("{id:guid}/hold")]
+    public async Task<ActionResult<ProductionOrderResponse>> HoldAsync(
+        [FromRoute] Guid id,
+        [FromQuery] string? concurrencyToken,
+        [FromQuery] string? holdReason,
+        CancellationToken cancellationToken)
+        => Ok(await sender.Send(new HoldProductionOrderRequest(id, concurrencyToken, holdReason), cancellationToken));
+
+    /// <summary>
+    /// Resume an OnHold order back to its pre-hold (Released or InProgress)
+    /// status. Accepts the same optional <c>?concurrencyToken=…</c> guard
+    /// and 409 retry contract as release.
+    /// </summary>
+    [HttpPost("{id:guid}/resume")]
+    public async Task<ActionResult<ProductionOrderResponse>> ResumeAsync(
+        [FromRoute] Guid id, [FromQuery] string? concurrencyToken, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new ResumeProductionOrderRequest(id, concurrencyToken), cancellationToken));
 
     /// <summary>Read-only RW/PW movement preview aggregated per order.</summary>
     [HttpGet("{id:guid}/movements")]

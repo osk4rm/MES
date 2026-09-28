@@ -83,6 +83,9 @@ export function productionOrderStatusMeta(status: number): StatusSignalMeta {
   if (status === ProductionOrderStatus.InProgress) return { variant: 'warning', icon: 'pi pi-cog' };
   if (status === ProductionOrderStatus.Completed) return { variant: 'primary', icon: 'pi pi-check' };
   if (status === ProductionOrderStatus.Closed) return { variant: 'idle', icon: 'pi pi-lock' };
+  // Held orders read as attention-needed but distinct from in-progress work
+  // (pause glyph, never color alone).
+  if (status === ProductionOrderStatus.OnHold) return { variant: 'warning', icon: 'pi pi-pause' };
   return { variant: 'info', icon: 'pi pi-info-circle' };
 }
 
