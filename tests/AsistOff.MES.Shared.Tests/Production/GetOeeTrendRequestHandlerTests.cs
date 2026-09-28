@@ -18,9 +18,12 @@ public class GetOeeTrendRequestHandlerTests
     private readonly Mock<IWorkCenterCalendarsRepository> _calendars = new();
     private readonly Mock<IDowntimeEventsRepository> _downtimes = new();
     private readonly Mock<IProductionConfirmationsRepository> _confirmations = new();
+    private readonly Mock<IProductionOrdersRepository> _orders = new();
+    private readonly Mock<IOperationNodesRepository> _operations = new();
 
     private GetOeeTrendRequestHandler CreateSut() => new(
-        _machines.Object, _calendars.Object, _downtimes.Object, _confirmations.Object);
+        _machines.Object, _calendars.Object, _downtimes.Object, _confirmations.Object,
+        _orders.Object, _operations.Object);
 
     private static Machine AMachine(Guid id) => new()
     {
@@ -450,5 +453,152 @@ public class GetOeeTrendRequestHandlerTests
             c => c.ListForMachineInWindowAsync(
                 It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    private static ProductionOrder AnOrder(Guid orderId, Guid versionId) => new()
+    {
+        Id = orderId,
+        TenantId = Guid.NewGuid(),
+        Code = "PO-1",
+        ProductId = Guid.NewGuid(),
+        RecipeId = Guid.NewGuid(),
+        RecipeVersionId = versionId,
+        PlannedQuantity = 100m
+    };
+
+    private static OperationNode AnOperation(Guid versionId, decimal? runTimePerUnitSeconds) => new()
+    {
+        Id = Guid.NewGuid(),
+        TenantId = Guid.NewGuid(),
+        RecipeVersionId = versionId,
+        Code = "OP-1",
+        Name = "Operation 1",
+        RunTimePerUnitSeconds = runTimePerUnitSeconds
+    };
+
+    private void ArrangeRouting(Guid orderId, Guid versionId, params decimal?[] runTimes)
+    {
+        _orders.Setup(o => o.GetAsync(orderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AnOrder(orderId, versionId));
+        _operations.Setup(o => o.ListForVersionAsync(versionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(runTimes.Select(rt => AnOperation(versionId, rt)).ToList());
+    }
+
+    private static ProductionConfirmation ConfirmationForOrder(
+        Guid machineId, Guid orderId, DateTime reportedAt, decimal good, decimal scrap) => new()
+    {
+        Id = Guid.NewGuid(),
+        TenantId = Guid.NewGuid(),
+        ProductionOrderId = orderId,
+        MachineId = machineId,
+        ReportedAt = reportedAt,
+        GoodQuantity = good,
+        ScrapQuantity = scrap
+    };
+
+    [Fact]
+    public async Task Handle_NullIdeal_ResolvesFromRouting_ReturnsRoutingSource()
+    {
+        // Arrange - Monday..Tuesday full-day window, one Tuesday confirmation
+        // (90 good + 10 scrap); routing offers 30s and 10s so the minimum
+        // (10s) wins, same rule as the summary endpoint.
+        var machineId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        ArrangeMachineWithCalendar(
+            machineId,
+            FullDayEntry(DayOfWeek.Monday),
+            FullDayEntry(DayOfWeek.Tuesday));
+        var tuesday = Monday.AddDays(1);
+        _confirmations.Setup(c => c.ListForMachineInWindowAsync(
+                machineId, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ConfirmationForOrder(machineId, orderId, tuesday.AddHours(10), 90m, 10m)]);
+        ArrangeRouting(orderId, versionId, 30m, 10m);
+
+        // Act
+        var result = await CreateSut().Handle(
+            new GetOeeTrendRequest(machineId, Monday, Monday.AddDays(2), null, "Day"),
+            CancellationToken.None);
+
+        // Assert
+        result.IdealCycleTimeSeconds.Should().Be(10m);
+        result.IdealCycleTimeSource.Should().Be("routing");
+        result.Buckets.Should().HaveCount(2);
+        result.Buckets.Should().OnlyContain(b => b.IdealCycleTimeSeconds == 10m);
+        result.Buckets.Should().OnlyContain(b => b.IdealCycleTimeSource == "routing");
+        result.Buckets[0].TotalCount.Should().Be(0m);
+        result.Buckets[0].Performance.Should().BeNull();
+        result.Buckets[1].TotalCount.Should().Be(100m);
+        result.Buckets[1].Performance.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_ExplicitIdeal_OverridesRouting_ReturnsCallerSource()
+    {
+        // Arrange - routing resolves to 10s but the caller passes 60s
+        var machineId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        ArrangeMachineWithCalendar(
+            machineId,
+            FullDayEntry(DayOfWeek.Monday),
+            FullDayEntry(DayOfWeek.Tuesday));
+        var tuesday = Monday.AddDays(1);
+        _confirmations.Setup(c => c.ListForMachineInWindowAsync(
+                machineId, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ConfirmationForOrder(machineId, orderId, tuesday.AddHours(10), 90m, 10m)]);
+        ArrangeRouting(orderId, versionId, 10m);
+
+        // Act
+        var result = await CreateSut().Handle(
+            new GetOeeTrendRequest(machineId, Monday, Monday.AddDays(2), 60m, "Day"),
+            CancellationToken.None);
+
+        // Assert
+        result.IdealCycleTimeSeconds.Should().Be(60m);
+        result.IdealCycleTimeSource.Should().Be("caller");
+        result.Buckets.Should().OnlyContain(b => b.IdealCycleTimeSeconds == 60m);
+        result.Buckets.Should().OnlyContain(b => b.IdealCycleTimeSource == "caller");
+    }
+
+    [Fact]
+    public async Task Handle_NullIdeal_EmptyWindow_ThrowsValidationException_NamingIdeal()
+    {
+        // Arrange - no confirmations: nothing to resolve from
+        var machineId = Guid.NewGuid();
+        ArrangeMachineWithCalendar(machineId, FullDayEntry(DayOfWeek.Monday));
+
+        // Act
+        var act = () => CreateSut().Handle(
+            new GetOeeTrendRequest(machineId, Monday, Monday.AddHours(8), null, "Day"),
+            CancellationToken.None);
+
+        // Assert - 400 naming idealCycleTimeSeconds, never 500 or zero-division
+        var exception = await act.Should().ThrowAsync<ValidationException>();
+        exception.Which.Errors.Should().ContainKey(nameof(GetOeeTrendRequest.IdealCycleTimeSeconds));
+        exception.Which.Message.Should().Contain("idealCycleTimeSeconds");
+    }
+
+    [Fact]
+    public async Task Handle_NullIdeal_UnresolvableRouting_ThrowsValidationException()
+    {
+        // Arrange - confirmations exist but no positive operation time
+        var machineId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        ArrangeMachineWithCalendar(machineId, FullDayEntry(DayOfWeek.Monday));
+        _confirmations.Setup(c => c.ListForMachineInWindowAsync(
+                machineId, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ConfirmationForOrder(machineId, orderId, Monday.AddHours(10), 90m, 10m)]);
+        ArrangeRouting(orderId, versionId, null, 0m);
+
+        // Act
+        var act = () => CreateSut().Handle(
+            new GetOeeTrendRequest(machineId, Monday, Monday.AddHours(8), null, "Day"),
+            CancellationToken.None);
+
+        // Assert
+        var exception = await act.Should().ThrowAsync<ValidationException>();
+        exception.Which.Errors.Should().ContainKey(nameof(GetOeeTrendRequest.IdealCycleTimeSeconds));
     }
 }

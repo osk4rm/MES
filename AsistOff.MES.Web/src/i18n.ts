@@ -879,6 +879,10 @@ const pl = {
     from: 'Okno od',
     to: 'Okno do',
     idealCycleTime: 'Idealny czas cyklu [s]',
+    idealCycleTimeHint: 'Puste = automatycznie z marszruty',
+    idealCycleTimeAuto: 'Auto (marszruta)…',
+    idealCycleTimeSourceRouting: 'Idealny czas cyklu {ideal} s (z marszruty)',
+    idealCycleTimeSourceCaller: 'Idealny czas cyklu {ideal} s (własny)',
     bucket: 'Agregacja',
     apply: 'Zastosuj',
     buckets: {
@@ -1982,6 +1986,10 @@ const en: typeof pl = {
     from: 'Window from',
     to: 'Window to',
     idealCycleTime: 'Ideal cycle time [s]',
+    idealCycleTimeHint: 'Empty = auto from routing',
+    idealCycleTimeAuto: 'Auto (routing)…',
+    idealCycleTimeSourceRouting: 'Ideal cycle time {ideal}s (from routing)',
+    idealCycleTimeSourceCaller: 'Ideal cycle time {ideal}s (custom)',
     bucket: 'Bucket',
     apply: 'Apply',
     buckets: {

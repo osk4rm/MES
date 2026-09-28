@@ -390,7 +390,8 @@ public sealed record OeeSnapshotDto(
     double DowntimeMinutes,
     decimal TotalCount,
     decimal GoodCount,
-    decimal ScrapCount);
+    decimal ScrapCount,
+    string? IdealCycleTimeSource = null);
 
 /// <summary>Shape of the OEE summary returned by <c>/api/oee</c>: counts, Quality, Availability, auto-resolved ideal cycle time, Performance (clamped at 1) and composite OEE.</summary>
 public sealed record OeeSummaryDto(
@@ -416,7 +417,8 @@ public sealed record OeeTrendDto(
     DateTime ToUtc,
     decimal IdealCycleTimeSeconds,
     string Bucket,
-    IReadOnlyCollection<OeeSnapshotDto> Buckets);
+    IReadOnlyCollection<OeeSnapshotDto> Buckets,
+    string? IdealCycleTimeSource = null);
 
 /// <summary>Shape of one downtime Pareto row returned by <c>/api/oee/losses</c>.</summary>
 public sealed record DowntimeParetoEntryDto(

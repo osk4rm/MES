@@ -4,6 +4,9 @@ namespace AsistOff.MES.Production.Application.Features.Oee.Snapshot;
 /// OEE snapshot contract: echoed inputs, the four nullable factors
 /// (null when they cannot be computed — never zeros), per-factor computed
 /// flags and the component totals the factors were derived from.
+/// <c>IdealCycleTimeSource</c> echoes where the effective ideal came from:
+/// <c>caller</c> for an explicit query value, <c>routing</c> for the
+/// routing-master-data resolution (additive field, shape otherwise unchanged).
 /// </summary>
 public sealed record OeeSnapshotResponse(
     Guid MachineId,
@@ -22,4 +25,5 @@ public sealed record OeeSnapshotResponse(
     double DowntimeMinutes,
     decimal TotalCount,
     decimal GoodCount,
-    decimal ScrapCount);
+    decimal ScrapCount,
+    string IdealCycleTimeSource);

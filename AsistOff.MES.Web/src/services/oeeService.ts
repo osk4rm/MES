@@ -14,13 +14,16 @@ export type OeeBucket = typeof OeeBucket[keyof typeof OeeBucket];
  * OEE snapshot contract. Mirrors `OeeSnapshotResponse` from the backend:
  * echoed inputs, the four nullable factors (null when they cannot be
  * computed — never zeros), per-factor computed flags and the component
- * totals the factors were derived from.
+ * totals the factors were derived from. `idealCycleTimeSource` echoes where
+ * the effective ideal came from: `caller` for an explicit query value,
+ * `routing` for the routing-master-data resolution.
  */
 export interface OeeSnapshot {
   machineId: string;
   fromUtc: string;
   toUtc: string;
   idealCycleTimeSeconds: number;
+  idealCycleTimeSource?: string | null;
   availability: number | null;
   performance: number | null;
   quality: number | null;
@@ -66,6 +69,7 @@ export interface OeeTrend {
   fromUtc: string;
   toUtc: string;
   idealCycleTimeSeconds: number;
+  idealCycleTimeSource?: string | null;
   bucket: string;
   buckets: OeeSnapshot[];
 }
@@ -109,7 +113,7 @@ export interface GetOeeSnapshotQuery {
   machineId: string;
   fromUtc: string;
   toUtc: string;
-  idealCycleTimeSeconds: number;
+  idealCycleTimeSeconds?: number;
 }
 
 export interface GetOeeTrendQuery extends GetOeeSnapshotQuery {
@@ -124,6 +128,15 @@ export interface GetOeeLossesQuery {
 
 const BASE = '/api/oee';
 
+/** Drops undefined values so an omitted ideal cycle time stays omitted on the wire (backend resolves it from routing). */
+function stripUndefined<T extends object>(query: T): Record<string, unknown> {
+  const params = { ...query } as Record<string, unknown>;
+  for (const key of Object.keys(params)) {
+    if (params[key] === undefined) delete params[key];
+  }
+  return params;
+}
+
 export const oeeService = {
   /**
    * Per-Work Center OEE summary over a UTC time window. The backend resolves
@@ -134,14 +147,14 @@ export const oeeService = {
     const { data } = await http.get<OeeSummary>(`${BASE}`, { params: { ...query } });
     return data;
   },
-  /** Per-Work Center OEE snapshot over a UTC time window. */
+  /** Per-Work Center OEE snapshot over a UTC time window. The ideal cycle time is optional: when omitted the backend resolves it from routing master data. */
   async getSnapshot(query: GetOeeSnapshotQuery): Promise<OeeSnapshot> {
-    const { data } = await http.get<OeeSnapshot>(`${BASE}/snapshot`, { params: { ...query } });
+    const { data } = await http.get<OeeSnapshot>(`${BASE}/snapshot`, { params: stripUndefined(query) });
     return data;
   },
-  /** Per-Work Center OEE trend: one snapshot per Day or Week bucket. */
+  /** Per-Work Center OEE trend: one snapshot per Day or Week bucket. The ideal cycle time is optional: when omitted the backend resolves it from routing master data. */
   async getTrend(query: GetOeeTrendQuery): Promise<OeeTrend> {
-    const { data } = await http.get<OeeTrend>(`${BASE}/trend`, { params: { ...query } });
+    const { data } = await http.get<OeeTrend>(`${BASE}/trend`, { params: stripUndefined(query) });
     return data;
   },
   /** Per-Work Center loss Pareto: downtime minutes and scrap by reason code. */
