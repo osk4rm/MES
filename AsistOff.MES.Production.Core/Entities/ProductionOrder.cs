@@ -24,6 +24,16 @@ public class ProductionOrder : IEntity, ISaasy, IAuditable, ISyncable
     public ProductionOrderStatus Status { get; set; } = ProductionOrderStatus.Planned;
     public DateTime? ReleasedAt { get; set; }
     public Guid? ReleasedByUserId { get; set; }
+    /// <summary>
+    /// Hold state (issue #398): when <see cref="Status"/> is
+    /// <c>OnHold</c>, <c>StatusBeforeHold</c> is the Released/InProgress
+    /// status Resume restores, <c>HeldAtUtc</c> stamps the hold and
+    /// <c>HoldReason</c> carries the optional reason code / note. All three
+    /// are null for orders that were never held (or were resumed).
+    /// </summary>
+    public ProductionOrderStatus? StatusBeforeHold { get; set; }
+    public DateTime? HeldAtUtc { get; set; }
+    public string? HoldReason { get; set; }
     public string? Notes { get; set; }
     /// <summary>
     /// Optimistic concurrency token backed by the PostgreSQL <c>xmin</c>

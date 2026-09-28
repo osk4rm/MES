@@ -64,7 +64,10 @@ public sealed record ProductionOrderDto(
     int ConfirmationsCount,
     DateTime? CompletedAt,
     DateTime? ClosedAt,
-    string ConcurrencyToken);
+    string ConcurrencyToken,
+    DateTime? HeldAtUtc = null,
+    string? HoldReason = null,
+    short? StatusBeforeHold = null);
 
 /// <summary>Shape of a recipe as returned by <c>/api/recipes</c>.</summary>
 public sealed record RecipeDto(
@@ -390,7 +393,8 @@ public sealed record OeeSnapshotDto(
     double DowntimeMinutes,
     decimal TotalCount,
     decimal GoodCount,
-    decimal ScrapCount);
+    decimal ScrapCount,
+    string? IdealCycleTimeSource = null);
 
 /// <summary>Shape of the OEE summary returned by <c>/api/oee</c>: counts, Quality, Availability, auto-resolved ideal cycle time, Performance (clamped at 1) and composite OEE.</summary>
 public sealed record OeeSummaryDto(
@@ -416,7 +420,8 @@ public sealed record OeeTrendDto(
     DateTime ToUtc,
     decimal IdealCycleTimeSeconds,
     string Bucket,
-    IReadOnlyCollection<OeeSnapshotDto> Buckets);
+    IReadOnlyCollection<OeeSnapshotDto> Buckets,
+    string? IdealCycleTimeSource = null);
 
 /// <summary>Shape of one downtime Pareto row returned by <c>/api/oee/losses</c>.</summary>
 public sealed record DowntimeParetoEntryDto(
@@ -598,6 +603,7 @@ public sealed record DispatchOrderRowDto(
     DateTime? DueDate,
     short Status,
     bool IsOverdue,
+    bool IsBlocked = false,
     bool NoQualifiedOperator = false);
 
 /// <summary>Shape of the dispatch board returned by <c>/api/schedule/dispatch</c>. Dates are ISO 8601 <c>yyyy-MM-dd</c>.</summary>
@@ -678,7 +684,8 @@ public sealed record GanttBarDto(
     Guid? MachineId,
     DateTime PlannedStart,
     DateTime PlannedEnd,
-    bool IsOverdue);
+    bool IsOverdue,
+    bool IsBlocked = false);
 
 /// <summary>Shape of one Work Center lane returned by <c>/api/schedule/gantt</c>.</summary>
 public sealed record GanttMachineGroupDto(

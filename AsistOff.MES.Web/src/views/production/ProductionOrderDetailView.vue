@@ -16,6 +16,24 @@
           {{ $t('productionOrders.release') }}
         </AppButton>
         <AppButton
+          v-if="canHold"
+          variant="secondary"
+          icon="pi pi-pause"
+          data-testid="hold-order"
+          @click="openHold"
+        >
+          {{ $t('productionOrders.hold') }}
+        </AppButton>
+        <AppButton
+          v-if="canResume"
+          variant="primary"
+          icon="pi pi-play"
+          data-testid="resume-order"
+          @click="askResume"
+        >
+          {{ $t('productionOrders.resume') }}
+        </AppButton>
+        <AppButton
           v-if="canReport"
           variant="primary"
           icon="pi pi-plus"
@@ -98,6 +116,14 @@
         <div v-if="order.closedAt" class="summary-item">
           <span class="summary-item__label">{{ $t('productionOrders.detail.closedAt') }}</span>
           <span>{{ formatDateTime(order.closedAt) }}</span>
+        </div>
+        <div v-if="order.heldAtUtc" class="summary-item">
+          <span class="summary-item__label">{{ $t('productionOrders.detail.heldAt') }}</span>
+          <span>{{ formatDateTime(order.heldAtUtc) }}</span>
+        </div>
+        <div v-if="order.holdReason" class="summary-item summary-item--full">
+          <span class="summary-item__label">{{ $t('productionOrders.holdReason') }}</span>
+          <span>{{ order.holdReason }}</span>
         </div>
         <div v-if="order.notes" class="summary-item summary-item--full">
           <span class="summary-item__label">{{ $t('productionOrders.notes') }}</span>
@@ -326,10 +352,28 @@
       :open="lifecycleOpen"
       :title="lifecycleTitle"
       :message="lifecycleMessage"
-      :loading="completing || closing"
+      :loading="completing || closing || resuming"
       @confirm="confirmLifecycle"
       @cancel="cancelLifecycle"
     />
+
+    <AppModal :open="holdOpen" :title="$t('productionOrders.hold')" data-testid="hold-modal" @close="cancelHold">
+      <AppFormField :label="$t('productionOrders.holdReason')" class="form-grid__full">
+        <template #default="{ id }">
+          <AppTextarea
+            :id="id"
+            v-model="holdReason"
+            :rows="2"
+            :placeholder="$t('productionOrders.holdReasonPlaceholder')"
+            data-testid="hold-reason"
+          />
+        </template>
+      </AppFormField>
+      <template #footer>
+        <AppButton variant="ghost" :disabled="holding" @click="cancelHold">{{ $t('common.cancel') }}</AppButton>
+        <AppButton variant="primary" :loading="holding" data-testid="hold-confirm" @click="confirmHold">{{ $t('productionOrders.hold') }}</AppButton>
+      </template>
+    </AppModal>
 
     <AppModal :open="movementsModalOpen" :title="$t('movements.perConfirmationTitle')" @close="closeMovementsModal">
       <AppTable
@@ -443,6 +487,14 @@ const canComplete = computed(() =>
 const canClose = computed(() =>
   order.value !== null && order.value.status === ProductionOrderStatus.Completed);
 
+const canHold = computed(() =>
+  order.value !== null &&
+  (order.value.status === ProductionOrderStatus.Released ||
+    order.value.status === ProductionOrderStatus.InProgress));
+
+const canResume = computed(() =>
+  order.value !== null && order.value.status === ProductionOrderStatus.OnHold);
+
 const progressPercent = computed(() => {
   if (!order.value || order.value.plannedQuantity <= 0) return 0;
   const produced = order.value.producedQuantity ?? 0;
@@ -481,6 +533,7 @@ function statusLabel(v: number): string {
     case ProductionOrderStatus.InProgress: return t('productionOrders.status.inProgress');
     case ProductionOrderStatus.Completed: return t('productionOrders.status.completed');
     case ProductionOrderStatus.Closed: return t('productionOrders.status.closed');
+    case ProductionOrderStatus.OnHold: return t('productionOrders.status.onHold');
     default: return String(v);
   }
 }
@@ -820,18 +873,28 @@ function cancelDelete(): void {
 }
 
 const lifecycleOpen = ref(false);
-const lifecycleKind = ref<'complete' | 'close' | null>(null);
+const lifecycleKind = ref<'complete' | 'close' | 'resume' | null>(null);
 const completing = ref(false);
 const closing = ref(false);
+const resuming = ref(false);
 const lifecycleTitle = computed(() => lifecycleKind.value === 'close'
   ? t('productionOrders.close')
-  : t('productionOrders.complete'));
+  : lifecycleKind.value === 'resume'
+    ? t('productionOrders.resume')
+    : t('productionOrders.complete'));
 const lifecycleMessage = computed(() => lifecycleKind.value === 'close'
   ? t('productionOrders.confirmClose')
-  : t('productionOrders.confirmComplete'));
+  : lifecycleKind.value === 'resume'
+    ? t('productionOrders.confirmResume')
+    : t('productionOrders.confirmComplete'));
 
 function askComplete(): void {
   lifecycleKind.value = 'complete';
+  lifecycleOpen.value = true;
+}
+
+function askResume(): void {
+  lifecycleKind.value = 'resume';
   lifecycleOpen.value = true;
 }
 
@@ -849,12 +912,19 @@ async function confirmLifecycle(): Promise<void> {
   if (!order.value || !lifecycleKind.value) return;
   const kind = lifecycleKind.value;
   if (kind === 'complete') completing.value = true;
-  else closing.value = true;
+  else if (kind === 'close') closing.value = true;
+  else resuming.value = true;
   try {
     order.value = kind === 'complete'
       ? await productionOrderService.complete(order.value.id, order.value.concurrencyToken)
-      : await productionOrderService.close(order.value.id, order.value.concurrencyToken);
-    toast.success(kind === 'complete' ? t('productionOrders.completedToast') : t('productionOrders.closedToast'));
+      : kind === 'close'
+        ? await productionOrderService.close(order.value.id, order.value.concurrencyToken)
+        : await productionOrderService.resume(order.value.id, order.value.concurrencyToken);
+    toast.success(kind === 'complete'
+      ? t('productionOrders.completedToast')
+      : kind === 'close'
+        ? t('productionOrders.closedToast')
+        : t('productionOrders.resumedToast'));
     lifecycleOpen.value = false;
     lifecycleKind.value = null;
     await table.fetch();
@@ -863,6 +933,37 @@ async function confirmLifecycle(): Promise<void> {
   } finally {
     completing.value = false;
     closing.value = false;
+    resuming.value = false;
+  }
+}
+
+const holdOpen = ref(false);
+const holding = ref(false);
+const holdReason = ref('');
+
+function openHold(): void {
+  holdReason.value = '';
+  holdOpen.value = true;
+}
+
+function cancelHold(): void {
+  if (holding.value) return;
+  holdOpen.value = false;
+}
+
+async function confirmHold(): Promise<void> {
+  if (!order.value) return;
+  holding.value = true;
+  try {
+    order.value = await productionOrderService.hold(
+      order.value.id, order.value.concurrencyToken, holdReason.value.trim() || null);
+    toast.success(t('productionOrders.heldToast'));
+    holdOpen.value = false;
+    await table.fetch();
+  } catch (err) {
+    toast.error(extractErrorMessage(err, t('errors.saveFailed')));
+  } finally {
+    holding.value = false;
   }
 }
 

@@ -31,9 +31,9 @@
           <AppInput :id="id" v-model="toInput" type="datetime-local" @change="onWindowChange" />
         </template>
       </AppFormField>
-      <AppFormField :label="$t('oeeDashboard.idealCycleTime')">
+      <AppFormField :label="$t('oeeDashboard.idealCycleTime')" :hint="$t('oeeDashboard.idealCycleTimeHint')">
         <template #default="{ id }">
-          <AppNumberInput :id="id" v-model="idealInput" :min="1" :step="1" suffix="s" @blur="onIdealBlur" />
+          <AppNumberInput :id="id" v-model="idealInput" :min="1" :step="1" suffix="s" :placeholder="$t('oeeDashboard.idealCycleTimeAuto')" @blur="onIdealBlur" />
         </template>
       </AppFormField>
       <AppFormField :label="$t('oeeDashboard.bucket')">
@@ -58,6 +58,7 @@
       @retry="refresh"
     >
       <template v-if="snapshot">
+        <div v-if="idealSourceLabel" class="oee-ideal-source">{{ idealSourceLabel }}</div>
         <AppEmptyState
           v-if="nullFactors"
           icon="pi pi-info-circle"
@@ -179,7 +180,6 @@ const toast = useToastStore();
 const route = useRoute();
 const router = useRouter();
 
-const DEFAULT_IDEAL = 60;
 const DEFAULT_WINDOW_HOURS = 8;
 
 const machines = ref<MachineResponse[]>([]);
@@ -188,7 +188,9 @@ const machinesLoading = ref(false);
 const machineId = ref<string | null>(null);
 const fromInput = ref('');
 const toInput = ref('');
-const idealInput = ref<number | null>(DEFAULT_IDEAL);
+// Empty means "auto": the backend resolves the ideal cycle time from routing
+// master data instead of the dashboard sending a hardcoded value.
+const idealInput = ref<number | null>(null);
 const bucket = ref<OeeBucket>(OeeBucket.Day);
 
 const snapshot = ref<OeeSnapshot | null>(null);
@@ -213,6 +215,15 @@ const emptyDescription = computed(() => !machineId.value || !notFound.value
   : t('oeeDashboard.notFoundHint'));
 
 const nullFactors = computed(() => hasNullFactors(snapshot.value));
+// Resolved-source label: tells the operator whether Performance used their
+// explicit ideal or the routing master data (echoed by the backend).
+const idealSourceLabel = computed(() => {
+  const source = snapshot.value?.idealCycleTimeSource;
+  const ideal = snapshot.value?.idealCycleTimeSeconds;
+  if (source === 'routing') return t('oeeDashboard.idealCycleTimeSourceRouting', { ideal: String(ideal ?? '') });
+  if (source === 'caller') return t('oeeDashboard.idealCycleTimeSourceCaller', { ideal: String(ideal ?? '') });
+  return '';
+});
 const trendBuckets = computed<OeeSnapshot[]>(() => trend.value?.buckets ?? []);
 const downtimePareto = computed<OeeDowntimeParetoEntry[]>(() => losses.value?.downtimePareto ?? []);
 const scrapPareto = computed<OeeScrapParetoEntry[]>(() => losses.value?.scrapPareto ?? []);
@@ -343,14 +354,16 @@ interface ValidatedQuery {
 
 /**
  * Validates the filter inputs without touching the loaded panels: illegal
- * input shows the error toast and leaves prior data in place.
+ * input shows the error toast and leaves prior data in place. An empty
+ * ideal means "auto" (backend resolves from routing master data); only an
+ * explicit non-positive value is rejected up front.
  */
 function readValidatedQuery(): ValidatedQuery | null {
   const id = machineId.value;
   const from = parseDatetimeLocal(fromInput.value);
   const to = parseDatetimeLocal(toInput.value);
   const ideal = idealInput.value;
-  if (!id || !from || !to || from >= to || ideal === null || !Number.isFinite(ideal) || ideal <= 0) {
+  if (!id || !from || !to || from >= to || (ideal !== null && (!Number.isFinite(ideal) || ideal <= 0))) {
     windowError.value = t('oeeDashboard.invalidWindow');
     toast.error(t('oeeDashboard.invalidInput'));
     return null;
@@ -359,18 +372,19 @@ function readValidatedQuery(): ValidatedQuery | null {
   const fromUtc = from.toISOString();
   const toUtc = to.toISOString();
   return {
-    snapshot: { machineId: id, fromUtc, toUtc, idealCycleTimeSeconds: ideal },
-    trend: { machineId: id, fromUtc, toUtc, idealCycleTimeSeconds: ideal, bucket: bucket.value },
+    snapshot: { machineId: id, fromUtc, toUtc, ...(ideal !== null ? { idealCycleTimeSeconds: ideal } : {}) },
+    trend: { machineId: id, fromUtc, toUtc, ...(ideal !== null ? { idealCycleTimeSeconds: ideal } : {}), bucket: bucket.value },
     losses: { machineId: id, fromUtc, toUtc }
   };
 }
 
 function syncQuery(q: ValidatedQuery): void {
+  const ideal = q.snapshot.idealCycleTimeSeconds;
   const next = {
     machineId: q.snapshot.machineId,
     from: q.snapshot.fromUtc,
     to: q.snapshot.toUtc,
-    ideal: String(q.snapshot.idealCycleTimeSeconds),
+    ideal: ideal !== undefined ? String(ideal) : '',
     bucket: bucket.value
   };
   const cur = route.query as Record<string, unknown>;
@@ -388,10 +402,16 @@ function syncQuery(q: ValidatedQuery): void {
   // Remember the key we just synced so the query watcher can swallow its
   // own echo instead of fetching every panel a second time.
   lastAppliedKey = [next.machineId, next.from, next.to, next.ideal, next.bucket].join('|');
+  const base = { ...route.query };
+  if (ideal === undefined) delete base.ideal;
   void router.replace({
     query: {
-      ...route.query,
-      ...next
+      ...base,
+      machineId: next.machineId,
+      from: next.from,
+      to: next.to,
+      ...(ideal !== undefined ? { ideal: next.ideal } : {}),
+      bucket: next.bucket
     }
   });
 }
@@ -469,7 +489,7 @@ function clearFilters(): void {
   const window = defaultWindow();
   fromInput.value = window.from;
   toInput.value = window.to;
-  idealInput.value = DEFAULT_IDEAL;
+  idealInput.value = null;
   bucket.value = OeeBucket.Day;
   windowError.value = null;
   if (machineId.value) void refresh();
@@ -483,8 +503,8 @@ function readStateFromQuery(): void {
   const window = defaultWindow();
   fromInput.value = from && !Number.isNaN(from.getTime()) ? toDatetimeLocal(from) : window.from;
   toInput.value = to && !Number.isNaN(to.getTime()) ? toDatetimeLocal(to) : window.to;
-  const ideal = typeof q.ideal === 'string' ? Number(q.ideal) : Number.NaN;
-  idealInput.value = Number.isFinite(ideal) && ideal > 0 ? ideal : DEFAULT_IDEAL;
+  const ideal = typeof q.ideal === 'string' && q.ideal !== '' ? Number(q.ideal) : Number.NaN;
+  idealInput.value = Number.isFinite(ideal) && ideal > 0 ? ideal : null;
   bucket.value = q.bucket === OeeBucket.Week ? OeeBucket.Week : OeeBucket.Day;
 }
 
@@ -557,6 +577,11 @@ onMounted(async () => {
 .oee-section__title {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
+}
+.oee-ideal-source {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-2);
 }
 .oee-pareto {
   display: grid;

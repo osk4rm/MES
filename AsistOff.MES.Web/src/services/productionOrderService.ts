@@ -8,7 +8,8 @@ export const ProductionOrderStatus = {
   Released: 2,
   InProgress: 3,
   Completed: 4,
-  Closed: 5
+  Closed: 5,
+  OnHold: 6
 } as const;
 export type ProductionOrderStatus = typeof ProductionOrderStatus[keyof typeof ProductionOrderStatus];
 
@@ -36,6 +37,9 @@ export interface ProductionOrderResponse {
   completedAt?: string | null;
   closedAt?: string | null;
   concurrencyToken: string;
+  heldAtUtc?: string | null;
+  holdReason?: string | null;
+  statusBeforeHold?: ProductionOrderStatus | null;
 }
 
 export interface BrowseProductionOrdersRequest extends IPagedRequest {
@@ -101,6 +105,18 @@ export const productionOrderService = {
   },
   async close(id: string, concurrencyToken?: string): Promise<ProductionOrderResponse> {
     const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/close`, null, tokenParam(concurrencyToken));
+    return data;
+  },
+  async hold(id: string, concurrencyToken?: string, holdReason?: string | null): Promise<ProductionOrderResponse> {
+    const params: Record<string, string> = {};
+    if (concurrencyToken) params.concurrencyToken = concurrencyToken;
+    if (holdReason) params.holdReason = holdReason;
+    const { data } = await http.post<ProductionOrderResponse>(
+      `${BASE}/${id}/hold`, null, Object.keys(params).length > 0 ? { params } : undefined);
+    return data;
+  },
+  async resume(id: string, concurrencyToken?: string): Promise<ProductionOrderResponse> {
+    const { data } = await http.post<ProductionOrderResponse>(`${BASE}/${id}/resume`, null, tokenParam(concurrencyToken));
     return data;
   },
   async getMovements(id: string): Promise<MovementPreviewLine[]> {

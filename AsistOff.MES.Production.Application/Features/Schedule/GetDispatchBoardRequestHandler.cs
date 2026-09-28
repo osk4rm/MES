@@ -3,6 +3,7 @@ using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Production.Application.Features.Common;
 using AsistOff.MES.Production.Application.Features.ProductionOrders;
 using AsistOff.MES.Production.Domain.Entities;
+using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
@@ -90,10 +91,12 @@ internal sealed class GetDispatchBoardRequestHandler(
             days.Add(new DispatchDayResponse(date, dayShifts));
         }
 
-        // Released/InProgress orders only, overdue / due-in-window / no-due-date,
-        // ordered overdue-first with Take applied inside the database query so a
-        // busy Work Center never pays a full-table read (issue #274). The
-        // defensive in-memory Take below only guards mocked repositories.
+        // Released/InProgress/OnHold orders only, overdue / due-in-window /
+        // no-due-date, ordered overdue-first with Take applied inside the
+        // database query so a busy Work Center never pays a full-table read
+        // (issue #274). Held orders stay visible but blocked, never
+        // schedulable (issue #398). The defensive in-memory Take below only
+        // guards mocked repositories.
         var candidates = await ordersRepository.BrowseDispatchBoardAsync(
             request.From, request.To, MaxOrderRows, cancellationToken);
 
@@ -137,6 +140,7 @@ internal sealed class GetDispatchBoardRequestHandler(
                     mapped.DueDate,
                     mapped.Status,
                     x.IsOverdue,
+                    mapped.Status == ProductionOrderStatus.OnHold,
                     !OperatorSkillGating.HasQualifiedOperator(required, heldSets));
             })
             .ToList();

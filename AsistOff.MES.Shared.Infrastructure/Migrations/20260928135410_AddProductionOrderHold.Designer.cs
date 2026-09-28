@@ -3,6 +3,7 @@ using System;
 using AsistOff.MES.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AsistOff.MES.Shared.Infrastructure.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    partial class DefaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260928135410_AddProductionOrderHold")]
+    partial class AddProductionOrderHold
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -502,35 +505,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("OperatorShiftAssignments", "config");
-                });
-
-            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.OperatorSkillQualification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("OperatorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("SkillId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OperatorId");
-
-                    b.HasIndex("SkillId");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex("TenantId", "OperatorId", "SkillId")
-                        .IsUnique();
-
-                    b.ToTable("OperatorSkillQualifications", "config");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.Product", b =>
@@ -2866,25 +2840,6 @@ namespace AsistOff.MES.Shared.Infrastructure.Migrations
                     b.Navigation("Operator");
 
                     b.Navigation("Shift");
-                });
-
-            modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.OperatorSkillQualification", b =>
-                {
-                    b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Operator", "Operator")
-                        .WithMany()
-                        .HasForeignKey("OperatorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AsistOff.MES.Configuration.Domain.Entities.Skill", "Skill")
-                        .WithMany()
-                        .HasForeignKey("SkillId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Operator");
-
-                    b.Navigation("Skill");
                 });
 
             modelBuilder.Entity("AsistOff.MES.Configuration.Domain.Entities.Product", b =>

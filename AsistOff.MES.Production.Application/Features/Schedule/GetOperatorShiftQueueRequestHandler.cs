@@ -106,7 +106,9 @@ internal sealed class GetOperatorShiftQueueRequestHandler(
         // Same bounded server-side read as the dispatch board (issue #274):
         // Released/InProgress orders overlapping the shift window, capped at
         // Take rows. The date window spans the roster date plus the next day
-        // for overnight shifts.
+        // for overnight shifts. Held orders are blocked, never dispatchable
+        // to operators (issue #398), so they are filtered out here even
+        // though the shared board read includes them.
         var fromDate = covering.Assignment.Date;
         var toDate = isOvernight ? fromDate.AddDays(1) : fromDate;
         var candidates = await ordersRepository.BrowseDispatchBoardAsync(
@@ -117,6 +119,7 @@ internal sealed class GetOperatorShiftQueueRequestHandler(
         // over the bounded candidate set. The defensive Take below only guards
         // mocked repositories; the database applies it first.
         var queued = candidates
+            .Where(x => x.Status != ProductionOrderStatus.OnHold)
             .OrderBy(x => x.Priority)
             .ThenBy(x => x.DueDate is null)
             .ThenBy(x => x.DueDate)

@@ -57,7 +57,8 @@ function overdueRow(): DispatchOrderRow {
     priority: 5,
     dueDate: new Date('2026-09-20T00:00:00Z').toISOString(),
     status: 2,
-    isOverdue: true
+    isOverdue: true,
+    isBlocked: false
   };
 }
 
@@ -73,7 +74,8 @@ function dueRow(): DispatchOrderRow {
     priority: 9,
     dueDate: new Date('2026-09-24T00:00:00Z').toISOString(),
     status: 3,
-    isOverdue: false
+    isOverdue: false,
+    isBlocked: false
   };
 }
 

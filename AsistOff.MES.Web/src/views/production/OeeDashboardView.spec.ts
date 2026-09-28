@@ -295,6 +295,22 @@ describe('OeeDashboardView', () => {
     expect(trendMock).toHaveBeenLastCalledWith(expect.objectContaining({ idealCycleTimeSeconds: 90 }));
   });
 
+  it('auto mode omits the ideal so the backend resolves it from routing and shows the source', async () => {
+    mockQuery.machineId = 'machine-1';
+    mockQuery.from = new Date('2026-09-24T06:00:00Z').toISOString();
+    mockQuery.to = new Date('2026-09-24T14:00:00Z').toISOString();
+    mockQuery.bucket = 'Day';
+    snapshotMock.mockResolvedValue(snapshotFixture({ idealCycleTimeSeconds: 10, idealCycleTimeSource: 'routing' }));
+    trendMock.mockResolvedValue({ ...trendFixture(), idealCycleTimeSeconds: 10, idealCycleTimeSource: 'routing' });
+
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    expect(snapshotMock).toHaveBeenCalledWith(expect.not.objectContaining({ idealCycleTimeSeconds: expect.anything() }));
+    expect(trendMock).toHaveBeenCalledWith(expect.not.objectContaining({ idealCycleTimeSeconds: expect.anything() }));
+    expect(wrapper.text()).toContain('oeeDashboard.idealCycleTimeSourceRouting');
+  });
+
   it('switching the bucket granularity refreshes the trend with the new bucket', async () => {
     seedDeepLink();
 

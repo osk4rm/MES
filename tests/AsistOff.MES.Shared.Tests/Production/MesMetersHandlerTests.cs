@@ -215,6 +215,8 @@ public class MesMetersHandlerTests
             Mock.Of<IWorkCenterCalendarsRepository>(),
             downtimes.Object,
             confirmations.Object,
+            Mock.Of<IProductionOrdersRepository>(),
+            Mock.Of<IOperationNodesRepository>(),
             MockTenant().Object);
 
         // Act

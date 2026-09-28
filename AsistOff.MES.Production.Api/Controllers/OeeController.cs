@@ -22,25 +22,25 @@ public class OeeController(ISender sender) : ApiController
             new GetOeeSummaryRequest(machineId, fromUtc, toUtc),
             cancellationToken));
 
-    /// <summary>Read-only per-Work Center OEE snapshot over a UTC time window.</summary>
+    /// <summary>Read-only per-Work Center OEE snapshot over a UTC time window. The ideal cycle time is optional: when omitted it is resolved from the confirmed orders' operations (routing master data).</summary>
     [HttpGet("snapshot")]
     public async Task<ActionResult<OeeSnapshotResponse>> SnapshotAsync(
         [FromQuery] Guid machineId,
         [FromQuery] DateTime fromUtc,
         [FromQuery] DateTime toUtc,
-        [FromQuery] decimal idealCycleTimeSeconds,
+        [FromQuery] decimal? idealCycleTimeSeconds,
         CancellationToken cancellationToken)
         => Ok(await sender.Send(
             new GetOeeSnapshotRequest(machineId, fromUtc, toUtc, idealCycleTimeSeconds),
             cancellationToken));
 
-    /// <summary>Per-Work Center OEE trend: one (1/3) snapshot per Day or Week bucket.</summary>
+    /// <summary>Per-Work Center OEE trend: one (1/3) snapshot per Day or Week bucket. The ideal cycle time is optional: when omitted it is resolved from the confirmed orders' operations (routing master data).</summary>
     [HttpGet("trend")]
     public async Task<ActionResult<OeeTrendResponse>> TrendAsync(
         [FromQuery] Guid machineId,
         [FromQuery] DateTime fromUtc,
         [FromQuery] DateTime toUtc,
-        [FromQuery] decimal idealCycleTimeSeconds,
+        [FromQuery] decimal? idealCycleTimeSeconds,
         [FromQuery] string? bucket,
         CancellationToken cancellationToken)
         => Ok(await sender.Send(

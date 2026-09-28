@@ -81,6 +81,7 @@
               class="gantt-bar"
               :class="{
                 'gantt-bar--overdue': isGanttBarOverdue(bar),
+                'gantt-bar--blocked': bar.isBlocked === true,
                 'gantt-bar--preview': previews[bar.operationNodeId] !== undefined,
                 'gantt-bar--moving': moving[bar.operationNodeId] === true,
                 'gantt-bar--locked': group.machineId === null
@@ -89,7 +90,8 @@
               :title="barTitle(bar)"
               :data-testid="`gantt-bar-${bar.operationNodeId}`"
               :data-overdue="isGanttBarOverdue(bar) ? 'true' : 'false'"
-              :tabindex="group.machineId === null ? -1 : 0"
+              :data-blocked="bar.isBlocked === true ? 'true' : 'false'"
+              :tabindex="group.machineId === null || bar.isBlocked === true ? -1 : 0"
               role="button"
               :aria-label="barTitle(bar)"
               @pointerdown="onBarPointerDown($event, group, bar)"
@@ -98,6 +100,9 @@
               <span class="gantt-bar__label">{{ bar.operationCode }} · {{ bar.productionOrderCode }}</span>
               <AppBadge v-if="isGanttBarOverdue(bar)" variant="danger" dot>
                 {{ $t('scheduleGantt.overdue') }}
+              </AppBadge>
+              <AppBadge v-if="bar.isBlocked === true" variant="warning" dot>
+                {{ $t('scheduleGantt.blocked') }}
               </AppBadge>
               <AppBadge v-if="warned[bar.operationNodeId] === true" variant="warning" dot>
                 {{ $t('scheduleGantt.noCoverage') }}
@@ -254,7 +259,8 @@ function formatTime(value: string): string {
 }
 
 function barTitle(bar: GanttBar): string {
-  return `${bar.operationCode} ${bar.productionOrderCode} ${formatTime(bar.plannedStart)}–${formatTime(bar.plannedEnd)}`;
+  const base = `${bar.operationCode} ${bar.productionOrderCode} ${formatTime(bar.plannedStart)}–${formatTime(bar.plannedEnd)}`;
+  return bar.isBlocked === true ? `${base} — ${t('scheduleGantt.blocked')}` : base;
 }
 
 function barStyle(group: GanttMachineGroup, bar: GanttBar): Record<string, string> {
@@ -336,6 +342,9 @@ function openOrder(productionOrderId: string): void {
 
 function beginDrag(e: PointerEvent, group: GanttMachineGroup, bar: GanttBar, mode: 'move' | 'resize'): void {
   if (e.button !== 0 || group.machineId === null || activeDrag.value !== null) return;
+  // Held orders are blocked, not schedulable: their bars stay inert (no drag
+  // or resize); the server rejects rescheduling them with a 400 as well.
+  if (bar.isBlocked === true) return;
   if (moving.value[bar.operationNodeId] === true) return;
   const startMs = new Date(bar.plannedStart).getTime();
   const endMs = new Date(bar.plannedEnd).getTime();
@@ -375,6 +384,9 @@ const KEYBOARD_WEEK_MS = 7 * 86400000;
 // via the same PUT + token flow as pointer drag, Esc cancels the preview.
 function onBarKeyDown(e: KeyboardEvent, group: GanttMachineGroup, bar: GanttBar): void {
   if (group.machineId === null || moving.value[bar.operationNodeId] === true) return;
+  // Blocked bars are not keyboard-movable either; Enter still opens the
+  // order so the operator can resume it from the detail view.
+  if (bar.isBlocked === true && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
   const startMs = new Date(bar.plannedStart).getTime();
   const endMs = new Date(bar.plannedEnd).getTime();
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return;
@@ -626,6 +638,10 @@ onUnmounted(() => {
 }
 .gantt-bar--overdue {
   background: var(--color-danger);
+}
+.gantt-bar--blocked {
+  background: var(--color-warning);
+  cursor: not-allowed;
 }
 .gantt-bar--preview {
   opacity: 0.85;
