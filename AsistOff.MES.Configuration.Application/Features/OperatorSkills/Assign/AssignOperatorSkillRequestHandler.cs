@@ -35,6 +35,10 @@ internal sealed class AssignOperatorSkillRequestHandler(
             throw new ConflictException(
                 $"Operator '{request.OperatorId}' already holds skill '{skill.Code}'.");
 
+        // The navigations are attached deliberately: the entities were just
+        // loaded in this scope, and Map reads display fields (operator
+        // identifier/name, skill code/name) so the Created response is
+        // complete without an extra round-trip.
         var qualification = new OperatorSkillQualification
         {
             Id = guidProvider.NewGuid(),

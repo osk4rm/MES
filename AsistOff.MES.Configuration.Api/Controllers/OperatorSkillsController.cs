@@ -16,7 +16,7 @@ public class OperatorSkillsController(ISender sender) : ApiController
     [HttpGet]
     public async Task<ActionResult<PagedResponse<OperatorSkillQualificationResponse>>> BrowseAsync(
         [FromQuery] BrowseOperatorSkillsRequest request, CancellationToken cancellationToken)
-        => await sender.Send(request, cancellationToken);
+        => Ok(await sender.Send(request, cancellationToken));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<OperatorSkillQualificationResponse>> GetAsync(

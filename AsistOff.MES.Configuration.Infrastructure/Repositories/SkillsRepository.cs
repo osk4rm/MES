@@ -42,8 +42,19 @@ internal sealed class SkillsRepository(DefaultContext context) : ISkillsReposito
         if (codes.Count == 0)
             return [];
 
+        // Case-insensitive match: the operator skill gating compares codes
+        // with OrdinalIgnoreCase in memory (issue #397), so the DB lookup
+        // must agree regardless of PostgreSQL's case-sensitive collation or
+        // the casing used in recipe capability text.
+        var normalized = codes
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c.ToUpperInvariant())
+            .ToHashSet(StringComparer.Ordinal);
+        if (normalized.Count == 0)
+            return [];
+
         return await context.Set<Skill>()
-            .Where(x => codes.Contains(x.Code))
+            .Where(x => normalized.Contains(x.Code.ToUpper()))
             .ToListAsync(cancellationToken);
     }
 
