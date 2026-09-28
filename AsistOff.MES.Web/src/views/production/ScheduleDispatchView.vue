@@ -98,6 +98,9 @@
             <AppBadge :variant="statusVariant(item.status)" :icon="statusIcon(item.status)" dot>
               {{ statusLabel(item.status) }}
             </AppBadge>
+            <AppBadge v-if="isDispatchRowBlocked(item)" variant="warning" icon="pi pi-pause" dot>
+              {{ $t('scheduleDispatch.blocked') }}
+            </AppBadge>
           </template>
         </AppTable>
       </AppCard>
@@ -122,6 +125,7 @@ import AppDataState from '../../components/ui/AppDataState.vue';
 import AppEmptyState from '../../components/ui/AppEmptyState.vue';
 import {
   currentWeekWindow,
+  isDispatchRowBlocked,
   isDispatchRowOverdue,
   scheduleService,
   type DispatchBoard,
@@ -168,6 +172,7 @@ function statusLabel(v: number): string {
   switch (v) {
     case ProductionOrderStatus.Released: return t('productionOrders.status.released');
     case ProductionOrderStatus.InProgress: return t('productionOrders.status.inProgress');
+    case ProductionOrderStatus.OnHold: return t('productionOrders.status.onHold');
     case ProductionOrderStatus.Planned: return t('productionOrders.status.planned');
     case ProductionOrderStatus.Completed: return t('productionOrders.status.completed');
     case ProductionOrderStatus.Closed: return t('productionOrders.status.closed');

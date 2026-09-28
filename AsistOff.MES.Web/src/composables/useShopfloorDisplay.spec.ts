@@ -106,11 +106,19 @@ describe('shopfloor display helpers (issue #331)', () => {
       productionOrderStatusMeta(ProductionOrderStatus.Released).icon,
       productionOrderStatusMeta(ProductionOrderStatus.InProgress).icon,
       productionOrderStatusMeta(ProductionOrderStatus.Completed).icon,
-      productionOrderStatusMeta(ProductionOrderStatus.Closed).icon
+      productionOrderStatusMeta(ProductionOrderStatus.Closed).icon,
+      productionOrderStatusMeta(ProductionOrderStatus.OnHold).icon
     ]);
-    expect(icons.size).toBe(5);
+    expect(icons.size).toBe(6);
     expect(productionOrderStatusMeta(ProductionOrderStatus.Released).variant).toBe('success');
     expect(productionOrderStatusMeta(ProductionOrderStatus.InProgress).variant).toBe('warning');
+  });
+
+  it('signals held orders as attention-needed with a pause glyph', () => {
+    expect(productionOrderStatusMeta(ProductionOrderStatus.OnHold)).toEqual({
+      variant: 'warning',
+      icon: 'pi pi-pause'
+    });
   });
 
   describe('useShopfloorDensity', () => {

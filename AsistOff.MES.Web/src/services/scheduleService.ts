@@ -26,11 +26,13 @@ export interface DispatchDay {
 }
 
 /**
- * A Released or InProgress Production Order that is overdue, due inside the
- * window or has no due date. Mirrors `DispatchOrderRowResponse`: read-time
- * confirmation totals plus the `isOverdue` flag. Rows arrive in the backend
- * ordering contract (overdue first, then due date ascending with nulls last,
- * then priority, then code) — the board renders them as returned.
+ * A Released, InProgress or OnHold Production Order that is overdue, due
+ * inside the window or has no due date. Mirrors `DispatchOrderRowResponse`:
+ * read-time confirmation totals plus the `isOverdue` flag and the `isBlocked`
+ * flag (true for held orders, which render as blocked, not schedulable).
+ * Rows arrive in the backend ordering contract (overdue first, then due date
+ * ascending with nulls last, then priority, then code) — the board renders
+ * them as returned.
  */
 export interface DispatchOrderRow {
   id: string;
@@ -44,6 +46,7 @@ export interface DispatchOrderRow {
   dueDate: string | null;
   status: number;
   isOverdue: boolean;
+  isBlocked: boolean;
 }
 
 /** Shift-aware dispatch board over a caller-supplied date window. */
@@ -99,4 +102,9 @@ export function currentWeekWindow(now: Date = new Date()): GetDispatchBoardQuery
 /** True when the row missed its due date before the window start. */
 export function isDispatchRowOverdue(row: DispatchOrderRow): boolean {
   return row.isOverdue;
+}
+
+/** True when the row is a held order: rendered as blocked, not schedulable. */
+export function isDispatchRowBlocked(row: DispatchOrderRow): boolean {
+  return row.isBlocked;
 }

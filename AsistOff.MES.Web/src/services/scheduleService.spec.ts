@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import http from './http';
 import {
   currentWeekWindow,
+  isDispatchRowBlocked,
   isDispatchRowOverdue,
   scheduleService,
   toDateOnlyString,
@@ -30,6 +31,7 @@ function row(overrides: Partial<DispatchOrderRow> = {}): DispatchOrderRow {
     dueDate: new Date('2026-09-24T00:00:00Z').toISOString(),
     status: 2,
     isOverdue: false,
+    isBlocked: false,
     ...overrides
   };
 }
@@ -119,5 +121,12 @@ describe('isDispatchRowOverdue', () => {
   it('mirrors the backend isOverdue flag', () => {
     expect(isDispatchRowOverdue(row({ isOverdue: true }))).toBe(true);
     expect(isDispatchRowOverdue(row({ isOverdue: false }))).toBe(false);
+  });
+});
+
+describe('isDispatchRowBlocked', () => {
+  it('mirrors the backend isBlocked flag for held orders', () => {
+    expect(isDispatchRowBlocked(row({ isBlocked: true }))).toBe(true);
+    expect(isDispatchRowBlocked(row({ isBlocked: false }))).toBe(false);
   });
 });

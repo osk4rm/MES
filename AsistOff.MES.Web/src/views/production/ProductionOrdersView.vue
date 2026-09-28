@@ -177,6 +177,7 @@ function statusLabel(v: number): string {
     case ProductionOrderStatus.InProgress: return t('productionOrders.status.inProgress');
     case ProductionOrderStatus.Completed: return t('productionOrders.status.completed');
     case ProductionOrderStatus.Closed: return t('productionOrders.status.closed');
+    case ProductionOrderStatus.OnHold: return t('productionOrders.status.onHold');
     default: return String(v);
   }
 }
@@ -188,6 +189,7 @@ function statusVariant(v: number): 'info' | 'primary' | 'success' | 'warning' | 
     case ProductionOrderStatus.InProgress: return 'warning';
     case ProductionOrderStatus.Completed: return 'primary';
     case ProductionOrderStatus.Closed: return 'idle';
+    case ProductionOrderStatus.OnHold: return 'warning';
     default: return 'info';
   }
 }
@@ -197,7 +199,8 @@ const statusOptions = computed(() => [
   ProductionOrderStatus.Released,
   ProductionOrderStatus.InProgress,
   ProductionOrderStatus.Completed,
-  ProductionOrderStatus.Closed
+  ProductionOrderStatus.Closed,
+  ProductionOrderStatus.OnHold
 ].map(v => ({ value: v, label: statusLabel(v) })));
 
 const statusFilterOptions = computed(() => [

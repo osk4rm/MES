@@ -33,7 +33,7 @@ internal sealed class ProductionOrdersRepository(DefaultContext context) : IProd
 
         return await context.Set<ProductionOrder>()
             .AsNoTracking()
-            .Where(x => x.Status == ProductionOrderStatus.Released || x.Status == ProductionOrderStatus.InProgress)
+            .Where(x => x.Status == ProductionOrderStatus.Released || x.Status == ProductionOrderStatus.InProgress || x.Status == ProductionOrderStatus.OnHold)
             .Where(x => x.DueDate == null
                 || x.DueDate < fromStartUtc
                 || (x.DueDate >= fromStartUtc && x.DueDate < toExclusiveUtc))

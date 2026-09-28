@@ -1,6 +1,7 @@
 using AsistOff.MES.Configuration.Domain.Entities;
 using AsistOff.MES.Configuration.Domain.Repositories;
 using AsistOff.MES.Production.Domain.Entities;
+using AsistOff.MES.Production.Domain.Enums;
 using AsistOff.MES.Production.Domain.Repositories;
 using AsistOff.MES.Shared.Abstractions.Contracts.Paging;
 using AsistOff.MES.Shared.Abstractions.Exceptions;
@@ -38,8 +39,10 @@ internal sealed class GetGanttScheduleRequestHandler(
         // simply never surface.
 
         // Same bounded server-side order set as the dispatch board (issue
-        // #274): Released/InProgress orders that are overdue, due inside the
-        // window or have no due date, capped at 200 rows.
+        // #274): Released/InProgress/OnHold orders that are overdue, due
+        // inside the window or have no due date, capped at 200 rows. Held
+        // orders keep their bars but flagged blocked, never schedulable
+        // (issue #398).
         var candidates = await ordersRepository.BrowseDispatchBoardAsync(
             request.From, request.To, MaxOrderRows, cancellationToken);
 
@@ -112,6 +115,7 @@ internal sealed class GetGanttScheduleRequestHandler(
                     continue;
 
                 var isOverdue = order.DueDate.HasValue && plannedEnd > EnsureUtc(order.DueDate.Value);
+                var isBlocked = order.Status == ProductionOrderStatus.OnHold;
 
                 if (!barsByMachine.TryGetValue(machineId ?? Guid.Empty, out var bars))
                 {
@@ -128,7 +132,8 @@ internal sealed class GetGanttScheduleRequestHandler(
                     machineId,
                     plannedStart,
                     plannedEnd,
-                    isOverdue));
+                    isOverdue,
+                    isBlocked));
             }
         }
 

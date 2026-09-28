@@ -20,6 +20,9 @@ internal sealed class CompleteProductionOrderRequestHandler(
 
         ProductionOrderConcurrency.RequireMatchIfPresent(order, request.ConcurrencyToken);
 
+        if (order.Status == ProductionOrderStatus.OnHold)
+            throw new ValidationException(nameof(order.Status), $"Production order '{order.Code}' is on hold and cannot be completed. Resume it first.");
+
         if (order.Status != ProductionOrderStatus.InProgress)
             throw new ConflictException("Only orders in InProgress status can be completed.");
 
