@@ -83,7 +83,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Skills | — | Configuration | done | — | `Skill` |
 | EAN / GTIN product identification | EAN / GTIN | Configuration | done | #166, #176, #212 | shopfloor scan lookup Code→Ean→Barcode; tenant-unique Ean (PRs #168, #178, #218) |
 | Operator shift assignment (roster) | Shift | Configuration | done | #167, #177 | `OperatorShiftAssignment`; which operators work which shift; depends on Work-center calendar / shifts |
-| Operator skill qualification matrix + gating | Operator | Configuration, Production | gap | — | depends on Skills + Operators + Operator confirmations (RW / PW); which operators hold which skills; warn/block dispatch + confirmation when unqualified |
+| Operator skill qualification matrix + gating | Operator | Configuration, Production | done | #397 | depends on Skills + Operators + Operator confirmations (RW / PW); qualification matrix + dispatch/confirmation gating (PR #402) |
 
 ## Production engineering
 
@@ -114,7 +114,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Read-path performance (paging, no-tracking, batch fetch) | Shift | Production | done | #274 | server-side DispatchBoard filtering/Take, AsNoTracking, MaxPageSize caps (PRs #277, #279) |
 | Shift handover logbook | Shift | Production | done | #292, #293 | depends on Work-center calendar / shifts + Operator confirmations (RW / PW); context API + persisted entries with notes (PRs #294, #302) |
 | Gantt scheduler (Harmonogram) | Operation / Routing | Production | done | #304, #305, #306 | depends on Operations / routing + Work-center calendar / shifts + Production Order; Gantt read-model + reschedule/leveling API + Harmonogram view; day/shift dispatch board renamed (PRs #310, #312, #317) |
-| Production Order hold / suspend + resume | Production Order | Production | gap | — | depends on Production Order; OnHold status + hold/resume transitions with reason code; confirmations + RW/PW movements blocked while held; cf. benchmark O4/G-03 |
+| Production Order hold / suspend + resume | Production Order | Production | done | #398 | depends on Production Order; OnHold status + hold/resume transitions with reason code; confirmations + RW/PW movements blocked while held (PR #401); cf. benchmark O4/G-03 |
 
 ## Analytics / integration
 
@@ -129,7 +129,7 @@ prefixed with `depends on` (e.g. `depends on #80`, `depends on Lot / Serial`).
 | Kanban | Kanban | Production | done | #145, #146, #147 | `KanbanLoop` dictionary + card registry; pull transitions with WIP limits; board UI (PRs #149, #155, #158) |
 | MTBF / MTTR reliability KPIs | MTBF / MTTR | Production | done | #170, #171, #213, #214, #220 | per-Work Center snapshot query + API + dashboard; trend + fleet comparison (PRs #173, #175, #215, #216, #222) |
 | OEE/analytics index review | OEE | Production | done | #266 | (TenantId,MachineId,ReportedAt) confirmations index, tenant FK indexes (PR #270) |
-| OEE ideal cycle time from routing master data | Performance | Production | gap | — | depends on Operations / routing + OEE; resolve RunTimePerUnitSeconds → Performance instead of caller-supplied idealCycleTimeSeconds query param |
+| OEE ideal cycle time from routing master data | Performance | Production | done | #399 | depends on Operations / routing + OEE; RunTimePerUnitSeconds → Performance instead of caller-supplied idealCycleTimeSeconds (PR #400) |
 
 ## Security hardening
 
@@ -162,4 +162,4 @@ isolation) and #363 (SHA pinning) are `ai:blocked` hence `proposed`.
 | Seq authentication | — | Ops | done | #377 | **Low**; Seq authenticated, dev bound to localhost (PR #378) |
 | Legacy dependency modernization | — | Shared, Users, Multitenancy | done | #366 | **Low**; EOL AspNetCore 2.x shims + Swashbuckle 6.x replaced (PR #370) |
 
-_Last reconciled: 2026-09-28 — #308 (build-context secret exclusion, PR #309) is `done`: security audit rows now 20 `done`; #307 + #363 stay `proposed` (`ai:blocked`). No open PRs; no other status changes; no new code capabilities missing from the tracker. Previously 2026-09-27 — all pre-existing `gap` rows closed out: Gantt/Harmonogram (#304–#306, PRs #310/#312/#317), operator panel (#335/#336), end-user manual (#343/#345/#359), tech spec (#346/#352), UX review (#314/#380/#382/#383/#389/#392), recipe verification + order-ready V1 (#319/#386/#388) and benchmark (#320) are `done`._
+_Last reconciled: 2026-09-29 — all three `gap` rows closed out: operator skill matrix (#397, PR #402), Production Order hold/resume (#398, PR #401) and OEE ideal cycle time from routing (#399, PR #400) are `done`; #307 + #363 stay `proposed` (`ai:blocked`). No open PRs; no other status changes; no new code capabilities missing from the tracker. Previously 2026-09-28 — #308 (build-context secret exclusion, PR #309) is `done`: security audit rows now 20 `done`; #307 + #363 stay `proposed` (`ai:blocked`)._
