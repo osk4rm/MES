@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" role="img" aria-labelledby="orgLogoTitle orgLogoDesc">
+  <title id="orgLogoTitle">AsistOff — logo organizacji</title>
+  <desc id="orgLogoDesc">Pełnoszerokościowe logo organizacji AsistOff: hala produkcyjna i napis AsistOff Manufacturing Execution System.</desc>
+  <defs>
+    <linearGradient id="orgBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E3A5F"/>
+      <stop offset="1" stop-color="#0B1D33"/>
+    </linearGradient>
+    <linearGradient id="orgAccent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F9D423"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="400" fill="url(#orgBg)"/>
+  <!-- subtle grid / shopfloor lines -->
+  <g stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="1">
+    <path d="M0 320 H1600"/>
+    <path d="M0 260 H1600"/>
+    <path d="M0 200 H1600"/>
+    <path d="M200 0 V400"/>
+    <path d="M500 0 V400"/>
+    <path d="M800 0 V400"/>
+    <path d="M1100 0 V400"/>
+    <path d="M1400 0 V400"/>
+  </g>
+  <!-- factory mark -->
+  <g transform="translate(140,110)">
+    <rect x="0" y="60" width="220" height="120" rx="12" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-opacity="0.9"/>
+    <path d="M0 60 L40 20 L40 60 L80 20 L80 60 L120 20 L120 60 L160 20 L160 60 L220 60" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-opacity="0.9" stroke-linejoin="round"/>
+    <rect x="30" y="110" width="34" height="70" fill="url(#orgAccent)"/>
+    <rect x="80" y="110" width="34" height="70" fill="#FFFFFF" fill-opacity="0.85"/>
+    <rect x="130" y="110" width="34" height="70" fill="#FFFFFF" fill-opacity="0.55"/>
+  </g>
+  <g font-family="Inter, Segoe UI, Arial, sans-serif" fill="#FFFFFF">
+    <text x="420" y="205" font-size="110" font-weight="700" letter-spacing="2">AsistOff</text>
+    <rect x="424" y="232" width="180" height="10" rx="5" fill="url(#orgAccent)"/>
+    <text x="422" y="290" font-size="36" font-weight="500" letter-spacing="4" fill-opacity="0.9">MANUFACTURING EXECUTION SYSTEM</text>
+  </g>
+  <g font-family="Inter, Segoe UI, Arial, sans-serif" fill="#FFFFFF" fill-opacity="0.75">
+    <text x="1420" y="355" font-size="22" text-anchor="end" letter-spacing="2">PULPIT • START</text>
+  </g>
+</svg>

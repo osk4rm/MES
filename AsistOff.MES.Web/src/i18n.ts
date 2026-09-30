@@ -135,7 +135,10 @@ const pl = {
     warehouses: 'Magazyny',
     live: 'Na żywo',
     emptyTitle: 'Brak danych do wyświetlenia',
-    emptyHint: 'Ten tenant nie ma jeszcze zleceń, stanowisk, operatorów ani magazynów.'
+    emptyHint: 'Ten tenant nie ma jeszcze zleceń, stanowisk, operatorów ani magazynów.',
+    organizationHeroTitle: 'Logo organizacji',
+    organizationLogoAlt: 'Logo organizacji AsistOff na stronie startowej',
+    organizationHeroText: 'Logo organizacji — plik public/organization-logo.svg można podmienić na docelową grafikę bez zmian kodu.'
   },
   products: {
     title: 'Produkty',
@@ -1263,7 +1266,10 @@ const en: typeof pl = {
     warehouses: 'Warehouses',
     live: 'Live',
     emptyTitle: 'No data to show',
-    emptyHint: 'This tenant has no orders, work centers, operators or warehouses yet.'
+    emptyHint: 'This tenant has no orders, work centers, operators or warehouses yet.',
+    organizationHeroTitle: 'Organization logo',
+    organizationLogoAlt: 'AsistOff organization logo on the start page',
+    organizationHeroText: 'Organization logo — replace the public/organization-logo.svg file with the final artwork without code changes.'
   },
   products: {
     title: 'Products',
