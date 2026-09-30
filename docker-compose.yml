@@ -130,6 +130,12 @@ services:
       seq:
         condition: service_started
     healthcheck:
+      # Coolify lesson (2026-09-30): this probe sends `Host: localhost`, so
+      # the server-side `AllowedHosts` MUST always include the loopback hosts
+      # alongside the public name, e.g.
+      # AllowedHosts="<public-host>;localhost;127.0.0.1;[::1]".
+      # A public-host-only value 400s the probe and the api is declared
+      # unhealthy forever (deploy fails even though the app boots fine).
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 10s
