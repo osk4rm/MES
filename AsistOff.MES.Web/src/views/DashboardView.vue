@@ -1,6 +1,15 @@
 <template>
   <div>
     <AppPageHeader :title="$t('dashboard.title')" :subtitle="$t('dashboard.subtitle')" icon="pi pi-chart-pie" />
+    <section class="dashboard__hero" :aria-label="$t('dashboard.organizationHeroTitle')">
+      <img
+        class="dashboard__hero-logo"
+        src="/organization-logo.svg"
+        :alt="$t('dashboard.organizationLogoAlt')"
+        data-testid="organization-logo"
+      />
+      <p class="dashboard__hero-caption">{{ $t('dashboard.organizationHeroText') }}</p>
+    </section>
     <div class="dashboard__banner">
       <i class="pi pi-info-circle" aria-hidden="true"></i>
       {{ $t('dashboard.placeholderNote') }}
@@ -99,6 +108,27 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.dashboard__hero {
+  margin-bottom: var(--space-5);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-border);
+}
+
+.dashboard__hero-logo {
+  display: block;
+  width: 100%;
+  height: clamp(180px, 28vw, 340px);
+  object-fit: cover;
+}
+
+.dashboard__hero-caption {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
 .dashboard__banner {
   display: inline-flex;
   align-items: center;
