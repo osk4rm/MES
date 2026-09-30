@@ -111,16 +111,19 @@ services:
       # TRUSTED_PROXY_NETWORK=172.18.0.0/16 in .env. Never expose the api
       # container directly to the internet while trusting private ranges.
       TrustedProxies__KnownNetworks__0: "${TRUSTED_PROXY_NETWORK:-}"
-      # Attachment blobs (issue #373): absolute blob root inside the container.
-      # The attachments_data volume is mounted at the same path below, so
-      # uploaded binaries survive container recreates. An absolute override
-      # passes through LocalFileStorage unchanged; a relative value resolves
-      # against the content root (/app in the image).
+      # Attachment blobs (issue #373, Coolify fix): absolute blob root inside
+      # the container. The attachments_data volume below is mounted at the
+      # same fixed path, so uploaded binaries survive container recreates.
+      # NOTE: the volume target must stay a static path — Coolify rejects
+      # variable interpolation (${...}) in volume targets, so a custom
+      # ATTACHMENTS_ROOT_PATH only changes the app config, not the mount.
+      # Keep the default unless you also remap the volume.
       Attachments__LocalStorage__RootPath: "${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}"
     volumes:
       # Durable attachment blobs (issue #373): survives `docker compose down`
-      # (volumes are kept) and container recreates/redeploys.
-      - attachments_data:${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}
+      # (volumes are kept) and container recreates/redeploys. Static target
+      # (Coolify rejects ${...} in volume targets).
+      - attachments_data:/app/App_Data/attachments
     depends_on:
       postgres:
         condition: service_healthy
@@ -221,12 +224,14 @@ services:
       # set TRUSTED_PROXY_NETWORK to the compose network CIDR so nginx
       # X-Forwarded-For is honored; empty keeps default-deny (fail-closed).
       TrustedProxies__KnownNetworks__0: "${TRUSTED_PROXY_NETWORK:-}"
-      # Attachment blobs (issue #373): same durable root as the api service —
-      # the attachments_data volume is mounted at this path, so strict plant
-      # rollouts keep proof-of-quality files across redeploys.
+      # Attachment blobs (issue #373, Coolify fix): same durable root as the
+      # api service — the attachments_data volume below is mounted at this
+      # fixed path, so strict plant rollouts keep proof-of-quality files
+      # across redeploys. Volume target must stay static (Coolify rejects
+      # ${...} in volume targets); see the api service comment.
       Attachments__LocalStorage__RootPath: "${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}"
     volumes:
-      - attachments_data:${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}
+      - attachments_data:/app/App_Data/attachments
     depends_on:
       postgres:
         condition: service_healthy
@@ -283,6 +288,7 @@ volumes:
   seq_data:
   # Attachment binaries (certificates, photos, control-chart exports backing
   # Genealogy evidence and the audit trail, issue #373). Mounted into api and
-  # api-prod at ${ATTACHMENTS_ROOT_PATH:-/app/App_Data/attachments}; survives
-  # container recreates and redeploys. Metadata rows stay in Postgres.
+  # api-prod at /app/App_Data/attachments (static target — Coolify rejects
+  # ${...} in volume targets); survives container recreates and redeploys.
+  # Metadata rows stay in Postgres.
   attachments_data:
