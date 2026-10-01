@@ -111,7 +111,7 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
       - uses: ./.github/actions/setup-opencode
@@ -451,7 +451,7 @@ jobs:
         if: steps.pr.outputs.skip != 'true'
         with:
           dotnet-version: '10.0.x'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: steps.pr.outputs.skip != 'true'
         with:
           node-version: 20
@@ -552,7 +552,7 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
       - name: Cache NuGet packages
@@ -762,7 +762,7 @@ jobs:
         if: steps.pr.outputs.skip != 'true'
         with:
           dotnet-version: '10.0.x'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: steps.pr.outputs.skip != 'true'
         with:
           node-version: 20
