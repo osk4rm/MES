@@ -20,7 +20,7 @@ RUN npm run build
 # Serve stage
 # Pinned by digest (issue #271). Runs as the non-root `nginx` user on
 # unprivileged port 8080: `docker exec <web> id -u` reports a non-zero UID.
-FROM nginx:alpine@sha256:1ed1b0e1d7652937d6cbdaf4018c7b6fc009a7dd6c3047351e2eddda745de43f AS runtime
+FROM nginx:alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2 AS runtime
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker-entrypoint.sh /docker-entrypoint.sh
