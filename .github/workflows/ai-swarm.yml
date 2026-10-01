@@ -98,7 +98,7 @@ jobs:
     steps:
       # fetch-depth 0: agents merge master into their branches — a shallow
       # clone hides the merge base and git invents bogus conflicts.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
@@ -274,7 +274,7 @@ jobs:
       # Checkout first: the resolve step needs scripts/ci/swarm-lib.sh,
       # which only exists after checkout (no automatic checkout on
       # workflow_run events). PR merge ref is checked out after resolving.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - name: Resolve PR number
@@ -315,7 +315,7 @@ jobs:
               echo "skip=true" >>"$GITHUB_OUTPUT"
             fi
           fi
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         if: steps.pr.outputs.skip != 'true'
         with:
           repository: ${{ github.repository }}
@@ -421,7 +421,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - name: Resolve PR number
@@ -442,7 +442,7 @@ jobs:
             swarm_after_verify_sound "$PR"
             echo "skip=true" >>"$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         if: steps.pr.outputs.skip != 'true'
         with:
           repository: ${{ github.repository }}
@@ -530,7 +530,7 @@ jobs:
       # The fix job checks out the PR HEAD BRANCH, never refs/pull/N/merge:
       # the merge ref does not exist while the PR conflicts with master — and
       # a conflicting PR is exactly what this job must be able to repair.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - name: Resolve PR head
@@ -544,7 +544,7 @@ jobs:
           echo "number=$PR" >>"$GITHUB_OUTPUT"
           echo "head=$HEAD_REF" >>"$GITHUB_OUTPUT"
       # fetch-depth 0 so the master merge below has a real merge base.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: ${{ github.repository }}
           ref: refs/pull/${{ steps.pr.outputs.number }}/head
@@ -730,7 +730,7 @@ jobs:
       postgres__connectionString: 'Host=localhost;Port=5432;Database=mes;Username=admin;Password=root'
       VITE_API_BASE_URL: 'http://localhost:5243/'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - name: Resolve PR number
@@ -753,7 +753,7 @@ jobs:
             swarm_say pr "$PR" 'Agent flow (CI): e2e already passed for this head SHA. Auto-merge will take it from here (ai:ready).'
             echo "skip=true" >>"$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         if: steps.pr.outputs.skip != 'true'
         with:
           repository: ${{ github.repository }}
@@ -874,7 +874,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - uses: ./.github/actions/setup-opencode
@@ -914,7 +914,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - uses: ./.github/actions/setup-opencode
@@ -948,7 +948,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - name: Re-fire oldest queued issue when a slot is free
@@ -1002,7 +1002,7 @@ jobs:
       group: ai-swarm-mutate-${{ github.event.pull_request.number || inputs.number || github.run_id }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - name: Merge when CI is green
@@ -1081,7 +1081,7 @@ jobs:
       group: ai-swarm-analyst
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - uses: ./.github/actions/setup-opencode
@@ -1124,7 +1124,7 @@ jobs:
       group: ai-swarm-self-test
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - name: bash -n every swarm script
